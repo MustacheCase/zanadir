@@ -4,24 +4,24 @@ import json
 import subprocess
 
 # --- Configuration ---
+REPO_OWNER = os.environ.get("GITHUB_REPOSITORY_OWNER")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 REPO = os.environ.get("GITHUB_REPOSITORY")  # e.g., "username/repo"
 PR_NUMBER = os.environ.get("GITHUB_REF").split('/')[-1]  # Extract PR number from ref
 
 # --- Functions ---
-def get_pr_diff():
+def fetch_pr_diff(repo_owner, repo_name, pr_number):
     """
     Use git to get the diff of the current pull request.
     In a real scenario, you might use GitHub’s API to fetch the diff.
     """
-    try:
-        # This command gets the diff between the PR branch and the base branch.
-        result = subprocess.run(["git", "diff", "origin/main"], capture_output=True, text=True)
-        return result.stdout
-    except Exception as e:
-        print("Error getting diff:", e)
-        return ""
+    url = f"https://github.com/{repo_owner}/{repo_name}/pull/{pr_number}.diff"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.text
+    else:
+        raise Exception(f"Failed to fetch PR diff: {response.status_code}, {response.text}")
 
 def generate_review(diff_text):
     prompt = (
@@ -82,7 +82,7 @@ def post_comment(review_text):
 
 # --- Main Workflow ---
 if __name__ == "__main__":
-    diff = get_pr_diff()
+    diff = fetch_pr_diff(REPO_OWNER, REPO, PR_NUMBER)
     if not diff.strip():
         print("No diff found to review.")
         exit(0)

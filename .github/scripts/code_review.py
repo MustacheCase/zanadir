@@ -8,7 +8,7 @@ REPO_OWNER = os.environ.get("GITHUB_REPOSITORY_OWNER")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 REPO = os.environ.get("GITHUB_REPOSITORY")  # e.g., "username/repo"
-PR_NUMBER = os.environ.get("GITHUB_REF").split('/')[-1]  # Extract PR number from ref
+PR_NUMBER = os.environ.get("PR_NUMBER")
 
 # --- Functions ---
 def fetch_pr_diff(repo_owner, repo_name, pr_number):
@@ -85,7 +85,7 @@ def post_comment(review_text):
 
 # --- Main Workflow ---
 if __name__ == "__main__":
-    diff = fetch_pr_diff(REPO_OWNER, REPO, PR_NUMBER)
+    diff = fetch_pr_diff(REPO_OWNER, REPO.split('/')[-1], PR_NUMBER)
     if not diff.strip():
         print("No diff found to review.")
         exit(0)

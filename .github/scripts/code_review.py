@@ -52,7 +52,7 @@ def generate_review(diff_text):
         "Authorization": f"Bearer {OPENAI_API_KEY}"
     }
     data = {
-        "model": "gpt-3.5-turbo",
+        "model": "gpt-4o",
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 2000, 
     }

@@ -14,11 +14,10 @@ PR_NUMBER = os.environ.get("PR_NUMBER")
 def fetch_pr_diff(repo_owner, repo_name, pr_number):
     """
     Use git to get the diff of the current pull request.
-    In a real scenario, you might use GitHub’s API to fetch the diff.
     """
-    print("REPO_OWNER:" + REPO_OWNER)
-    print("REPO:" + REPO)
-    print("PR_NUMBER:" +PR_NUMBER)
+    print("REPO_OWNER:" + repo_owner)
+    print("REPO:" + repo_name)
+    print("PR_NUMBER:" +pr_number)
     url = f"https://github.com/{repo_owner}/{repo_name}/pull/{pr_number}.diff"
     response = requests.get(url)
     if response.status_code == 200:

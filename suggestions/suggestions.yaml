@@ -1,0 +1,34 @@
+categories:
+  - name: "SCA Open Source Tools"
+    description: "SCA tools help track open-source components and detect vulnerabilities"
+    suggestions:
+      - name: "Grype"
+        repository: "https://github.com/anchore/grype"
+        description: "A vulnerability scanner for container images and filesystems."
+
+      - name: "Trivy"
+        repository: "https://github.com/aquasecurity/trivy"
+        description: "A simple and comprehensive vulnerability scanner for containers, Kubernetes, and code repositories."
+
+      - name: "Snyk"
+        repository: "https://github.com/snyk/snyk"
+        description: "A developer-first security tool that finds and automatically fixes vulnerabilities in dependencies."
+
+  - name: "Data Leakage & Secrets Detection"
+    description: "Tools that help detect sensitive information such as secrets, API keys, and credentials in source code and configurations."
+    suggestions:
+      - name: "Gitleaks"
+        repository: "https://github.com/gitleaks/gitleaks"
+        description: "A fast and configurable tool for detecting secrets in Git repositories."
+
+      - name: "TruffleHog"
+        repository: "https://github.com/trufflesecurity/trufflehog"
+        description: "Searches through Git repositories for secrets and credentials using entropy analysis and pattern matching."
+
+      - name: "GitGuardian CLI"
+        repository: "https://github.com/GitGuardian/ggshield"
+        description: "A CLI tool to prevent sensitive data leaks by scanning repositories, commits, and code."
+
+      - name: "Detect-Secrets"
+        repository: "https://github.com/Yelp/detect-secrets"
+        description: "An enterprise-friendly tool to detect secrets in source code using pre-commit hooks."

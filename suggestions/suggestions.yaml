@@ -1,5 +1,6 @@
 categories:
-  - name: "SCA Open Source Tools"
+  - id: "SCA"
+    name: "SCA Open Source Tools"
     description: "SCA tools help track open-source components and detect vulnerabilities"
     suggestions:
       - name: "Grype"
@@ -13,8 +14,9 @@ categories:
       - name: "Snyk"
         repository: "https://github.com/snyk/snyk"
         description: "A developer-first security tool that finds and automatically fixes vulnerabilities in dependencies."
-
-  - name: "Data Leakage & Secrets Detection"
+        
+  - id: "Secrets"
+    name: "Data Leakage & Secrets Detection"
     description: "Tools that help detect sensitive information such as secrets, API keys, and credentials in source code and configurations."
     suggestions:
       - name: "Gitleaks"

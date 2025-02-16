@@ -12,6 +12,7 @@ type service struct{}
 
 // Category represents a category of suggestions
 type Category struct {
+	ID          string        `yaml:"id"`
 	Name        string        `yaml:"name"`
 	Description string        `yaml:"description"`
 	Suggestions []*Suggestion `yaml:"suggestions"`

@@ -1,11 +1,14 @@
 import os
-import requests
 import json
-import subprocess
+import requests  # still used for posting GitHub comments
+
+# Import the Gemini SDK
+from google import genai
+from google.genai import types
 
 # --- Configuration ---
 REPO_OWNER = os.environ.get("GITHUB_REPOSITORY_OWNER")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 REPO = os.environ.get("GITHUB_REPOSITORY")  # e.g., "username/repo"
 PR_NUMBER = os.environ.get("PR_NUMBER")
@@ -13,11 +16,11 @@ PR_NUMBER = os.environ.get("PR_NUMBER")
 # --- Functions ---
 def fetch_pr_diff(repo_owner, repo_name, pr_number):
     """
-    Use git to get the diff of the current pull request.
+    Use GitHub to get the diff of the current pull request.
     """
-    print("REPO_OWNER:" + repo_owner)
-    print("REPO:" + repo_name)
-    print("PR_NUMBER:" +pr_number)
+    print("REPO_OWNER: " + repo_owner)
+    print("REPO: " + repo_name)
+    print("PR_NUMBER: " + pr_number)
     url = f"https://github.com/{repo_owner}/{repo_name}/pull/{pr_number}.diff"
     response = requests.get(url)
     if response.status_code == 200:
@@ -26,6 +29,7 @@ def fetch_pr_diff(repo_owner, repo_name, pr_number):
         raise Exception(f"Failed to fetch PR diff: {response.status_code}, {response.text}")
 
 def generate_review(diff_text):
+    # Build the prompt with detailed review instructions.
     prompt = (
         "You are a GO code review assistant. Your task is to review the following code diff with a focus on these areas:\n\n"
         "1. Code Quality:\n"
@@ -49,23 +53,14 @@ def generate_review(diff_text):
         "Review:"
     )
     
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
-    }
-    data = {
-        "model": "gpt-4o",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 2000, 
-    }
+    # Initialize the Gemini client using your API key.
+    client = genai.Client(api_key=GEMINI_API_KEY)
     
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=data)
-    if response.status_code == 200:
-        review = response.json()['choices'][0]['message']['content']
-        return review
-    else:
-        print("OpenAI API error:", response.text)
-        return "Error generating review."
+    # Generate the review using the Gemini API.
+    response = client.models.generate_content(
+        model="gemini-2.0-flash",
+        contents=prompt)
+    return response.text
 
 def post_comment(review_text):
     url = f"https://api.github.com/repos/{REPO}/issues/{PR_NUMBER}/comments"
@@ -73,9 +68,7 @@ def post_comment(review_text):
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github+json"
     }
-    data = {
-        "body": review_text
-    }
+    data = {"body": review_text}
     response = requests.post(url, headers=headers, data=json.dumps(data))
     if response.status_code in [200, 201]:
         print("Review comment posted successfully.")

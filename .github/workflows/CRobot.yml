@@ -14,10 +14,12 @@ jobs:
       - name: Set Up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.9'
 
       - name: Install Dependencies
-        run: pip install requests
+        run: |
+          pip install requests
+          pip install -q -U google-genai
 
       - name: Run Code Review Script
         env:

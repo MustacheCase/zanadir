@@ -7,12 +7,14 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/MustacheCase/zanadir/models"
 	"gopkg.in/yaml.v3"
 )
 
 type Collection struct {
 	ByCategory map[string][]*Rule
 	ByID       map[string]*Rule
+	Skip       map[string]bool
 }
 
 type fileRule struct {
@@ -28,6 +30,18 @@ type Rule struct {
 	Categories []string
 	Regex      *regexp.Regexp
 	IsChecked  bool
+}
+
+type Service interface {
+	GetCategoryRules(category models.Category) []*Rule
+}
+
+type service struct {
+	RulesCollection *Collection
+}
+
+func (s *service) GetCategoryRules(category models.Category) []*Rule {
+	return s.RulesCollection.ByCategory[string(category)]
 }
 
 func readYAMLRules() ([]fileRule, error) {
@@ -75,7 +89,7 @@ func convertRules(rules []fileRule) []*Rule {
 	return convertedRules
 }
 
-func NewRulesCollection() (*Collection, error) {
+func createRulesCollection() (*Collection, error) {
 	rules, err := readYAMLRules()
 	if err != nil {
 		return nil, err
@@ -95,5 +109,16 @@ func NewRulesCollection() (*Collection, error) {
 	return &Collection{
 		ByCategory: categoryMap,
 		ByID:       idMap,
+	}, nil
+}
+
+func NewRulesService() (Service, error) {
+	collection, err := createRulesCollection()
+	if err != nil {
+		return nil, err
+	}
+
+	return &service{
+		RulesCollection: collection,
 	}, nil
 }

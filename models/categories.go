@@ -1,6 +1,8 @@
 package models
 
 const (
-	SCA = iota
-	Secrets
+	SCA     Category = "SCA"
+	Secrets Category = "Secrets"
 )
+
+type Category string

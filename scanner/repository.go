@@ -38,3 +38,7 @@ func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, erro
 	// print log which we didn't find any ci actions
 	return nil, nil
 }
+
+func NewRepositoryScanner() Scanner {
+	return &RepositoryScanner{}
+}

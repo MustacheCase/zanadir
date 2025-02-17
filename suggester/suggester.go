@@ -1,4 +1,4 @@
-package suggestions
+package suggester
 
 import (
 	"os"

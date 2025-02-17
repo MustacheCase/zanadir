@@ -32,7 +32,7 @@ type Rule struct {
 	IsChecked  bool
 }
 
-type Service interface {
+type RuleService interface {
 	GetCategoryRules(category models.Category) []*Rule
 }
 
@@ -112,7 +112,7 @@ func createRulesCollection() (*Collection, error) {
 	}, nil
 }
 
-func NewRulesService() (Service, error) {
+func NewRulesService() (RuleService, error) {
 	collection, err := createRulesCollection()
 	if err != nil {
 		return nil, err

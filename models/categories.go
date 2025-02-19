@@ -1,8 +1,12 @@
-package models
+package suggester
 
 const (
-	SCA     Category = "SCA"
-	Secrets Category = "Secrets"
+	SCA     CategoryType = "SCA"
+	Secrets CategoryType = "Secrets"
+	Table   Format       = "table"
+	JSON    Format       = "json"
 )
 
-type Category string
+type CategoryType string
+
+type Format string

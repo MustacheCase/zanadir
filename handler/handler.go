@@ -13,13 +13,23 @@ type Handler struct {
 	ScanService       scanner.Scanner
 	SuggestionService suggester.Suggester
 	MatchService      matcher.Matcher
-	NewOutputService  output.Output
+	OutputService     output.Output
 }
 
-func Execute() error {
+func (h *Handler) Execute() error {
 	return nil
 }
 
-func NewHandler(dir string) *Handler {
-	return nil
+func NewHandler() (*Handler, error) {
+	rulesService, err := rules.NewRulesService()
+	if err != nil {
+		return nil, err
+	}
+	return &Handler{
+		RulesService:      rulesService,
+		ScanService:       scanner.NewScanService(),
+		SuggestionService: suggester.NewSuggestionService(),
+		MatchService:      matcher.NewMatchService(),
+		OutputService:     output.NewOutputService(),
+	}, nil
 }

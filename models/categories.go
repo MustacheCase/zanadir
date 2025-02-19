@@ -1,12 +1,14 @@
-package suggester
+package models
 
 const (
-	SCA     CategoryType = "SCA"
-	Secrets CategoryType = "Secrets"
-	Table   Format       = "table"
-	JSON    Format       = "json"
+	SCA     CategoryTitle = "SCA"
+	Secrets CategoryTitle = "Secrets"
+	Table   Format        = "table"
+	JSON    Format        = "json"
 )
 
-type CategoryType string
+var CategoryTitles = []CategoryTitle{SCA, Secrets}
+
+type CategoryTitle string
 
 type Format string

@@ -2,6 +2,7 @@ package suggester
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
@@ -28,24 +29,35 @@ type Suggestion struct {
 	Language    string `yaml:"language"`
 }
 
+// CategoryFile file
+type CategoryFile struct {
+	Categories []CategorySuggestion `yaml:"categories"`
+}
+
 type Suggester interface {
 	CategorySuggestion() ([]CategorySuggestion, error)
 	FindSuggestions(findings []*matcher.Finding) ([]*CategorySuggestion, error)
 }
 
 func (s *service) CategorySuggestion() ([]CategorySuggestion, error) {
-	data, err := os.ReadFile(suggestionsFile)
+	basePath, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	absPath := filepath.Join(basePath, "suggester", suggestionsFile)
+
+	data, err := os.ReadFile(absPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var suggestions []CategorySuggestion
+	var suggestions CategoryFile
 	err = yaml.Unmarshal(data, &suggestions)
 	if err != nil {
 		return nil, err
 	}
 
-	return suggestions, nil
+	return suggestions.Categories, nil
 }
 
 func (s *service) FindSuggestions(findings []*matcher.Finding) ([]*CategorySuggestion, error) {

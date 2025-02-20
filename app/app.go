@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	handler "github.com/MustacheCase/zanadir/handler"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +27,9 @@ var scanCmd = &cobra.Command{
 			cmd.Help()
 			os.Exit(1)
 		}
-		scanRepo(dir)
+		if err := scanRepo(dir); err != nil {
+			os.Exit(1)
+		}
 	},
 }
 
@@ -42,7 +45,18 @@ func NewApp() *cobra.Command {
 	return rootCmd
 }
 
-// scanRepo function (dummy implementation)
-func scanRepo(dir string) {
+// scanRepo function
+func scanRepo(dir string) error {
+	scanHandler, err := handler.NewHandler()
+	if err != nil {
+		// log the error
+		return err
+	}
 	// Add scanning logic here
+	err = scanHandler.Execute(dir)
+	if err != nil {
+		return err
+	}
+	
+	return nil
 }

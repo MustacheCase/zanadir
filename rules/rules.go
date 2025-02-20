@@ -24,6 +24,10 @@ type fileRule struct {
 	Regex      string   `yaml:"regex"`
 }
 
+type fileRules struct {
+	Rules []fileRule `yaml:"rules"`
+}
+
 type Rule struct {
 	ID         string
 	ApplyOn    []string
@@ -33,21 +37,28 @@ type Rule struct {
 }
 
 type RuleService interface {
-	GetCategoryRules(category models.Category) []*Rule
+	GetCategoryRules(category models.CategoryTitle) []*Rule
 }
 
 type service struct {
 	RulesCollection *Collection
 }
 
-func (s *service) GetCategoryRules(category models.Category) []*Rule {
+func (s *service) GetCategoryRules(category models.CategoryTitle) []*Rule {
 	return s.RulesCollection.ByCategory[string(category)]
 }
 
 func readYAMLRules() ([]fileRule, error) {
 	var rules []fileRule
 
-	err := filepath.WalkDir("./storage", func(path string, d fs.DirEntry, err error) error {
+	basePath, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	absPath := filepath.Join(basePath, "rules", "storage")
+
+	err = filepath.WalkDir(absPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -60,12 +71,12 @@ func readYAMLRules() ([]fileRule, error) {
 			return err
 		}
 
-		var fileRules []fileRule
-		if err := yaml.Unmarshal(data, &fileRules); err != nil {
+		var fr fileRules
+		if err := yaml.Unmarshal(data, &fr); err != nil {
 			return fmt.Errorf("error parsing YAML file %s: %w", path, err)
 		}
 
-		rules = append(rules, fileRules...)
+		rules = append(rules, fr.Rules...)
 		return nil
 	})
 

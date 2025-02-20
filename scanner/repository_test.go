@@ -28,11 +28,13 @@ func (m *MockParser) Parse(path string) ([]*models.Artifact, error) {
 }
 
 var (
-	mockParser *MockParser
+	mockParser  *MockParser
+	mockScanner = new(MockScanner)
 )
 
 func setup() {
 	mockParser = new(MockParser)
+	mockScanner = new(MockScanner)
 }
 
 func TestRepositoryScanner_Scan(t *testing.T) {

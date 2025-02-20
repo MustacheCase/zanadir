@@ -47,7 +47,7 @@ func NewApp() *cobra.Command {
 
 // scanRepo function
 func scanRepo(dir string) error {
-	scanHandler, err := handler.NewHandler()
+	scanHandler, err := handler.Setup()
 	if err != nil {
 		// log the error
 		return err
@@ -57,6 +57,6 @@ func scanRepo(dir string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }

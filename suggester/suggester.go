@@ -35,7 +35,6 @@ type CategoryFile struct {
 }
 
 type Suggester interface {
-	CategorySuggestion() ([]CategorySuggestion, error)
 	FindSuggestions(findings []*matcher.Finding) ([]*CategorySuggestion, error)
 }
 
@@ -66,7 +65,7 @@ func (s *service) FindSuggestions(findings []*matcher.Finding) ([]*CategorySugge
 	for _, f := range findings {
 		coveredCategories[f.Category] = true
 	}
-	categoriesMap, err := s.CategorySuggestionMap()
+	categoriesMap, err := s.categorySuggestionMap()
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +81,7 @@ func (s *service) FindSuggestions(findings []*matcher.Finding) ([]*CategorySugge
 	return categoriesSuggestions, nil
 }
 
-func (s *service) CategorySuggestionMap() (map[string]*CategorySuggestion, error) {
+func (s *service) categorySuggestionMap() (map[string]*CategorySuggestion, error) {
 	categoriesMap := make(map[string]*CategorySuggestion)
 	categories, err := s.CategorySuggestion()
 	if err != nil {

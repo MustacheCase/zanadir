@@ -16,14 +16,12 @@ type ciParser struct {
 	Parser parser.Parser
 }
 
-var ciParsers = map[int]ciParser{
-	githubCI: {Path: "/.github/workflows/", Parser: parser.NewGithubParser()},
+type RepositoryScanner struct {
+	ciParsers map[int]ciParser
 }
 
-type RepositoryScanner struct{}
-
 func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, error) {
-	for _, cp := range ciParsers {
+	for _, cp := range r.ciParsers {
 		path := filepath.Join(repositoryDir, cp.Path)
 		if !cp.Parser.Exists(path) {
 			// print log and continue
@@ -39,6 +37,10 @@ func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, erro
 	return nil, nil
 }
 
-func NewRepositoryScanner() Scanner {
-	return &RepositoryScanner{}
+func NewRepositoryScanner(githubParser parser.Parser) Scanner {
+	return &RepositoryScanner{
+		ciParsers: map[int]ciParser{
+			githubCI: {Path: "/.github/workflows/", Parser: githubParser},
+		},
+	}
 }

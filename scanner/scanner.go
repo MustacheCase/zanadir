@@ -17,20 +17,18 @@ type ciScanner struct {
 	Scanner Scanner
 }
 
-var ciScanners = map[int]ciScanner{
-	repositoryScanner: {Type: repositoryScanner, Scanner: NewRepositoryScanner()},
-}
-
 // Scanner interface
 type Scanner interface {
 	Scan(dir string) ([]*models.Artifact, error)
 }
 
-type service struct{}
+type service struct {
+	CIScanner map[int]ciScanner
+}
 
 func (s *service) Scan(dir string) ([]*models.Artifact, error) {
 	if s.isRepository(dir) {
-		return ciScanners[repositoryScanner].Scanner.Scan(dir)
+		return s.CIScanner[repositoryScanner].Scanner.Scan(dir)
 	}
 	return nil, errors.New("not a git repository")
 }
@@ -44,6 +42,10 @@ func (s *service) isRepository(dir string) bool {
 	return info.IsDir()
 }
 
-func NewScanService() Scanner {
-	return &service{}
+func NewScanService(repoScanner Scanner) Scanner {
+	return &service{
+		CIScanner: map[int]ciScanner{
+			repositoryScanner: {Type: repositoryScanner, Scanner: repoScanner},
+		},
+	}
 }

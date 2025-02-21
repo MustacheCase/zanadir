@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/MustacheCase/zanadir/handler"
 	"github.com/spf13/cobra"
@@ -27,6 +28,21 @@ var scanCmd = &cobra.Command{
 			_ = cmd.Help()
 			os.Exit(1)
 		}
+
+		// normalize the path
+		dir = filepath.Clean(dir)
+
+		info, err := os.Lstat(dir)
+		if err != nil {
+			fmt.Println("Error: Unable to access directory")
+			os.Exit(1)
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			fmt.Println("Error: Symlinks are not allowed")
+			os.Exit(1)
+		}
+
 		if err := scanRepo(dir); err != nil {
 			os.Exit(1)
 		}

@@ -62,6 +62,11 @@ func (s *service) ReadRules() ([]FileRule, error) {
 		if err != nil {
 			return err
 		}
+
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+
 		if d.IsDir() || filepath.Ext(path) != ".yaml" {
 			return nil
 		}

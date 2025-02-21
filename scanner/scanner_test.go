@@ -15,6 +15,10 @@ type MockScanner struct {
 	mock.Mock
 }
 
+var (
+	mockScanner = new(MockScanner)
+)
+
 func (m *MockScanner) Scan(dir string) ([]*models.Artifact, error) {
 	args := m.Called(dir)
 	if args.Get(0) == nil {

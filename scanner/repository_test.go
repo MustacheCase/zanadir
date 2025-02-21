@@ -28,8 +28,7 @@ func (m *MockParser) Parse(path string) ([]*models.Artifact, error) {
 }
 
 var (
-	mockParser  *MockParser
-	mockScanner = new(MockScanner)
+	mockParser *MockParser
 )
 
 func setup() {

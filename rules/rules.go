@@ -34,7 +34,7 @@ func (s *service) GetCategoryRules(category models.CategoryTitle) []*Rule {
 	return s.RulesCollection.ByCategory[string(category)]
 }
 
-func convertRules(rules []storage.FileRule) []*Rule {
+func (s *service) convertRules(rules []storage.FileRule) []*Rule {
 	var convertedRules []*Rule
 	for _, r := range rules {
 		convertedRules = append(convertedRules, &Rule{
@@ -54,7 +54,7 @@ func (s *service) createRulesCollection() (*Collection, error) {
 		return nil, err
 	}
 
-	convertedRules := convertRules(rules)
+	convertedRules := s.convertRules(rules)
 	categoryMap := make(map[string][]*Rule)
 	idMap := make(map[string]*Rule)
 

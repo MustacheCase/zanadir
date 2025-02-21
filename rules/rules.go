@@ -1,31 +1,16 @@
 package rules
 
 import (
-	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
 	"regexp"
 
 	"github.com/MustacheCase/zanadir/models"
-	"gopkg.in/yaml.v3"
+	"github.com/MustacheCase/zanadir/storage"
 )
 
 type Collection struct {
 	ByCategory map[string][]*Rule
 	ByID       map[string]*Rule
 	Skip       map[string]bool
-}
-
-type fileRule struct {
-	ID         string   `yaml:"id"`
-	ApplyOn    []string `yaml:"applyOn"`
-	Categories []string `yaml:"categories"`
-	Regex      string   `yaml:"regex"`
-}
-
-type fileRules struct {
-	Rules []fileRule `yaml:"rules"`
 }
 
 type Rule struct {
@@ -41,6 +26,7 @@ type RuleService interface {
 }
 
 type service struct {
+	storageService  storage.Storage
 	RulesCollection *Collection
 }
 
@@ -48,45 +34,7 @@ func (s *service) GetCategoryRules(category models.CategoryTitle) []*Rule {
 	return s.RulesCollection.ByCategory[string(category)]
 }
 
-func readYAMLRules() ([]fileRule, error) {
-	var rules []fileRule
-
-	basePath, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
-	absPath := filepath.Join(basePath, "rules", "storage")
-
-	err = filepath.WalkDir(absPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || filepath.Ext(path) != ".yaml" {
-			return nil
-		}
-
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		var fr fileRules
-		if err := yaml.Unmarshal(data, &fr); err != nil {
-			return fmt.Errorf("error parsing YAML file %s: %w", path, err)
-		}
-
-		rules = append(rules, fr.Rules...)
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-	return rules, nil
-}
-
-func convertRules(rules []fileRule) []*Rule {
+func convertRules(rules []storage.FileRule) []*Rule {
 	var convertedRules []*Rule
 	for _, r := range rules {
 		convertedRules = append(convertedRules, &Rule{
@@ -100,8 +48,8 @@ func convertRules(rules []fileRule) []*Rule {
 	return convertedRules
 }
 
-func createRulesCollection() (*Collection, error) {
-	rules, err := readYAMLRules()
+func (s *service) createRulesCollection() (*Collection, error) {
+	rules, err := s.storageService.ReadRules()
 	if err != nil {
 		return nil, err
 	}
@@ -123,13 +71,15 @@ func createRulesCollection() (*Collection, error) {
 	}, nil
 }
 
-func NewRulesService() (RuleService, error) {
-	collection, err := createRulesCollection()
+func NewRulesService(storageService storage.Storage) (RuleService, error) {
+	s := &service{
+		storageService: storageService,
+	}
+	collection, err := s.createRulesCollection()
 	if err != nil {
 		return nil, err
 	}
+	s.RulesCollection = collection
 
-	return &service{
-		RulesCollection: collection,
-	}, nil
+	return s, nil
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/scanner"
+	"github.com/MustacheCase/zanadir/storage"
 	"github.com/MustacheCase/zanadir/suggester"
 )
 
@@ -31,10 +32,7 @@ func (h *Handler) Execute(dir string) error {
 		findings = append(findings, categoryFindings...)
 	}
 
-	suggestions, err := h.SuggestionService.FindSuggestions(findings)
-	if err != nil {
-		return err
-	}
+	suggestions := h.SuggestionService.FindSuggestions(findings)
 
 	err = h.OutputService.Response(suggestions)
 	if err != nil {
@@ -45,14 +43,18 @@ func (h *Handler) Execute(dir string) error {
 }
 
 func Setup() (*Handler, error) {
-	rulesService, err := rules.NewRulesService()
+	storageService := storage.NewStorageService()
+	rulesService, err := rules.NewRulesService(storageService)
 	if err != nil {
 		return nil, err
 	}
 	githubParser := parser.NewGithubParser()
 	repoScanner := scanner.NewRepositoryScanner(githubParser)
 	scanService := scanner.NewScanService(repoScanner)
-	suggestionService := suggester.NewSuggestionService()
+	suggestionService, err := suggester.NewSuggestionService(storageService)
+	if err != nil {
+		return nil, err
+	}
 	matchService := matcher.NewMatchService()
 	outputService := output.NewOutputService()
 

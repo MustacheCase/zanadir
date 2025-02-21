@@ -1,89 +1,42 @@
 package suggester
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
-	"gopkg.in/yaml.v3"
+	"github.com/MustacheCase/zanadir/storage"
 )
 
-const suggestionsFile = "suggestions.yaml"
-
-type service struct{}
-
-// CategorySuggestion represents a category of suggestions
-type CategorySuggestion struct {
-	ID          string        `yaml:"id"`
-	Name        string        `yaml:"name"`
-	Description string        `yaml:"description"`
-	Suggestions []*Suggestion `yaml:"suggestions"`
-}
-
-// Suggestion represents a single suggestion
-type Suggestion struct {
-	Name        string `yaml:"name"`
-	Repository  string `yaml:"repository"`
-	Description string `yaml:"description"`
-	Language    string `yaml:"language"`
-}
-
-// CategoryFile file
-type CategoryFile struct {
-	Categories []CategorySuggestion `yaml:"categories"`
+type service struct {
+	storageService storage.Storage
+	CategoriesMap  map[string]*storage.CategorySuggestion
 }
 
 type Suggester interface {
-	FindSuggestions(findings []*matcher.Finding) ([]*CategorySuggestion, error)
+	FindSuggestions(findings []*matcher.Finding) []*storage.CategorySuggestion
 }
 
-func (s *service) CategorySuggestion() ([]CategorySuggestion, error) {
-	basePath, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-	absPath := filepath.Join(basePath, "suggester", suggestionsFile)
-
-	data, err := os.ReadFile(absPath)
-	if err != nil {
-		return nil, err
-	}
-
-	var suggestions CategoryFile
-	err = yaml.Unmarshal(data, &suggestions)
-	if err != nil {
-		return nil, err
-	}
-
-	return suggestions.Categories, nil
-}
-
-func (s *service) FindSuggestions(findings []*matcher.Finding) ([]*CategorySuggestion, error) {
-	var categoriesSuggestions []*CategorySuggestion
+func (s *service) FindSuggestions(findings []*matcher.Finding) []*storage.CategorySuggestion {
+	var categoriesSuggestions []*storage.CategorySuggestion
 	coveredCategories := make(map[string]bool)
 	for _, f := range findings {
 		coveredCategories[f.Category] = true
 	}
-	categoriesMap, err := s.categorySuggestionMap()
-	if err != nil {
-		return nil, err
-	}
+
 	// check which of the known categories is not covered
 	for _, title := range models.CategoryTitles {
 		if exists := coveredCategories[string(title)]; !exists {
-			if category, ok := categoriesMap[string(title)]; ok {
+			if category, ok := s.CategoriesMap[string(title)]; ok {
 				categoriesSuggestions = append(categoriesSuggestions, category)
 			}
 		}
 	}
 
-	return categoriesSuggestions, nil
+	return categoriesSuggestions
 }
 
-func (s *service) categorySuggestionMap() (map[string]*CategorySuggestion, error) {
-	categoriesMap := make(map[string]*CategorySuggestion)
-	categories, err := s.CategorySuggestion()
+func (s *service) categorySuggestionMap() (map[string]*storage.CategorySuggestion, error) {
+	categoriesMap := make(map[string]*storage.CategorySuggestion)
+	categories, err := s.storageService.ReadCategoriesSuggestions()
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +47,16 @@ func (s *service) categorySuggestionMap() (map[string]*CategorySuggestion, error
 	return categoriesMap, nil
 }
 
-func NewSuggestionService() Suggester {
-	return &service{}
+func NewSuggestionService(storageService storage.Storage) (Suggester, error) {
+	s := &service{
+		storageService: storageService,
+	}
+
+	categoriesMap, err := s.categorySuggestionMap()
+	if err != nil {
+		return nil, err
+	}
+	s.CategoriesMap = categoriesMap
+
+	return s, nil
 }

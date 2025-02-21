@@ -7,7 +7,7 @@ import (
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
-	"github.com/MustacheCase/zanadir/suggester"
+	"github.com/MustacheCase/zanadir/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -37,12 +37,12 @@ func (m *MockMatcher) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule)
 	return args.Get(0).([]*matcher.Finding)
 }
 
-func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding) ([]*suggester.CategorySuggestion, error) {
+func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding) []*storage.CategorySuggestion {
 	args := m.Called(findings)
-	return args.Get(0).([]*suggester.CategorySuggestion), args.Error(1)
+	return args.Get(0).([]*storage.CategorySuggestion)
 }
 
-func (m *MockOutput) Response(suggestions []*suggester.CategorySuggestion) error {
+func (m *MockOutput) Response(suggestions []*storage.CategorySuggestion) error {
 	args := m.Called(suggestions)
 	return args.Error(0)
 }
@@ -72,7 +72,7 @@ func TestHandler_Execute(t *testing.T) {
 	dir := "test-dir"
 	artifacts := []*models.Artifact{{Name: "artifact1"}}
 	findings := []*matcher.Finding{{Category: "Category1"}}
-	suggestions := []*suggester.CategorySuggestion{{Name: "Suggestion1"}}
+	suggestions := []*storage.CategorySuggestion{{Name: "Suggestion1"}}
 
 	mockScanner.On("Scan", dir).Return(artifacts, nil)
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Twice()

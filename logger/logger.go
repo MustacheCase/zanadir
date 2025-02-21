@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 )
 
 // Logger struct with different log levels
@@ -11,11 +12,19 @@ type Logger struct {
 	logger *log.Logger
 }
 
-// NewLogger initializes a new logger
-func NewLogger() *Logger {
-	return &Logger{
-		logger: log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile),
-	}
+var (
+	instance *Logger
+	once     sync.Once
+)
+
+// GetLogger returns a singleton logger instance
+func GetLogger() *Logger {
+	once.Do(func() {
+		instance = &Logger{
+			logger: log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile),
+		}
+	})
+	return instance
 }
 
 // Info logs an informational message

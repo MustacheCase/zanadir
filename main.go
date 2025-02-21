@@ -9,9 +9,10 @@ import (
 	"github.com/MustacheCase/zanadir/types"
 )
 
+var l = logger.GetLogger()
+
 // main function
 func main() {
-	l := logger.NewLogger()
 	if err := run(); err != nil {
 		var exitError *types.ExitError
 		if errors.As(err, &exitError) {

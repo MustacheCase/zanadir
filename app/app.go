@@ -24,7 +24,7 @@ var scanCmd = &cobra.Command{
 		dir, _ := cmd.Flags().GetString("dir")
 		if dir == "" {
 			fmt.Println("Error: --dir (-d) flag is required")
-			cmd.Help()
+			_ = cmd.Help()
 			os.Exit(1)
 		}
 		if err := scanRepo(dir); err != nil {

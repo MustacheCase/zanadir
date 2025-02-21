@@ -4,16 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/MustacheCase/zanadir/suggester"
+	"github.com/MustacheCase/zanadir/storage"
 )
 
 type Output interface {
-	Response(suggestions []*suggester.CategorySuggestion) error
+	Response(suggestions []*storage.CategorySuggestion) error
 }
 
 type service struct{}
 
-func (s *service) Response(suggestions []*suggester.CategorySuggestion) error {
+func (s *service) Response(suggestions []*storage.CategorySuggestion) error {
 	data, err := json.MarshalIndent(suggestions, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal suggestions: %w", err)

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	handler "github.com/MustacheCase/zanadir/handler"
+	"github.com/MustacheCase/zanadir/handler"
 	"github.com/spf13/cobra"
 )
 

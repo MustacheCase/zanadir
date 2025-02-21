@@ -65,8 +65,13 @@ func TestParse(t *testing.T) {
 	assert.Len(t, artifacts, 1)
 	assert.Equal(t, "Test Workflow", artifacts[0].Name)
 	assert.Len(t, artifacts[0].Jobs, 4)
-	assert.Equal(t, "actions/cache", artifacts[0].Jobs[0].Name)
-	assert.Equal(t, "v3", artifacts[0].Jobs[0].Version)
-	assert.Equal(t, "aws-actions/configure-aws-credentials", artifacts[0].Jobs[2].Name)
-	assert.Equal(t, "v2", artifacts[0].Jobs[2].Version)
+	expectedJobs := map[string]string{
+		"actions/cache":                         "v3",
+		"actions/setup-node":                    "v18",
+		"aws-actions/configure-aws-credentials": "v2",
+	}
+
+	for _, job := range artifacts[0].Jobs {
+		assert.Equal(t, expectedJobs[job.Name], job.Version, "Job version mismatch")
+	}
 }

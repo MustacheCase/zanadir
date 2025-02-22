@@ -1,0 +1,15 @@
+rules:
+  - id: "grype-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["SCA"]
+    regex: "(?i)grype"
+
+  - id: "trivy-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["SCA"]
+    regex: "(?i)trivy"
+
+  - id: "snyk-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["SCA"]
+    regex: "(?i)snyk"

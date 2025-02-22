@@ -13,6 +13,9 @@ linters:
   # Default: false
   fast: true
 
+issues:
+  new-from-rev: HEAD~1
+
 # Options for analysis running.
 run:
   # Timeout for analysis, e.g. 30s, 5m.

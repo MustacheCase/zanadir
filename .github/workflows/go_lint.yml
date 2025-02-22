@@ -1,20 +1,25 @@
-name: CI
+name: Lint
 
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ 'main', 'ci-lint' ]
+    branches: ['main', 'ci-lint']
   pull_request:
-    branches: [ 'main' ]
+    branches: ['main']
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+#Enviroment variables
+env:
+  GO_VERSION: stable
+  GOLANGCI_LINT_VERSION: v1.60
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
+  # This workflow contains a single job called "lint"
+  lint:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
@@ -27,12 +32,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version: ${{ env.GO_VERSION }}
 
-      - name: Run tests
-        run: go test -v -race -coverprofile=coverage.txt ./...
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+      # Lint with golangci-lint
+      # config in .golangci.yaml
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          only-new-issues: true

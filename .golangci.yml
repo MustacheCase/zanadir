@@ -1,0 +1,30 @@
+linters:
+  # Disable all linters.
+  # Default: false
+  disable-all: true
+  # Enable specific linter
+  # https://golangci-lint.run/usage/linters/#enabled-by-default
+  enable:
+    - gofmt
+    - govet
+    - staticcheck
+
+  # Enable only fast linters from enabled linters set (first run won't be fast)
+  # Default: false
+  fast: true
+
+# Options for analysis running.
+run:
+  # Timeout for analysis, e.g. 30s, 5m.
+  # If the value is lower or equal to 0, the timeout is disabled.
+  # Default: 1m
+  timeout: 1m
+
+  # Include test files or not.
+  # Default: true
+  tests: true
+
+  # Allow multiple parallel golangci-lint instances running.
+  # If false, golangci-lint acquires file lock on start.
+  # Default: false
+  allow-parallel-runners: true

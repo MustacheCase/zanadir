@@ -14,7 +14,13 @@ on:
 #Enviroment variables
 env:
   GO_VERSION: stable
-  GOLANGCI_LINT_VERSION: v1.60
+  GOLANGCI_LINT_VERSION: v1.64
+
+permissions:
+  contents: read
+  # Optional: allow read access to pull request. Use with `only-new-issues` option.
+  pull-requests: read
+
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:

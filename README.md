@@ -1,4 +1,6 @@
-# Zanadir
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/88b976b4-cc46-4706-a3e4-3cfa0e6877d5" alt="zanadir">
+</p>
 
 ## Features
 

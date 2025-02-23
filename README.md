@@ -4,7 +4,7 @@
 
 - 📂 **Scan** Evaluate a GitHub repository's CI pipeline and dependencies to identify security risks and suggest enhancements
 - ❓ **Help**: Get details on available commands and usage.
-- 🔍 **CI Analysis**: Examines the repository's Continuous Integration (CI) setup and suggests improvements for security, efficiency, and best practices.
+- 🔍 **CI Analysis**: Examines the repository's Continuous Integration (CI) setup and suggests improvements for security, and best practices.
 - 🚀 **Open Source**: Contributions are welcome to enhance Zanadir's capabilities!
 
 ## Installation

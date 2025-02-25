@@ -3,7 +3,7 @@ package models
 const (
 	SCA      CategoryTitle = "SCA"
 	Secrets  CategoryTitle = "Secrets"
-	Licenses CategoryTitle = "License Compliance"
+	Licenses CategoryTitle = "Licenses"
 	Table    Format        = "table"
 	JSON     Format        = "json"
 )

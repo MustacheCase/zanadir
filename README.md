@@ -16,3 +16,9 @@ You can install Zanadir using Go:
 ```sh
 # Install directly from source
 go install github.com/MustacheCase/zanadir@latest
+```
+
+## Contributors
+
+Zanadir is still in its experimental phase. We are working hard to release the first stable version soon.  
+Your feedback and contributions are welcome!

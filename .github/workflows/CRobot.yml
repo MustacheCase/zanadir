@@ -22,6 +22,7 @@ jobs:
           pip install -q -U google-genai
 
       - name: Run Code Review Script
+        continue-on-error: true 
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

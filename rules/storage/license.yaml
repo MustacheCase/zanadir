@@ -1,0 +1,15 @@
+rules:
+  - id: "fossa-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["License Compliance"]
+    regex: "(?i)fossa"
+
+  - id: "licensefinder-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["License Compliance"]
+    regex: "(?i)license[-_]?finder"
+
+  - id: "grant-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["License Compliance"]
+    regex: "(?i)grant"

@@ -33,9 +33,14 @@ jobs:
         with:
           version: latest
           args: --timeout=5m
+
       - name: Run tests
-        run: go test -v -race -coverprofile=coverage.txt ./...
+        run: |
+          set -e
+          go test -v -race -coverprofile=coverage.txt ./...
+
       - name: Upload coverage reports to Codecov
+        if: success()  # Ensures this step runs only if tests pass
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

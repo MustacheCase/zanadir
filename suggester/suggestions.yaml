@@ -14,6 +14,7 @@ categories:
       - name: "Snyk"
         repository: "https://github.com/snyk/snyk"
         description: "A developer-first security tool that finds and automatically fixes vulnerabilities in dependencies."
+
         
   - id: "Secrets"
     name: "Data Leakage & Secrets Detection"
@@ -34,3 +35,19 @@ categories:
       - name: "Detect-Secrets"
         repository: "https://github.com/Yelp/detect-secrets"
         description: "An enterprise-friendly tool to detect secrets in source code using pre-commit hooks."
+
+  - id: "Licenses"
+    name: "License Compliance Tools"
+    description: "Tools for checking open-source license compliance and ensuring proper usage of dependencies"
+    suggestions:
+      - name: "FOSSA"
+        repository: "https://github.com/fossas/fossa-cli"
+        description: "An open-source license compliance and security scanner."
+
+      - name: "LicenseFinder"
+        repository: "https://github.com/pivotal/LicenseFinder"
+        description: "A tool to gather and report on dependencies and their licenses."
+
+      - name: "Grant"
+        repository: "https://github.com/anchore/grant"
+        description: "Search an SBOM for licenses and the packages they belong to"

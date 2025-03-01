@@ -13,3 +13,8 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package"]
     categories: ["SCA"]
     regex: "(?i)snyk"
+
+  - id: "anchore-rule"
+    applyOn: ["Job.Package"]
+    categories: ["SCA"]
+    regex: "(?i)anchore/scan-action"

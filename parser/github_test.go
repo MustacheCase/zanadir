@@ -69,9 +69,10 @@ func TestParse(t *testing.T) {
 		"actions/cache":                         "v3",
 		"actions/setup-node":                    "v18",
 		"aws-actions/configure-aws-credentials": "v2",
+		"./.github/workflows/deploy.yml":        "",
 	}
 
 	for _, job := range artifacts[0].Jobs {
-		assert.Equal(t, expectedJobs[job.Name], job.Version, "Job version mismatch")
+		assert.Equal(t, expectedJobs[job.Package], job.Version, "Job version mismatch")
 	}
 }

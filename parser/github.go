@@ -81,14 +81,14 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 	}
 
 	var jobs []*models.Job
-	for _, job := range wf.Jobs {
+	for jobName, job := range wf.Jobs {
 		for _, step := range job.Steps {
 			if step.Uses == "" {
 				continue
 			}
-			name, version := parseStepUsageStatement(step.Uses)
-			if name != "" {
-				jobs = append(jobs, &models.Job{Name: name, Version: version})
+			pkgName, version := parseStepUsageStatement(step.Uses)
+			if pkgName != "" {
+				jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
 			}
 		}
 	}

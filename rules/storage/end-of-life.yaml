@@ -1,0 +1,5 @@
+rules:
+  - id: "xeol-rule"
+    applyOn: ["Job.Package"]
+    categories: ["End Of Life"]
+    regex: "(?i)xeol-io/xeol-action"

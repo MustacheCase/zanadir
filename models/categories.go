@@ -1,14 +1,15 @@
 package models
 
 const (
-	SCA      CategoryTitle = "SCA"
-	Secrets  CategoryTitle = "Secrets"
-	Licenses CategoryTitle = "Licenses"
-	Table    Format        = "table"
-	JSON     Format        = "json"
+	SCA       CategoryTitle = "SCA"
+	Secrets   CategoryTitle = "Secrets"
+	Licenses  CategoryTitle = "Licenses"
+	EndOfLife CategoryTitle = "End Of Life"
+	Table     Format        = "table"
+	JSON      Format        = "json"
 )
 
-var CategoryTitles = []CategoryTitle{SCA, Secrets, Licenses}
+var CategoryTitles = []CategoryTitle{SCA, Secrets, Licenses, EndOfLife}
 
 type CategoryTitle string
 

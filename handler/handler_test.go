@@ -75,8 +75,8 @@ func TestHandler_Execute(t *testing.T) {
 	suggestions := []*storage.CategorySuggestion{{Name: "Suggestion1"}}
 
 	mockScanner.On("Scan", dir).Return(artifacts, nil)
-	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(3)
-	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(3)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
+	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
 	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions, nil)
 	mockOutput.On("Response", suggestions).Return(nil)
 

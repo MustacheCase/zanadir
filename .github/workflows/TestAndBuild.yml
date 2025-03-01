@@ -40,7 +40,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repository

@@ -51,3 +51,11 @@ categories:
       - name: "Grant"
         repository: "https://github.com/anchore/grant"
         description: "Search an SBOM for licenses and the packages they belong to"
+
+  - id: "End Of Life"
+    name: "End-of-Life Package Checkers"
+    description: "Tools for identifying outdated or end-of-life software packages to ensure system security and compliance."
+    suggestions:
+      - name: "XEOL"
+        repository: "https://github.com/xeol-io/xeol"
+        description: "A scanner for end-of-life (EOL) software and dependencies in container images, filesystems, and SBOMs"

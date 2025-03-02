@@ -42,8 +42,8 @@ var scanCmd = &cobra.Command{
 			fmt.Println("Error: Symlinks are not allowed")
 			os.Exit(1)
 		}
-
-		if err := scanRepo(dir); err != nil {
+		excludedCategories, _ := cmd.Flags().GetStringSlice("excludedCategories")
+		if err := scanRepo(dir, excludedCategories); err != nil {
 			os.Exit(1)
 		}
 	},
@@ -56,20 +56,21 @@ func NewApp() *cobra.Command {
 
 	// Add flags to scan command
 	scanCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
+	scanCmd.Flags().StringSliceP("excludedCategories", "ec", []string{}, "List of excluded categories (optional)")
 	_ = scanCmd.MarkFlagRequired("dir")
 
 	return rootCmd
 }
 
 // scanRepo function
-func scanRepo(dir string) error {
+func scanRepo(dir string, excludedCategories []string) error {
 	scanHandler, err := handler.Setup()
 	if err != nil {
 		// log the error
 		return err
 	}
 	// Add scanning logic here
-	err = scanHandler.Execute(dir)
+	err = scanHandler.Execute(dir, excludedCategories)
 	if err != nil {
 		return err
 	}

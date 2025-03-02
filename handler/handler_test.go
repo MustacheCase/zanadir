@@ -37,7 +37,7 @@ func (m *MockMatcher) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule)
 	return args.Get(0).([]*matcher.Finding)
 }
 
-func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding) []*storage.CategorySuggestion {
+func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*storage.CategorySuggestion {
 	args := m.Called(findings)
 	return args.Get(0).([]*storage.CategorySuggestion)
 }
@@ -70,6 +70,7 @@ func TestHandler_Execute(t *testing.T) {
 	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
 
 	dir := "test-dir"
+	excludedCategories := []string{"Category1"}
 	artifacts := []*models.Artifact{{Name: "artifact1"}}
 	findings := []*matcher.Finding{{Category: "Category1"}}
 	suggestions := []*storage.CategorySuggestion{{Name: "Suggestion1"}}
@@ -80,7 +81,7 @@ func TestHandler_Execute(t *testing.T) {
 	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions, nil)
 	mockOutput.On("Response", suggestions).Return(nil)
 
-	err := h.Execute(dir)
+	err := h.Execute(dir, excludedCategories)
 
 	assert.NoError(t, err)
 	mockScanner.AssertExpectations(t)
@@ -98,7 +99,7 @@ func TestHandler_Execute_ScanError(t *testing.T) {
 	scanErr := errors.New("scan error")
 	mockScanner.On("Scan", dir).Return([]*models.Artifact{}, scanErr)
 
-	err := h.Execute(dir)
+	err := h.Execute(dir, []string{})
 
 	assert.Error(t, err)
 	assert.Equal(t, scanErr, err)

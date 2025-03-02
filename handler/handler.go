@@ -19,7 +19,7 @@ type Handler struct {
 	OutputService     output.Output
 }
 
-func (h *Handler) Execute(dir string) error {
+func (h *Handler) Execute(dir string, excludedCategories []string) error {
 	artifacts, err := h.ScanService.Scan(dir)
 	if err != nil {
 		return err
@@ -32,7 +32,7 @@ func (h *Handler) Execute(dir string) error {
 		findings = append(findings, categoryFindings...)
 	}
 
-	suggestions := h.SuggestionService.FindSuggestions(findings)
+	suggestions := h.SuggestionService.FindSuggestions(findings, excludedCategories)
 
 	err = h.OutputService.Response(suggestions)
 	if err != nil {

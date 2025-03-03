@@ -94,6 +94,7 @@ func TestFindSuggestionsWithExclusion(t *testing.T) {
 	mockStorage.On("ReadCategoriesSuggestions").Return([]storage.CategorySuggestion{
 		{ID: "SCA", Name: "Category 1"},
 		{ID: "Secrets", Name: "Category 2"},
+		{ID: "Licenses", Name: "Category 3"},
 	}, nil)
 
 	suggesterService, err := suggester.NewSuggestionService(mockStorage)
@@ -109,6 +110,7 @@ func TestFindSuggestionsWithExclusion(t *testing.T) {
 			findings: []*matcher.Finding{},
 			expectedResult: []*storage.CategorySuggestion{
 				{ID: "SCA", Name: "Category 1"},
+				{ID: "Licenses", Name: "Category 3"},
 			},
 		},
 		{
@@ -116,12 +118,15 @@ func TestFindSuggestionsWithExclusion(t *testing.T) {
 			findings: []*matcher.Finding{
 				{Category: "SCA"},
 			},
-			expectedResult: []*storage.CategorySuggestion{},
+			expectedResult: []*storage.CategorySuggestion{
+				{ID: "Licenses", Name: "Category 3"},
+			},
 		},
 		{
 			name: "All categories covered - no suggestions",
 			findings: []*matcher.Finding{
 				{Category: "SCA"},
+				{Category: "Licenses"},
 			},
 			expectedResult: []*storage.CategorySuggestion{},
 		},

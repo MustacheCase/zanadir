@@ -56,7 +56,7 @@ func NewApp() *cobra.Command {
 
 	// Add flags to scan command
 	scanCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
-	scanCmd.Flags().StringSliceP("excludedCategories", "ec", []string{}, "List of excluded categories (optional)")
+	scanCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
 	_ = scanCmd.MarkFlagRequired("dir")
 
 	return rootCmd

@@ -49,10 +49,10 @@ func TestCreateConfig(t *testing.T) {
 			cmd.Flags().StringSlice("excluded-categories", tt.excludedCategories, "excluded categories")
 
 			if tt.dir == "/tmp/symlinkdir" {
-				os.Symlink("/tmp/testdir", "/tmp/symlinkdir")
+				_ = os.Symlink("/tmp/testdir", "/tmp/symlinkdir")
 				defer os.Remove("/tmp/symlinkdir")
 			} else if tt.dir != "" {
-				os.MkdirAll(tt.dir, os.ModePerm)
+				_ = os.MkdirAll(tt.dir, os.ModePerm)
 				defer os.RemoveAll(tt.dir)
 			}
 

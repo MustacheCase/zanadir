@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
@@ -69,19 +70,18 @@ func TestHandler_Execute(t *testing.T) {
 
 	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
 
-	dir := "test-dir"
-	excludedCategories := []string{"Category1"}
+	config := config.Config{Dir: "test-dir", ExcludedCategories: []string{"dummy"}}
 	artifacts := []*models.Artifact{{Name: "artifact1"}}
 	findings := []*matcher.Finding{{Category: "Category1"}}
 	suggestions := []*storage.CategorySuggestion{{Name: "Suggestion1"}}
 
-	mockScanner.On("Scan", dir).Return(artifacts, nil)
+	mockScanner.On("Scan", config.Dir).Return(artifacts, nil)
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
 	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
 	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions, nil)
 	mockOutput.On("Response", suggestions).Return(nil)
 
-	err := h.Execute(dir, excludedCategories)
+	err := h.Execute(&config)
 
 	assert.NoError(t, err)
 	mockScanner.AssertExpectations(t)
@@ -95,11 +95,11 @@ func TestHandler_Execute_ScanError(t *testing.T) {
 	setup()
 
 	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
-	dir := "test-dir"
+	config := config.Config{Dir: "test-dir", ExcludedCategories: []string{"dummy"}}
 	scanErr := errors.New("scan error")
-	mockScanner.On("Scan", dir).Return([]*models.Artifact{}, scanErr)
+	mockScanner.On("Scan", config.Dir).Return([]*models.Artifact{}, scanErr)
 
-	err := h.Execute(dir, []string{})
+	err := h.Execute(&config)
 
 	assert.Error(t, err)
 	assert.Equal(t, scanErr, err)

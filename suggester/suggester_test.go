@@ -82,7 +82,59 @@ func TestFindSuggestions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := suggesterService.FindSuggestions(tt.findings)
+			result := suggesterService.FindSuggestions(tt.findings, []string{})
+			assert.ElementsMatch(t, tt.expectedResult, result)
+		})
+	}
+}
+
+func TestFindSuggestionsWithExclusion(t *testing.T) {
+	setup()
+
+	mockStorage.On("ReadCategoriesSuggestions").Return([]storage.CategorySuggestion{
+		{ID: "SCA", Name: "Category 1"},
+		{ID: "Secrets", Name: "Category 2"},
+		{ID: "Licenses", Name: "Category 3"},
+	}, nil)
+
+	suggesterService, err := suggester.NewSuggestionService(mockStorage)
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name           string
+		findings       []*matcher.Finding
+		expectedResult []*storage.CategorySuggestion
+	}{
+		{
+			name:     "No findings - all categories suggested",
+			findings: []*matcher.Finding{},
+			expectedResult: []*storage.CategorySuggestion{
+				{ID: "SCA", Name: "Category 1"},
+				{ID: "Licenses", Name: "Category 3"},
+			},
+		},
+		{
+			name: "One category covered - suggest missing category",
+			findings: []*matcher.Finding{
+				{Category: "SCA"},
+			},
+			expectedResult: []*storage.CategorySuggestion{
+				{ID: "Licenses", Name: "Category 3"},
+			},
+		},
+		{
+			name: "All categories covered - no suggestions",
+			findings: []*matcher.Finding{
+				{Category: "SCA"},
+				{Category: "Licenses"},
+			},
+			expectedResult: []*storage.CategorySuggestion{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := suggesterService.FindSuggestions(tt.findings, []string{"Secrets"})
 			assert.ElementsMatch(t, tt.expectedResult, result)
 		})
 	}

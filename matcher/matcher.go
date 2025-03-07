@@ -41,7 +41,7 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 
 func matchesRule(artifact *models.Artifact, rule *rules.Rule, field string) bool {
 	check := func(value string) bool {
-		return rule.Regex.MatchString(value)
+		return value != "" && rule.Regex.MatchString(value)
 	}
 
 	switch field {

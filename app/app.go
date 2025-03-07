@@ -30,6 +30,7 @@ var scanCmd = &cobra.Command{
 		}
 
 		if err := scanRepo(config); err != nil {
+			fmt.Printf("Error: scan repo failed: %v", err)
 			os.Exit(1)
 		}
 	},
@@ -43,6 +44,7 @@ func NewApp() *cobra.Command {
 	// Add flags to scan command
 	scanCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
 	scanCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
+	scanCmd.Flags().BoolP("strict", "s", false, "Fails the CI process when at least one rule is met (optional)")
 	_ = scanCmd.MarkFlagRequired("dir")
 
 	return rootCmd

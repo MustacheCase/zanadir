@@ -58,6 +58,10 @@ func matchesRule(artifact *models.Artifact, rule *rules.Rule, field string) bool
 
 // anyMatch checks if any element in a slice satisfies the predicate
 func anyMatch[T any](items []T, predicate func(T) bool) bool {
+	if items == nil {
+		return false
+	}
+
 	for _, item := range items {
 		if predicate(item) {
 			return true

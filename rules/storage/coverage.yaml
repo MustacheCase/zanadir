@@ -13,3 +13,8 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package"]
     categories: ["Coverage"]
     regex: "(?i)codecov"
+
+  - id: "coverallsapp-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Coverage"]
+    regex: "(?i)coverallsapp"

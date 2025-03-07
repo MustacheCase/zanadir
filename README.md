@@ -1,5 +1,3 @@
-# Creating the README content as requested and saving it to a file for commit
-readme_content = """
 <p align="center">
   <img src="https://github.com/user-attachments/assets/88b976b4-cc46-4706-a3e4-3cfa0e6877d5" alt="zanadir">
 </p>
@@ -41,3 +39,9 @@ You can install Zanadir using Go:
 ```sh
 # Install directly from source
 go install github.com/MustacheCase/zanadir@latest
+```
+
+## Contributors
+
+Zanadir is still in its experimental phase. We are working hard to release the first stable version soon.  
+Your feedback and contributions are welcome!

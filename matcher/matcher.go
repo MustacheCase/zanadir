@@ -1,6 +1,8 @@
 package matcher
 
 import (
+	"regexp"
+
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
 )
@@ -10,6 +12,10 @@ type Finding struct {
 	RuleID   string
 	Location string
 }
+
+const (
+	scriptLimit = 100
+)
 
 type Matcher interface {
 	Match([]*models.Artifact, []*rules.Rule) []*Finding
@@ -41,6 +47,7 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 
 func matchesRule(artifact *models.Artifact, rule *rules.Rule, field string) bool {
 	check := func(value string) bool {
+		value = sanitizeScript(value)
 		return value != "" && rule.Regex.MatchString(value)
 	}
 
@@ -54,6 +61,20 @@ func matchesRule(artifact *models.Artifact, rule *rules.Rule, field string) bool
 	}
 
 	return false
+}
+
+// sanitizeScript removes potentially dangerous characters from the script.
+func sanitizeScript(script string) string {
+	// Example: Limit script length to 1000 characters.
+	if len(script) > scriptLimit {
+		script = script[:scriptLimit]
+	}
+
+	// Example:  Remove characters that could be used for regex injection.
+	re := regexp.MustCompile(`[(){}\[\]\\.*+?]`) // Example: Remove regex meta characters
+	script = re.ReplaceAllString(script, "")
+
+	return script
 }
 
 // anyMatch checks if any element in a slice satisfies the predicate

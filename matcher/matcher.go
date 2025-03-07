@@ -40,14 +40,27 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 }
 
 func matchesRule(artifact *models.Artifact, rule *rules.Rule, field string) bool {
+	check := func(value string) bool {
+		return rule.Regex.MatchString(value)
+	}
+
 	switch field {
 	case "Artifact.Name":
-		return rule.Regex.MatchString(artifact.Name)
+		return check(artifact.Name)
 	case "Job.Package":
-		for _, job := range artifact.Jobs {
-			if rule.Regex.MatchString(job.Package) {
-				return true
-			}
+		return anyMatch(artifact.Jobs, func(job *models.Job) bool { return check(job.Package) })
+	case "Job.Script":
+		return anyMatch(artifact.Jobs, func(job *models.Job) bool { return check(job.Script) })
+	}
+
+	return false
+}
+
+// anyMatch checks if any element in a slice satisfies the predicate
+func anyMatch[T any](items []T, predicate func(T) bool) bool {
+	for _, item := range items {
+		if predicate(item) {
+			return true
 		}
 	}
 	return false

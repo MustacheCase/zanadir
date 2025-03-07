@@ -28,6 +28,7 @@ type stepDef struct {
 		Path string `yaml:"path"`
 		Key  string `yaml:"key"`
 	} `yaml:"with"`
+	Run string `yaml:"run"`
 }
 
 func (g *GithubParser) Exists(location string) bool {
@@ -83,12 +84,13 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 	var jobs []*models.Job
 	for jobName, job := range wf.Jobs {
 		for _, step := range job.Steps {
-			if step.Uses == "" {
+			if step.Uses == "" && step.Run == "" {
 				continue
 			}
+			
 			pkgName, version := parseStepUsageStatement(step.Uses)
-			if pkgName != "" {
-				jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
+			if pkgName != "" || step.Run != "" {
+				jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version, Script: step.Run})
 			}
 		}
 	}

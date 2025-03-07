@@ -10,4 +10,5 @@ type Job struct {
 	Name    string
 	Package string
 	Version string
+	Script  string
 }

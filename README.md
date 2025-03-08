@@ -34,7 +34,7 @@ Zanadir analyzes repositories in the following categories:
 
 ## Installation
 
-You can install Zanadir using Go:
+You can install Zanadir using Go: 
 
 ```sh
 # Install directly from source

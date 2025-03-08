@@ -13,7 +13,7 @@
 
 Zanadir currently supports:
 
-- GitHub Actions
+- GitHub Actions 
 
 Future work will include support for:
 

@@ -30,6 +30,7 @@ Zanadir analyzes repositories in the following categories:
 - 📜 **Licenses**: License Compliance
 - 🛠️ **EndOfLife**: End-of-Life Software Packages
 - 📊 **Coverage**: Test Coverage
+- 📊 **Performance Testing**: Test Performance and Reliability
 - 🧑‍💻 **Linter**: Code Linting
 
 ## Installation

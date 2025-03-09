@@ -77,6 +77,23 @@ categories:
         repository: "https://github.com/cobertura/cobertura"
         description: "A Java code coverage reporting tool that helps track test coverage in GitHub Actions."
 
+  - id: "Performance Testing"
+    name: "Performance and Reliability Testing Tools"
+    description: "Tools for measuring code coverage to ensure testing completeness and software quality."
+    suggestions:
+      - name: "k6"
+        repository: "https://github.com/grafana/k6"
+        description: "Grafana k6 is an open-source, developer-friendly, and extensible load testing tool. k6 allows you to prevent performance issues and proactively improve reliability."
+      - name: "JMeter"
+        repository: "https://github.com/apache/jmeter"
+        description: "An Apache project designed to load test functional behavior and measure performance, with support for various protocols and servers."
+      - name: "Gatling"
+        repository: "https://github.com/gatling/gatling"
+        description: "A highly capable load testing tool built for continuous integration and testing web applications, with a focus on maintainability and developer productivity."
+      - name: "Apache Bench"
+        repository: "https://github.com/apache/httpd/tree/trunk/support/ab"
+        description: "A simple command line tool for benchmarking HTTP servers, part of the Apache HTTP server project, ideal for quick performance checks."
+
   - id: "Linter"
     name: "Linting Tools"
     description: "Tools for static code analysis to ensure code quality, maintainability, and best practices compliance."

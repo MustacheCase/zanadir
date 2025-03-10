@@ -91,7 +91,7 @@ categories:
         repository: "https://github.com/gatling/gatling"
         description: "A highly capable load testing tool built for continuous integration and testing web applications, with a focus on maintainability and developer productivity."
       - name: "Apache Bench"
-        repository: "https://github.com/apache/httpd/tree/trunk/support/ab"
+        repository: "https://httpd.apache.org/docs/2.4/programs/ab.html"
         description: "A simple command line tool for benchmarking HTTP servers, part of the Apache HTTP server project, ideal for quick performance checks."
 
   - id: "Linter"

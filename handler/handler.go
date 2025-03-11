@@ -40,6 +40,10 @@ func (h *Handler) Execute(config *config.Config) error {
 		return err
 	}
 
+	if config.Strict && len(suggestions) > 0 {
+		return models.NewStrictError("Strict mode enabled and suggestions found")
+	}
+
 	return nil
 }
 

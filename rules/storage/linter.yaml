@@ -1,0 +1,30 @@
+rules:
+  - id: "eslint-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)eslint"
+
+  - id: "pylint-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)pylint"
+
+  - id: "golangci-lint-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)golangci-lint"
+
+  - id: "rubocop-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)rubocop"
+
+  - id: "flake8-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)flake8"
+
+  - id: "oxsecurity-super-linter-rule"
+    applyOn: [ "Artifact.Name", "Job.Package" ]
+    categories: [ "Linter" ]
+    regex: "(?i)(super-linter/super-linter|oxsecurity/megalinter)"

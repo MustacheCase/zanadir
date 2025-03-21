@@ -1,0 +1,49 @@
+version: 2.1
+
+orbs:
+  checkout: circleci/checkout@v4
+  golang: circleci/golang@1.11
+  codecov: circleci/codecov@3.2.4
+
+jobs:
+  test-and-build:
+    docker:
+      - image: cimg/go:1.20 # Use CircleCI Go image
+    steps:
+      # Checkout code using CircleCI's checkout orb
+      - checkout/checkout
+
+      # Set up Go environment using the golang orb
+      - golang/install:
+          version: "1.24"
+
+      # Run golangci-lint using the golang orb
+      - golangci-lint/install-and-run:
+          version: "latest"
+          args: "--timeout=5m"
+
+      # Run tests
+      - run:
+          name: Run tests
+          command: go test -v -race -coverprofile=coverage.txt ./...
+
+      # Upload coverage reports to Codecov using the Codecov orb
+      - codecov/upload:
+          file: coverage.txt
+          token: "${CODECOV_TOKEN}"
+
+      # Build the binary
+      - run:
+          name: Build the binary
+          command: go build -o zanadir .
+
+      # Run the tool on the repo
+      - run:
+          name: Run the tool on the repo
+          command: ./zanadir scan --dir .
+
+workflows:
+  version: 2
+  test-and-build:
+    jobs:
+      - test-and-build

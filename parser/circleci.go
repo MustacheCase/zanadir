@@ -92,22 +92,17 @@ func (c *CircleCIParser) parseCircleCIWorkflow(filePath string) (*models.Artifac
 				if orb, ok := v["orb"].(string); ok {
 					pkgName, version := parseOrbDefinition(orb, wf.Orbs)
 					jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
-				}
-				if uses, ok := v["uses"].(string); ok {
+				} else if uses, ok := v["uses"].(string); ok {
 					pkgName, version := parseOrbDefinition(uses, wf.Orbs)
 					jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
-				} else {
+				} else { // Check if the map key is an orb
 					for key := range v {
 						pkgName, version := parseOrbDefinition(key, wf.Orbs)
 						if pkgName != "" {
 							jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
-							break
+							break // Only process the orb key
 						}
 					}
-				}
-				if uses, ok := v["uses"].(string); ok {
-					pkgName, version := parseOrbDefinition(uses, wf.Orbs)
-					jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
 				}
 			}
 		}
@@ -119,9 +114,7 @@ func (c *CircleCIParser) parseCircleCIWorkflow(filePath string) (*models.Artifac
 		Location: filePath,
 	}, nil
 }
-
 func parseOrbDefinition(orb string, orbs map[string]string) (string, string) {
-	// Check if the orb is defined in the top-level "orbs" section
 	fields := strings.Split(orb, "/")
 	if len(fields) >= 2 {
 		orbName := fields[0]
@@ -133,18 +126,7 @@ func parseOrbDefinition(orb string, orbs map[string]string) (string, string) {
 			return definedOrb, ""
 		}
 	}
-
-	// Fallback: Directly parse the orb reference (e.g., "circleci/node@4.7.0")
-	if strings.Contains(orb, "/") {
-		fields = strings.Split(orb, "@")
-		switch len(fields) {
-		case 1:
-			return orb, ""
-		case 2:
-			return fields[0], fields[1]
-		}
-	}
-	return "", ""
+	return "", "" // Return empty strings if not found
 }
 func NewCircleCIParser() Parser {
 	return &CircleCIParser{}

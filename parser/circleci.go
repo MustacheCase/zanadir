@@ -82,51 +82,29 @@ func (c *CircleCIParser) parseCircleCIWorkflow(filePath string) (*models.Artifac
 	}
 
 	var jobs []*models.Job
-	for jobName, job := range wf.Jobs {
-		for _, step := range job.Steps {
-			switch v := step.(type) {
-			case string:
-				pkgName, version := parseOrbDefinition(v, wf.Orbs)
-				jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
-			case map[string]interface{}:
-				if orb, ok := v["orb"].(string); ok {
-					pkgName, version := parseOrbDefinition(orb, wf.Orbs)
-					jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
-				} else if uses, ok := v["uses"].(string); ok {
-					pkgName, version := parseOrbDefinition(uses, wf.Orbs)
-					jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
-				} else { // Check if the map key is an orb
-					for key := range v {
-						pkgName, version := parseOrbDefinition(key, wf.Orbs)
-						if pkgName != "" {
-							jobs = append(jobs, &models.Job{Name: jobName, Package: pkgName, Version: version})
-							break // Only process the orb key
-						}
-					}
-				}
-			}
+	for orbName, orbDefinition := range wf.Orbs {
+		pkgName, version := parseOrbDefinition(orbName, map[string]string{orbName: orbDefinition}) // Pass a map with the single orb
+		if pkgName != "" {
+			jobs = append(jobs, &models.Job{Name: orbName, Package: pkgName, Version: version})
 		}
 	}
 
 	return &models.Artifact{
-		Name:     "CircleCI Workflow",
+		Name:     "CircleCI Workflow Orbs",
 		Jobs:     jobs,
 		Location: filePath,
 	}, nil
 }
+
 func parseOrbDefinition(orb string, orbs map[string]string) (string, string) {
-	fields := strings.Split(orb, "/")
-	if len(fields) >= 2 {
-		orbName := fields[0]
-		if definedOrb, exists := orbs[orbName]; exists {
-			fields := strings.Split(definedOrb, "@")
-			if len(fields) == 2 {
-				return fields[0], fields[1]
-			}
-			return definedOrb, ""
+	if definedOrb, exists := orbs[orb]; exists {
+		fields := strings.Split(definedOrb, "@")
+		if len(fields) == 2 {
+			return fields[0], fields[1]
 		}
+		return definedOrb, ""
 	}
-	return "", "" // Return empty strings if not found
+	return "", ""
 }
 func NewCircleCIParser() Parser {
 	return &CircleCIParser{}

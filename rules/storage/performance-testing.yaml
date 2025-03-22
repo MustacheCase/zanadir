@@ -1,0 +1,20 @@
+rules:
+  - id: "k6-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Performance Testing"]
+    regex: "(?mi)\\bk6\\s+(?:run|cloud)\\b"
+
+  - id: "jmeter-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Performance Testing"]
+    regex: "(?i)\\bjmeter\\b"
+
+  - id: "gatling-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Performance Testing"]
+    regex: "(?i)\\bgatling\\b"
+
+  - id: "apache-bench-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Performance Testing"]
+    regex: "(?i)\\b(?:ab|apache-bench|apachebench)\\b"

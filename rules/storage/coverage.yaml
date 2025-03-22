@@ -1,0 +1,20 @@
+rules:
+  - id: "jacoco-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Coverage"]
+    regex: "(?i)jacoco"
+
+  - id: "cobertura-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Coverage"]
+    regex: "(?i)cobertura"
+
+  - id: "codecov-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Coverage"]
+    regex: "(?i)codecov"
+
+  - id: "coverallsapp-rule"
+    applyOn: ["Artifact.Name", "Job.Package"]
+    categories: ["Coverage"]
+    regex: "(?i)coverallsapp"

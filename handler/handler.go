@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
@@ -18,8 +19,8 @@ type Handler struct {
 	OutputService     output.Output
 }
 
-func (h *Handler) Execute(dir string) error {
-	artifacts, err := h.ScanService.Scan(dir)
+func (h *Handler) Execute(config *config.Config) error {
+	artifacts, err := h.ScanService.Scan(config.Dir)
 	if err != nil {
 		return err
 	}
@@ -31,7 +32,7 @@ func (h *Handler) Execute(dir string) error {
 		findings = append(findings, categoryFindings...)
 	}
 
-	suggestions := h.SuggestionService.FindSuggestions(findings)
+	suggestions := h.SuggestionService.FindSuggestions(findings, config.ExcludedCategories)
 
 	err = h.OutputService.Response(suggestions)
 	if err != nil {

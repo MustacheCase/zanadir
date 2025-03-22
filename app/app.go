@@ -3,8 +3,8 @@ package app
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
+	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/handler"
 	"github.com/spf13/cobra"
 )
@@ -22,28 +22,14 @@ var scanCmd = &cobra.Command{
 	Short: "Scans a GitHub repository directory",
 	Long:  "The scan command scans a specified GitHub repository directory for CI analysis.",
 	Run: func(cmd *cobra.Command, args []string) {
-		dir, _ := cmd.Flags().GetString("dir")
-		if dir == "" {
-			fmt.Println("Error: --dir (-d) flag is required")
-			_ = cmd.Help()
-			os.Exit(1)
-		}
+		config, err := config.CreateConfig(cmd)
 
-		// normalize the path
-		dir = filepath.Clean(dir)
-
-		info, err := os.Lstat(dir)
 		if err != nil {
-			fmt.Println("Error: Unable to access directory")
+			fmt.Printf("Error: Unable to initialize configuration service %v", err)
 			os.Exit(1)
 		}
 
-		if info.Mode()&os.ModeSymlink != 0 {
-			fmt.Println("Error: Symlinks are not allowed")
-			os.Exit(1)
-		}
-
-		if err := scanRepo(dir); err != nil {
+		if err := scanRepo(config); err != nil {
 			os.Exit(1)
 		}
 	},
@@ -56,20 +42,21 @@ func NewApp() *cobra.Command {
 
 	// Add flags to scan command
 	scanCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
+	scanCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
 	_ = scanCmd.MarkFlagRequired("dir")
 
 	return rootCmd
 }
 
 // scanRepo function
-func scanRepo(dir string) error {
+func scanRepo(config *config.Config) error {
 	scanHandler, err := handler.Setup()
 	if err != nil {
 		// log the error
 		return err
 	}
 	// Add scanning logic here
-	err = scanHandler.Execute(dir)
+	err = scanHandler.Execute(config)
 	if err != nil {
 		return err
 	}

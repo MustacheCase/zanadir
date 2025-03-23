@@ -42,8 +42,8 @@ func TestRepositoryScanner_Scan(t *testing.T) {
 	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
 	circleCIPath := filepath.Join(repoDir, "/.circleci/")
 
-	mockParser.On("Exists", githubCIPath).Return(false) // Github doesn't exist
-	mockParser.On("Exists", circleCIPath).Return(true)  // CircleCI exists
+	mockParser.On("Exists", githubCIPath).Return(false)
+	mockParser.On("Exists", circleCIPath).Return(true)
 	mockParser.On("Parse", circleCIPath).Return([]*models.Artifact{{Name: "artifact1"}}, nil)
 
 	s := &RepositoryScanner{

@@ -40,7 +40,7 @@ func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, erro
 
 func NewRepositoryScanner() Scanner {
 	githubParser := parser.NewGithubParser()
-	circleCIParser := parser.NewCircleCIParser() // New CircleCI parser initialization
+	circleCIParser := parser.NewCircleCIParser()
 
 	return &RepositoryScanner{
 		ciParsers: map[int]ciParser{

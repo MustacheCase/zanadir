@@ -33,19 +33,25 @@ var (
 
 func setup() {
 	mockParser = new(MockParser)
-	mockScanner = new(MockScanner)
 }
 
 func TestRepositoryScanner_Scan(t *testing.T) {
 	setup()
 
 	repoDir := "/test/repo"
-	ciPath := filepath.Join(repoDir, "/.github/workflows/")
+	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
+	circleCIPath := filepath.Join(repoDir, "/.circleci/")
 
-	mockParser.On("Exists", ciPath).Return(true)
-	mockParser.On("Parse", ciPath).Return([]*models.Artifact{{Name: "artifact1"}}, nil)
+	mockParser.On("Exists", githubCIPath).Return(false)
+	mockParser.On("Exists", circleCIPath).Return(true)
+	mockParser.On("Parse", circleCIPath).Return([]*models.Artifact{{Name: "artifact1"}}, nil)
 
-	s := NewRepositoryScanner(mockParser)
+	s := &RepositoryScanner{
+		ciParsers: map[int]ciParser{
+			githubCI: {Path: "/.github/workflows/", Parser: mockParser},
+			circleCI: {Path: "/.circleci/", Parser: mockParser},
+		},
+	}
 	artifacts, err := s.Scan(repoDir)
 
 	assert.NoError(t, err)
@@ -60,11 +66,18 @@ func TestRepositoryScanner_Scan_NoCI(t *testing.T) {
 	setup()
 
 	repoDir := "/test/repo"
-	ciPath := filepath.Join(repoDir, "/.github/workflows/")
+	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
+	circleCIPath := filepath.Join(repoDir, "/.circleci/")
 
-	mockParser.On("Exists", ciPath).Return(false)
+	mockParser.On("Exists", githubCIPath).Return(false)
+	mockParser.On("Exists", circleCIPath).Return(false)
 
-	s := NewRepositoryScanner(mockParser)
+	s := &RepositoryScanner{
+		ciParsers: map[int]ciParser{
+			githubCI: {Path: "/.github/workflows/", Parser: mockParser},
+			circleCI: {Path: "/.circleci/", Parser: mockParser},
+		},
+	}
 	artifacts, err := s.Scan(repoDir)
 
 	assert.NoError(t, err)
@@ -77,12 +90,19 @@ func TestRepositoryScanner_Scan_ParseError(t *testing.T) {
 	setup()
 
 	repoDir := "/test/repo"
-	ciPath := filepath.Join(repoDir, "/.github/workflows/")
+	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
+	circleCIPath := filepath.Join(repoDir, "/.circleci/")
 
-	mockParser.On("Exists", ciPath).Return(true)
-	mockParser.On("Parse", ciPath).Return(nil, errors.New("parse error"))
+	mockParser.On("Exists", githubCIPath).Return(false)
+	mockParser.On("Exists", circleCIPath).Return(true)
+	mockParser.On("Parse", circleCIPath).Return(nil, errors.New("parse error"))
 
-	s := NewRepositoryScanner(mockParser)
+	s := &RepositoryScanner{
+		ciParsers: map[int]ciParser{
+			githubCI: {Path: "/.github/workflows/", Parser: mockParser},
+			circleCI: {Path: "/.circleci/", Parser: mockParser},
+		},
+	}
 	artifacts, err := s.Scan(repoDir)
 
 	assert.Error(t, err)

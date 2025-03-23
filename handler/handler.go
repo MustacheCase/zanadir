@@ -5,7 +5,6 @@ import (
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
-	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/scanner"
 	"github.com/MustacheCase/zanadir/storage"
@@ -49,8 +48,7 @@ func Setup() (*Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	githubParser := parser.NewGithubParser()
-	repoScanner := scanner.NewRepositoryScanner(githubParser)
+	repoScanner := scanner.NewRepositoryScanner()
 	scanService := scanner.NewScanService(repoScanner)
 	suggestionService, err := suggester.NewSuggestionService(storageService)
 	if err != nil {

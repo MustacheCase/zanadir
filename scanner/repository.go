@@ -9,6 +9,7 @@ import (
 
 const (
 	githubCI = iota
+	circleCI
 )
 
 type ciParser struct {
@@ -37,10 +38,14 @@ func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, erro
 	return nil, nil
 }
 
-func NewRepositoryScanner(githubParser parser.Parser) Scanner {
+func NewRepositoryScanner() Scanner {
+	githubParser := parser.NewGithubParser()
+	circleCIParser := parser.NewCircleCIParser()
+
 	return &RepositoryScanner{
 		ciParsers: map[int]ciParser{
 			githubCI: {Path: "/.github/workflows/", Parser: githubParser},
+			circleCI: {Path: "/.circleci/", Parser: circleCIParser},
 		},
 	}
 }

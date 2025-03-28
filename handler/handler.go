@@ -40,8 +40,8 @@ func (h *Handler) Execute(config *config.Config) error {
 		return err
 	}
 
-	if config.Strict && len(suggestions) > 0 {
-		return models.NewStrictError("Strict mode enabled and suggestions found")
+	if config.Enforce && len(suggestions) > 0 {
+		return models.NewEnforceError("Enforce mode enabled and suggestions found")
 	}
 
 	return nil

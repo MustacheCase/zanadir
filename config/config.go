@@ -11,7 +11,7 @@ import (
 type Config struct {
 	Dir                string
 	ExcludedCategories []string
-	Strict             bool
+	Enforce            bool
 }
 
 func CreateConfig(cmd *cobra.Command) (*Config, error) {
@@ -35,11 +35,11 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 
 	excludedCategories, _ := cmd.Flags().GetStringSlice("excluded-categories")
 
-	strict, _ := cmd.Flags().GetBool("strict")
+	enforce, _ := cmd.Flags().GetBool("enforce")
 
 	return &Config{
 		Dir:                dir,
 		ExcludedCategories: excludedCategories,
-		Strict:             strict,
+		Enforce:            enforce,
 	}, nil
 }

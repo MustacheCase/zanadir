@@ -1,15 +1,13 @@
 package models
 
-import "fmt"
-
-type StrictError struct {
+type EnforceError struct {
 	Message string
 }
 
-func (e *StrictError) Error() string {
-	return fmt.Sprintf("Strict error: %s", e.Message)
+func (e *EnforceError) Error() string {
+	return e.Message
 }
 
-func NewStrictError(message string) error {
-	return &StrictError{Message: message}
+func NewEnforceError(message string) error {
+	return &EnforceError{Message: message}
 }

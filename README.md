@@ -14,11 +14,11 @@
 Zanadir currently supports:
 
 - GitHub Actions
+- CircleCI
 
 Future work will include support for:
 
 - GitLab
-- CircleCI
 - Bitbucket
 
 ## Categories We Suggest

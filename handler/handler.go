@@ -39,6 +39,10 @@ func (h *Handler) Execute(config *config.Config) error {
 		return err
 	}
 
+	if config.Enforce && len(suggestions) > 0 {
+		return models.NewEnforceError("Enforce mode enabled and suggestions found")
+	}
+
 	return nil
 }
 

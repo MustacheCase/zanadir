@@ -105,3 +105,29 @@ func TestHandler_Execute_ScanError(t *testing.T) {
 	assert.Equal(t, scanErr, err)
 	mockScanner.AssertExpectations(t)
 }
+func TestHandler_Execute_WithSuggestionsAndEnforce(t *testing.T) {
+	setup()
+
+	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
+
+	config := config.Config{Dir: "test-dir", ExcludedCategories: []string{"dummy"}, Enforce: true}
+	artifacts := []*models.Artifact{{Name: "artifact1"}}
+	findings := []*matcher.Finding{{Category: "Category1"}}
+	suggestions := []*storage.CategorySuggestion{{Name: "Suggestion1"}}
+
+	mockScanner.On("Scan", config.Dir).Return(artifacts, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
+	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
+	mockSuggester.On("FindSuggestions", mock.Anything, mock.Anything).Return(suggestions)
+	mockOutput.On("Response", suggestions).Return(nil)
+
+	err := h.Execute(&config)
+
+	assert.Error(t, err)
+	assert.IsType(t, &models.EnforceError{}, err)
+	mockScanner.AssertExpectations(t)
+	mockRuleService.AssertExpectations(t)
+	mockMatcher.AssertExpectations(t)
+	mockSuggester.AssertExpectations(t)
+	mockOutput.AssertExpectations(t)
+}

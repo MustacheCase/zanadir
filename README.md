@@ -33,6 +33,14 @@ Zanadir analyzes repositories in the following categories:
 - 📊 **Performance Testing**: Test Performance and Reliability
 - 🧑‍💻 **Linter**: Code Linting
 
+## Enforce Mode
+
+Zanadir provides an `--enforce` flag to ensure that all CI/CD suggestions are fulfilled. If any suggestion is not met, the CI pipeline will fail. This helps enforce security best practices and compliance in automated workflows.
+
+```sh
+zanadir scan --enforce
+```
+
 ## Installation
 
 You can install Zanadir using Go:

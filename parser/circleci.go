@@ -1,11 +1,12 @@
 package parser
 
 import (
-	"github.com/MustacheCase/zanadir/models"
-	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/utils"
 )
 
 type CircleCIParser struct{}
@@ -71,13 +72,8 @@ func (c *CircleCIParser) Parse(location string) ([]*models.Artifact, error) {
 }
 
 func (c *CircleCIParser) parseCircleCIWorkflow(filePath string) (*models.Artifact, error) {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-
 	var wf circleCIDef
-	if err := yaml.Unmarshal(data, &wf); err != nil {
+	if err := utils.ReadYAML(filePath, &wf); err != nil {
 		return nil, err
 	}
 

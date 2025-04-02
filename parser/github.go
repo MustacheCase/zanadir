@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
-	"gopkg.in/yaml.v3"
+	"github.com/MustacheCase/zanadir/utils"
 )
 
 type GithubParser struct{}
@@ -70,13 +70,8 @@ func (g *GithubParser) Parse(location string) ([]*models.Artifact, error) {
 }
 
 func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, error) {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-
 	var wf workflowDef
-	if err := yaml.Unmarshal(data, &wf); err != nil {
+	if err := utils.ReadYAML(filePath, &wf); err != nil {
 		return nil, err
 	}
 

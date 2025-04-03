@@ -10,6 +10,7 @@ import (
 const (
 	githubCI = iota
 	circleCI
+	gitlabCI
 )
 
 type ciParser struct {
@@ -46,6 +47,7 @@ func NewRepositoryScanner() Scanner {
 		ciParsers: map[int]ciParser{
 			githubCI: {Path: "/.github/workflows/", Parser: githubParser},
 			circleCI: {Path: "/.circleci/", Parser: circleCIParser},
+			gitlabCI: {Path: "/.gitlab-ci.yml", Parser: parser.NewGitlabParser()},
 		},
 	}
 }

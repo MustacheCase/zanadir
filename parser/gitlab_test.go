@@ -9,9 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const testDir = "test-utils"
-
-func setupTestDir() error {
+func setupGitlabTestDir() error {
 	// Ensure test directory exists
 	if err := os.MkdirAll(testDir, 0755); err != nil {
 		return err

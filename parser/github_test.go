@@ -11,7 +11,7 @@ import (
 
 const testDir = "test-utils"
 
-func setupTestDir() error {
+func setupGithubTestDir() error {
 	// Ensure test directory exists
 	if err := os.MkdirAll(testDir, 0755); err != nil {
 		return err

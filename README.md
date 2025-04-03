@@ -15,10 +15,10 @@ Zanadir currently supports:
 
 - GitHub Actions
 - CircleCI
+- GitLab
 
 Future work will include support for:
 
-- GitLab
 - Bitbucket
 
 ## Categories We Suggest

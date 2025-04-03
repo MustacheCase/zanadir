@@ -42,7 +42,7 @@ func teardownTestDir() {
 	_ = os.RemoveAll(testDir)
 }
 
-func TestExists(t *testing.T) {
+func TestGithubExists(t *testing.T) {
 	err := setupTestDir()
 	assert.NoError(t, err)
 
@@ -53,7 +53,7 @@ func TestExists(t *testing.T) {
 	assert.False(t, gp.Exists("nonexistent-dir"))
 }
 
-func TestParse(t *testing.T) {
+func TestGithubParse(t *testing.T) {
 	err := setupTestDir()
 	assert.NoError(t, err)
 

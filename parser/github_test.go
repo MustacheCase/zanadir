@@ -43,7 +43,7 @@ func teardownTestDir() {
 }
 
 func TestGithubExists(t *testing.T) {
-	err := setupTestDir()
+	err := setupGithubTestDir()
 	assert.NoError(t, err)
 
 	defer teardownTestDir()
@@ -54,7 +54,7 @@ func TestGithubExists(t *testing.T) {
 }
 
 func TestGithubParse(t *testing.T) {
-	err := setupTestDir()
+	err := setupGithubTestDir()
 	assert.NoError(t, err)
 
 	defer teardownTestDir()

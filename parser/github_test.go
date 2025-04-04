@@ -11,7 +11,7 @@ import (
 
 const testDir = "test-utils"
 
-func setupTestDir() error {
+func setupGithubTestDir() error {
 	// Ensure test directory exists
 	if err := os.MkdirAll(testDir, 0755); err != nil {
 		return err
@@ -42,8 +42,8 @@ func teardownTestDir() {
 	_ = os.RemoveAll(testDir)
 }
 
-func TestExists(t *testing.T) {
-	err := setupTestDir()
+func TestGithubExists(t *testing.T) {
+	err := setupGithubTestDir()
 	assert.NoError(t, err)
 
 	defer teardownTestDir()
@@ -53,8 +53,8 @@ func TestExists(t *testing.T) {
 	assert.False(t, gp.Exists("nonexistent-dir"))
 }
 
-func TestParse(t *testing.T) {
-	err := setupTestDir()
+func TestGithubParse(t *testing.T) {
+	err := setupGithubTestDir()
 	assert.NoError(t, err)
 
 	defer teardownTestDir()

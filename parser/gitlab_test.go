@@ -35,7 +35,7 @@ func setupGitlabTestDir() error {
 }
 
 func TestGitlabExists(t *testing.T) {
-	err := setupTestDir()
+	err := setupGitlabTestDir()
 	assert.NoError(t, err)
 
 	defer teardownTestDir()
@@ -46,7 +46,7 @@ func TestGitlabExists(t *testing.T) {
 }
 
 func TesGitlabParse(t *testing.T) {
-	err := setupTestDir()
+	err := setupGitlabTestDir()
 	assert.NoError(t, err)
 
 	defer teardownTestDir()

@@ -7,12 +7,6 @@ import (
 	"github.com/MustacheCase/zanadir/parser"
 )
 
-const (
-	githubCI = iota
-	circleCI
-	gitlabCI
-)
-
 type ciParser struct {
 	Path   string
 	Parser parser.Parser

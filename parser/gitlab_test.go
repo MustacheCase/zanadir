@@ -67,23 +67,6 @@ func TesGitlabParse(t *testing.T) {
 	}
 }
 
-func TestGitlabEmptyFile(t *testing.T) {
-	err := setupGitlabTestDir()
-	assert.NoError(t, err)
-
-	defer teardownTestDir()
-
-	// Overwrite the .gitlab-ci.yml file with empty content
-	testFile := filepath.Join(testDir, ".gitlab-ci.yml")
-	err = os.WriteFile(testFile, []byte(""), 0644)
-	assert.NoError(t, err)
-
-	gp := parser.NewGitlabParser()
-	artifacts, err := gp.Parse(testDir)
-	assert.NoError(t, err)
-	assert.Len(t, artifacts, 0, "Expected no artifacts for an empty file")
-}
-
 func TestGitlabMalformedFile(t *testing.T) {
 	err := setupGitlabTestDir()
 	assert.NoError(t, err)

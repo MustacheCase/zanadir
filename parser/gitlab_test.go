@@ -66,3 +66,68 @@ func TesGitlabParse(t *testing.T) {
 		assert.Equal(t, expectedJobs[job.Package], job.Version, "Job version mismatch")
 	}
 }
+
+func TestGitlabEmptyFile(t *testing.T) {
+	err := setupGitlabTestDir()
+	assert.NoError(t, err)
+
+	defer teardownTestDir()
+
+	// Overwrite the .gitlab-ci.yml file with empty content
+	testFile := filepath.Join(testDir, ".gitlab-ci.yml")
+	err = os.WriteFile(testFile, []byte(""), 0644)
+	assert.NoError(t, err)
+
+	gp := parser.NewGitlabParser()
+	artifacts, err := gp.Parse(testDir)
+	assert.NoError(t, err)
+	assert.Len(t, artifacts, 0, "Expected no artifacts for an empty file")
+}
+
+func TestGitlabMalformedFile(t *testing.T) {
+	err := setupGitlabTestDir()
+	assert.NoError(t, err)
+
+	defer teardownTestDir()
+
+	// Overwrite the .gitlab-ci.yml file with malformed content
+	testFile := filepath.Join(testDir, ".gitlab-ci.yml")
+	malformedContent := `
+    stages:
+      - test
+    build:
+      stage: test
+      script:
+        - echo "Building..."
+      image: golang:1.19
+    deploy:
+      stage: test
+      script:
+        - echo "Deploying..."
+      image: node:18
+      invalid_field: [`
+	err = os.WriteFile(testFile, []byte(malformedContent), 0644)
+	assert.NoError(t, err)
+
+	gp := parser.NewGitlabParser()
+	artifacts, err := gp.Parse(testDir)
+	assert.Error(t, err, "Expected an error for a malformed file")
+	assert.Nil(t, artifacts, "Expected no artifacts for a malformed file")
+}
+
+func TestGitlabNoFile(t *testing.T) {
+	err := setupGitlabTestDir()
+	assert.NoError(t, err)
+
+	defer teardownTestDir()
+
+	// Remove the .gitlab-ci.yml file
+	testFile := filepath.Join(testDir, ".gitlab-ci.yml")
+	err = os.Remove(testFile)
+	assert.NoError(t, err)
+
+	gp := parser.NewGitlabParser()
+	artifacts, err := gp.Parse(testDir)
+	assert.NoError(t, err)
+	assert.Len(t, artifacts, 0, "Expected no artifacts when file is missing")
+}

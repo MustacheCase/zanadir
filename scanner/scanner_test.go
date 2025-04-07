@@ -75,3 +75,22 @@ func TestScan_ScannerError(t *testing.T) {
 	assert.Equal(t, "scanner error", err.Error())
 	mockScanner.AssertExpectations(t)
 }
+
+func TestNewRepositoryScanner(t *testing.T) {
+	scanner := NewRepositoryScanner()
+
+	repoScanner, ok := scanner.(*RepositoryScanner)
+	assert.True(t, ok, "Expected scanner to be of type *RepositoryScanner")
+
+	expectedPaths := []string{
+		"/.github/workflows/",
+		"/.circleci/",
+		"/.gitlab-ci.yml",
+	}
+
+	assert.Len(t, repoScanner.ciParsers, len(expectedPaths), "Expected number of parsers to match")
+	for i, parser := range repoScanner.ciParsers {
+		assert.Equal(t, expectedPaths[i], parser.Path, "Parser path mismatch")
+		assert.NotNil(t, parser.Parser, "Parser should not be nil")
+	}
+}

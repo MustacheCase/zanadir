@@ -7,18 +7,13 @@ import (
 	"github.com/MustacheCase/zanadir/parser"
 )
 
-const (
-	githubCI = iota
-	circleCI
-)
-
 type ciParser struct {
 	Path   string
 	Parser parser.Parser
 }
 
 type RepositoryScanner struct {
-	ciParsers map[int]ciParser
+	ciParsers []ciParser
 }
 
 func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, error) {
@@ -41,11 +36,13 @@ func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, erro
 func NewRepositoryScanner() Scanner {
 	githubParser := parser.NewGithubParser()
 	circleCIParser := parser.NewCircleCIParser()
+	gitlabParser := parser.NewGitlabParser()
 
 	return &RepositoryScanner{
-		ciParsers: map[int]ciParser{
-			githubCI: {Path: "/.github/workflows/", Parser: githubParser},
-			circleCI: {Path: "/.circleci/", Parser: circleCIParser},
+		ciParsers: []ciParser{
+			{Path: "/.github/workflows/", Parser: githubParser},
+			{Path: "/.circleci/", Parser: circleCIParser},
+			{Path: "/.gitlab-ci.yml", Parser: gitlabParser},
 		},
 	}
 }

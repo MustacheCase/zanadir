@@ -41,6 +41,13 @@ Zanadir provides an `--enforce` flag to ensure that all CI/CD suggestions are fu
 zanadir scan --enforce
 ```
 
+## Output Format
+You can control the output format by using the `--output` flag with two options: table and json.
+```sh
+zanadir scan --output json
+zanadir scan --output table
+```
+
 ## Installation
 
 You can install Zanadir using Go:

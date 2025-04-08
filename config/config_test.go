@@ -45,6 +45,7 @@ func TestCreateConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := &cobra.Command{}
+			cmd.Flags().String("output", "json", "output format")
 			cmd.Flags().String("dir", tt.dir, "directory")
 			cmd.Flags().StringSlice("excluded-categories", tt.excludedCategories, "excluded categories")
 

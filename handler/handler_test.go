@@ -77,7 +77,7 @@ func captureOutput(f func()) string {
 
 	w.Close()
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	os.Stdout = old
 	return buf.String()
 }

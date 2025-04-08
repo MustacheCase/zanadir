@@ -45,6 +45,7 @@ func TestCreateConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := &cobra.Command{}
+			cmd.Flags().String("output", "json", "output format")
 			cmd.Flags().String("dir", tt.dir, "directory")
 			cmd.Flags().StringSlice("excluded-categories", tt.excludedCategories, "excluded categories")
 
@@ -66,4 +67,18 @@ func TestCreateConfig(t *testing.T) {
 			}
 		})
 	}
+
+	// Additional subtest to improve coverage for config/config.go#L48-L49.
+	t.Run("unsupported output", func(t *testing.T) {
+		cmd := &cobra.Command{}
+		// Set an unsupported output value to trigger error.
+		cmd.Flags().String("output", "xml", "output format")
+		cmd.Flags().String("dir", "/tmp/testdir", "directory")
+		cmd.Flags().StringSlice("excluded-categories", []string{}, "excluded categories")
+		_ = os.MkdirAll("/tmp/testdir", os.ModePerm)
+		defer os.RemoveAll("/tmp/testdir")
+		config, err := CreateConfig(cmd)
+		assert.Error(t, err)
+		assert.Nil(t, config)
+	})
 }

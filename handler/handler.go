@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/logger"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
@@ -19,11 +20,19 @@ type Handler struct {
 	OutputService     output.Output
 }
 
-func (h *Handler) Execute(config *config.Config) error {
-	artifacts, err := h.ScanService.Scan(config.Dir)
+func (h *Handler) Execute(cfg *config.Config) error {
+	debugf := func(format string, v ...interface{}) {}
+	if cfg.Debug {
+		debugf = logger.GetLogger().Info
+	}
+
+	debugf("Starting scan for directory: %s", cfg.Dir)
+	artifacts, err := h.ScanService.Scan(cfg.Dir)
 	if err != nil {
+		debugf("Scan error: %v", err)
 		return err
 	}
+	debugf("Found %d artifacts", len(artifacts))
 
 	var findings []*matcher.Finding
 	for _, c := range models.CategoryTitles {
@@ -31,18 +40,23 @@ func (h *Handler) Execute(config *config.Config) error {
 		categoryFindings := h.MatchService.Match(artifacts, categoryRules)
 		findings = append(findings, categoryFindings...)
 	}
+	debugf("Total findings: %d", len(findings))
 
-	suggestions := h.SuggestionService.FindSuggestions(findings, config.ExcludedCategories)
+	suggestions := h.SuggestionService.FindSuggestions(findings, cfg.ExcludedCategories)
+	debugf("Total suggestions: %d", len(suggestions))
 
 	err = h.OutputService.Response(suggestions)
 	if err != nil {
+		debugf("Output error: %v", err)
 		return err
 	}
 
-	if config.Enforce && len(suggestions) > 0 {
+	if cfg.Enforce && len(suggestions) > 0 {
+		debugf("Enforce mode enabled and suggestions found, failing scan")
 		return models.NewEnforceError("Enforce mode enabled and suggestions found")
 	}
 
+	debugf("Scan completed successfully")
 	return nil
 }
 

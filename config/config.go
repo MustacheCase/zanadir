@@ -12,6 +12,7 @@ type Config struct {
 	Dir                string
 	ExcludedCategories []string
 	Enforce            bool
+	Debug              bool
 }
 
 func CreateConfig(cmd *cobra.Command) (*Config, error) {
@@ -21,7 +22,6 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 		return nil, fmt.Errorf("error: --dir (-d) flag is required")
 	}
 
-	// normalize the path
 	dir = filepath.Clean(dir)
 
 	info, err := os.Lstat(dir)
@@ -34,12 +34,13 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	}
 
 	excludedCategories, _ := cmd.Flags().GetStringSlice("excluded-categories")
-
 	enforce, _ := cmd.Flags().GetBool("enforce")
+	debug, _ := cmd.Flags().GetBool("debug")
 
 	return &Config{
 		Dir:                dir,
 		ExcludedCategories: excludedCategories,
 		Enforce:            enforce,
+		Debug:              debug,
 	}, nil
 }

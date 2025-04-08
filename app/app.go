@@ -50,6 +50,8 @@ func NewApp() *cobra.Command {
 	scanCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
 	scanCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
 	scanCmd.Flags().Bool("enforce", false, "Fails the CI process when at least one rule is met (optional)")
+	scanCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
+
 	_ = scanCmd.MarkFlagRequired("dir")
 
 	return rootCmd

@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"errors"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/config"
@@ -65,6 +68,20 @@ func setup() {
 
 }
 
+func captureOutput(f func()) string {
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	f()
+
+	w.Close()
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	os.Stdout = old
+	return buf.String()
+}
+
 func TestHandler_Execute(t *testing.T) {
 	setup()
 
@@ -105,6 +122,7 @@ func TestHandler_Execute_ScanError(t *testing.T) {
 	assert.Equal(t, scanErr, err)
 	mockScanner.AssertExpectations(t)
 }
+
 func TestHandler_Execute_WithSuggestionsAndEnforce(t *testing.T) {
 	setup()
 
@@ -130,4 +148,32 @@ func TestHandler_Execute_WithSuggestionsAndEnforce(t *testing.T) {
 	mockMatcher.AssertExpectations(t)
 	mockSuggester.AssertExpectations(t)
 	mockOutput.AssertExpectations(t)
+}
+
+func TestHandler_Execute_DebugMode(t *testing.T) {
+	setup()
+
+	cfg := config.Config{
+		Dir:                "test-dir",
+		ExcludedCategories: []string{},
+		Enforce:            false,
+		Debug:              true,
+	}
+	artifacts := []*models.Artifact{{Name: "artifact1"}}
+	findings := []*matcher.Finding{{Category: "Category1"}}
+	suggestions := []*storage.CategorySuggestion{{Name: "Suggestion1"}}
+
+	mockScanner.On("Scan", cfg.Dir).Return(artifacts, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
+	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
+	mockSuggester.On("FindSuggestions", mock.Anything, mock.Anything).Return(suggestions)
+	mockOutput.On("Response", suggestions).Return(nil)
+
+	out := captureOutput(func() {
+		err := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput).Execute(&cfg)
+		assert.NoError(t, err)
+	})
+
+	// Check that the debug output contains our expected log message.
+	assert.Contains(t, out, "Starting scan for directory:")
 }

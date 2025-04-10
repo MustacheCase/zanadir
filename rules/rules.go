@@ -1,11 +1,26 @@
 package rules
 
 import (
+	"embed"
 	"regexp"
 
 	"github.com/MustacheCase/zanadir/models"
-	"github.com/MustacheCase/zanadir/storage"
+	"gopkg.in/yaml.v3" // added YAML import
 )
+
+//go:embed storage/*
+var rulesFS embed.FS
+
+type FileRule struct {
+	ID         string   `yaml:"id"`
+	ApplyOn    []string `yaml:"applyOn"`
+	Categories []string `yaml:"categories"`
+	Regex      string   `yaml:"regex"`
+}
+
+type FileRules struct {
+	Rules []FileRule `yaml:"rules"`
+}
 
 type Collection struct {
 	ByCategory map[string][]*Rule
@@ -26,7 +41,6 @@ type RuleService interface {
 }
 
 type service struct {
-	storageService  storage.Storage
 	RulesCollection *Collection
 }
 
@@ -34,7 +48,7 @@ func (s *service) GetCategoryRules(category models.CategoryTitle) []*Rule {
 	return s.RulesCollection.ByCategory[string(category)]
 }
 
-func (s *service) convertRules(rules []storage.FileRule) []*Rule {
+func (s *service) convertRules(rules []FileRule) []*Rule {
 	var convertedRules []*Rule
 	for _, r := range rules {
 		convertedRules = append(convertedRules, &Rule{
@@ -49,7 +63,7 @@ func (s *service) convertRules(rules []storage.FileRule) []*Rule {
 }
 
 func (s *service) createRulesCollection() (*Collection, error) {
-	rules, err := s.storageService.ReadRules()
+	rules, err := readEmbeddedRules()
 	if err != nil {
 		return nil, err
 	}
@@ -71,10 +85,32 @@ func (s *service) createRulesCollection() (*Collection, error) {
 	}, nil
 }
 
-func NewRulesService(storageService storage.Storage) (RuleService, error) {
-	s := &service{
-		storageService: storageService,
+func readEmbeddedRules() ([]FileRule, error) {
+	entries, err := rulesFS.ReadDir("storage")
+	if err != nil {
+		return nil, err
 	}
+
+	var rules []FileRule
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		data, err := rulesFS.ReadFile("storage/" + entry.Name())
+		if err != nil {
+			return nil, err
+		}
+		var fileRules FileRules
+		if err := yaml.Unmarshal(data, &fileRules); err != nil {
+			return nil, err
+		}
+		rules = append(rules, fileRules.Rules...)
+	}
+	return rules, nil
+}
+
+func NewRulesService() (RuleService, error) {
+	s := &service{}
 	collection, err := s.createRulesCollection()
 	if err != nil {
 		return nil, err

@@ -1,22 +1,47 @@
 package suggester
 
 import (
+	"embed"
+
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
-	"github.com/MustacheCase/zanadir/storage"
+	"gopkg.in/yaml.v3"
 )
 
 type service struct {
-	storageService storage.Storage
-	CategoriesMap  map[string]*storage.CategorySuggestion
+	CategoriesMap map[string]*CategorySuggestion
 }
+
+// CategorySuggestion represents a category of suggestions
+type CategorySuggestion struct {
+	ID          string        `yaml:"id"`
+	Name        string        `yaml:"name"`
+	Description string        `yaml:"description"`
+	Suggestions []*Suggestion `yaml:"suggestions"`
+}
+
+// Suggestion represents a single suggestion
+type Suggestion struct {
+	Name        string `yaml:"name"`
+	Repository  string `yaml:"repository"`
+	Description string `yaml:"description"`
+	Language    string `yaml:"language"`
+}
+
+// CategoryFile holds all category suggestions.
+type CategoryFile struct {
+	Categories []CategorySuggestion `yaml:"categories"`
+}
+
+//go:embed suggestions.yaml
+var suggestionsFS embed.FS
 
 type Suggester interface {
-	FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*storage.CategorySuggestion
+	FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*CategorySuggestion
 }
 
-func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*storage.CategorySuggestion {
-	var categoriesSuggestions []*storage.CategorySuggestion
+func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*CategorySuggestion {
+	var categoriesSuggestions []*CategorySuggestion
 	coveredCategories := make(map[string]bool)
 	for _, f := range findings {
 		coveredCategories[f.Category] = true
@@ -42,29 +67,52 @@ func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategorie
 	return categoriesSuggestions
 }
 
-func (s *service) categorySuggestionMap() (map[string]*storage.CategorySuggestion, error) {
-	categoriesMap := make(map[string]*storage.CategorySuggestion)
-	categories, err := s.storageService.ReadCategoriesSuggestions()
+func readEmbeddedSuggestions() ([]CategorySuggestion, error) {
+	// Read the embedded YAML file directly.
+	data, err := suggestionsFS.ReadFile("suggestions.yaml")
 	if err != nil {
 		return nil, err
 	}
-	for _, c := range categories {
-		categoriesMap[c.ID] = &c
+	var suggestionFile CategoryFile
+	if err := yaml.Unmarshal(data, &suggestionFile); err != nil {
+		return nil, err
 	}
-
-	return categoriesMap, nil
+	return suggestionFile.Categories, nil
 }
 
-func NewSuggestionService(storageService storage.Storage) (Suggester, error) {
-	s := &service{
-		storageService: storageService,
+// buildCategoriesMap converts embedded CategorySuggestion slice to a map of CategorySuggestion.
+func buildCategoriesMap(cats []CategorySuggestion) map[string]*CategorySuggestion {
+	categoriesMap := make(map[string]*CategorySuggestion)
+	for _, cat := range cats {
+		categoriesMap[cat.ID] = &CategorySuggestion{
+			ID:          cat.ID,
+			Name:        cat.Name,
+			Description: cat.Description,
+			Suggestions: convertSuggestions(cat.Suggestions),
+		}
 	}
+	return categoriesMap
+}
 
-	categoriesMap, err := s.categorySuggestionMap()
+func convertSuggestions(sugs []*Suggestion) []*Suggestion {
+	var result []*Suggestion
+	for _, sug := range sugs {
+		result = append(result, &Suggestion{
+			Name:        sug.Name,
+			Repository:  sug.Repository,
+			Description: sug.Description,
+			Language:    sug.Language,
+		})
+	}
+	return result
+}
+
+func NewSuggestionService() (Suggester, error) {
+	s := &service{}
+	cats, err := readEmbeddedSuggestions()
 	if err != nil {
 		return nil, err
 	}
-	s.CategoriesMap = categoriesMap
-
+	s.CategoriesMap = buildCategoriesMap(cats)
 	return s, nil
 }

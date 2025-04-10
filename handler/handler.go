@@ -8,7 +8,6 @@ import (
 	"github.com/MustacheCase/zanadir/output"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/scanner"
-	"github.com/MustacheCase/zanadir/storage"
 	"github.com/MustacheCase/zanadir/suggester"
 )
 
@@ -61,14 +60,13 @@ func (h *Handler) Execute(cfg *config.Config) error {
 }
 
 func Setup() (*Handler, error) {
-	storageService := storage.NewStorageService()
-	rulesService, err := rules.NewRulesService(storageService)
+	rulesService, err := rules.NewRulesService()
 	if err != nil {
 		return nil, err
 	}
 	repoScanner := scanner.NewRepositoryScanner()
 	scanService := scanner.NewScanService(repoScanner)
-	suggestionService, err := suggester.NewSuggestionService(storageService)
+	suggestionService, err := suggester.NewSuggestionService()
 	if err != nil {
 		return nil, err
 	}

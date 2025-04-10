@@ -11,7 +11,7 @@ import (
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
-	"github.com/MustacheCase/zanadir/storage"
+	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -41,12 +41,12 @@ func (m *MockMatcher) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule)
 	return args.Get(0).([]*matcher.Finding)
 }
 
-func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*storage.CategorySuggestion {
+func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*suggester.CategorySuggestion {
 	args := m.Called(findings)
-	return args.Get(0).([]*storage.CategorySuggestion)
+	return args.Get(0).([]*suggester.CategorySuggestion)
 }
 
-func (m *MockOutput) Response(suggestions []*storage.CategorySuggestion, responseType string) error {
+func (m *MockOutput) Response(suggestions []*suggester.CategorySuggestion, responseType string) error {
 	args := m.Called(suggestions, responseType)
 	return args.Error(0)
 }
@@ -92,7 +92,7 @@ func TestHandler_Execute(t *testing.T) {
 	config := config.Config{Dir: "test-dir", ExcludedCategories: []string{"dummy"}}
 	artifacts := []*models.Artifact{{Name: "artifact1"}}
 	findings := []*matcher.Finding{{Category: "Category1"}}
-	suggestions := []*storage.CategorySuggestion{{Name: "Suggestion1"}}
+	suggestions := []*suggester.CategorySuggestion{{Name: "Suggestion1"}}
 
 	mockScanner.On("Scan", config.Dir).Return(artifacts, nil)
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
@@ -133,7 +133,7 @@ func TestHandler_Execute_WithSuggestionsAndEnforce(t *testing.T) {
 	config := config.Config{Dir: "test-dir", ExcludedCategories: []string{"dummy"}, Enforce: true}
 	artifacts := []*models.Artifact{{Name: "artifact1"}}
 	findings := []*matcher.Finding{{Category: "Category1"}}
-	suggestions := []*storage.CategorySuggestion{{Name: "Suggestion1"}}
+	suggestions := []*suggester.CategorySuggestion{{Name: "Suggestion1"}}
 
 	mockScanner.On("Scan", config.Dir).Return(artifacts, nil)
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
@@ -163,7 +163,7 @@ func TestHandler_Execute_DebugMode(t *testing.T) {
 	}
 	artifacts := []*models.Artifact{{Name: "artifact1"}}
 	findings := []*matcher.Finding{{Category: "Category1"}}
-	suggestions := []*storage.CategorySuggestion{{Name: "Suggestion1"}}
+	suggestions := []*suggester.CategorySuggestion{{Name: "Suggestion1"}}
 
 	mockScanner.On("Scan", cfg.Dir).Return(artifacts, nil)
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))

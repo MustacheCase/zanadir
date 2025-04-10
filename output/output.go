@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/MustacheCase/zanadir/config"
-	"github.com/MustacheCase/zanadir/storage"
+	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/olekukonko/tablewriter"
 )
 
 // Updated interface: single Response method with a response type parameter.
 type Output interface {
-	Response(suggestions []*storage.CategorySuggestion, responseType string) error
+	Response(suggestions []*suggester.CategorySuggestion, responseType string) error
 }
 
 type service struct{}
@@ -44,7 +44,7 @@ func wrapText(text string, lineWidth int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (s *service) Response(suggestions []*storage.CategorySuggestion, responseType string) error {
+func (s *service) Response(suggestions []*suggester.CategorySuggestion, responseType string) error {
 	if responseType == config.OutputTable {
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"Category", "Description", "Suggested Tools"})

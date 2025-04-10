@@ -9,15 +9,15 @@ import (
 	"testing"
 
 	"github.com/MustacheCase/zanadir/config"
-	"github.com/MustacheCase/zanadir/storage"
+	"github.com/MustacheCase/zanadir/suggester"
 )
 
-func getSampleSuggestions() []*storage.CategorySuggestion {
-	return []*storage.CategorySuggestion{
+func getSampleSuggestions() []*suggester.CategorySuggestion {
+	return []*suggester.CategorySuggestion{
 		{
 			Name:        "Secrets",
 			Description: "Detect hardcoded secrets in source code repositories using specialized tools.",
-			Suggestions: []*storage.Suggestion{
+			Suggestions: []*suggester.Suggestion{
 				{Name: "Gitleaks"},
 				{Name: "TruffleHog"},
 			},
@@ -25,7 +25,7 @@ func getSampleSuggestions() []*storage.CategorySuggestion {
 		{
 			Name:        "Licenses",
 			Description: "Analyze open source license usage and compliance.",
-			Suggestions: []*storage.Suggestion{
+			Suggestions: []*suggester.Suggestion{
 				{Name: "FOSSA"},
 			},
 		},
@@ -58,7 +58,7 @@ func TestResponse_JSONOutput(t *testing.T) {
 	})
 
 	// Validate that it's valid JSON
-	var result []*storage.CategorySuggestion
+	var result []*suggester.CategorySuggestion
 	err := json.Unmarshal([]byte(out), &result)
 	if err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)

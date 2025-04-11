@@ -57,6 +57,9 @@ You can install Zanadir using Go:
 go install github.com/MustacheCase/zanadir@latest
 ```
 
+## GitHub Actions
+If you're using GitHub Actions, you can use our [Zanadir-based action](https://github.com/MustacheCase/zanadir-action) to run CI\CD scans on your code during your CI workflows.
+
 ## Contributors
 
 Zanadir is still in its experimental phase. We are working hard to release the first stable version soon.  

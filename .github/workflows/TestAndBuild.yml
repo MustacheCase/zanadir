@@ -47,3 +47,11 @@ jobs:
       - name: Run the tool on the repo
         run: |
           ./zanadir scan --dir .
+      
+      - name: Run zanadir Github action
+        uses: mustachecase/zanadir-action@v1
+        with:
+          dir: .
+          debug: true
+          enforce: false
+          output: table

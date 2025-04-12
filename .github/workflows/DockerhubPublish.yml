@@ -34,3 +34,11 @@ jobs:
         run: |
           docker push mustachecase/zanadir:${TAG}
           docker push mustachecase/zanadir:latest
+
+      - name: Run zanadir Github action
+        uses: mustachecase/zanadir-action@v1
+        with:
+          dir: .
+          debug: true
+          enforce: false
+          output: table

@@ -18,3 +18,13 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package"]
     categories: ["Performance Testing"]
     regex: "(?i)\\b(?:ab|apache-bench|apachebench)\\b"
+
+  - id: "artillery-rule"
+    applyOn: [ "Artifact.Name", "Job.Package" ]
+    categories: [ "Performance Testing" ]
+    regex: "(?i)\\bartillery\\b"
+
+  - id: "blazemeter-rule"
+    applyOn: [ "Artifact.Name", "Job.Package" ]
+    categories: [ "Performance Testing" ]
+    regex: "(?i)\\bblazemeter\\b"

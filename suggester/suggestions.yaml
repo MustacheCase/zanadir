@@ -93,6 +93,12 @@ categories:
       - name: "Apache Bench"
         repository: "https://httpd.apache.org/docs/2.4/programs/ab.html"
         description: "A simple command line tool for benchmarking HTTP servers, part of the Apache HTTP server project, ideal for quick performance checks."
+      - name: "Artillery"
+        repository: "https://github.com/artilleryio/artillery"
+        description: "An easy-to-use load testing and functional testing toolkit for testing microservices and APIs with support for multiple protocols."
+      - name: "BlazeMeter"
+        repository: "https://github.com/blazemeter/"
+        description: "BlazeMeter is an AI-powered continuous testing platform designed for developers, QA, and DevOps teams to efficiently perform performance, functional, and API testing."
 
   - id: "Linter"
     name: "Linting Tools"

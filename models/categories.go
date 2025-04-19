@@ -1,18 +1,19 @@
 package models
 
 const (
-	SCA       CategoryTitle = "SCA"
-	Secrets   CategoryTitle = "Secrets"
-	Licenses  CategoryTitle = "Licenses"
-	EndOfLife CategoryTitle = "End Of Life"
-	Coverage  CategoryTitle = "Coverage"
-	Linter    CategoryTitle = "Linter"
-	PerformanceTesting    CategoryTitle = "Performance Testing"
-	Table     Format        = "table"
-	JSON      Format        = "json"
+	SCA                CategoryTitle = "SCA"
+	Secrets            CategoryTitle = "Secrets"
+	Licenses           CategoryTitle = "Licenses"
+	EndOfLife          CategoryTitle = "End Of Life"
+	Coverage           CategoryTitle = "Coverage"
+	Linter             CategoryTitle = "Linter"
+	PerformanceTesting CategoryTitle = "Performance Testing"
+	UnitTests          CategoryTitle = "Unit Tests"
+	Table              Format        = "table"
+	JSON               Format        = "json"
 )
 
-var CategoryTitles = []CategoryTitle{SCA, Secrets, Licenses, EndOfLife, Coverage, Linter, PerformanceTesting}
+var CategoryTitles = []CategoryTitle{SCA, Secrets, Licenses, EndOfLife, Coverage, Linter, PerformanceTesting, UnitTests}
 
 type CategoryTitle string
 

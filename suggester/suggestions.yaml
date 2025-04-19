@@ -117,4 +117,18 @@ categories:
         repository: "https://github.com/oxsecurity/megalinter"
         description: "A linter for multiple languages, formats, and configurations to ensure code quality across projects."
 
+  - id: "Unit Tests"
+    name: "Unit Tests"
+    description: "Tools and frameworks for unit testing in CI pipelines."
+    suggestions:
+      - name: "JUnit"
+        repository: "https://github.com/junit-team/junit5"
+        description: "A popular testing framework for Java applications."
+      - name: "pytest"
+        repository: "https://github.com/pytest-dev/pytest"
+        description: "A powerful testing tool for Python projects."
+      - name: "Mocha"
+        repository: "https://github.com/mochajs/mocha"
+        description: "A feature-rich JavaScript test framework for Node.js."
+
 

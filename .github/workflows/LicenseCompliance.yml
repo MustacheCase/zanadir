@@ -1,0 +1,20 @@
+name: License Compliance Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  license-compliance-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: License Compliance Scan
+        uses: fossas/fossa-action@main
+        with:
+          api-key: ${{ secrets.FOSSA_API_KEY }}

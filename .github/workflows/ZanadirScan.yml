@@ -1,0 +1,23 @@
+name: Zanadir Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  zanadir-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Run zanadir Github action
+      uses: mustachecase/zanadir-action@v1
+      with:
+        dir: .
+        debug: true
+        enforce: false
+        output: table

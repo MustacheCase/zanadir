@@ -1,0 +1,20 @@
+name: EOL Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Scan current project
+      uses: xeol-io/xeol-action@v1.1.1
+      with:
+        path: "."

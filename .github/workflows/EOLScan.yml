@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  eol-scan:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout code

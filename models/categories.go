@@ -2,7 +2,7 @@ package models
 
 const (
 	SCA                CategoryTitle = "SCA"
-	Secrets            CategoryTitle = "Secrets"
+	Secrets            CategoryTitle = "Secrets Detection"
 	Licenses           CategoryTitle = "Licenses"
 	EndOfLife          CategoryTitle = "End Of Life"
 	Coverage           CategoryTitle = "Coverage"

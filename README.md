@@ -57,6 +57,14 @@ You can install Zanadir using Go:
 go install github.com/MustacheCase/zanadir@latest
 ```
 
+Or using Homebrew:
+
+```sh
+# Install using Homebrew
+brew tap MustacheCase/zanadir
+brew install zanadir
+```
+
 ## GitHub Actions
 If you're using GitHub Actions, you can use our [Zanadir-based action](https://github.com/MustacheCase/zanadir-action) to run CI\CD scans on your code during your CI workflows.
 

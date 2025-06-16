@@ -24,3 +24,7 @@ go.work.sum
 # env file
 .env
 .vscode
+
+# macOS system files
+.DS_Store
+**/.DS_Store

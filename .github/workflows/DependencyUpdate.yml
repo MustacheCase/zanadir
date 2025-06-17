@@ -31,13 +31,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: main  # Explicitly checkout main branch
+          ref: ${{ github.event_name == 'schedule' && 'main' || github.ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '>=1.21'
+          go-version: '1.21.8'  # Use a specific stable version
+
+      - name: Debug Go environment
+        run: |
+          go version
+          go env
+          go list -m all
 
       - name: Update dependencies
         run: |
@@ -49,10 +55,12 @@ jobs:
           go mod tidy
 
       - name: Run go vet
-        run: go vet ./...
+        run: |
+          go vet -v ./...
 
       - name: Run tests
-        run: go test -v ./...
+        run: |
+          go test -v ./...
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
@@ -75,7 +83,7 @@ jobs:
             
             Please review the changes and ensure all tests pass in your environment.
           branch: ${{ github.event.inputs.branch_name }}-${{ github.run_id }}
-          base: main
+          base: ${{ github.event_name == 'schedule' && 'main' || github.ref_name }}
           labels: |
             dependencies
             automated pr

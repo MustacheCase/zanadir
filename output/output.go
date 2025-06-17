@@ -48,7 +48,13 @@ func (s *service) Response(suggestions []*suggester.CategorySuggestion, response
 	if responseType == config.OutputTable {
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"Category", "Description", "Suggested Tools"})
-		table.SetRowLine(true) // adds separator between rows
+		table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
+		table.SetCenterSeparator("|")
+		table.SetColumnSeparator("|")
+		table.SetRowSeparator("-")
+		table.SetRowLine(true)
+		table.SetAutoWrapText(true)
+		table.SetReflowDuringAutoWrap(true)
 
 		for _, suggestion := range suggestions {
 			toolNames := []string{}

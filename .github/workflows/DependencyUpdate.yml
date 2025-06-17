@@ -11,7 +11,7 @@ on:
         default: false
         type: boolean
       branch_name:
-        description: 'Branch name for the PR'
+        description: 'Base branch name for the PR (will be appended with run ID)'
         required: false
         default: 'update-dependencies'
         type: string
@@ -32,7 +32,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '>=1.21'
 
       - name: Update dependencies
         run: |
@@ -42,6 +42,12 @@ jobs:
             go get -u ./...
           fi
           go mod tidy
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: go test -v ./...
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
@@ -57,7 +63,13 @@ jobs:
             go get -u ./...
             go mod tidy
             ```
-          branch: ${{ github.event.inputs.branch_name }}
+            
+            The following checks have passed:
+            - ✅ go vet
+            - ✅ go test
+            
+            Please review the changes and ensure all tests pass in your environment.
+          branch: ${{ github.event.inputs.branch_name }}-${{ github.run_id }}
           base: main
           labels: |
             dependencies

@@ -1,0 +1,76 @@
+name: Update Go Dependencies
+
+on:
+  schedule:
+    - cron: '0 7 * * *'  # Every day at 07:00 UTC
+  workflow_dispatch:
+    inputs:
+      update_all:
+        description: 'Update all dependencies (including major versions)'
+        required: false
+        default: false
+        type: boolean
+      branch_name:
+        description: 'Base branch name for the PR (will be appended with run ID)'
+        required: false
+        default: 'update-dependencies'
+        type: string
+
+# Add explicit permissions
+permissions:
+  contents: write  # Required for pushing changes
+  pull-requests: write  # Optional, but useful if you want to create PRs instead of direct pushes
+
+jobs:
+  update-deps:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.21'
+
+      - name: Update dependencies
+        run: |
+          if [ "${{ github.event.inputs.update_all }}" = "true" ]; then
+            go get -u -t ./...
+          else
+            go get -u ./...
+          fi
+          go mod tidy
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(deps): Go dependency update"
+          title: "chore(deps): Go dependency update"
+          body: |
+            This PR contains Go dependency updates.
+            
+            Changes were made by running:
+            ```bash
+            go get -u ./...
+            go mod tidy
+            ```
+            
+            The following checks have passed:
+            - ✅ go vet
+            - ✅ go test
+            
+            Please review the changes and ensure all tests pass in your environment.
+          branch: ${{ github.event.inputs.branch_name }}-${{ github.run_id }}
+          base: main
+          labels: |
+            dependencies
+            automated pr

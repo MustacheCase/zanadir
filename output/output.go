@@ -9,13 +9,14 @@ import (
 	"github.com/MustacheCase/zanadir/suggester"
 )
 
-// Updated interface: single Response method with a response type parameter.
+// Output interface defines the contract for output services
 type Output interface {
 	Response(suggestions []*suggester.CategorySuggestion, responseType string) error
 }
 
 type service struct{}
 
+// wrapText wraps text to a specified width
 func wrapText(text string, lineWidth int) string {
 	words := strings.Fields(text)
 	if len(words) == 0 {
@@ -42,6 +43,7 @@ func wrapText(text string, lineWidth int) string {
 	return strings.Join(lines, "\n")
 }
 
+// printTable prints suggestions in a formatted table
 func printTable(suggestions []*suggester.CategorySuggestion) {
 	// Print header
 	fmt.Println("Category | Description | Suggested Tools")
@@ -62,6 +64,7 @@ func printTable(suggestions []*suggester.CategorySuggestion) {
 	}
 }
 
+// Response handles the output of suggestions in the specified format
 func (s *service) Response(suggestions []*suggester.CategorySuggestion, responseType string) error {
 	if responseType == config.OutputTable {
 		printTable(suggestions)
@@ -76,6 +79,7 @@ func (s *service) Response(suggestions []*suggester.CategorySuggestion, response
 	return nil
 }
 
+// NewOutputService creates a new output service instance
 func NewOutputService() Output {
 	return &service{}
 }

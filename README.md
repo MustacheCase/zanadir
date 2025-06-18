@@ -108,7 +108,7 @@ zanadir scan --dir . --excluded-categories "SCA,Secrets"
 
 #### Enforce Mode
 
-Fail the CI pipeline if any suggestions are found (useful for automated workflows):
+Zanadir provides an `--enforce` flag to ensure that all CI/CD suggestions are fulfilled. If any suggestion is not met, the CI pipeline will fail. This helps enforce security best practices and compliance in automated workflows.
 
 ```sh
 zanadir scan --dir . --enforce
@@ -132,21 +132,6 @@ zanadir scan \
   --excluded-categories "Linter" \
   --enforce \
   --debug
-```
-
-## Enforce Mode
-
-Zanadir provides an `--enforce` flag to ensure that all CI/CD suggestions are fulfilled. If any suggestion is not met, the CI pipeline will fail. This helps enforce security best practices and compliance in automated workflows.
-
-```sh
-zanadir scan --enforce
-```
-
-## Output Format
-You can control the output format by using the `--output` flag with two options: table and json.
-```sh
-zanadir scan --output json
-zanadir scan --output table
 ```
 
 ## Installation

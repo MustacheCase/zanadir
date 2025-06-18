@@ -33,19 +33,105 @@ Zanadir analyzes repositories in the following categories:
 - 📊 **Performance Testing**: Test Performance and Reliability
 - 🧑‍💻 **Linter**: Code Linting
 
-## Enforce Mode
+## Usage Examples
+
+### Basic Usage
+
+Scan a repository for CI/CD improvement suggestions:
+
+```sh
+zanadir scan --dir /path/to/your/repo
+```
+
+### Output Formats
+
+Zanadir supports two output formats: table (default) and JSON.
+
+#### Table Output (Default)
+
+```sh
+zanadir scan --dir . --output table
+```
+
+**Sample Output:**
+```
+|--------------------------------|--------------------------------|-------------------|
+|            CATEGORY            |          DESCRIPTION           |  SUGGESTED TOOLS  |
+|--------------------------------|--------------------------------|-------------------|
+| Performance and Reliability    | Tools for measuring code       | k6, JMeter,       |
+| Testing Tools                  | coverage to ensure testing     | Gatling, Apache   |
+|                                | completeness and software      | Bench, Artillery, |
+|                                | quality.                       | BlazeMeter        |
+|--------------------------------|--------------------------------|-------------------|
+```
+
+#### JSON Output
+
+```sh
+zanadir scan --dir . --output json
+```
+
+**Sample Output:**
+```json
+[
+  {
+    "ID": "Performance Testing",
+    "Name": "Performance and Reliability Testing Tools",
+    "Description": "Tools for measuring code coverage to ensure testing completeness and software quality.",
+    "Suggestions": [
+      {
+        "Name": "k6",
+        "Repository": "https://github.com/grafana/k6",
+        "Description": "Grafana k6 is an open-source, developer-friendly, and extensible load testing tool. k6 allows you to prevent performance issues and proactively improve reliability.",
+        "Language": ""
+      },
+      {
+        "Name": "JMeter",
+        "Repository": "https://github.com/apache/jmeter",
+        "Description": "An Apache project designed to load test functional behavior and measure performance, with support for various protocols and servers.",
+        "Language": ""
+      }
+    ]
+  }
+]
+```
+
+### Advanced Usage
+
+#### Exclude Specific Categories
+
+Skip certain categories during analysis:
+
+```sh
+zanadir scan --dir . --excluded-categories "SCA,Secrets"
+```
+
+#### Enforce Mode
 
 Zanadir provides an `--enforce` flag to ensure that all CI/CD suggestions are fulfilled. If any suggestion is not met, the CI pipeline will fail. This helps enforce security best practices and compliance in automated workflows.
 
 ```sh
-zanadir scan --enforce
+zanadir scan --dir . --enforce
 ```
 
-## Output Format
-You can control the output format by using the `--output` flag with two options: table and json.
+#### Debug Mode
+
+Get detailed logging information:
+
 ```sh
-zanadir scan --output json
-zanadir scan --output table
+zanadir scan --dir . --debug
+```
+
+#### Complete Example
+
+```sh
+# Scan with all options
+zanadir scan \
+  --dir /path/to/repo \
+  --output json \
+  --excluded-categories "Linter" \
+  --enforce \
+  --debug
 ```
 
 ## Installation

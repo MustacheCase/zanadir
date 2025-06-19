@@ -1,4 +1,6 @@
 name: License Compliance Scan
+permissions:
+  contents: read
 
 on:
   push:

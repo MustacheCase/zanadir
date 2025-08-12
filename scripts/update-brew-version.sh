@@ -13,7 +13,7 @@ echo "Latest version: $LATEST_VERSION"
 VERSION_NUMBER=${LATEST_VERSION#v}
 
 # Download the tarball and calculate SHA256
-TARBALL_URL="https://github.com/MustacheCase/zanadir/archive/refs/tags/${LATEST_VERSION}.tar.gz"
+TARBALL_URL="https://github.com/MustacheCase/zanadir/archive/${LATEST_VERSION}.tar.gz"
 echo "Downloading: $TARBALL_URL"
 
 # Download and calculate SHA256

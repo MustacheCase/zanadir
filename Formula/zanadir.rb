@@ -7,7 +7,7 @@ class Zanadir < Formula
   version = "0.1.1"
   
   stable do
-    url "https://github.com/MustacheCase/zanadir/archive/refs/tags/#{version}.tar.gz"
+    url "https://github.com/MustacheCase/zanadir/archive/#{version}.tar.gz"
     sha256 "84165bcdc12ff56058ff438fe7cbbdd3d694c24bb9f4d2f546184ce83ca0adbc"
     version version
   end

@@ -5,18 +5,12 @@
 
 set -e
 
-# Get the latest version tag (only tags without 'v' prefix like 0.1.1, not v0.0.5)
-LATEST_VERSION=$(git tag -l | grep -v '^v' | sort -V | tail -1)
+# Get the latest version tag (handle both v0.0.5 and 0.1.1 formats)
+LATEST_VERSION=$(git tag -l | sort -V | tail -1)
 echo "Latest version: $LATEST_VERSION"
 
-# Verify we have a valid version
-if [[ -z "$LATEST_VERSION" ]]; then
-    echo "Error: No tags found without 'v' prefix"
-    exit 1
-fi
-
-# Version number is the same as the tag (no 'v' prefix to remove)
-VERSION_NUMBER=$LATEST_VERSION
+# Remove 'v' prefix if present
+VERSION_NUMBER=${LATEST_VERSION#v}
 
 # Download the tarball and calculate SHA256
 TARBALL_URL="https://github.com/MustacheCase/zanadir/archive/${LATEST_VERSION}.tar.gz"
@@ -36,7 +30,7 @@ cp "$FORMULA_FILE" "$FORMULA_FILE.backup"
 sed -i.bak "s/version = \"[^\"]*\"/version = \"$VERSION_NUMBER\"/" "$FORMULA_FILE"
 sed -i.bak "s/sha256 \"[^\"]*\"/sha256 \"$SHA256\"/" "$FORMULA_FILE"
 
-# Clean up ALL backup files
+# Clean up backup files
 rm -f "$FORMULA_FILE.backup" "$FORMULA_FILE.bak"
 
 echo "Updated $FORMULA_FILE with version $VERSION_NUMBER and SHA256 $SHA256"

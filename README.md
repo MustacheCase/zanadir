@@ -146,8 +146,8 @@ go install github.com/MustacheCase/zanadir@latest
 Or using Homebrew:
 
 ```sh
-# Install using Homebrew
-brew tap MustacheCase/zanadir
+# Install using Homebrew (custom tap)
+brew tap --custom-remote MustacheCase/zanadir https://github.com/MustacheCase/zanadir.git
 brew install zanadir
 ```
 

@@ -3,21 +3,20 @@ package output
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/suggester"
-	"github.com/olekukonko/tablewriter"
 )
 
-// Updated interface: single Response method with a response type parameter.
+// Output interface defines the contract for output services
 type Output interface {
 	Response(suggestions []*suggester.CategorySuggestion, responseType string) error
 }
 
 type service struct{}
 
+// wrapText wraps text to a specified width
 func wrapText(text string, lineWidth int) string {
 	words := strings.Fields(text)
 	if len(words) == 0 {
@@ -44,32 +43,31 @@ func wrapText(text string, lineWidth int) string {
 	return strings.Join(lines, "\n")
 }
 
+// printTable prints suggestions in a formatted table
+func printTable(suggestions []*suggester.CategorySuggestion) {
+	// Print header
+	fmt.Println("Category | Description | Suggested Tools")
+	fmt.Println("---------|-------------|----------------")
+
+	for _, suggestion := range suggestions {
+		toolNames := []string{}
+		for _, tool := range suggestion.Suggestions {
+			toolNames = append(toolNames, tool.Name)
+		}
+		tools := strings.Join(toolNames, ", ")
+
+		// Wrap description for better display
+		description := wrapText(suggestion.Description, 60)
+
+		// Print row
+		fmt.Printf("%s | %s | %s\n", suggestion.Name, description, tools)
+	}
+}
+
+// Response handles the output of suggestions in the specified format
 func (s *service) Response(suggestions []*suggester.CategorySuggestion, responseType string) error {
 	if responseType == config.OutputTable {
-		table := tablewriter.NewWriter(os.Stdout)
-		table.SetHeader([]string{"Category", "Description", "Suggested Tools"})
-		table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
-		table.SetCenterSeparator("|")
-		table.SetColumnSeparator("|")
-		table.SetRowSeparator("-")
-		table.SetRowLine(true)
-		table.SetAutoWrapText(true)
-		table.SetReflowDuringAutoWrap(true)
-
-		for _, suggestion := range suggestions {
-			toolNames := []string{}
-			for _, tool := range suggestion.Suggestions {
-				toolNames = append(toolNames, tool.Name)
-			}
-			tools := strings.Join(toolNames, ", ")
-
-			// Wrap description for better display
-			description := wrapText(suggestion.Description, 60)
-
-			table.Append([]string{suggestion.Name, description, tools})
-		}
-
-		table.Render()
+		printTable(suggestions)
 		return nil
 	}
 
@@ -81,6 +79,7 @@ func (s *service) Response(suggestions []*suggester.CategorySuggestion, response
 	return nil
 }
 
+// NewOutputService creates a new output service instance
 func NewOutputService() Output {
 	return &service{}
 }

@@ -36,8 +36,8 @@ cp "$FORMULA_FILE" "$FORMULA_FILE.backup"
 sed -i.bak "s/version = \"[^\"]*\"/version = \"$VERSION_NUMBER\"/" "$FORMULA_FILE"
 sed -i.bak "s/sha256 \"[^\"]*\"/sha256 \"$SHA256\"/" "$FORMULA_FILE"
 
-# Clean up backup files
-rm -f "$FORMULA_FILE.bak"
+# Clean up ALL backup files
+rm -f "$FORMULA_FILE.backup" "$FORMULA_FILE.bak"
 
 echo "Updated $FORMULA_FILE with version $VERSION_NUMBER and SHA256 $SHA256"
 echo "Don't forget to commit and push these changes!"

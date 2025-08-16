@@ -3,10 +3,13 @@ class Zanadir < Formula
   homepage "https://github.com/MustacheCase/zanadir"
   license "MIT"
 
+  # Get the latest version from git tags
+  version = "0.1.1"
+  
   stable do
-    url "https://github.com/MustacheCase/zanadir/archive/refs/tags/0.0.5.tar.gz"
-    sha256 "9a54d970ee594f21395f0de3210bce8c0059a48d2cf84911207baad125cb9a13"
-    version "0.0.5"
+    url "https://github.com/MustacheCase/zanadir/archive/#{version}.tar.gz"
+    sha256 "84165bcdc12ff56058ff438fe7cbbdd3d694c24bb9f4d2f546184ce83ca0adbc"
+    version version
   end
 
   head "https://github.com/MustacheCase/zanadir.git", branch: "main"

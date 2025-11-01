@@ -51,10 +51,10 @@ func TestCreateConfig(t *testing.T) {
 
 			if tt.dir == "/tmp/symlinkdir" {
 				_ = os.Symlink("/tmp/testdir", "/tmp/symlinkdir")
-				defer os.Remove("/tmp/symlinkdir")
+				defer os.Remove("/tmp/symlinkdir") //nolint:errcheck
 			} else if tt.dir != "" {
 				_ = os.MkdirAll(tt.dir, os.ModePerm)
-				defer os.RemoveAll(tt.dir)
+				defer os.RemoveAll(tt.dir) //nolint:errcheck
 			}
 
 			config, err := CreateConfig(cmd)
@@ -76,7 +76,7 @@ func TestCreateConfig(t *testing.T) {
 		cmd.Flags().String("dir", "/tmp/testdir", "directory")
 		cmd.Flags().StringSlice("excluded-categories", []string{}, "excluded categories")
 		_ = os.MkdirAll("/tmp/testdir", os.ModePerm)
-		defer os.RemoveAll("/tmp/testdir")
+		defer os.RemoveAll("/tmp/testdir") //nolint:errcheck
 		config, err := CreateConfig(cmd)
 		assert.Error(t, err)
 		assert.Nil(t, config)

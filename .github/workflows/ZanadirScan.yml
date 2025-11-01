@@ -18,7 +18,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Run zanadir Github action
-      uses: mustachecase/zanadir-action@v1.2
+      uses: mustachecase/zanadir-action@v1.4
       with:
         dir: .
         debug: true

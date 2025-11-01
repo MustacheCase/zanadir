@@ -77,7 +77,7 @@ func captureOutput(f func()) string {
 
 	f()
 
-	w.Close()
+	w.Close() //nolint:errcheck
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)
 	os.Stdout = old

@@ -28,11 +28,11 @@ extra:
 `
 	tmpFile, err := os.CreateTemp("", "test-*.yaml")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name()) // Clean up the file after the test
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck // Clean up the file after the test
 
 	_, err = tmpFile.WriteString(yamlContent)
 	assert.NoError(t, err)
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck
 
 	// Define the target structure
 	var result testStruct
@@ -62,11 +62,11 @@ age: thirty  # Invalid value for an integer field
 `
 	tmpFile, err := os.CreateTemp("", "test-invalid-*.yaml")
 	assert.NoError(t, err)
-	defer os.Remove(tmpFile.Name()) // Clean up the file after the test
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck // Clean up the file after the test
 
 	_, err = tmpFile.WriteString(invalidYAMLContent)
 	assert.NoError(t, err)
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck
 
 	// Define the target structure
 	var result testStruct

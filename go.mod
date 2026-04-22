@@ -1,6 +1,6 @@
 module github.com/MustacheCase/zanadir
 
-go 1.25
+go 1.26
 
 require (
 	github.com/olekukonko/tablewriter v0.0.5

@@ -4,7 +4,7 @@ Thank you for your interest in contributing to Zanadir! This document provides g
 
 ## Prerequisites
 
-- Go 1.25 or later
+- Go 1.26 or later
 - Git
 - Basic understanding of Go programming language
 

@@ -1,5 +1,5 @@
 # Stage 1 - Build binary and get CA certs
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 

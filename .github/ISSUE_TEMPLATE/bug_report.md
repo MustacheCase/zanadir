@@ -21,7 +21,7 @@ A clear and concise description of what you expected to happen.
 
 **Environment:**
  - OS: [e.g. macOS, Linux, Windows]
- - Go version: [e.g. 1.24]
+ - Go version: [e.g. 1.26]
  - Zanadir version: [e.g. 1.0.0]
 
 **Additional context**

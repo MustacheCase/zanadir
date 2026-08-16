@@ -48,7 +48,7 @@ zanadir scan --dir /path/to/your/repo
 
 ### Output Formats
 
-Zanadir supports two output formats: table (default) and JSON.
+Zanadir supports three output formats: table (default), JSON and SARIF.
 
 #### Table Output (Default)
 
@@ -97,6 +97,33 @@ zanadir scan --dir . --output json
     ]
   }
 ]
+```
+
+#### SARIF Output
+
+```sh
+zanadir scan --dir . --output sarif
+```
+
+SARIF is the standard interchange format for static analysis results. Emitting
+it lets uncovered categories show up in GitHub's Security tab, and in any other
+SARIF-consuming platform, alongside your other scanners.
+
+Each uncovered category becomes one SARIF rule and one result at `warning`
+level, with the suggested tools listed in the result's help text. Results carry
+no file location, because a missing control is the absence of configuration
+rather than a defect on a particular line.
+
+To publish the report from a GitHub Actions workflow:
+
+```yaml
+- name: Run zanadir
+  run: zanadir scan --dir . --output sarif > zanadir.sarif
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: zanadir.sarif
 ```
 
 ### Advanced Usage

@@ -1,9 +1,13 @@
 package app
 
 import (
+	"errors"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/models"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,11 +29,43 @@ func TestScanCmdFlags(t *testing.T) {
 
 	enforceFlag := cmd.Flags().Lookup("enforce")
 	assert.NotNil(t, enforceFlag, "The 'enforce' flag should be defined")
-	assert.Equal(t, "Fails the CI process when at least one rule is met (optional)", enforceFlag.Usage)
+	assert.Equal(t, "Fails the CI process when any category is uncovered (optional)", enforceFlag.Usage)
+
+	assert.NotNil(t, cmd.Flags().Lookup("fail-on"), "The 'fail-on' flag should be defined")
+	assert.NotNil(t, cmd.Flags().Lookup("baseline"), "The 'baseline' flag should be defined")
+	assert.NotNil(t, cmd.Flags().Lookup("write-baseline"), "The 'write-baseline' flag should be defined")
 }
 
 func TestScanRepo(t *testing.T) {
 	mockConfig := &config.Config{}
 	err := scanRepo(mockConfig)
 	assert.NotNil(t, err, "scanRepo should return an error when handler setup fails")
+}
+
+// Enforcement failures are an expected outcome, not a crash: they belong on
+// stderr with the offending categories named.
+func TestScanErrorReportRoutesEnforcementToStderr(t *testing.T) {
+	w, msg := scanErrorReport(models.NewEnforceError("uncovered categories: SCA"))
+
+	assert.Equal(t, os.Stderr, w)
+	assert.Contains(t, msg, "Enforcement failed")
+	assert.Contains(t, msg, "SCA")
+}
+
+func TestScanErrorReportRoutesOperationalErrorToStdout(t *testing.T) {
+	w, msg := scanErrorReport(errors.New("handler setup failed"))
+
+	assert.Equal(t, os.Stdout, w)
+	assert.Contains(t, msg, "scan repo failed")
+	assert.Contains(t, msg, "handler setup failed")
+}
+
+// A wrapped enforcement failure is still an enforcement failure.
+func TestScanErrorReportUnwrapsEnforceError(t *testing.T) {
+	wrapped := fmt.Errorf("execute: %w", models.NewEnforceError("uncovered categories: Coverage"))
+
+	w, msg := scanErrorReport(wrapped)
+
+	assert.Equal(t, os.Stderr, w)
+	assert.Contains(t, msg, "Enforcement failed")
 }

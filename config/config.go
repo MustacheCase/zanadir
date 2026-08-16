@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/spf13/cobra"
 )
@@ -20,8 +21,13 @@ type Config struct {
 	Dir                string
 	ExcludedCategories []string
 	Enforce            bool
-	Debug              bool
-	Output             string
+	// FailOn limits enforcement to specific categories; empty means all.
+	FailOn []string
+	// Baseline is the path to a file of already-accepted gaps.
+	Baseline      string
+	WriteBaseline bool
+	Debug         bool
+	Output        string
 }
 
 // normalizeCategories canonicalises category names and rejects unknown ones.
@@ -62,6 +68,20 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	}
 
 	enforce, _ := cmd.Flags().GetBool("enforce")
+	failOn, _ := cmd.Flags().GetStringSlice("fail-on")
+	failOn, err = normalizeCategories(failOn)
+	if err != nil {
+		return nil, err
+	}
+
+	baselinePath, _ := cmd.Flags().GetString("baseline")
+	writeBaseline, _ := cmd.Flags().GetBool("write-baseline")
+
+	// --baseline may be given without a value, meaning the default location.
+	if writeBaseline && baselinePath == "" {
+		baselinePath = baseline.DefaultPath
+	}
+
 	debug, _ := cmd.Flags().GetBool("debug")
 	output, _ := cmd.Flags().GetString("output")
 	if output != OutputJSON && output != OutputTable && output != OutputSARIF {
@@ -72,6 +92,9 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 		Dir:                dir,
 		ExcludedCategories: excludedCategories,
 		Enforce:            enforce,
+		FailOn:             failOn,
+		Baseline:           baselinePath,
+		WriteBaseline:      writeBaseline,
 		Debug:              debug,
 		Output:             output,
 	}, nil

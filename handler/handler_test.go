@@ -5,8 +5,10 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
@@ -178,4 +180,169 @@ func TestHandler_Execute_DebugMode(t *testing.T) {
 
 	// Check that the debug output contains our expected log message.
 	assert.Contains(t, out, "Starting scan for directory:")
+}
+
+// newEnforcementHandler wires mocks reporting the given categories as uncovered.
+func newEnforcementHandler(uncovered ...string) *Handler {
+	suggestions := make([]*suggester.CategorySuggestion, 0, len(uncovered))
+	for _, id := range uncovered {
+		suggestions = append(suggestions, &suggester.CategorySuggestion{ID: id, Name: id})
+	}
+
+	mockRules := new(MockRuleService)
+	mockRules.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+
+	mockScanner := new(MockScanner)
+	mockScanner.On("Scan", mock.Anything).Return([]*models.Artifact{}, nil)
+
+	mockMatcher := new(MockMatcher)
+	mockMatcher.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{})
+
+	mockSuggester := new(MockSuggester)
+	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions)
+
+	mockOutput := new(MockOutput)
+	mockOutput.On("Response", mock.Anything, mock.Anything).Return(nil)
+
+	return &Handler{
+		RulesService:      mockRules,
+		ScanService:       mockScanner,
+		MatchService:      mockMatcher,
+		SuggestionService: mockSuggester,
+		OutputService:     mockOutput,
+	}
+}
+
+func TestEnforcementDecision(t *testing.T) {
+	tests := []struct {
+		name      string
+		uncovered []string
+		cfg       config.Config
+		wantFail  bool
+		wantIn    string
+	}{
+		{
+			name:      "no enforcement means gaps never fail",
+			uncovered: []string{"SCA", "Coverage"},
+			cfg:       config.Config{},
+			wantFail:  false,
+		},
+		{
+			name:      "enforce fails on any gap",
+			uncovered: []string{"Coverage"},
+			cfg:       config.Config{Enforce: true},
+			wantFail:  true,
+			wantIn:    "Coverage",
+		},
+		{
+			name:      "enforce passes when nothing is uncovered",
+			uncovered: nil,
+			cfg:       config.Config{Enforce: true},
+			wantFail:  false,
+		},
+		{
+			// The point of --fail-on: block on security, not performance.
+			name:      "fail-on limits enforcement to named categories",
+			uncovered: []string{"SCA", "Performance Testing"},
+			cfg:       config.Config{FailOn: []string{"SCA"}},
+			wantFail:  true,
+			wantIn:    "SCA",
+		},
+		{
+			name:      "fail-on ignores categories it does not name",
+			uncovered: []string{"Performance Testing"},
+			cfg:       config.Config{FailOn: []string{"SCA"}},
+			wantFail:  false,
+		},
+		{
+			// config canonicalises FailOn, so the handler sees exact titles.
+			name:      "fail-on matches the canonical title",
+			uncovered: []string{"SCA"},
+			cfg:       config.Config{FailOn: []string{"SCA"}},
+			wantFail:  true,
+		},
+		{
+			name:      "fail-on implies enforcement without --enforce",
+			uncovered: []string{"SCA"},
+			cfg:       config.Config{Enforce: false, FailOn: []string{"SCA"}},
+			wantFail:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newEnforcementHandler(tt.uncovered...)
+			cfg := tt.cfg
+			cfg.Dir = t.TempDir()
+
+			err := h.Execute(&cfg)
+			if !tt.wantFail {
+				assert.NoError(t, err)
+				return
+			}
+			assert.Error(t, err)
+			var enforceErr *models.EnforceError
+			assert.True(t, errors.As(err, &enforceErr), "expected an EnforceError")
+			if tt.wantIn != "" {
+				assert.Contains(t, err.Error(), tt.wantIn)
+			}
+		})
+	}
+}
+
+// A baseline lets enforcement be switched on before everything is fixed.
+func TestBaselineSuppressesAcceptedGaps(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "baseline.yaml")
+	assert.NoError(t, baseline.Write(path, []string{"SCA", "Coverage"}))
+
+	h := newEnforcementHandler("SCA", "Coverage")
+	err := h.Execute(&config.Config{Dir: t.TempDir(), Enforce: true, Baseline: path})
+	assert.NoError(t, err, "every gap is in the baseline, so the scan should pass")
+}
+
+func TestBaselineStillFailsOnNewGaps(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "baseline.yaml")
+	assert.NoError(t, baseline.Write(path, []string{"SCA"}))
+
+	h := newEnforcementHandler("SCA", "Secrets Detection")
+	err := h.Execute(&config.Config{Dir: t.TempDir(), Enforce: true, Baseline: path})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "Secrets Detection")
+	assert.NotContains(t, err.Error(), "SCA", "an accepted gap should not be reported as failing")
+}
+
+func TestWriteBaselineRecordsCurrentGapsAndPasses(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "baseline.yaml")
+
+	h := newEnforcementHandler("SCA", "Coverage")
+	err := h.Execute(&config.Config{Dir: t.TempDir(), Enforce: true, Baseline: path, WriteBaseline: true})
+	assert.NoError(t, err, "writing a baseline should not fail the scan it is derived from")
+
+	b, err := baseline.Load(path)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"Coverage", "SCA"}, b.Categories)
+}
+
+func TestBaselineLoadErrorIsSurfaced(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "baseline.yaml")
+	assert.NoError(t, os.WriteFile(path, []byte("version: 99\n"), 0o600))
+
+	h := newEnforcementHandler("SCA")
+	err := h.Execute(&config.Config{Dir: t.TempDir(), Enforce: true, Baseline: path})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported version")
+}
+
+// A baseline that cannot be written must fail loudly; silently continuing would
+// leave CI enforcing against a baseline the operator believes they just wrote.
+func TestWriteBaselineReportsWriteFailure(t *testing.T) {
+	h := newEnforcementHandler("SCA")
+	cfg := &config.Config{
+		WriteBaseline: true,
+		Baseline:      filepath.Join(t.TempDir(), "no-such-dir", baseline.DefaultPath),
+	}
+
+	err := h.Execute(cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to write baseline")
 }

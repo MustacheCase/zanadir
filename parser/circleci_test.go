@@ -89,3 +89,36 @@ func TestCircleCIParse(t *testing.T) {
 		assert.Equal(t, expectedJobs[job.Package], job.Version, "Job version mismatch")
 	}
 }
+
+// The parser declared a Steps field but never read it; only orbs were parsed.
+func TestCircleCIParserCapturesRunSteps(t *testing.T) {
+	dir := t.TempDir()
+	config := `
+version: 2.1
+jobs:
+  security:
+    docker:
+      - image: cimg/base:stable
+    steps:
+      - checkout
+      - run: gitleaks detect --source .
+      - run:
+          name: SCA scan
+          command: trivy fs .
+`
+	err := os.WriteFile(filepath.Join(dir, "config.yml"), []byte(config), 0600)
+	assert.NoError(t, err)
+
+	artifacts, err := parser.NewCircleCIParser().Parse(dir)
+	assert.NoError(t, err)
+	assert.Len(t, artifacts, 1)
+
+	var run string
+	for _, job := range artifacts[0].Jobs {
+		if job.Run != "" {
+			run = job.Run
+		}
+	}
+	assert.Contains(t, run, "gitleaks detect", "plain run form")
+	assert.Contains(t, run, "trivy fs", "run with a command key")
+}

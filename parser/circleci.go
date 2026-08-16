@@ -63,7 +63,6 @@ func (c *CircleCIParser) Parse(location string) ([]*models.Artifact, error) {
 			if err != nil {
 				return nil, err
 			}
-			print(artifact)
 			artifacts = append(artifacts, artifact)
 		}
 	}
@@ -85,11 +84,43 @@ func (c *CircleCIParser) parseCircleCIWorkflow(filePath string) (*models.Artifac
 		}
 	}
 
+	// Orbs are only half the picture; jobs also invoke tools from run steps.
+	for jobName, job := range wf.Jobs {
+		if commands := extractRunCommands(job.Steps); len(commands) > 0 {
+			jobs = append(jobs, &models.Job{Name: jobName, Run: strings.Join(commands, "\n")})
+		}
+	}
+
 	return &models.Artifact{
 		Name:     "CircleCI Workflow Orbs",
 		Jobs:     jobs,
 		Location: filePath,
 	}, nil
+}
+
+// extractRunCommands pulls shell command text out of a CircleCI steps list.
+// A run step is either a plain command or a mapping with a "command" key.
+func extractRunCommands(steps []interface{}) []string {
+	var commands []string
+	for _, step := range steps {
+		stepMap, ok := step.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		run, ok := stepMap["run"]
+		if !ok {
+			continue
+		}
+		switch v := run.(type) {
+		case string:
+			commands = append(commands, v)
+		case map[string]interface{}:
+			if command, ok := v["command"].(string); ok {
+				commands = append(commands, command)
+			}
+		}
+	}
+	return commands
 }
 
 func parseOrbDefinition(orb string, orbs map[string]string) (string, string) {

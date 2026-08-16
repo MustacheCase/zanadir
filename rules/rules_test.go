@@ -5,6 +5,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetCategoryRules(t *testing.T) {
@@ -19,4 +20,11 @@ func TestGetCategoryRules(t *testing.T) {
 	if len(result) == 0 {
 		t.Fatalf("expected at least one rule in category 'testCategory'")
 	}
+}
+
+// Guards against a rule naming an applyOn selector or category that nothing
+// handles, which leaves it silently matching nothing.
+func TestEmbeddedRulesAreValid(t *testing.T) {
+	_, err := rules.NewRulesService()
+	assert.NoError(t, err)
 }

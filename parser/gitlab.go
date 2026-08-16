@@ -3,6 +3,7 @@ package parser
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/utils"
@@ -16,10 +17,12 @@ type gitlabCIConfig struct {
 }
 
 type gitlabJobDef struct {
-	Stage    string   `yaml:"stage"`
-	Script   []string `yaml:"script"`
-	Image    string   `yaml:"image"`
-	Services []string `yaml:"services"`
+	Stage        string   `yaml:"stage"`
+	BeforeScript []string `yaml:"before_script"`
+	Script       []string `yaml:"script"`
+	AfterScript  []string `yaml:"after_script"`
+	Image        string   `yaml:"image"`
+	Services     []string `yaml:"services"`
 }
 
 func (g *GitlabParser) Exists(location string) bool {
@@ -41,7 +44,18 @@ func (g *GitlabParser) Parse(location string) ([]*models.Artifact, error) {
 
 	var jobs []*models.Job
 	for jobName, job := range config.Jobs {
-		jobs = append(jobs, &models.Job{Name: jobName, Package: job.Image, Version: ""})
+		// Script blocks carry the same signal `uses:` does for GitHub Actions.
+		script := make([]string, 0, len(job.BeforeScript)+len(job.Script)+len(job.AfterScript))
+		script = append(script, job.BeforeScript...)
+		script = append(script, job.Script...)
+		script = append(script, job.AfterScript...)
+
+		jobs = append(jobs, &models.Job{
+			Name:    jobName,
+			Package: job.Image,
+			Version: "",
+			Run:     strings.Join(script, "\n"),
+		})
 	}
 
 	artifact := &models.Artifact{

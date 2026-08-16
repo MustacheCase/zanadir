@@ -76,3 +76,36 @@ func TestGithubParse(t *testing.T) {
 		assert.Equal(t, expectedJobs[job.Package], job.Version, "Job version mismatch")
 	}
 }
+
+// The parser previously skipped any step without a `uses:` key.
+func TestGithubParserCapturesRunSteps(t *testing.T) {
+	dir := t.TempDir()
+	workflow := `
+name: ci
+jobs:
+  security:
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan
+        run: trivy fs --exit-code 1 .
+`
+	err := os.WriteFile(filepath.Join(dir, "ci.yml"), []byte(workflow), 0600)
+	assert.NoError(t, err)
+
+	artifacts, err := parser.NewGithubParser().Parse(dir)
+	assert.NoError(t, err)
+	assert.Len(t, artifacts, 1)
+
+	var runs, packages []string
+	for _, job := range artifacts[0].Jobs {
+		if job.Run != "" {
+			runs = append(runs, job.Run)
+		}
+		if job.Package != "" {
+			packages = append(packages, job.Package)
+		}
+	}
+	assert.Equal(t, []string{"actions/checkout"}, packages)
+	assert.Len(t, runs, 1)
+	assert.Contains(t, runs[0], "trivy fs")
+}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/logger"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
@@ -45,7 +46,10 @@ func (h *Handler) Execute(cfg *config.Config) error {
 	}
 	debugf("Total findings: %d", len(findings))
 
-	suggestions := h.SuggestionService.FindSuggestions(findings, cfg.ExcludedCategories)
+	languages := language.Detect(cfg.Dir)
+	debugf("Detected languages: %v", languages)
+
+	suggestions := h.SuggestionService.FindSuggestions(findings, cfg.ExcludedCategories, languages)
 	debugf("Total suggestions: %d", len(suggestions))
 
 	err = h.OutputService.Response(suggestions, cfg.Output)

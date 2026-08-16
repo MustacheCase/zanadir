@@ -39,10 +39,36 @@ type CategoryFile struct {
 var suggestionsFS embed.FS
 
 type Suggester interface {
-	FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*CategorySuggestion
+	FindSuggestions(findings []*matcher.Finding, excludedCategories []string, languages []string) []*CategorySuggestion
 }
 
-func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*CategorySuggestion {
+// filterByLanguage drops tools targeting a language the repository does not
+// use. Tools with no language are agnostic and always kept. If filtering would
+// empty a category, the unfiltered set is returned instead.
+func filterByLanguage(suggestions []*Suggestion, languages []string) []*Suggestion {
+	if len(languages) == 0 || len(suggestions) == 0 {
+		return suggestions
+	}
+
+	detected := make(map[string]bool, len(languages))
+	for _, l := range languages {
+		detected[strings.ToLower(l)] = true
+	}
+
+	filtered := make([]*Suggestion, 0, len(suggestions))
+	for _, sug := range suggestions {
+		if sug.Language == "" || detected[strings.ToLower(sug.Language)] {
+			filtered = append(filtered, sug)
+		}
+	}
+
+	if len(filtered) == 0 {
+		return suggestions
+	}
+	return filtered
+}
+
+func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategories []string, languages []string) []*CategorySuggestion {
 	var categoriesSuggestions []*CategorySuggestion
 	coveredCategories := make(map[string]bool)
 	for _, f := range findings {
@@ -61,7 +87,13 @@ func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategorie
 		}
 		if exists := coveredCategories[string(title)]; !exists {
 			if category, ok := s.CategoriesMap[string(title)]; ok {
-				categoriesSuggestions = append(categoriesSuggestions, category)
+				// Copy before filtering: CategoriesMap is the shared catalogue.
+				categoriesSuggestions = append(categoriesSuggestions, &CategorySuggestion{
+					ID:          category.ID,
+					Name:        category.Name,
+					Description: category.Description,
+					Suggestions: filterByLanguage(category.Suggestions, languages),
+				})
 			}
 		}
 	}

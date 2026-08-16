@@ -2,14 +2,14 @@ rules:
   - id: "fossa-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["License Compliance"]
-    regex: "(?i)fossa"
+    regex: "(?i)\\bfossa\\b"
 
   - id: "licensefinder-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["License Compliance"]
-    regex: "(?i)license[-_]?finder"
+    regex: "(?i)\\blicense[-_]?finder\\b"
 
   - id: "grant-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["License Compliance"]
-    regex: "(?i)grant"
+    regex: "(?i)\\banchore/grant\\b|\\bgrant\\s+(?:check|list)\\b"

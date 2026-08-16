@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/MustacheCase/zanadir/models"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +21,19 @@ type Config struct {
 	Enforce            bool
 	Debug              bool
 	Output             string
+}
+
+// normalizeCategories canonicalises category names and rejects unknown ones.
+func normalizeCategories(categories []string) ([]string, error) {
+	normalized := make([]string, 0, len(categories))
+	for _, c := range categories {
+		title, ok := models.ResolveCategory(c)
+		if !ok {
+			return nil, fmt.Errorf("unknown category %q: valid categories are %s", c, strings.Join(models.CategoryNames(), ", "))
+		}
+		normalized = append(normalized, string(title))
+	}
+	return normalized, nil
 }
 
 func CreateConfig(cmd *cobra.Command) (*Config, error) {
@@ -40,6 +55,11 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	}
 
 	excludedCategories, _ := cmd.Flags().GetStringSlice("excluded-categories")
+	excludedCategories, err = normalizeCategories(excludedCategories)
+	if err != nil {
+		return nil, err
+	}
+
 	enforce, _ := cmd.Flags().GetBool("enforce")
 	debug, _ := cmd.Flags().GetBool("debug")
 	output, _ := cmd.Flags().GetString("output")

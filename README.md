@@ -23,15 +23,18 @@ Future work will include support for:
 
 ## Categories We Suggest
 
-Zanadir analyzes repositories in the following categories:
+Zanadir analyzes repositories in the following categories. The name in bold is
+the exact value to pass to `--excluded-categories` (matching is
+case-insensitive):
 
 - 🛡️ **SCA**: Software Composition Analysis
-- 🔐 **Secrets**: Secrets Management
-- 📜 **Licenses**: License Compliance
-- 🛠️ **EndOfLife**: End-of-Life Software Packages
+- 🔐 **Secrets Detection**: Secrets Management
+- 📜 **License Compliance**: License Compliance
+- 🛠️ **End Of Life**: End-of-Life Software Packages
 - 📊 **Coverage**: Test Coverage
 - 📊 **Performance Testing**: Test Performance and Reliability
 - 🧑‍💻 **Linter**: Code Linting
+- 🧪 **Unit Tests**: Automated Unit Testing
 
 ## Usage Examples
 
@@ -103,8 +106,11 @@ zanadir scan --dir . --output json
 Skip certain categories during analysis:
 
 ```sh
-zanadir scan --dir . --excluded-categories "SCA,Secrets"
+zanadir scan --dir . --excluded-categories "SCA,Secrets Detection"
 ```
+
+Category names must match the list above. An unrecognized name is rejected with
+an error rather than being silently ignored.
 
 #### Enforce Mode
 

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/MustacheCase/zanadir/matcher"
+	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,4 +37,40 @@ func TestFindSuggestionsWithExclusion(t *testing.T) {
 	for _, cat := range result {
 		assert.NotEqual(t, "Secrets", cat.ID)
 	}
+}
+
+// Regression test: a suggestions.yaml id that does not match its CategoryTitle
+// silently drops the category from every scan.
+func TestFindSuggestionsCoversEveryCategory(t *testing.T) {
+	s, err := suggester.NewSuggestionService()
+	assert.NoError(t, err)
+
+	result := s.FindSuggestions(nil, nil)
+
+	got := make(map[string]bool, len(result))
+	for _, cat := range result {
+		got[cat.ID] = true
+	}
+
+	assert.Len(t, result, len(models.CategoryTitles))
+	for _, title := range models.CategoryTitles {
+		assert.True(t, got[string(title)], "category %q was never suggested", title)
+	}
+}
+
+func TestFindSuggestionsExcludesByCanonicalTitle(t *testing.T) {
+	s, err := suggester.NewSuggestionService()
+	assert.NoError(t, err)
+
+	result := s.FindSuggestions(nil, []string{string(models.Secrets)})
+
+	for _, cat := range result {
+		assert.NotEqual(t, string(models.Secrets), cat.ID)
+	}
+	assert.Len(t, result, len(models.CategoryTitles)-1)
+}
+
+func TestSuggestionServiceValidatesCategories(t *testing.T) {
+	_, err := suggester.NewSuggestionService()
+	assert.NoError(t, err, "every models.CategoryTitle must exist in suggestions.yaml")
 }

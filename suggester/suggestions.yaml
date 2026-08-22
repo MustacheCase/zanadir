@@ -1,7 +1,7 @@
 categories:
   - id: "SCA"
     name: "SCA Open Source Tools"
-    description: "SCA tools help track open-source components and detect vulnerabilities"
+    description: "SCA tools help track open-source components and detect vulnerabilities."
     suggestions:
       - name: "Grype"
         repository: "https://github.com/anchore/grype"
@@ -38,7 +38,7 @@ categories:
 
   - id: "License Compliance"
     name: "License Compliance Tools"
-    description: "Tools for checking open-source license compliance and ensuring proper usage of dependencies"
+    description: "Tools for checking open-source license compliance and ensuring proper usage of dependencies."
     suggestions:
       - name: "FOSSA"
         repository: "https://github.com/fossas/fossa-cli"
@@ -50,7 +50,7 @@ categories:
 
       - name: "Grant"
         repository: "https://github.com/anchore/grant"
-        description: "Search an SBOM for licenses and the packages they belong to"
+        description: "Search an SBOM for licenses and the packages they belong to."
 
   - id: "End Of Life"
     name: "End-of-Life Package Checkers"
@@ -58,7 +58,7 @@ categories:
     suggestions:
       - name: "XEOL"
         repository: "https://github.com/xeol-io/xeol"
-        description: "A scanner for end-of-life (EOL) software and dependencies in container images, filesystems, and SBOMs"
+        description: "A scanner for end-of-life (EOL) software and dependencies in container images, filesystems, and SBOMs."
 
   - id: "Coverage"
     name: "Code Coverage Tools"
@@ -81,7 +81,7 @@ categories:
 
   - id: "Performance Testing"
     name: "Performance and Reliability Testing Tools"
-    description: "Tools for measuring code coverage to ensure testing completeness and software quality."
+    description: "Tools for load, stress and reliability testing, to verify a system holds up under expected and peak traffic."
     suggestions:
       - name: "k6"
         repository: "https://github.com/grafana/k6"

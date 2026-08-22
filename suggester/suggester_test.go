@@ -1,6 +1,7 @@
 package suggester_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/matcher"
@@ -161,4 +162,34 @@ func TestFindSuggestionsDoesNotMutateSharedCatalogue(t *testing.T) {
 	// A second call with no language must still see the full catalogue.
 	unfiltered := s.FindSuggestions(nil, nil, nil)
 	assert.Contains(t, toolNames(findCategory(unfiltered, "Linter")), "ESLint")
+}
+
+// The catalogue is the entire user-facing text of a scan, and a copy-pasted
+// description silently misdescribes a category on every run — Performance
+// Testing shipped with Code Coverage's wording. Assert the text is distinct
+// and complete so the next paste is caught here rather than by a user.
+func TestCatalogueDescriptionsAreDistinctAndComplete(t *testing.T) {
+	s, err := suggester.NewSuggestionService()
+	assert.NoError(t, err)
+
+	all := s.FindSuggestions(nil, []string{}, nil)
+	assert.Len(t, all, len(models.CategoryTitles), "every category should be suggested when nothing is covered")
+
+	seen := make(map[string]string, len(all))
+	for _, c := range all {
+		assert.NotEmpty(t, c.Description, "category %q has no description", c.ID)
+		assert.True(t, strings.HasSuffix(c.Description, "."),
+			"category %q description should end in a period: %q", c.ID, c.Description)
+
+		if other, dup := seen[c.Description]; dup {
+			t.Errorf("categories %q and %q share a description: %q", other, c.ID, c.Description)
+		}
+		seen[c.Description] = c.ID
+
+		for _, tool := range c.Suggestions {
+			assert.NotEmpty(t, tool.Name, "category %q has a tool with no name", c.ID)
+			assert.NotEmpty(t, tool.Description, "tool %q in %q has no description", tool.Name, c.ID)
+			assert.NotEmpty(t, tool.Repository, "tool %q in %q has no repository", tool.Name, c.ID)
+		}
+	}
 }

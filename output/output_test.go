@@ -3,6 +3,7 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -178,5 +179,162 @@ func TestResponse_ReportsUnwritableDestination(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "failed to open output file") {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// A clean repository used to render an empty table: three border lines and a
+// header row with no body, which reads as a bug rather than a pass.
+func TestResponse_TableStatesWhenNothingToSuggest(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		if err := service.Response(nil, config.OutputTable, ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "All categories are covered") {
+		t.Errorf("expected an explicit all-clear, got:\n%q", out)
+	}
+	if strings.Contains(out, "CATEGORY") || strings.Contains(out, "|---") {
+		t.Errorf("expected no table when there is nothing to show, got:\n%s", out)
+	}
+}
+
+func TestResponse_TableLeadsWithACount(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		if err := service.Response(getSampleSuggestions(), config.OutputTable, ""); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.HasPrefix(out, "2 categories need attention:") {
+		t.Errorf("expected the count to lead the output, got:\n%s", out)
+	}
+	if !strings.Contains(strings.ToLower(out), "suggested tools") {
+		t.Errorf("table should still render below the headline:\n%s", out)
+	}
+}
+
+func TestHeadlineIsGrammatical(t *testing.T) {
+	for count, want := range map[int]string{
+		0: "All categories are covered - no suggestions.",
+		1: "1 category needs attention:",
+		2: "2 categories need attention:",
+	} {
+		if got := headline(count); got != want {
+			t.Errorf("headline(%d) = %q, want %q", count, got, want)
+		}
+	}
+}
+
+// Escape codes in a redirected report would corrupt it for any consumer.
+func TestResponse_NoColourWhenNotATerminal(t *testing.T) {
+	service := NewOutputService()
+	path := filepath.Join(t.TempDir(), "report.txt")
+
+	if err := service.Response(getSampleSuggestions(), config.OutputTable, path); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("report not written: %v", err)
+	}
+	if bytes.Contains(data, []byte("\x1b[")) {
+		t.Errorf("file report contains ANSI escapes:\n%q", data)
+	}
+
+	out := captureStdout(func() {
+		_ = service.Response(getSampleSuggestions(), config.OutputTable, "")
+	})
+	if strings.Contains(out, "\x1b[") {
+		t.Errorf("piped stdout contains ANSI escapes:\n%q", out)
+	}
+}
+
+// The machine formats must not gain a human headline.
+func TestResponse_MachineFormatsHaveNoHeadline(t *testing.T) {
+	service := NewOutputService()
+
+	for _, format := range []string{"json", config.OutputSARIF} {
+		out := captureStdout(func() {
+			if err := service.Response(getSampleSuggestions(), format, ""); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+		if !strings.HasPrefix(strings.TrimSpace(out), "[") && !strings.HasPrefix(strings.TrimSpace(out), "{") {
+			t.Errorf("%s output should start with its own payload, got:\n%.80s", format, out)
+		}
+		if strings.Contains(out, "need attention") {
+			t.Errorf("%s output must not contain the human headline", format)
+		}
+	}
+}
+
+// failingWriter reports an error on every write, standing in for a full disk or
+// a closed pipe.
+type failingWriter struct{ err error }
+
+func (f failingWriter) Write([]byte) (int, error) { return 0, f.err }
+
+func TestUseColour(t *testing.T) {
+	t.Run("not a file", func(t *testing.T) {
+		if useColour(&bytes.Buffer{}) {
+			t.Error("a plain writer is not a terminal")
+		}
+	})
+
+	t.Run("regular file", func(t *testing.T) {
+		f, err := os.Create(filepath.Join(t.TempDir(), "out.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = f.Close() }()
+
+		if useColour(f) {
+			t.Error("a regular file is not a terminal")
+		}
+	})
+
+	t.Run("NO_COLOR wins over everything", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "1")
+		if useColour(os.Stdout) {
+			t.Error("NO_COLOR must suppress colour even on a terminal")
+		}
+	})
+}
+
+func TestPaint(t *testing.T) {
+	if got := paint(false, ansiBold, "plain"); got != "plain" {
+		t.Errorf("disabled paint should not wrap: %q", got)
+	}
+	if got := paint(true, ansiBold, "loud"); got != ansiBold+"loud"+ansiReset {
+		t.Errorf("enabled paint should wrap in the style: %q", got)
+	}
+}
+
+// A report that cannot be written must surface the failure rather than
+// reporting success on output nobody received.
+func TestRenderPropagatesWriteErrors(t *testing.T) {
+	boom := errors.New("disk full")
+	w := failingWriter{err: boom}
+
+	for _, format := range []string{config.OutputTable, config.OutputSARIF, "json"} {
+		t.Run(format, func(t *testing.T) {
+			err := render(w, getSampleSuggestions(), format)
+			if !errors.Is(err, boom) {
+				t.Errorf("expected the write error to propagate, got %v", err)
+			}
+		})
+	}
+}
+
+func TestRenderPropagatesWriteErrorOnAllClear(t *testing.T) {
+	boom := errors.New("disk full")
+
+	if err := render(failingWriter{err: boom}, nil, config.OutputTable); !errors.Is(err, boom) {
+		t.Errorf("expected the write error to propagate, got %v", err)
 	}
 }

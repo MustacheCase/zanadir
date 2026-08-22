@@ -37,8 +37,14 @@ func TestCreateConfig(t *testing.T) {
 		{
 			name:               "Excluded categories",
 			dir:                "/tmp/testdir",
-			excludedCategories: []string{"cat1", "cat2"},
+			excludedCategories: []string{"SCA", "Linter"},
 			expectError:        false,
+		},
+		{
+			name:               "Unknown excluded category",
+			dir:                "/tmp/testdir",
+			excludedCategories: []string{"cat1"},
+			expectError:        true,
 		},
 	}
 
@@ -81,4 +87,59 @@ func TestCreateConfig(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, config)
 	})
+}
+
+func newScanCmd(dir string, excluded []string) *cobra.Command {
+	cmd := &cobra.Command{}
+	cmd.Flags().String("dir", dir, "directory")
+	cmd.Flags().StringSlice("excluded-categories", excluded, "excluded categories")
+	cmd.Flags().Bool("enforce", false, "enforce")
+	cmd.Flags().Bool("debug", false, "debug")
+	cmd.Flags().String("output", OutputTable, "output")
+	return cmd
+}
+
+func TestNormalizeCategories(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected []string
+		wantErr  bool
+	}{
+		{name: "empty", input: nil, expected: []string{}},
+		{name: "canonical name", input: []string{"Secrets Detection"}, expected: []string{"Secrets Detection"}},
+		{name: "case insensitive", input: []string{"secrets detection"}, expected: []string{"Secrets Detection"}},
+		{name: "surrounding whitespace", input: []string{" SCA "}, expected: []string{"SCA"}},
+		{name: "multiple", input: []string{"SCA", "Linter"}, expected: []string{"SCA", "Linter"}},
+		// "Secrets" is the old id, not a category title.
+		{name: "stale short name is rejected", input: []string{"Secrets"}, wantErr: true},
+		{name: "typo is rejected", input: []string{"Lintr"}, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeCategories(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+}
+
+func TestCreateConfigRejectsUnknownCategory(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := CreateConfig(newScanCmd(dir, []string{"NotACategory"}))
+	assert.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "unknown category")
+}
+
+func TestCreateConfigNormalizesExcludedCategories(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := CreateConfig(newScanCmd(dir, []string{"sca"}))
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"SCA"}, cfg.ExcludedCategories)
 }

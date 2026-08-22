@@ -2,6 +2,8 @@ package suggester
 
 import (
 	"embed"
+	"fmt"
+	"strings"
 
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
@@ -107,12 +109,34 @@ func convertSuggestions(sugs []*Suggestion) []*Suggestion {
 	return result
 }
 
+// validateCategoriesMap ensures every category title resolves to a suggestions entry.
+func validateCategoriesMap(categoriesMap map[string]*CategorySuggestion) error {
+	var missing []string
+	for _, title := range models.CategoryTitles {
+		if _, ok := categoriesMap[string(title)]; !ok {
+			missing = append(missing, string(title))
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("suggestions.yaml is missing an entry for category %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+// newService builds a validated service from a catalogue, so the validation can
+// be exercised with a catalogue the embedded one can never produce.
+func newService(cats []CategorySuggestion) (*service, error) {
+	s := &service{CategoriesMap: buildCategoriesMap(cats)}
+	if err := validateCategoriesMap(s.CategoriesMap); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 func NewSuggestionService() (Suggester, error) {
-	s := &service{}
 	cats, err := readEmbeddedSuggestions()
 	if err != nil {
 		return nil, err
 	}
-	s.CategoriesMap = buildCategoriesMap(cats)
-	return s, nil
+	return newService(cats)
 }

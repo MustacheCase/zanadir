@@ -161,6 +161,23 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldMatch:    []string{"codecov/codecov-action", "bash <(curl -s https://codecov.io/bash)"},
 			shouldNotMatch: []string{"mycodecovx"},
 		},
+		{
+			// Shell text is free-form: a bare \btests?\b would count
+			// `if test -f`, `test -z` and test.example.com as coverage.
+			ruleID: "unit-test-command-rule",
+			shouldMatch: []string{
+				"go test ./...", "go test -race -cover ./...", "npm test", "npm run test",
+				"yarn test", "pnpm run test", "pytest -q", "cargo test --all",
+				"dotnet test", "mvn -B verify test", "gradle clean test",
+				"bundle exec rspec", "npx jest --ci", "mocha spec/", "vitest run", "tox -e py311",
+			},
+			shouldNotMatch: []string{
+				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
+				"curl https://test.example.com", `echo "testing the build"`,
+				"go build ./...", "go vet ./...", "npm run build", "docker build -t app:test .",
+				"latest", "deploy-latest",
+			},
+		},
 	}
 
 	for _, tt := range tests {

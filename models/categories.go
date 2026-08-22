@@ -11,11 +11,12 @@ const (
 	Linter             CategoryTitle = "Linter"
 	PerformanceTesting CategoryTitle = "Performance Testing"
 	UnitTests          CategoryTitle = "Unit Tests"
+	SAST               CategoryTitle = "SAST"
 	Table              Format        = "table"
 	JSON               Format        = "json"
 )
 
-var CategoryTitles = []CategoryTitle{SCA, Secrets, Licenses, EndOfLife, Coverage, Linter, PerformanceTesting, UnitTests}
+var CategoryTitles = []CategoryTitle{SCA, Secrets, Licenses, EndOfLife, Coverage, Linter, PerformanceTesting, UnitTests, SAST}
 
 type CategoryTitle string
 

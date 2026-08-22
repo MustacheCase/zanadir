@@ -92,6 +92,44 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"ab testing", "build ab", "grab a coffee"},
 		},
 		{
+			ruleID:         "semgrep-rule",
+			shouldMatch:    []string{"semgrep ci", "semgrep/semgrep-action", "semgrep scan --config auto"},
+			shouldNotMatch: []string{"semgreppy", "mysemgrep"},
+		},
+		{
+			ruleID:         "codeql-rule",
+			shouldMatch:    []string{"github/codeql-action/analyze@v3", "codeql database analyze"},
+			shouldNotMatch: []string{"codeqlish"},
+		},
+		{
+			// A bare "sonar" appears in unrelated project and job names.
+			ruleID:         "sonar-rule",
+			shouldMatch:    []string{"SonarSource/sonarqube-scan-action", "sonar-scanner -Dsonar.host.url=x", "sonarcloud scan"},
+			shouldNotMatch: []string{"sonar", "sonarian", "build-sonar-module"},
+		},
+		{
+			ruleID:         "gosec-rule",
+			shouldMatch:    []string{"gosec ./...", "securego/gosec@master"},
+			shouldNotMatch: []string{"gosecure", "mygosecx"},
+		},
+		{
+			ruleID:         "bandit-rule",
+			shouldMatch:    []string{"bandit -r .", "PyCQA/bandit"},
+			shouldNotMatch: []string{"banditry", "mybandits"},
+		},
+		{
+			// "snyk" alone is the SCA rule; SAST is specifically "snyk code".
+			ruleID:         "snyk-code-rule",
+			shouldMatch:    []string{"snyk code test", "snyk  code  test --json"},
+			shouldNotMatch: []string{"snyk test", "snyk monitor", "snyk container test"},
+		},
+		{
+			// "Bearer" is ubiquitous in auth headers and must never match alone.
+			ruleID:         "bearer-rule",
+			shouldMatch:    []string{"bearer/bearer-action@v2", "bearer scan ."},
+			shouldNotMatch: []string{"Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}", "bearer token", "-H \"Authorization: Bearer abc\""},
+		},
+		{
 			ruleID:         "codecov-rule",
 			shouldMatch:    []string{"codecov/codecov-action", "bash <(curl -s https://codecov.io/bash)"},
 			shouldNotMatch: []string{"mycodecovx"},

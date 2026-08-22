@@ -1,0 +1,59 @@
+rules:
+  - id: "semgrep-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bsemgrep\\b"
+
+  - id: "codeql-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bcodeql\\b"
+
+  # Bare "sonar" appears in unrelated names, so require a product suffix or the
+  # action's org prefix.
+  - id: "sonar-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bsonar(qube|cloud|-scanner)\\b|sonarsource/"
+
+  - id: "gosec-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bgosec\\b|securego/gosec"
+
+  - id: "bandit-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bbandit\\b|pycqa/bandit"
+
+  - id: "brakeman-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bbrakeman\\b"
+
+  # "snyk" alone is the SCA rule; only the code sub-command is SAST.
+  - id: "snyk-code-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bsnyk\\s+code\\b"
+
+  # "bearer" is ubiquitous in auth headers, so never match the bare word.
+  - id: "bearer-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)bearer/bearer|\\bbearer\\s+scan\\b"
+
+  - id: "checkmarx-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bcheckmarx\\b"
+
+  - id: "veracode-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bveracode\\b"
+
+  - id: "horusec-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bhorusec\\b"

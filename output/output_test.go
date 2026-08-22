@@ -3,6 +3,7 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -269,5 +270,71 @@ func TestResponse_MachineFormatsHaveNoHeadline(t *testing.T) {
 		if strings.Contains(out, "need attention") {
 			t.Errorf("%s output must not contain the human headline", format)
 		}
+	}
+}
+
+// failingWriter reports an error on every write, standing in for a full disk or
+// a closed pipe.
+type failingWriter struct{ err error }
+
+func (f failingWriter) Write([]byte) (int, error) { return 0, f.err }
+
+func TestUseColour(t *testing.T) {
+	t.Run("not a file", func(t *testing.T) {
+		if useColour(&bytes.Buffer{}) {
+			t.Error("a plain writer is not a terminal")
+		}
+	})
+
+	t.Run("regular file", func(t *testing.T) {
+		f, err := os.Create(filepath.Join(t.TempDir(), "out.txt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = f.Close() }()
+
+		if useColour(f) {
+			t.Error("a regular file is not a terminal")
+		}
+	})
+
+	t.Run("NO_COLOR wins over everything", func(t *testing.T) {
+		t.Setenv("NO_COLOR", "1")
+		if useColour(os.Stdout) {
+			t.Error("NO_COLOR must suppress colour even on a terminal")
+		}
+	})
+}
+
+func TestPaint(t *testing.T) {
+	if got := paint(false, ansiBold, "plain"); got != "plain" {
+		t.Errorf("disabled paint should not wrap: %q", got)
+	}
+	if got := paint(true, ansiBold, "loud"); got != ansiBold+"loud"+ansiReset {
+		t.Errorf("enabled paint should wrap in the style: %q", got)
+	}
+}
+
+// A report that cannot be written must surface the failure rather than
+// reporting success on output nobody received.
+func TestRenderPropagatesWriteErrors(t *testing.T) {
+	boom := errors.New("disk full")
+	w := failingWriter{err: boom}
+
+	for _, format := range []string{config.OutputTable, config.OutputSARIF, "json"} {
+		t.Run(format, func(t *testing.T) {
+			err := render(w, getSampleSuggestions(), format)
+			if !errors.Is(err, boom) {
+				t.Errorf("expected the write error to propagate, got %v", err)
+			}
+		})
+	}
+}
+
+func TestRenderPropagatesWriteErrorOnAllClear(t *testing.T) {
+	boom := errors.New("disk full")
+
+	if err := render(failingWriter{err: boom}, nil, config.OutputTable); !errors.Is(err, boom) {
+		t.Errorf("expected the write error to propagate, got %v", err)
 	}
 }

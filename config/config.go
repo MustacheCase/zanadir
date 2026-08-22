@@ -28,6 +28,8 @@ type Config struct {
 	WriteBaseline bool
 	Debug         bool
 	Output        string
+	// OutputFile writes the report to a path instead of stdout; empty means stdout.
+	OutputFile string
 }
 
 // normalizeCategories canonicalises category names and rejects unknown ones.
@@ -83,6 +85,7 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	}
 
 	debug, _ := cmd.Flags().GetBool("debug")
+	outputFile, _ := cmd.Flags().GetString("output-file")
 	output, _ := cmd.Flags().GetString("output")
 	if output != OutputJSON && output != OutputTable && output != OutputSARIF {
 		return nil, fmt.Errorf("unsupported output format: %s (expected %s, %s or %s)", output, OutputTable, OutputJSON, OutputSARIF)
@@ -97,5 +100,6 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 		WriteBaseline:      writeBaseline,
 		Debug:              debug,
 		Output:             output,
+		OutputFile:         outputFile,
 	}, nil
 }

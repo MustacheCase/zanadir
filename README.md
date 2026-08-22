@@ -114,17 +114,31 @@ level, with the suggested tools listed in the result's help text. Results carry
 no file location, because a missing control is the absence of configuration
 rather than a defect on a particular line.
 
+#### Writing the report to a file
+
+Use `--output-file` to write the report to a path instead of stdout. This works
+with every format, and is the reliable way to produce a machine-readable report:
+redirecting stdout captures the debug log as well, so `--output sarif --debug >
+report.sarif` yields a file that is not valid JSON.
+
+```sh
+zanadir scan --dir . --output sarif --output-file zanadir.sarif
+```
+
 To publish the report from a GitHub Actions workflow:
 
 ```yaml
 - name: Run zanadir
-  run: zanadir scan --dir . --output sarif > zanadir.sarif
+  run: zanadir scan --dir . --output sarif --output-file zanadir.sarif
 
 - name: Upload SARIF
   uses: github/codeql-action/upload-sarif@v3
   with:
     sarif_file: zanadir.sarif
 ```
+
+Uncovered categories then appear in the repository's **Security** tab alongside
+your other scanners.
 
 ## Language-Aware Suggestions
 

@@ -54,6 +54,7 @@ func NewApp() *cobra.Command {
 	scanCmd.Flags().Bool("write-baseline", false, "Write the current uncovered categories to the baseline file and exit successfully (optional)")
 	scanCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
 	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif) (optional)")
+	scanCmd.Flags().String("output-file", "", "Write the report to this file instead of stdout (optional)")
 
 	_ = scanCmd.MarkFlagRequired("dir")
 

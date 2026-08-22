@@ -60,15 +60,26 @@ zanadir scan --dir . --output table
 
 **Sample Output:**
 ```
+1 category needs attention:
+
 |--------------------------------|--------------------------------|-------------------|
 |            CATEGORY            |          DESCRIPTION           |  SUGGESTED TOOLS  |
 |--------------------------------|--------------------------------|-------------------|
-| Performance and Reliability    | Tools for measuring code       | k6, JMeter,       |
-| Testing Tools                  | coverage to ensure testing     | Gatling, Apache   |
-|                                | completeness and software      | Bench, Artillery, |
-|                                | quality.                       | BlazeMeter        |
+| Performance and Reliability    | Tools for load, stress and     | k6, JMeter,       |
+| Testing Tools                  | reliability testing, to verify | Gatling, Apache   |
+|                                | a system holds up under        | Bench, Artillery, |
+|                                | expected and peak traffic.     | BlazeMeter        |
 |--------------------------------|--------------------------------|-------------------|
 ```
+
+When nothing is missing, the scan says so rather than printing an empty table:
+
+```
+All categories are covered - no suggestions.
+```
+
+The headline is bold on an interactive terminal. Colour is omitted when the
+output is piped or written with `--output-file`, and when `NO_COLOR` is set.
 
 #### JSON Output
 

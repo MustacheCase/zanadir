@@ -1,0 +1,47 @@
+rules:
+  - id: "checkov-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\bcheckov\\b|bridgecrewio/checkov"
+
+  - id: "tfsec-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\btfsec\\b"
+
+  - id: "terrascan-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\bterrascan\\b"
+
+  - id: "kics-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\bkics\\b|checkmarx/kics"
+
+  - id: "kubescape-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\bkubescape\\b"
+
+  # "snyk" alone is the SCA rule; only the iac sub-command scans infrastructure.
+  - id: "snyk-iac-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\bsnyk\\s+iac\\b"
+
+  # Likewise trivy: the config sub-command is the misconfiguration scanner.
+  - id: "trivy-config-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\btrivy\\s+config\\b"
+
+  - id: "cfn-nag-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\bcfn[-_]nag\\b"
+
+  - id: "cfn-lint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\bcfn-lint\\b"

@@ -130,6 +130,33 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}", "bearer token", "-H \"Authorization: Bearer abc\""},
 		},
 		{
+			ruleID:         "checkov-rule",
+			shouldMatch:    []string{"checkov -d .", "bridgecrewio/checkov-action@master"},
+			shouldNotMatch: []string{"checkovx", "mycheckov"},
+		},
+		{
+			ruleID:         "tfsec-rule",
+			shouldMatch:    []string{"tfsec .", "aquasecurity/tfsec-action"},
+			shouldNotMatch: []string{"tfsecure", "mytfsec"},
+		},
+		{
+			ruleID:         "kics-rule",
+			shouldMatch:    []string{"kics scan -p .", "checkmarx/kics-github-action"},
+			shouldNotMatch: []string{"kicks", "nkics"},
+		},
+		{
+			// "snyk" alone is SCA; only the iac sub-command scans infrastructure.
+			ruleID:         "snyk-iac-rule",
+			shouldMatch:    []string{"snyk iac test", "snyk  iac  test ."},
+			shouldNotMatch: []string{"snyk test", "snyk code test"},
+		},
+		{
+			// "trivy" alone is SCA; the config sub-command is the misconfig scanner.
+			ruleID:         "trivy-config-rule",
+			shouldMatch:    []string{"trivy config .", "trivy  config  ./infra"},
+			shouldNotMatch: []string{"trivy fs .", "trivy image alpine"},
+		},
+		{
 			ruleID:         "codecov-rule",
 			shouldMatch:    []string{"codecov/codecov-action", "bash <(curl -s https://codecov.io/bash)"},
 			shouldNotMatch: []string{"mycodecovx"},

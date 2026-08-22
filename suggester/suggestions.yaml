@@ -189,3 +189,23 @@ categories:
         description: "A static analysis security scanner for Ruby on Rails applications."
         language: "Ruby"
 
+  - id: "IaC Security"
+    name: "Infrastructure as Code Security"
+    description: "Tools that scan Terraform, CloudFormation, Kubernetes and container definitions for misconfigurations before they reach a cloud account."
+    suggestions:
+      - name: "Checkov"
+        repository: "https://github.com/bridgecrewio/checkov"
+        description: "A policy-as-code scanner covering Terraform, CloudFormation, Kubernetes, Helm and ARM templates."
+      - name: "tfsec"
+        repository: "https://github.com/aquasecurity/tfsec"
+        description: "A fast static analyser for Terraform that flags insecure configuration."
+      - name: "Terrascan"
+        repository: "https://github.com/tenable/terrascan"
+        description: "Detects compliance and security violations across infrastructure as code."
+      - name: "KICS"
+        repository: "https://github.com/Checkmarx/kics"
+        description: "Finds security vulnerabilities and misconfigurations in infrastructure code."
+      - name: "Kubescape"
+        repository: "https://github.com/kubescape/kubescape"
+        description: "Scans Kubernetes manifests and clusters against security frameworks such as NSA and MITRE."
+

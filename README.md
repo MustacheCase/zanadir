@@ -36,6 +36,7 @@ case-insensitive):
 - 🧑‍💻 **Linter**: Code Linting
 - 🧪 **Unit Tests**: Automated Unit Testing
 - 🔎 **SAST**: Static Application Security Testing
+- 🏗️ **IaC Security**: Infrastructure-as-Code Misconfiguration Scanning
 
 ## Usage Examples
 

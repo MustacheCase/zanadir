@@ -2,19 +2,19 @@ rules:
   - id: "jacoco-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
-    regex: "(?i)jacoco"
+    regex: "(?i)\\bjacoco\\b"
 
   - id: "cobertura-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
-    regex: "(?i)cobertura"
+    regex: "(?i)\\bcobertura\\b"
 
   - id: "codecov-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
-    regex: "(?i)codecov"
+    regex: "(?i)\\bcodecov\\b"
 
   - id: "coverallsapp-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
-    regex: "(?i)coverallsapp"
+    regex: "(?i)\\bcoveralls(app)?\\b"

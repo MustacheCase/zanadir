@@ -17,7 +17,7 @@ rules:
   - id: "apache-bench-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
-    regex: "(?i)\\b(?:ab|apache-bench|apachebench)\\b"
+    regex: "(?i)\\bapache-?bench\\b|\\bab\\s+-[nckt]\\b"
 
   - id: "artillery-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]

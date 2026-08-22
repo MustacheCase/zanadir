@@ -2,27 +2,27 @@ rules:
   - id: "eslint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)eslint"
+    regex: "(?i)\\beslint\\b"
 
   - id: "pylint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)pylint"
+    regex: "(?i)\\bpylint\\b"
 
   - id: "golangci-lint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)golangci-lint"
+    regex: "(?i)\\bgolangci-lint\\b"
 
   - id: "rubocop-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)rubocop"
+    regex: "(?i)\\brubocop\\b"
 
   - id: "flake8-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)flake8"
+    regex: "(?i)\\bflake8\\b"
 
   - id: "oxsecurity-super-linter-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]

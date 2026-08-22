@@ -2,4 +2,4 @@ rules:
   - id: "unit-test-rule"
     applyOn: ["Artifact.Name", "Job.Name"]
     categories: ["Unit Tests"]
-    regex: "(?i).*test.*"
+    regex: "(?i)\\btests?\\b"

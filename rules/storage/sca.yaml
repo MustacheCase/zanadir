@@ -2,17 +2,17 @@ rules:
   - id: "grype-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)grype"
+    regex: "(?i)\\bgrype\\b"
 
   - id: "trivy-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)trivy"
+    regex: "(?i)\\btrivy\\b"
 
   - id: "snyk-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)snyk"
+    regex: "(?i)\\bsnyk\\b"
 
   - id: "anchore-rule"
     applyOn: ["Job.Package"]

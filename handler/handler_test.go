@@ -48,8 +48,8 @@ func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding, excludedCat
 	return args.Get(0).([]*suggester.CategorySuggestion)
 }
 
-func (m *MockOutput) Response(suggestions []*suggester.CategorySuggestion, responseType string) error {
-	args := m.Called(suggestions, responseType)
+func (m *MockOutput) Response(suggestions []*suggester.CategorySuggestion, responseType string, destPath string) error {
+	args := m.Called(suggestions, responseType, destPath)
 	return args.Error(0)
 }
 
@@ -100,7 +100,7 @@ func TestHandler_Execute(t *testing.T) {
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
 	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
 	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions, nil)
-	mockOutput.On("Response", suggestions, mockResponseType).Return(nil)
+	mockOutput.On("Response", suggestions, mockResponseType, "").Return(nil)
 
 	err := h.Execute(&config)
 
@@ -141,7 +141,7 @@ func TestHandler_Execute_WithSuggestionsAndEnforce(t *testing.T) {
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
 	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
 	mockSuggester.On("FindSuggestions", mock.Anything, mock.Anything).Return(suggestions)
-	mockOutput.On("Response", suggestions, mockResponseType).Return(nil)
+	mockOutput.On("Response", suggestions, mockResponseType, "").Return(nil)
 
 	err := h.Execute(&config)
 
@@ -171,7 +171,7 @@ func TestHandler_Execute_DebugMode(t *testing.T) {
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
 	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
 	mockSuggester.On("FindSuggestions", mock.Anything, mock.Anything).Return(suggestions)
-	mockOutput.On("Response", suggestions, mockResponseType).Return(nil)
+	mockOutput.On("Response", suggestions, mockResponseType, "").Return(nil)
 
 	out := captureOutput(func() {
 		err := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput).Execute(&cfg)
@@ -202,7 +202,7 @@ func newEnforcementHandler(uncovered ...string) *Handler {
 	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions)
 
 	mockOutput := new(MockOutput)
-	mockOutput.On("Response", mock.Anything, mock.Anything).Return(nil)
+	mockOutput.On("Response", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	return &Handler{
 		RulesService:      mockRules,

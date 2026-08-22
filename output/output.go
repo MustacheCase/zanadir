@@ -3,6 +3,7 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -11,9 +12,10 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-// Updated interface: single Response method with a response type parameter.
+// Output renders a scan result. destPath selects where the report goes: empty
+// means stdout, otherwise the report is written to that file.
 type Output interface {
-	Response(suggestions []*suggester.CategorySuggestion, responseType string) error
+	Response(suggestions []*suggester.CategorySuggestion, responseType string, destPath string) error
 }
 
 type service struct{}
@@ -44,18 +46,41 @@ func wrapText(text string, lineWidth int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (s *service) Response(suggestions []*suggester.CategorySuggestion, responseType string) error {
+// destination resolves where a report is written. The returned close function
+// is always safe to call, so callers can defer it unconditionally.
+func destination(path string) (io.Writer, func(), error) {
+	if path == "" {
+		return os.Stdout, func() {}, nil
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // path is operator-supplied
+	if err != nil {
+		return nil, func() {}, fmt.Errorf("failed to open output file %s: %w", path, err)
+	}
+	return f, func() { _ = f.Close() }, nil
+}
+
+func (s *service) Response(suggestions []*suggester.CategorySuggestion, responseType string, destPath string) error {
+	w, closeDest, err := destination(destPath)
+	if err != nil {
+		return err
+	}
+	defer closeDest()
+
+	return render(w, suggestions, responseType)
+}
+
+func render(w io.Writer, suggestions []*suggester.CategorySuggestion, responseType string) error {
 	if responseType == config.OutputSARIF {
 		report, err := renderSarif(suggestions)
 		if err != nil {
 			return err
 		}
-		fmt.Println(report)
-		return nil
+		_, err = fmt.Fprintln(w, report)
+		return err
 	}
 
 	if responseType == config.OutputTable {
-		table := tablewriter.NewWriter(os.Stdout)
+		table := tablewriter.NewWriter(w)
 		table.SetHeader([]string{"Category", "Description", "Suggested Tools"})
 		table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
 		table.SetCenterSeparator("|")
@@ -86,8 +111,8 @@ func (s *service) Response(suggestions []*suggester.CategorySuggestion, response
 	if err != nil {
 		return fmt.Errorf("failed to marshal suggestions: %w", err)
 	}
-	fmt.Println(string(data))
-	return nil
+	_, err = fmt.Fprintln(w, string(data))
+	return err
 }
 
 func NewOutputService() Output {

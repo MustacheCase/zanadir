@@ -52,7 +52,7 @@ func (h *Handler) Execute(cfg *config.Config) error {
 	suggestions := h.SuggestionService.FindSuggestions(findings, cfg.ExcludedCategories, languages)
 	debugf("Total suggestions: %d", len(suggestions))
 
-	err = h.OutputService.Response(suggestions, cfg.Output)
+	err = h.OutputService.Response(suggestions, cfg.Output, cfg.OutputFile)
 	if err != nil {
 		debugf("Output error: %v", err)
 		return err

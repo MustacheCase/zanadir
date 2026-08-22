@@ -3,3 +3,16 @@ rules:
     applyOn: ["Artifact.Name", "Job.Name"]
     categories: ["Unit Tests"]
     regex: "(?i)\\btests?\\b"
+
+  # The rule above matches a job or workflow *named* "test". A job that simply
+  # runs the suite from a shell step was missed entirely, so a repository whose
+  # CI runs `go test ./...` was told it had no unit testing.
+  #
+  # Shell text cannot be matched with a bare \btests?\b: `if test -f`,
+  # `test -z "$VAR"` and even `test.example.com` would all count as coverage.
+  # Match the runner invocations instead.
+  - id: "unit-test-command-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Unit Tests"]
+    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\b(?:pytest|rspec|phpunit|jest|mocha|vitest|ctest|tox)\\b|\\bmvn\\s[^\\n]*\\btest\\b|\\bgradle\\s[^\\n]*\\btest\\b|\\bbundle\\s+exec\\s+rspec\\b"
+

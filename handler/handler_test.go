@@ -43,7 +43,7 @@ func (m *MockMatcher) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule)
 	return args.Get(0).([]*matcher.Finding)
 }
 
-func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding, excludedCategories []string) []*suggester.CategorySuggestion {
+func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding, excludedCategories []string, languages []string) []*suggester.CategorySuggestion {
 	args := m.Called(findings)
 	return args.Get(0).([]*suggester.CategorySuggestion)
 }

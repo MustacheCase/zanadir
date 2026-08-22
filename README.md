@@ -126,6 +126,31 @@ To publish the report from a GitHub Actions workflow:
     sarif_file: zanadir.sarif
 ```
 
+## Language-Aware Suggestions
+
+Zanadir detects which languages a repository uses and suggests only tools that
+apply to it — a Go project is not offered ESLint, and a JavaScript project is
+not offered Pylint. Tools that work regardless of ecosystem (Trivy, Gitleaks,
+Codecov, and so on) are always suggested.
+
+Detection is based on dependency manifests in the repository root and its
+immediate subdirectories, so common monorepo layouts work:
+
+| Language   | Detected from                                              |
+|------------|------------------------------------------------------------|
+| Go         | `go.mod`                                                   |
+| Python     | `requirements.txt`, `pyproject.toml`, `setup.py`, `Pipfile` |
+| JavaScript | `package.json`                                             |
+| Ruby       | `Gemfile`, `*.gemspec`                                     |
+| Java       | `pom.xml`, `build.gradle`, `build.gradle.kts`              |
+| Rust       | `Cargo.toml`                                               |
+| PHP        | `composer.json`                                            |
+| C#         | `*.csproj`, `*.sln`                                        |
+
+`node_modules`, `vendor` and other dependency directories are skipped, since
+their manifests describe code the project did not write. If no language is
+recognised, every tool is suggested, exactly as before.
+
 ### Advanced Usage
 
 #### Exclude Specific Categories

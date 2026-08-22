@@ -35,6 +35,7 @@ case-insensitive):
 - 📊 **Performance Testing**: Test Performance and Reliability
 - 🧑‍💻 **Linter**: Code Linting
 - 🧪 **Unit Tests**: Automated Unit Testing
+- 🔎 **SAST**: Static Application Security Testing
 
 ## Usage Examples
 

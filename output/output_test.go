@@ -85,3 +85,36 @@ func TestResponse_TableOutput(t *testing.T) {
 		t.Errorf("table header is missing or incorrect in output:\n%v", out)
 	}
 }
+
+func TestResponse_SARIFOutput(t *testing.T) {
+	service := NewOutputService()
+	suggestions := getSampleSuggestions()
+
+	out := captureStdout(func() {
+		err := service.Response(suggestions, config.OutputSARIF)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	var report sarifLog
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("output is not valid SARIF JSON: %v", err)
+	}
+
+	if report.Version != sarifVersion {
+		t.Errorf("expected SARIF version %q, got %q", sarifVersion, report.Version)
+	}
+	if len(report.Runs) != 1 {
+		t.Fatalf("expected 1 run, got %d", len(report.Runs))
+	}
+	if got := len(report.Runs[0].Results); got != len(suggestions) {
+		t.Errorf("expected %d results, got %d", len(suggestions), got)
+	}
+}
+
+func TestWrapTextEmptyInput(t *testing.T) {
+	if got := wrapText("   ", 10); got != "" {
+		t.Errorf("expected empty string for blank input, got %q", got)
+	}
+}

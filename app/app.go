@@ -51,7 +51,7 @@ func NewApp() *cobra.Command {
 	scanCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
 	scanCmd.Flags().Bool("enforce", false, "Fails the CI process when at least one rule is met (optional)")
 	scanCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
-	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (Table, Json) (optional)")
+	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif) (optional)")
 
 	_ = scanCmd.MarkFlagRequired("dir")
 

@@ -13,6 +13,7 @@ import (
 const (
 	OutputJSON  = "json"
 	OutputTable = "table"
+	OutputSARIF = "sarif"
 )
 
 type Config struct {
@@ -63,9 +64,8 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	enforce, _ := cmd.Flags().GetBool("enforce")
 	debug, _ := cmd.Flags().GetBool("debug")
 	output, _ := cmd.Flags().GetString("output")
-	// Validate that output is either OutputJSON or OutputTable
-	if output != OutputJSON && output != OutputTable {
-		return nil, fmt.Errorf("unsupported output format: %s", output)
+	if output != OutputJSON && output != OutputTable && output != OutputSARIF {
+		return nil, fmt.Errorf("unsupported output format: %s (expected %s, %s or %s)", output, OutputTable, OutputJSON, OutputSARIF)
 	}
 
 	return &Config{

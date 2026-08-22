@@ -45,6 +45,15 @@ func wrapText(text string, lineWidth int) string {
 }
 
 func (s *service) Response(suggestions []*suggester.CategorySuggestion, responseType string) error {
+	if responseType == config.OutputSARIF {
+		report, err := renderSarif(suggestions)
+		if err != nil {
+			return err
+		}
+		fmt.Println(report)
+		return nil
+	}
+
 	if responseType == config.OutputTable {
 		table := tablewriter.NewWriter(os.Stdout)
 		table.SetHeader([]string{"Category", "Description", "Suggested Tools"})

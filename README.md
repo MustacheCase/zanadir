@@ -147,6 +147,60 @@ Zanadir provides an `--enforce` flag to ensure that all CI/CD suggestions are fu
 zanadir scan --dir . --enforce
 ```
 
+The category that failed the build is printed to stderr:
+
+```
+Enforcement failed: uncovered categories: SCA, Secrets Detection
+```
+
+#### Failing on Specific Categories
+
+`--enforce` is all-or-nothing, which makes it hard to adopt on an existing
+repository: a single uncovered category fails every build. Use `--fail-on` to
+enforce only the categories you care about, while the rest stay informational:
+
+```sh
+zanadir scan --dir . --fail-on "SCA,Secrets Detection"
+```
+
+`--fail-on` implies enforcement, so `--enforce` is not needed alongside it.
+Category names are matched case-insensitively.
+
+#### Baseline
+
+A baseline records the gaps a repository knowingly accepts. Those categories
+are still reported, but they no longer fail a scan — so enforcement can be
+switched on before everything is fixed, and only *new* gaps break the build.
+
+Generate one from the current state:
+
+```sh
+zanadir scan --dir . --write-baseline
+```
+
+This writes `.zanadir-baseline.yaml` (override with `--baseline <path>`) and
+exits successfully:
+
+```yaml
+# zanadir baseline: categories that are uncovered but accepted.
+# These are still reported; they just do not fail a scan.
+# Regenerate with: zanadir scan --dir . --write-baseline
+version: 1
+categories:
+    - Coverage
+    - Performance Testing
+```
+
+Then enforce against it. The scan passes while the repository's gaps match the
+baseline, and fails as soon as a new one appears:
+
+```sh
+zanadir scan --dir . --enforce --baseline .zanadir-baseline.yaml
+```
+
+Commit the baseline so the accepted gaps are reviewable, and shrink it over
+time.
+
 #### Debug Mode
 
 Get detailed logging information:

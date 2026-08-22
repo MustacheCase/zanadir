@@ -3,8 +3,10 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
@@ -96,7 +98,31 @@ func newScanCmd(dir string, excluded []string) *cobra.Command {
 	cmd.Flags().Bool("enforce", false, "enforce")
 	cmd.Flags().Bool("debug", false, "debug")
 	cmd.Flags().String("output", OutputTable, "output")
+	cmd.Flags().StringSlice("fail-on", nil, "fail on")
+	cmd.Flags().String("baseline", "", "baseline")
+	cmd.Flags().Bool("write-baseline", false, "write baseline")
 	return cmd
+}
+
+func newFailOnCmd(dir string, failOn []string) *cobra.Command {
+	cmd := newScanCmd(dir, nil)
+	_ = cmd.Flags().Set("fail-on", strings.Join(failOn, ","))
+	return cmd
+}
+
+// An unvalidated --fail-on silently enforces nothing, so a typo turns CI green
+// exactly when it should go red.
+func TestCreateConfigRejectsUnknownFailOnCategory(t *testing.T) {
+	cfg, err := CreateConfig(newFailOnCmd(t.TempDir(), []string{"Lintr"}))
+	assert.Error(t, err)
+	assert.Nil(t, cfg)
+	assert.Contains(t, err.Error(), "unknown category")
+}
+
+func TestCreateConfigNormalizesFailOn(t *testing.T) {
+	cfg, err := CreateConfig(newFailOnCmd(t.TempDir(), []string{"sca", "secrets detection"}))
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"SCA", "Secrets Detection"}, cfg.FailOn)
 }
 
 func TestNormalizeCategories(t *testing.T) {
@@ -142,4 +168,15 @@ func TestCreateConfigNormalizesExcludedCategories(t *testing.T) {
 	cfg, err := CreateConfig(newScanCmd(dir, []string{"sca"}))
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"SCA"}, cfg.ExcludedCategories)
+}
+
+// --write-baseline without --baseline must still land somewhere predictable.
+func TestCreateConfigDefaultsBaselinePathForWrite(t *testing.T) {
+	cmd := newScanCmd(t.TempDir(), nil)
+	assert.NoError(t, cmd.Flags().Set("write-baseline", "true"))
+
+	cfg, err := CreateConfig(cmd)
+	assert.NoError(t, err)
+	assert.True(t, cfg.WriteBaseline)
+	assert.Equal(t, baseline.DefaultPath, cfg.Baseline)
 }

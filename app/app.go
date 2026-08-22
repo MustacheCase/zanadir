@@ -1,7 +1,9 @@
 package app
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/MustacheCase/zanadir/config"
@@ -31,11 +33,8 @@ var scanCmd = &cobra.Command{
 		}
 
 		if err := scanRepo(config); err != nil {
-			if _, ok := err.(*models.EnforceError); ok {
-				// Do not print the error, just exit
-				os.Exit(1)
-			}
-			fmt.Printf("Error: scan repo failed: %v", err)
+			w, msg := scanErrorReport(err)
+			_, _ = fmt.Fprint(w, msg)
 			os.Exit(1)
 		}
 	},
@@ -49,13 +48,28 @@ func NewApp() *cobra.Command {
 	// Add flags to scan command
 	scanCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
 	scanCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
-	scanCmd.Flags().Bool("enforce", false, "Fails the CI process when at least one rule is met (optional)")
+	scanCmd.Flags().Bool("enforce", false, "Fails the CI process when any category is uncovered (optional)")
+	scanCmd.Flags().StringSlice("fail-on", []string{}, "Fail only when these specific categories are uncovered (optional)")
+	scanCmd.Flags().String("baseline", "", "Path to a baseline file of already-accepted gaps (optional)")
+	scanCmd.Flags().Bool("write-baseline", false, "Write the current uncovered categories to the baseline file and exit successfully (optional)")
 	scanCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
 	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif) (optional)")
 
 	_ = scanCmd.MarkFlagRequired("dir")
 
 	return rootCmd
+}
+
+// scanErrorReport decides how a failed scan is reported. An enforcement failure
+// is the tool doing its job, so it names the categories on stderr — not obvious
+// once --fail-on or a baseline narrows enforcement down. Anything else is an
+// operational error and keeps its original destination.
+func scanErrorReport(err error) (io.Writer, string) {
+	var enforceErr *models.EnforceError
+	if errors.As(err, &enforceErr) {
+		return os.Stderr, fmt.Sprintf("Enforcement failed: %v\n", err)
+	}
+	return os.Stdout, fmt.Sprintf("Error: scan repo failed: %v", err)
 }
 
 // scanRepo function

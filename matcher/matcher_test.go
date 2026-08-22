@@ -89,3 +89,61 @@ func TestMatch_NoMatches(t *testing.T) {
 
 	assert.Empty(t, findings)
 }
+
+// Tools invoked from a shell step were invisible before Job.Run existed.
+func TestMatchRunCommands(t *testing.T) {
+	m := matcher.NewMatchService()
+	rule := &rules.Rule{
+		ID:         "trivy-rule",
+		ApplyOn:    []string{rules.FieldJobRun},
+		Categories: []string{"SCA"},
+		Regex:      regexp.MustCompile("(?i)trivy"),
+	}
+
+	artifacts := []*models.Artifact{{
+		Name:     "ci",
+		Location: ".github/workflows/ci.yml",
+		Jobs:     []*models.Job{{Name: "security", Run: "trivy fs --exit-code 1 ."}},
+	}}
+
+	findings := m.Match(artifacts, []*rules.Rule{rule})
+	assert.Len(t, findings, 1)
+	assert.Equal(t, "SCA", findings[0].Category)
+}
+
+// unit-tests.yaml declared Job.Name but matchesRule had no case for it.
+func TestMatchJobName(t *testing.T) {
+	m := matcher.NewMatchService()
+	rule := &rules.Rule{
+		ID:         "unit-test-rule",
+		ApplyOn:    []string{rules.FieldJobName},
+		Categories: []string{"Unit Tests"},
+		Regex:      regexp.MustCompile("(?i).*test.*"),
+	}
+
+	artifacts := []*models.Artifact{{
+		Name: "pipeline",
+		Jobs: []*models.Job{{Name: "run-tests"}},
+	}}
+
+	findings := m.Match(artifacts, []*rules.Rule{rule})
+	assert.Len(t, findings, 1)
+	assert.Equal(t, "Unit Tests", findings[0].Category)
+}
+
+func TestMatchEmptyRunIsNotMatched(t *testing.T) {
+	m := matcher.NewMatchService()
+	rule := &rules.Rule{
+		ID:         "match-anything",
+		ApplyOn:    []string{rules.FieldJobRun},
+		Categories: []string{"SCA"},
+		Regex:      regexp.MustCompile("(?i).*"),
+	}
+
+	artifacts := []*models.Artifact{{
+		Name: "ci",
+		Jobs: []*models.Job{{Name: "build", Package: "actions/checkout"}},
+	}}
+
+	assert.Empty(t, m.Match(artifacts, []*rules.Rule{rule}))
+}

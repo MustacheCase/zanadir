@@ -41,11 +41,23 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 
 func matchesRule(artifact *models.Artifact, rule *rules.Rule, field string) bool {
 	switch field {
-	case "Artifact.Name":
+	case rules.FieldArtifactName:
 		return rule.Regex.MatchString(artifact.Name)
-	case "Job.Package":
+	case rules.FieldJobName:
+		for _, job := range artifact.Jobs {
+			if rule.Regex.MatchString(job.Name) {
+				return true
+			}
+		}
+	case rules.FieldJobPackage:
 		for _, job := range artifact.Jobs {
 			if rule.Regex.MatchString(job.Package) {
+				return true
+			}
+		}
+	case rules.FieldJobRun:
+		for _, job := range artifact.Jobs {
+			if job.Run != "" && rule.Regex.MatchString(job.Run) {
 				return true
 			}
 		}

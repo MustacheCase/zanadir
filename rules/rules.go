@@ -2,7 +2,9 @@ package rules
 
 import (
 	"embed"
+	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
 	"gopkg.in/yaml.v3" // added YAML import
@@ -10,6 +12,17 @@ import (
 
 //go:embed storage/*
 var rulesFS embed.FS
+
+// applyOn field selectors understood by the matcher.
+const (
+	FieldArtifactName = "Artifact.Name"
+	FieldJobName      = "Job.Name"
+	FieldJobPackage   = "Job.Package"
+	FieldJobRun       = "Job.Run"
+)
+
+// SupportedFields lists every selector matchesRule handles.
+var SupportedFields = []string{FieldArtifactName, FieldJobName, FieldJobPackage, FieldJobRun}
 
 type FileRule struct {
 	ID         string   `yaml:"id"`
@@ -62,9 +75,41 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 	return convertedRules
 }
 
+// validateRules rejects unknown applyOn selectors and categories, which would
+// otherwise leave the rule silently matching nothing.
+func validateRules(fileRules []FileRule) error {
+	supported := make(map[string]bool, len(SupportedFields))
+	for _, f := range SupportedFields {
+		supported[f] = true
+	}
+	knownCategory := make(map[string]bool, len(models.CategoryTitles))
+	for _, c := range models.CategoryTitles {
+		knownCategory[string(c)] = true
+	}
+
+	for _, r := range fileRules {
+		for _, field := range r.ApplyOn {
+			if !supported[field] {
+				return fmt.Errorf("rule %q: unknown applyOn field %q, expected one of %s",
+					r.ID, field, strings.Join(SupportedFields, ", "))
+			}
+		}
+		for _, category := range r.Categories {
+			if !knownCategory[category] {
+				return fmt.Errorf("rule %q: unknown category %q", r.ID, category)
+			}
+		}
+	}
+	return nil
+}
+
 func (s *service) createRulesCollection() (*Collection, error) {
 	rules, err := readEmbeddedRules()
 	if err != nil {
+		return nil, err
+	}
+
+	if err := validateRules(rules); err != nil {
 		return nil, err
 	}
 

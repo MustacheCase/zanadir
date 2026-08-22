@@ -24,6 +24,7 @@ type workflowJobDef struct {
 type stepDef struct {
 	Name string `yaml:"name"`
 	Uses string `yaml:"uses"`
+	Run  string `yaml:"run"`
 	With struct {
 		Path string `yaml:"path"`
 		Key  string `yaml:"key"`
@@ -78,6 +79,11 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 	var jobs []*models.Job
 	for jobName, job := range wf.Jobs {
 		for _, step := range job.Steps {
+			// Tools invoked directly, e.g. "trivy fs .", only appear in Run.
+			if step.Run != "" {
+				jobs = append(jobs, &models.Job{Name: jobName, Run: step.Run})
+				continue
+			}
 			if step.Uses == "" {
 				continue
 			}

@@ -180,3 +180,34 @@ func TestGitlabParserHandlesInvalidJobStructure(t *testing.T) {
 	assert.Len(t, artifacts[0].Jobs, 1, "Expected one job even with invalid job structure")
 	assert.Equal(t, "build", artifacts[0].Jobs[0].Name, "Expected job name to be 'build'")
 }
+
+// The parser previously read only `image:` and ignored script blocks.
+func TestGitlabParserCapturesScript(t *testing.T) {
+	err := setupGitlabTestDir()
+	assert.NoError(t, err)
+	defer teardownTestDir()
+
+	content := `
+stages:
+  - security
+scan:
+  stage: security
+  image: alpine:3.20
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - gitleaks detect --source .
+`
+	err = os.WriteFile(filepath.Join(testDir, ".gitlab-ci.yml"), []byte(content), 0600)
+	assert.NoError(t, err)
+
+	artifacts, err := parser.NewGitlabParser().Parse(testDir)
+	assert.NoError(t, err)
+	assert.Len(t, artifacts, 1)
+	assert.Len(t, artifacts[0].Jobs, 1)
+
+	job := artifacts[0].Jobs[0]
+	assert.Equal(t, "alpine:3.20", job.Package)
+	assert.Contains(t, job.Run, "gitleaks detect")
+	assert.Contains(t, job.Run, "apk add", "before_script should be captured too")
+}

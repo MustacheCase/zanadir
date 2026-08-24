@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/baseline"
@@ -22,6 +23,22 @@ type Handler struct {
 	MatchService      matcher.Matcher
 	SuggestionService suggester.Suggester
 	OutputService     output.Output
+}
+
+// sarifAnchor returns a repo-relative CI file for SARIF results to point at.
+// A path outside the scan directory is skipped: worse than no location.
+func sarifAnchor(dir string, artifacts []*models.Artifact) string {
+	for _, a := range artifacts {
+		if a == nil || a.Location == "" {
+			continue
+		}
+		rel, err := filepath.Rel(dir, a.Location)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			continue
+		}
+		return filepath.ToSlash(rel)
+	}
+	return ""
 }
 
 func (h *Handler) Execute(cfg *config.Config) error {
@@ -52,7 +69,12 @@ func (h *Handler) Execute(cfg *config.Config) error {
 	suggestions := h.SuggestionService.FindSuggestions(findings, cfg.ExcludedCategories, languages)
 	debugf("Total suggestions: %d", len(suggestions))
 
-	err = h.OutputService.Response(suggestions, cfg.Output, cfg.OutputFile)
+	err = h.OutputService.Response(output.Report{
+		Suggestions: suggestions,
+		Format:      cfg.Output,
+		DestPath:    cfg.OutputFile,
+		Anchor:      sarifAnchor(cfg.Dir, artifacts),
+	})
 	if err != nil {
 		debugf("Output error: %v", err)
 		return err

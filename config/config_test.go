@@ -170,7 +170,6 @@ func TestCreateConfigNormalizesExcludedCategories(t *testing.T) {
 	assert.Equal(t, []string{"SCA"}, cfg.ExcludedCategories)
 }
 
-// --write-baseline without --baseline must still land somewhere predictable.
 func TestCreateConfigDefaultsBaselinePathForWrite(t *testing.T) {
 	cmd := newScanCmd(t.TempDir(), nil)
 	assert.NoError(t, cmd.Flags().Set("write-baseline", "true"))

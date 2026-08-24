@@ -53,7 +53,7 @@ func TestResponse_JSONOutput(t *testing.T) {
 	suggestions := getSampleSuggestions()
 
 	out := captureStdout(func() {
-		err := service.Response(suggestions, "json", "")
+		err := service.Response(Report{Suggestions: suggestions, Format: "json"})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -76,7 +76,7 @@ func TestResponse_TableOutput(t *testing.T) {
 	suggestions := getSampleSuggestions()
 
 	out := captureStdout(func() {
-		err := service.Response(suggestions, config.OutputTable, "")
+		err := service.Response(Report{Suggestions: suggestions, Format: config.OutputTable})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -93,7 +93,7 @@ func TestResponse_SARIFOutput(t *testing.T) {
 	suggestions := getSampleSuggestions()
 
 	out := captureStdout(func() {
-		err := service.Response(suggestions, config.OutputSARIF, "")
+		err := service.Response(Report{Suggestions: suggestions, Format: config.OutputSARIF})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -121,15 +121,13 @@ func TestWrapTextEmptyInput(t *testing.T) {
 	}
 }
 
-// Writing to a file is what lets CI hand a SARIF report to a consumer such as
-// GitHub code scanning, so the report must land in the file and not on stdout.
 func TestResponse_WritesSARIFToFile(t *testing.T) {
 	service := NewOutputService()
 	suggestions := getSampleSuggestions()
 	path := filepath.Join(t.TempDir(), "zanadir.sarif")
 
 	out := captureStdout(func() {
-		if err := service.Response(suggestions, config.OutputSARIF, path); err != nil {
+		if err := service.Response(Report{Suggestions: suggestions, Format: config.OutputSARIF, DestPath: path}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -155,7 +153,7 @@ func TestResponse_WritesTableToFile(t *testing.T) {
 	service := NewOutputService()
 	path := filepath.Join(t.TempDir(), "report.txt")
 
-	if err := service.Response(getSampleSuggestions(), config.OutputTable, path); err != nil {
+	if err := service.Response(Report{Suggestions: getSampleSuggestions(), Format: config.OutputTable, DestPath: path}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -168,12 +166,11 @@ func TestResponse_WritesTableToFile(t *testing.T) {
 	}
 }
 
-// A report the operator asked for but never got is worse than no report.
 func TestResponse_ReportsUnwritableDestination(t *testing.T) {
 	service := NewOutputService()
 	path := filepath.Join(t.TempDir(), "no-such-dir", "zanadir.sarif")
 
-	err := service.Response(getSampleSuggestions(), config.OutputSARIF, path)
+	err := service.Response(Report{Suggestions: getSampleSuggestions(), Format: config.OutputSARIF, DestPath: path})
 	if err == nil {
 		t.Fatal("expected an error for an unwritable destination")
 	}
@@ -182,13 +179,11 @@ func TestResponse_ReportsUnwritableDestination(t *testing.T) {
 	}
 }
 
-// A clean repository used to render an empty table: three border lines and a
-// header row with no body, which reads as a bug rather than a pass.
 func TestResponse_TableStatesWhenNothingToSuggest(t *testing.T) {
 	service := NewOutputService()
 
 	out := captureStdout(func() {
-		if err := service.Response(nil, config.OutputTable, ""); err != nil {
+		if err := service.Response(Report{Suggestions: nil, Format: config.OutputTable}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -205,7 +200,7 @@ func TestResponse_TableLeadsWithACount(t *testing.T) {
 	service := NewOutputService()
 
 	out := captureStdout(func() {
-		if err := service.Response(getSampleSuggestions(), config.OutputTable, ""); err != nil {
+		if err := service.Response(Report{Suggestions: getSampleSuggestions(), Format: config.OutputTable}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -230,12 +225,11 @@ func TestHeadlineIsGrammatical(t *testing.T) {
 	}
 }
 
-// Escape codes in a redirected report would corrupt it for any consumer.
 func TestResponse_NoColourWhenNotATerminal(t *testing.T) {
 	service := NewOutputService()
 	path := filepath.Join(t.TempDir(), "report.txt")
 
-	if err := service.Response(getSampleSuggestions(), config.OutputTable, path); err != nil {
+	if err := service.Response(Report{Suggestions: getSampleSuggestions(), Format: config.OutputTable, DestPath: path}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	data, err := os.ReadFile(path)
@@ -247,20 +241,19 @@ func TestResponse_NoColourWhenNotATerminal(t *testing.T) {
 	}
 
 	out := captureStdout(func() {
-		_ = service.Response(getSampleSuggestions(), config.OutputTable, "")
+		_ = service.Response(Report{Suggestions: getSampleSuggestions(), Format: config.OutputTable})
 	})
 	if strings.Contains(out, "\x1b[") {
 		t.Errorf("piped stdout contains ANSI escapes:\n%q", out)
 	}
 }
 
-// The machine formats must not gain a human headline.
 func TestResponse_MachineFormatsHaveNoHeadline(t *testing.T) {
 	service := NewOutputService()
 
 	for _, format := range []string{"json", config.OutputSARIF} {
 		out := captureStdout(func() {
-			if err := service.Response(getSampleSuggestions(), format, ""); err != nil {
+			if err := service.Response(Report{Suggestions: getSampleSuggestions(), Format: format}); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
@@ -273,8 +266,6 @@ func TestResponse_MachineFormatsHaveNoHeadline(t *testing.T) {
 	}
 }
 
-// failingWriter reports an error on every write, standing in for a full disk or
-// a closed pipe.
 type failingWriter struct{ err error }
 
 func (f failingWriter) Write([]byte) (int, error) { return 0, f.err }
@@ -315,15 +306,13 @@ func TestPaint(t *testing.T) {
 	}
 }
 
-// A report that cannot be written must surface the failure rather than
-// reporting success on output nobody received.
 func TestRenderPropagatesWriteErrors(t *testing.T) {
 	boom := errors.New("disk full")
 	w := failingWriter{err: boom}
 
 	for _, format := range []string{config.OutputTable, config.OutputSARIF, "json"} {
 		t.Run(format, func(t *testing.T) {
-			err := render(w, getSampleSuggestions(), format)
+			err := render(w, Report{Suggestions: getSampleSuggestions(), Format: format})
 			if !errors.Is(err, boom) {
 				t.Errorf("expected the write error to propagate, got %v", err)
 			}
@@ -334,19 +323,16 @@ func TestRenderPropagatesWriteErrors(t *testing.T) {
 func TestRenderPropagatesWriteErrorOnAllClear(t *testing.T) {
 	boom := errors.New("disk full")
 
-	if err := render(failingWriter{err: boom}, nil, config.OutputTable); !errors.Is(err, boom) {
+	if err := render(failingWriter{err: boom}, Report{Format: config.OutputTable}); !errors.Is(err, boom) {
 		t.Errorf("expected the write error to propagate, got %v", err)
 	}
 }
 
-// A report is written to be consumed by another process, often another user:
-// the Docker action runs as root while the following step runs as the runner
-// user. An owner-only report is unreadable there, which broke SARIF upload.
 func TestResponse_ReportIsReadableByOthers(t *testing.T) {
 	service := NewOutputService()
 	path := filepath.Join(t.TempDir(), "zanadir.sarif")
 
-	if err := service.Response(getSampleSuggestions(), config.OutputSARIF, path); err != nil {
+	if err := service.Response(Report{Suggestions: getSampleSuggestions(), Format: config.OutputSARIF, DestPath: path}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

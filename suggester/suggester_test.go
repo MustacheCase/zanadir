@@ -164,10 +164,6 @@ func TestFindSuggestionsDoesNotMutateSharedCatalogue(t *testing.T) {
 	assert.Contains(t, toolNames(findCategory(unfiltered, "Linter")), "ESLint")
 }
 
-// The catalogue is the entire user-facing text of a scan, and a copy-pasted
-// description silently misdescribes a category on every run — Performance
-// Testing shipped with Code Coverage's wording. Assert the text is distinct
-// and complete so the next paste is caught here rather than by a user.
 func TestCatalogueDescriptionsAreDistinctAndComplete(t *testing.T) {
 	s, err := suggester.NewSuggestionService()
 	assert.NoError(t, err)

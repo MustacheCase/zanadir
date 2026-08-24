@@ -123,9 +123,11 @@ it lets uncovered categories show up in GitHub's Security tab, and in any other
 SARIF-consuming platform, alongside your other scanners.
 
 Each uncovered category becomes one SARIF rule and one result at `warning`
-level, with the suggested tools listed in the result's help text. Results carry
-no file location, because a missing control is the absence of configuration
-rather than a defect on a particular line.
+level, with the suggested tools listed in the result's help text. Results are
+anchored at a CI configuration file — the place the missing tool would be
+added. A missing control is not a defect on a particular line, but every SARIF
+consumer expects a location, and GitHub code scanning rejects a report whose
+results have none.
 
 #### Writing the report to a file
 

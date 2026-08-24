@@ -63,7 +63,25 @@ type sarifResult struct {
 	RuleID              string            `json:"ruleId"`
 	Level               string            `json:"level"`
 	Message             sarifMessage      `json:"message"`
+	Locations           []sarifLocation   `json:"locations,omitempty"`
 	PartialFingerprints map[string]string `json:"partialFingerprints"`
+}
+
+type sarifLocation struct {
+	PhysicalLocation sarifPhysicalLocation `json:"physicalLocation"`
+}
+
+type sarifPhysicalLocation struct {
+	ArtifactLocation sarifArtifactLocation `json:"artifactLocation"`
+	Region           sarifRegion           `json:"region"`
+}
+
+type sarifArtifactLocation struct {
+	URI string `json:"uri"`
+}
+
+type sarifRegion struct {
+	StartLine int `json:"startLine"`
 }
 
 // helpText renders a category's suggested tools as a list.
@@ -80,10 +98,8 @@ func helpText(suggestion *suggester.CategorySuggestion) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// buildSarif converts category suggestions into a SARIF log: one rule and one
-// result per uncovered category. Results carry no physical location, since a
-// missing control is the absence of configuration rather than a defect in a file.
-func buildSarif(suggestions []*suggester.CategorySuggestion) sarifLog {
+// buildSarif converts suggestions into one rule and one result per category.
+func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string) sarifLog {
 	rules := make([]sarifRule, 0, len(suggestions))
 	results := make([]sarifResult, 0, len(suggestions))
 
@@ -108,13 +124,24 @@ func buildSarif(suggestions []*suggester.CategorySuggestion) sarifLog {
 			message = fmt.Sprintf("%s Consider adding one of: %s.", message, strings.Join(toolNames, ", "))
 		}
 
-		results = append(results, sarifResult{
-			RuleID:  suggestion.ID,
-			Level:   "warning",
-			Message: sarifMessage{Text: message},
-			// The category is the finding's whole identity.
+		result := sarifResult{
+			RuleID:              suggestion.ID,
+			Level:               "warning",
+			Message:             sarifMessage{Text: message},
 			PartialFingerprints: map[string]string{"categoryId": suggestion.ID},
-		})
+		}
+
+		// Code scanning rejects a result with no location.
+		if anchor != "" {
+			result.Locations = []sarifLocation{{
+				PhysicalLocation: sarifPhysicalLocation{
+					ArtifactLocation: sarifArtifactLocation{URI: anchor},
+					Region:           sarifRegion{StartLine: 1},
+				},
+			}}
+		}
+
+		results = append(results, result)
 	}
 
 	return sarifLog{
@@ -131,8 +158,8 @@ func buildSarif(suggestions []*suggester.CategorySuggestion) sarifLog {
 	}
 }
 
-func renderSarif(suggestions []*suggester.CategorySuggestion) (string, error) {
-	data, err := json.MarshalIndent(buildSarif(suggestions), "", "  ")
+func renderSarif(suggestions []*suggester.CategorySuggestion, anchor string) (string, error) {
+	data, err := json.MarshalIndent(buildSarif(suggestions, anchor), "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal SARIF report: %w", err)
 	}

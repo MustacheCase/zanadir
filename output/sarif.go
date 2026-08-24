@@ -98,11 +98,7 @@ func helpText(suggestion *suggester.CategorySuggestion) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// buildSarif converts category suggestions into a SARIF log: one rule and one
-// result per uncovered category. Each result is anchored at anchor, a
-// repository-relative CI configuration file: a missing control is not a defect
-// on a particular line, but every SARIF consumer expects a location, and the
-// file where the tool would be added is the most useful one available.
+// buildSarif converts suggestions into one rule and one result per category.
 func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string) sarifLog {
 	rules := make([]sarifRule, 0, len(suggestions))
 	results := make([]sarifResult, 0, len(suggestions))
@@ -129,17 +125,13 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string) sari
 		}
 
 		result := sarifResult{
-			RuleID:  suggestion.ID,
-			Level:   "warning",
-			Message: sarifMessage{Text: message},
-			// The category is the finding's whole identity.
+			RuleID:              suggestion.ID,
+			Level:               "warning",
+			Message:             sarifMessage{Text: message},
 			PartialFingerprints: map[string]string{"categoryId": suggestion.ID},
 		}
 
-		// GitHub code scanning rejects a result with no location outright:
-		// "locationFromSarifResult: expected at least one location". Anchor
-		// each one at a CI configuration file - the place the missing tool
-		// would be added - which is also more useful than no location at all.
+		// Code scanning rejects a result with no location.
 		if anchor != "" {
 			result.Locations = []sarifLocation{{
 				PhysicalLocation: sarifPhysicalLocation{

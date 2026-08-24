@@ -79,8 +79,6 @@ func TestNilBaselineContainsNothing(t *testing.T) {
 	assert.False(t, b.Contains("SCA"))
 }
 
-// A directory is readable-but-not-a-file: distinct from "absent", and must not
-// be mistaken for an empty baseline.
 func TestLoadReportsUnreadablePath(t *testing.T) {
 	_, err := baseline.Load(t.TempDir())
 	assert.Error(t, err)

@@ -12,22 +12,14 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-// Report is everything needed to render one scan result. It is a struct rather
-// than a parameter list because three of its fields are strings and would be
-// trivial to transpose at a call site.
+// Report is one scan result to render.
 type Report struct {
-	// Suggestions are the uncovered categories, in report order.
 	Suggestions []*suggester.CategorySuggestion
-	// Format is one of the config.Output* values.
-	Format string
-	// DestPath writes the report to a file; empty means stdout.
-	DestPath string
-	// Anchor is a repository-relative CI configuration path that SARIF results
-	// point at. Empty omits locations, which GitHub code scanning rejects.
-	Anchor string
+	Format      string
+	DestPath    string // empty means stdout
+	Anchor      string // repo-relative path SARIF results point at
 }
 
-// Output renders a scan result.
 type Output interface {
 	Response(report Report) error
 }
@@ -60,19 +52,14 @@ func wrapText(text string, lineWidth int) string {
 	return strings.Join(lines, "\n")
 }
 
-// destination resolves where a report is written. The returned close function
-// is always safe to call, so callers can defer it unconditionally.
-// ANSI styling is applied only to the lines around the table, never inside it:
-// tablewriter measures cell width in runes and would misalign every column if
-// escape codes were counted as content.
+// Only the lines around the table are styled: tablewriter measures width in
+// runes and escape codes would misalign every column.
 const (
 	ansiReset = "\x1b[0m"
 	ansiBold  = "\x1b[1m"
 	ansiGreen = "\x1b[32m"
 )
 
-// useColour reports whether w is an interactive terminal that wants colour.
-// A file or a pipe gets none, so a redirected report stays free of escapes.
 func useColour(w io.Writer) bool {
 	if os.Getenv("NO_COLOR") != "" {
 		return false
@@ -92,9 +79,6 @@ func paint(enabled bool, style, text string) string {
 	return style + text + ansiReset
 }
 
-// headline describes the result before the detail, so the reader knows the
-// scale of what follows — and so a clean repository says so explicitly rather
-// than rendering an empty table.
 func headline(count int) string {
 	if count == 0 {
 		return "All categories are covered - no suggestions."
@@ -105,16 +89,13 @@ func headline(count int) string {
 	return fmt.Sprintf("%d categories need attention:", count)
 }
 
-// destination resolves where a report is written. The returned close function
-// is always safe to call, so callers can defer it unconditionally.
+// The returned close function is always safe to call.
 func destination(path string) (io.Writer, func(), error) {
 	if path == "" {
 		return os.Stdout, func() {}, nil
 	}
-	// 0644, not 0600: a report exists to be read by something else. The Docker
-	// action runs as root, and an owner-only file is unreadable by the runner
-	// user in the next step, which is how upload-sarif came to fail with
-	// EACCES. The content is a list of absent tooling, not a secret.
+	// 0644: the action runs as root and the next step, as another user, must
+	// read the report. It lists absent tooling, not secrets.
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644) //nolint:gosec // operator-supplied path; a report is world-readable by design
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("failed to open output file %s: %w", path, err)

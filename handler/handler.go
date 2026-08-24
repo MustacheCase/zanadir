@@ -25,12 +25,8 @@ type Handler struct {
 	OutputService     output.Output
 }
 
-// sarifAnchor picks the CI configuration file that SARIF results point at.
-// Every SARIF consumer expects a location, and GitHub code scanning rejects a
-// report whose results have none, so anchor them at the file where the missing
-// tooling would be added. The path must be repository-relative for the alert to
-// resolve; if it cannot be made relative, the absolute path is skipped rather
-// than emitted, since a wrong location is worse than none.
+// sarifAnchor returns a repo-relative CI file for SARIF results to point at.
+// A path outside the scan directory is skipped: worse than no location.
 func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 	for _, a := range artifacts {
 		if a == nil || a.Location == "" {

@@ -106,8 +106,6 @@ func TestRenderSarifWithNoSuggestions(t *testing.T) {
 	assert.NoError(t, json.Unmarshal([]byte(report), &decoded))
 }
 
-// GitHub code scanning rejects the whole upload when any result has no
-// location: "locationFromSarifResult: expected at least one location".
 func TestSarifResultsCarryALocation(t *testing.T) {
 	log := buildSarif(testSuggestions(), ".github/workflows/ci.yml")
 

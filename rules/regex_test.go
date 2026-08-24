@@ -162,8 +162,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"mycodecovx"},
 		},
 		{
-			// Shell text is free-form: a bare \btests?\b would count
-			// `if test -f`, `test -z` and test.example.com as coverage.
+			// A bare \btests?\b would count `if test -f` as coverage.
 			ruleID: "unit-test-command-rule",
 			shouldMatch: []string{
 				"go test ./...", "go test -race -cover ./...", "npm test", "npm run test",

@@ -42,8 +42,6 @@ func TestScanRepo(t *testing.T) {
 	assert.NotNil(t, err, "scanRepo should return an error when handler setup fails")
 }
 
-// Enforcement failures are an expected outcome, not a crash: they belong on
-// stderr with the offending categories named.
 func TestScanErrorReportRoutesEnforcementToStderr(t *testing.T) {
 	w, msg := scanErrorReport(models.NewEnforceError("uncovered categories: SCA"))
 
@@ -60,7 +58,6 @@ func TestScanErrorReportRoutesOperationalErrorToStdout(t *testing.T) {
 	assert.Contains(t, msg, "handler setup failed")
 }
 
-// A wrapped enforcement failure is still an enforcement failure.
 func TestScanErrorReportUnwrapsEnforceError(t *testing.T) {
 	wrapped := fmt.Errorf("execute: %w", models.NewEnforceError("uncovered categories: Coverage"))
 

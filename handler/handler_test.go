@@ -334,8 +334,6 @@ func TestBaselineLoadErrorIsSurfaced(t *testing.T) {
 	assert.Contains(t, err.Error(), "unsupported version")
 }
 
-// A baseline that cannot be written must fail loudly; silently continuing would
-// leave CI enforcing against a baseline the operator believes they just wrote.
 func TestWriteBaselineReportsWriteFailure(t *testing.T) {
 	h := newEnforcementHandler("SCA")
 	cfg := &config.Config{

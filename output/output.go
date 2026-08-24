@@ -97,7 +97,11 @@ func destination(path string) (io.Writer, func(), error) {
 	if path == "" {
 		return os.Stdout, func() {}, nil
 	}
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // path is operator-supplied
+	// 0644, not 0600: a report exists to be read by something else. The Docker
+	// action runs as root, and an owner-only file is unreadable by the runner
+	// user in the next step, which is how upload-sarif came to fail with
+	// EACCES. The content is a list of absent tooling, not a secret.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644) //nolint:gosec // operator-supplied path; a report is world-readable by design
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("failed to open output file %s: %w", path, err)
 	}

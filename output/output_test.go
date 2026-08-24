@@ -338,3 +338,24 @@ func TestRenderPropagatesWriteErrorOnAllClear(t *testing.T) {
 		t.Errorf("expected the write error to propagate, got %v", err)
 	}
 }
+
+// A report is written to be consumed by another process, often another user:
+// the Docker action runs as root while the following step runs as the runner
+// user. An owner-only report is unreadable there, which broke SARIF upload.
+func TestResponse_ReportIsReadableByOthers(t *testing.T) {
+	service := NewOutputService()
+	path := filepath.Join(t.TempDir(), "zanadir.sarif")
+
+	if err := service.Response(getSampleSuggestions(), config.OutputSARIF, path); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("report not written: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm&0o044 == 0 {
+		t.Errorf("report mode %#o is owner-only; another user cannot read it "+
+			"(if this fails locally, check for a restrictive umask)", perm)
+	}
+}

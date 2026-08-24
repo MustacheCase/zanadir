@@ -29,7 +29,7 @@ func testSuggestions() []*suggester.CategorySuggestion {
 }
 
 func TestBuildSarifStructure(t *testing.T) {
-	log := buildSarif(testSuggestions())
+	log := buildSarif(testSuggestions(), "")
 
 	assert.Equal(t, sarifVersion, log.Version)
 	assert.Equal(t, sarifSchema, log.Schema)
@@ -54,7 +54,7 @@ func TestBuildSarifStructure(t *testing.T) {
 }
 
 func TestSarifHelpListsTools(t *testing.T) {
-	log := buildSarif(testSuggestions())
+	log := buildSarif(testSuggestions(), "")
 
 	var scaHelp, coverageHelp string
 	for _, rule := range log.Runs[0].Tool.Driver.Rules {
@@ -76,7 +76,7 @@ func TestSarifHelpListsTools(t *testing.T) {
 }
 
 func TestSarifMessageMentionsTools(t *testing.T) {
-	log := buildSarif(testSuggestions())
+	log := buildSarif(testSuggestions(), "")
 
 	for _, result := range log.Runs[0].Results {
 		if result.RuleID == "SCA" {
@@ -86,7 +86,7 @@ func TestSarifMessageMentionsTools(t *testing.T) {
 }
 
 func TestRenderSarifIsValidJSON(t *testing.T) {
-	report, err := renderSarif(testSuggestions())
+	report, err := renderSarif(testSuggestions(), "")
 	assert.NoError(t, err)
 
 	var decoded map[string]interface{}
@@ -97,11 +97,56 @@ func TestRenderSarifIsValidJSON(t *testing.T) {
 
 // SARIF requires runs[].results, so it must serialise as [] rather than null.
 func TestRenderSarifWithNoSuggestions(t *testing.T) {
-	report, err := renderSarif(nil)
+	report, err := renderSarif(nil, "")
 	assert.NoError(t, err)
 	assert.Contains(t, report, `"results": []`)
 	assert.Contains(t, report, `"rules": []`)
 
 	var decoded map[string]interface{}
 	assert.NoError(t, json.Unmarshal([]byte(report), &decoded))
+}
+
+// GitHub code scanning rejects the whole upload when any result has no
+// location: "locationFromSarifResult: expected at least one location".
+func TestSarifResultsCarryALocation(t *testing.T) {
+	log := buildSarif(testSuggestions(), ".github/workflows/ci.yml")
+
+	assert.NotEmpty(t, log.Runs[0].Results)
+	for _, result := range log.Runs[0].Results {
+		assert.Len(t, result.Locations, 1, "result %q must carry a location", result.RuleID)
+		phys := result.Locations[0].PhysicalLocation
+		assert.Equal(t, ".github/workflows/ci.yml", phys.ArtifactLocation.URI)
+		assert.Equal(t, 1, phys.Region.StartLine)
+	}
+}
+
+func TestSarifOmitsLocationWithoutAnAnchor(t *testing.T) {
+	log := buildSarif(testSuggestions(), "")
+
+	for _, result := range log.Runs[0].Results {
+		assert.Empty(t, result.Locations, "no anchor means no location rather than a wrong one")
+	}
+}
+
+func TestRenderSarifSerialisesLocations(t *testing.T) {
+	report, err := renderSarif(testSuggestions(), ".github/workflows/ci.yml")
+	assert.NoError(t, err)
+
+	var decoded struct {
+		Runs []struct {
+			Results []struct {
+				Locations []struct {
+					PhysicalLocation struct {
+						ArtifactLocation struct {
+							URI string `json:"uri"`
+						} `json:"artifactLocation"`
+					} `json:"physicalLocation"`
+				} `json:"locations"`
+			} `json:"results"`
+		} `json:"runs"`
+	}
+	assert.NoError(t, json.Unmarshal([]byte(report), &decoded))
+	assert.Len(t, decoded.Runs[0].Results[0].Locations, 1)
+	assert.Equal(t, ".github/workflows/ci.yml",
+		decoded.Runs[0].Results[0].Locations[0].PhysicalLocation.ArtifactLocation.URI)
 }

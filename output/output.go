@@ -12,10 +12,24 @@ import (
 	"github.com/olekukonko/tablewriter"
 )
 
-// Output renders a scan result. destPath selects where the report goes: empty
-// means stdout, otherwise the report is written to that file.
+// Report is everything needed to render one scan result. It is a struct rather
+// than a parameter list because three of its fields are strings and would be
+// trivial to transpose at a call site.
+type Report struct {
+	// Suggestions are the uncovered categories, in report order.
+	Suggestions []*suggester.CategorySuggestion
+	// Format is one of the config.Output* values.
+	Format string
+	// DestPath writes the report to a file; empty means stdout.
+	DestPath string
+	// Anchor is a repository-relative CI configuration path that SARIF results
+	// point at. Empty omits locations, which GitHub code scanning rejects.
+	Anchor string
+}
+
+// Output renders a scan result.
 type Output interface {
-	Response(suggestions []*suggester.CategorySuggestion, responseType string, destPath string) error
+	Response(report Report) error
 }
 
 type service struct{}
@@ -108,23 +122,24 @@ func destination(path string) (io.Writer, func(), error) {
 	return f, func() { _ = f.Close() }, nil
 }
 
-func (s *service) Response(suggestions []*suggester.CategorySuggestion, responseType string, destPath string) error {
-	w, closeDest, err := destination(destPath)
+func (s *service) Response(report Report) error {
+	w, closeDest, err := destination(report.DestPath)
 	if err != nil {
 		return err
 	}
 	defer closeDest()
 
-	return render(w, suggestions, responseType)
+	return render(w, report)
 }
 
-func render(w io.Writer, suggestions []*suggester.CategorySuggestion, responseType string) error {
+func render(w io.Writer, report Report) error {
+	suggestions, responseType := report.Suggestions, report.Format
 	if responseType == config.OutputSARIF {
-		report, err := renderSarif(suggestions)
+		sarifReport, err := renderSarif(suggestions, report.Anchor)
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintln(w, report)
+		_, err = fmt.Fprintln(w, sarifReport)
 		return err
 	}
 

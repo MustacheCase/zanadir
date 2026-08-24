@@ -63,7 +63,25 @@ type sarifResult struct {
 	RuleID              string            `json:"ruleId"`
 	Level               string            `json:"level"`
 	Message             sarifMessage      `json:"message"`
+	Locations           []sarifLocation   `json:"locations,omitempty"`
 	PartialFingerprints map[string]string `json:"partialFingerprints"`
+}
+
+type sarifLocation struct {
+	PhysicalLocation sarifPhysicalLocation `json:"physicalLocation"`
+}
+
+type sarifPhysicalLocation struct {
+	ArtifactLocation sarifArtifactLocation `json:"artifactLocation"`
+	Region           sarifRegion           `json:"region"`
+}
+
+type sarifArtifactLocation struct {
+	URI string `json:"uri"`
+}
+
+type sarifRegion struct {
+	StartLine int `json:"startLine"`
 }
 
 // helpText renders a category's suggested tools as a list.
@@ -81,9 +99,11 @@ func helpText(suggestion *suggester.CategorySuggestion) string {
 }
 
 // buildSarif converts category suggestions into a SARIF log: one rule and one
-// result per uncovered category. Results carry no physical location, since a
-// missing control is the absence of configuration rather than a defect in a file.
-func buildSarif(suggestions []*suggester.CategorySuggestion) sarifLog {
+// result per uncovered category. Each result is anchored at anchor, a
+// repository-relative CI configuration file: a missing control is not a defect
+// on a particular line, but every SARIF consumer expects a location, and the
+// file where the tool would be added is the most useful one available.
+func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string) sarifLog {
 	rules := make([]sarifRule, 0, len(suggestions))
 	results := make([]sarifResult, 0, len(suggestions))
 
@@ -108,13 +128,28 @@ func buildSarif(suggestions []*suggester.CategorySuggestion) sarifLog {
 			message = fmt.Sprintf("%s Consider adding one of: %s.", message, strings.Join(toolNames, ", "))
 		}
 
-		results = append(results, sarifResult{
+		result := sarifResult{
 			RuleID:  suggestion.ID,
 			Level:   "warning",
 			Message: sarifMessage{Text: message},
 			// The category is the finding's whole identity.
 			PartialFingerprints: map[string]string{"categoryId": suggestion.ID},
-		})
+		}
+
+		// GitHub code scanning rejects a result with no location outright:
+		// "locationFromSarifResult: expected at least one location". Anchor
+		// each one at a CI configuration file - the place the missing tool
+		// would be added - which is also more useful than no location at all.
+		if anchor != "" {
+			result.Locations = []sarifLocation{{
+				PhysicalLocation: sarifPhysicalLocation{
+					ArtifactLocation: sarifArtifactLocation{URI: anchor},
+					Region:           sarifRegion{StartLine: 1},
+				},
+			}}
+		}
+
+		results = append(results, result)
 	}
 
 	return sarifLog{
@@ -131,8 +166,8 @@ func buildSarif(suggestions []*suggester.CategorySuggestion) sarifLog {
 	}
 }
 
-func renderSarif(suggestions []*suggester.CategorySuggestion) (string, error) {
-	data, err := json.MarshalIndent(buildSarif(suggestions), "", "  ")
+func renderSarif(suggestions []*suggester.CategorySuggestion, anchor string) (string, error) {
+	data, err := json.MarshalIndent(buildSarif(suggestions, anchor), "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal SARIF report: %w", err)
 	}

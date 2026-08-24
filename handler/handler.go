@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/baseline"
@@ -22,6 +23,26 @@ type Handler struct {
 	MatchService      matcher.Matcher
 	SuggestionService suggester.Suggester
 	OutputService     output.Output
+}
+
+// sarifAnchor picks the CI configuration file that SARIF results point at.
+// Every SARIF consumer expects a location, and GitHub code scanning rejects a
+// report whose results have none, so anchor them at the file where the missing
+// tooling would be added. The path must be repository-relative for the alert to
+// resolve; if it cannot be made relative, the absolute path is skipped rather
+// than emitted, since a wrong location is worse than none.
+func sarifAnchor(dir string, artifacts []*models.Artifact) string {
+	for _, a := range artifacts {
+		if a == nil || a.Location == "" {
+			continue
+		}
+		rel, err := filepath.Rel(dir, a.Location)
+		if err != nil || strings.HasPrefix(rel, "..") {
+			continue
+		}
+		return filepath.ToSlash(rel)
+	}
+	return ""
 }
 
 func (h *Handler) Execute(cfg *config.Config) error {
@@ -52,7 +73,12 @@ func (h *Handler) Execute(cfg *config.Config) error {
 	suggestions := h.SuggestionService.FindSuggestions(findings, cfg.ExcludedCategories, languages)
 	debugf("Total suggestions: %d", len(suggestions))
 
-	err = h.OutputService.Response(suggestions, cfg.Output, cfg.OutputFile)
+	err = h.OutputService.Response(output.Report{
+		Suggestions: suggestions,
+		Format:      cfg.Output,
+		DestPath:    cfg.OutputFile,
+		Anchor:      sarifAnchor(cfg.Dir, artifacts),
+	})
 	if err != nil {
 		debugf("Output error: %v", err)
 		return err

@@ -12,6 +12,7 @@ import (
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/output"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
@@ -48,8 +49,8 @@ func (m *MockSuggester) FindSuggestions(findings []*matcher.Finding, excludedCat
 	return args.Get(0).([]*suggester.CategorySuggestion)
 }
 
-func (m *MockOutput) Response(suggestions []*suggester.CategorySuggestion, responseType string, destPath string) error {
-	args := m.Called(suggestions, responseType, destPath)
+func (m *MockOutput) Response(report output.Report) error {
+	args := m.Called(report)
 	return args.Error(0)
 }
 
@@ -100,7 +101,7 @@ func TestHandler_Execute(t *testing.T) {
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
 	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
 	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions, nil)
-	mockOutput.On("Response", suggestions, mockResponseType, "").Return(nil)
+	mockOutput.On("Response", mock.Anything).Return(nil)
 
 	err := h.Execute(&config)
 
@@ -141,7 +142,7 @@ func TestHandler_Execute_WithSuggestionsAndEnforce(t *testing.T) {
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
 	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
 	mockSuggester.On("FindSuggestions", mock.Anything, mock.Anything).Return(suggestions)
-	mockOutput.On("Response", suggestions, mockResponseType, "").Return(nil)
+	mockOutput.On("Response", mock.Anything).Return(nil)
 
 	err := h.Execute(&config)
 
@@ -171,7 +172,7 @@ func TestHandler_Execute_DebugMode(t *testing.T) {
 	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{}).Times(len(models.CategoryTitles))
 	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return(findings).Times(len(models.CategoryTitles))
 	mockSuggester.On("FindSuggestions", mock.Anything, mock.Anything).Return(suggestions)
-	mockOutput.On("Response", suggestions, mockResponseType, "").Return(nil)
+	mockOutput.On("Response", mock.Anything).Return(nil)
 
 	out := captureOutput(func() {
 		err := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput).Execute(&cfg)
@@ -202,7 +203,7 @@ func newEnforcementHandler(uncovered ...string) *Handler {
 	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions)
 
 	mockOutput := new(MockOutput)
-	mockOutput.On("Response", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockOutput.On("Response", mock.Anything).Return(nil)
 
 	return &Handler{
 		RulesService:      mockRules,
@@ -345,4 +346,45 @@ func TestWriteBaselineReportsWriteFailure(t *testing.T) {
 	err := h.Execute(cfg)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to write baseline")
+}
+
+func TestSarifAnchor(t *testing.T) {
+	tests := []struct {
+		name      string
+		dir       string
+		artifacts []*models.Artifact
+		want      string
+	}{
+		{
+			name:      "repository-relative path",
+			dir:       "/repo",
+			artifacts: []*models.Artifact{{Location: "/repo/.github/workflows/ci.yml"}},
+			want:      ".github/workflows/ci.yml",
+		},
+		{
+			name:      "skips entries without a location",
+			dir:       "/repo",
+			artifacts: []*models.Artifact{{Location: ""}, {Location: "/repo/.gitlab-ci.yml"}},
+			want:      ".gitlab-ci.yml",
+		},
+		{
+			// A path outside the repository would not resolve for a consumer.
+			name:      "skips paths outside the scanned directory",
+			dir:       "/repo",
+			artifacts: []*models.Artifact{{Location: "/elsewhere/ci.yml"}},
+			want:      "",
+		},
+		{
+			name:      "no artifacts",
+			dir:       "/repo",
+			artifacts: nil,
+			want:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, sarifAnchor(tt.dir, tt.artifacts))
+		})
+	}
 }

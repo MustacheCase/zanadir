@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   zanadir-scan:
@@ -18,9 +19,16 @@ jobs:
       with:
         fetch-depth: 0
     - name: Run zanadir Github action
-      uses: mustachecase/zanadir-action@v1.5
+      uses: mustachecase/zanadir-action@v1.6
       with:
         dir: .
         debug: true
         enforce: false
-        output: table
+        output: sarif
+        output-file: zanadir.sarif
+
+    - name: Upload zanadir SARIF
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: zanadir.sarif
+        category: zanadir

@@ -289,8 +289,10 @@ Or using Homebrew:
 ```sh
 # Install using Homebrew (custom tap)
 brew tap --custom-remote MustacheCase/zanadir https://github.com/MustacheCase/zanadir.git
-brew install zanadir
+brew install mustachecase/zanadir/zanadir
 ```
+
+The tap is this repository, so the formula lives in `Formula/zanadir.rb`.
 
 ## GitHub Actions
 If you're using GitHub Actions, you can use our [Zanadir-based action](https://github.com/MustacheCase/zanadir-action) to run CI\CD scans on your code during your CI workflows.

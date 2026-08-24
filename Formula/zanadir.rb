@@ -1,26 +1,10 @@
 class Zanadir < Formula
-  desc "A tool for directory navigation and management"
+  desc "Scans CI/CD pipelines and suggests missing security and quality tools"
   homepage "https://github.com/MustacheCase/zanadir"
+  url "https://github.com/MustacheCase/zanadir/archive/refs/tags/0.2.2.tar.gz"
+  sha256 "b1b7290fb98b322a1a9db5c0e21f13ae3d697751339fe32ce1f76688410ece16"
   license "MIT"
-
-  # Get the latest version from git tags
-  version = "0.1.1"
-  
-  stable do
-    url "https://github.com/MustacheCase/zanadir/archive/#{version}.tar.gz"
-    sha256 "84165bcdc12ff56058ff438fe7cbbdd3d694c24bb9f4d2f546184ce83ca0adbc"
-    version version
-  end
-
   head "https://github.com/MustacheCase/zanadir.git", branch: "main"
-
-  # Note: If the project requires specific Go dependencies at build time,
-  # use go_resource blocks to specify them. Example:
-  # go_resource "github.com/some/dependency" do
-  #   url "https://github.com/some/dependency.git",
-  #       :tag => "v1.0.0"
-  # end
-  # This ensures consistent builds across different environments.
 
   depends_on "go" => :build
 
@@ -28,10 +12,22 @@ class Zanadir < Formula
     system "go", "build", *std_go_args(ldflags: "-s -w")
   end
 
-  # Test verifies that the binary was built correctly and can execute basic commands
-  # by checking if the help command works, which indicates the CLI is properly
-  # initialized and can process commands.
   test do
-    system "#{bin}/zanadir", "--help"
+    assert_match "zanadir", shell_output("#{bin}/zanadir --help")
+
+    (testpath/".github/workflows").mkpath
+    (testpath/".github/workflows/ci.yml").write <<~YAML
+      name: ci
+      on: [push]
+      jobs:
+        build:
+          runs-on: ubuntu-latest
+          steps:
+            - run: go test ./...
+    YAML
+    system "git", "init"
+
+    output = shell_output("#{bin}/zanadir scan --dir #{testpath} --output json")
+    assert_match "\"ID\"", output
   end
-end 
+end

@@ -420,3 +420,59 @@ func TestHandler_FixWithNothingUncovered(t *testing.T) {
 	assert.NoError(t, h.Fix(&config.Config{Dir: t.TempDir()}, &buf))
 	assert.Contains(t, buf.String(), "Nothing to fix")
 }
+
+func newFixHandler(categories ...string) *Handler {
+	suggestions := make([]*suggester.CategorySuggestion, 0, len(categories))
+	for _, id := range categories {
+		suggestions = append(suggestions, &suggester.CategorySuggestion{
+			ID: id, Name: id,
+			Suggestions: []*suggester.Suggestion{
+				{Name: "Gitleaks", Repository: "https://github.com/gitleaks/gitleaks"},
+			},
+		})
+	}
+
+	h := newEnforcementHandler()
+	m := new(MockSuggester)
+	m.On("FindSuggestions", mock.Anything, mock.Anything, mock.Anything).Return(suggestions)
+	h.SuggestionService = m
+	return h
+}
+
+func TestHandler_FixWrite(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0o755))
+
+	var buf bytes.Buffer
+	assert.NoError(t, newFixHandler("Secrets Detection").Fix(&config.Config{Dir: dir, Write: true}, &buf))
+
+	assert.Contains(t, buf.String(), "Wrote .github/workflows/zanadir-suggested.yml")
+	assert.Contains(t, buf.String(), "repeats checkout")
+
+	written, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "zanadir-suggested.yml"))
+	assert.NoError(t, err)
+	assert.Contains(t, string(written), "gitleaks-action")
+}
+
+func TestHandler_FixWriteWithNothingToWrite(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0o755))
+
+	var buf bytes.Buffer
+	assert.NoError(t, newFixHandler().Fix(&config.Config{Dir: dir, Write: true}, &buf))
+
+	assert.Contains(t, buf.String(), "Nothing to write")
+	_, err := os.Stat(filepath.Join(dir, ".github", "workflows", "zanadir-suggested.yml"))
+	assert.True(t, os.IsNotExist(err), "no file should be written when there is nothing to add")
+}
+
+func TestHandler_FixWriteRejectsNonGitHubPlatform(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, ".gitlab-ci.yml"), []byte("x"), 0o600))
+
+	var buf bytes.Buffer
+	err := newFixHandler("Secrets Detection").Fix(&config.Config{Dir: dir, Write: true}, &buf)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "gitlab")
+}

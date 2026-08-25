@@ -44,13 +44,25 @@ func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 }
 
 // uncovered runs the scan pipeline and returns the categories with no tooling.
-func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface{})) ([]*suggester.CategorySuggestion, []*models.Artifact, error) {
+func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface{}), ignore func(string) bool) ([]*suggester.CategorySuggestion, []*models.Artifact, error) {
 	artifacts, err := h.ScanService.Scan(cfg.Dir)
 	if err != nil {
 		debugf("Scan error: %v", err)
 		return nil, nil, err
 	}
 	debugf("Found %d artifacts", len(artifacts))
+
+	if ignore != nil {
+		kept := artifacts[:0]
+		for _, a := range artifacts {
+			if a != nil && ignore(a.Location) {
+				debugf("Ignoring %s", a.Location)
+				continue
+			}
+			kept = append(kept, a)
+		}
+		artifacts = kept
+	}
 
 	var findings []*matcher.Finding
 	for _, c := range models.CategoryTitles {
@@ -75,7 +87,7 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 		debugf = logger.GetLogger().Info
 	}
 
-	suggestions, _, err := h.uncovered(cfg, debugf)
+	suggestions, _, err := h.uncovered(cfg, debugf, fixer.IsGeneratedWorkflow)
 	if err != nil {
 		return err
 	}
@@ -88,7 +100,26 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 	platform := fixer.DetectPlatform(cfg.Dir)
 	debugf("Detected platform: %s", platform)
 
-	return fixer.Render(w, fixService.Snippets(suggestions, platform), platform)
+	snippets := fixService.Snippets(suggestions, platform)
+
+	if !cfg.Write {
+		return fixer.Render(w, snippets, platform)
+	}
+
+	if platform != fixer.PlatformGitHub {
+		return fmt.Errorf("--write generates a GitHub Actions workflow; %s is not supported yet, run without --write to print the snippets", platform)
+	}
+	if len(snippets) == 0 {
+		_, err := fmt.Fprintln(w, "Nothing to write: every uncovered category either has no template yet, or there is nothing uncovered.")
+		return err
+	}
+
+	path, err := fixer.WriteWorkflow(cfg.Dir, snippets)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(w, "Wrote %s (%d categories).\nIt runs as its own job, so it repeats checkout and adds a check to pull requests.\n", path, len(snippets))
+	return err
 }
 
 func (h *Handler) Execute(cfg *config.Config) error {
@@ -98,7 +129,7 @@ func (h *Handler) Execute(cfg *config.Config) error {
 	}
 
 	debugf("Starting scan for directory: %s", cfg.Dir)
-	suggestions, artifacts, err := h.uncovered(cfg, debugf)
+	suggestions, artifacts, err := h.uncovered(cfg, debugf, nil)
 	if err != nil {
 		return err
 	}

@@ -304,6 +304,32 @@ covers fewer categories than `scan` reports. Templates live in
 `fixer/templates.yaml` and pin actions to major tags; adding one is a
 self-contained contribution.
 
+### Generating a workflow
+
+`--write` generates a standalone `.github/workflows/zanadir-suggested.yml`
+instead of printing:
+
+```sh
+zanadir fix --dir . --write
+```
+
+```
+Wrote .github/workflows/zanadir-suggested.yml (9 categories).
+It runs as its own job, so it repeats checkout and adds a check to pull requests.
+```
+
+Existing workflows are never edited, so nothing you wrote can be damaged; the
+worst case is a file you delete. Re-running overwrites the generated file and
+produces the same result, and zanadir refuses to overwrite a file at that path
+that it did not generate.
+
+That standalone job is the trade-off: it repeats checkout and adds its own
+entry to the checks list, which is noisier than adding the steps to a job you
+already have. Move them into your own workflow whenever you prefer.
+
+`--write` currently generates GitHub Actions only. On other platforms, run
+without it and paste the snippets.
+
 `--excluded-categories` works as it does for `scan`.
 
 ## Installation

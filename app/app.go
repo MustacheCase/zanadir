@@ -81,6 +81,7 @@ func NewApp() *cobra.Command {
 	fixCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
 	fixCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
 	fixCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
+	fixCmd.Flags().Bool("write", false, "Generate .github/workflows/zanadir-suggested.yml instead of printing (optional)")
 	_ = fixCmd.MarkFlagRequired("dir")
 
 	return rootCmd

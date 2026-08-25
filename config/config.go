@@ -30,6 +30,8 @@ type Config struct {
 	Output        string
 	// OutputFile writes the report to a path instead of stdout; empty means stdout.
 	OutputFile string
+	// Write makes the fix command generate a workflow instead of printing.
+	Write bool
 }
 
 // normalizeCategories canonicalises category names and rejects unknown ones.
@@ -128,6 +130,7 @@ func CreateFixConfig(cmd *cobra.Command) (*Config, error) {
 	}
 
 	debug, _ := cmd.Flags().GetBool("debug")
+	write, _ := cmd.Flags().GetBool("write")
 
-	return &Config{Dir: dir, ExcludedCategories: excluded, Debug: debug}, nil
+	return &Config{Dir: dir, ExcludedCategories: excluded, Debug: debug, Write: write}, nil
 }

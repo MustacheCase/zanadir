@@ -18,6 +18,11 @@ on:
     branches: [ "main" ]
   schedule:
     - cron: '36 2 * * 4'
+  # Lets the analysis be started by hand. A scheduled-only workflow is
+  # disabled automatically after a quiet period, and this one was: it last
+  # ran in February and no push or pull request restarted it, because a
+  # disabled workflow ignores every trigger.
+  workflow_dispatch:
 
 jobs:
   analyze:

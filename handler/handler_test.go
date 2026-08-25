@@ -476,3 +476,88 @@ func TestHandler_FixWriteRejectsNonGitHubPlatform(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "gitlab")
 }
+
+// The generated workflow names the tools it adds. Counting it as coverage made
+// each regeneration delete the steps the previous one wrote.
+func TestFixIgnoresItsOwnGeneratedWorkflow(t *testing.T) {
+	own := &models.Artifact{Name: "zanadir-suggested", Location: "/repo/.github/workflows/zanadir-suggested.yml"}
+	theirs := &models.Artifact{Name: "ci", Location: "/repo/.github/workflows/ci.yml"}
+
+	mockRules := new(MockRuleService)
+	mockRules.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+
+	mockScan := new(MockScanner)
+	mockScan.On("Scan", mock.Anything).Return([]*models.Artifact{own, theirs}, nil)
+
+	seen := make([][]*models.Artifact, 0)
+	mockMatch := new(MockMatcher)
+	mockMatch.On("Match", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		seen = append(seen, args.Get(0).([]*models.Artifact))
+	}).Return([]*matcher.Finding{})
+
+	mockSuggest := new(MockSuggester)
+	mockSuggest.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{})
+
+	h := &Handler{
+		RulesService: mockRules, ScanService: mockScan, MatchService: mockMatch,
+		SuggestionService: mockSuggest, OutputService: new(MockOutput),
+	}
+
+	var buf bytes.Buffer
+	assert.NoError(t, h.Fix(&config.Config{Dir: t.TempDir()}, &buf))
+
+	assert.NotEmpty(t, seen)
+	for _, batch := range seen {
+		assert.Equal(t, []*models.Artifact{theirs}, batch,
+			"the generated workflow must not be matched against")
+	}
+}
+
+func TestExecuteMatchesEveryArtifact(t *testing.T) {
+	own := &models.Artifact{Name: "zanadir-suggested", Location: "/repo/.github/workflows/zanadir-suggested.yml"}
+
+	mockRules := new(MockRuleService)
+	mockRules.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockScan := new(MockScanner)
+	mockScan.On("Scan", mock.Anything).Return([]*models.Artifact{own}, nil)
+
+	var seen []*models.Artifact
+	mockMatch := new(MockMatcher)
+	mockMatch.On("Match", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		seen = args.Get(0).([]*models.Artifact)
+	}).Return([]*matcher.Finding{})
+	mockSuggest := new(MockSuggester)
+	mockSuggest.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{})
+	mockOut := new(MockOutput)
+	mockOut.On("Response", mock.Anything).Return(nil)
+
+	h := &Handler{RulesService: mockRules, ScanService: mockScan, MatchService: mockMatch,
+		SuggestionService: mockSuggest, OutputService: mockOut}
+
+	assert.NoError(t, h.Execute(&config.Config{Dir: t.TempDir(), Output: "table"}))
+	assert.Equal(t, []*models.Artifact{own}, seen,
+		"a committed generated workflow is real coverage for scan")
+}
+
+func TestFixPropagatesScanError(t *testing.T) {
+	boom := errors.New("not a git repository")
+	mockScan := new(MockScanner)
+	mockScan.On("Scan", mock.Anything).Return([]*models.Artifact{}, boom)
+
+	h := &Handler{ScanService: mockScan, RulesService: new(MockRuleService)}
+
+	var buf bytes.Buffer
+	assert.ErrorIs(t, h.Fix(&config.Config{Dir: t.TempDir()}, &buf), boom)
+}
+
+func TestFixWriteSurfacesAWriteFailure(t *testing.T) {
+	dir := t.TempDir()
+	// .github/workflows occupied by a file, so the directory cannot be created.
+	assert.NoError(t, os.MkdirAll(filepath.Join(dir, ".github"), 0o755))
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, ".github", "workflows"), []byte("x"), 0o600))
+
+	var buf bytes.Buffer
+	err := newFixHandler("Secrets Detection").Fix(&config.Config{Dir: dir, Write: true}, &buf)
+
+	assert.Error(t, err)
+}

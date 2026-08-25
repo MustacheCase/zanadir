@@ -209,3 +209,23 @@ categories:
         repository: "https://github.com/kubescape/kubescape"
         description: "Scans Kubernetes manifests and clusters against security frameworks such as NSA and MITRE."
 
+  - id: "Supply Chain"
+    name: "Supply Chain Security and SBOM"
+    description: "Tools that record what a build contains and prove where it came from, so a compromised dependency or artifact can be traced rather than guessed at."
+    suggestions:
+      - name: "Syft"
+        repository: "https://github.com/anchore/syft"
+        description: "Generates an SBOM from container images and filesystems, in SPDX or CycloneDX format."
+      - name: "CycloneDX"
+        repository: "https://github.com/CycloneDX/cdxgen"
+        description: "Generates CycloneDX bills of materials across many language ecosystems."
+      - name: "Cosign"
+        repository: "https://github.com/sigstore/cosign"
+        description: "Signs and verifies container images and artifacts, keylessly via Sigstore."
+      - name: "SLSA GitHub Generator"
+        repository: "https://github.com/slsa-framework/slsa-github-generator"
+        description: "Produces SLSA provenance for a build, attesting how an artifact was produced."
+      - name: "GitHub Artifact Attestations"
+        repository: "https://github.com/actions/attest-build-provenance"
+        description: "Creates signed build provenance for artifacts directly from a workflow."
+

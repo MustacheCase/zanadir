@@ -37,6 +37,7 @@ case-insensitive):
 - 🧪 **Unit Tests**: Automated Unit Testing
 - 🔎 **SAST**: Static Application Security Testing
 - 🏗️ **IaC Security**: Infrastructure-as-Code Misconfiguration Scanning
+- 🔗 **Supply Chain**: SBOM Generation, Signing and Provenance
 
 ## Usage Examples
 

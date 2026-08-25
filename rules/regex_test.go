@@ -177,6 +177,43 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"latest", "deploy-latest",
 			},
 		},
+		{
+			ruleID:         "syft-rule",
+			shouldMatch:    []string{"syft dir:. -o spdx-json", "anchore/sbom-action@v0"},
+			shouldNotMatch: []string{"syftly", "mysyft"},
+		},
+		{
+			ruleID:         "cosign-rule",
+			shouldMatch:    []string{"cosign sign --yes $IMAGE", "sigstore/cosign-installer@v3"},
+			shouldNotMatch: []string{"cosigning the release", "cosigner"},
+		},
+		{
+			// A bare "spdx" matches the licence header, which says nothing
+			// about whether an SBOM is produced.
+			ruleID:      "spdx-tools-rule",
+			shouldMatch: []string{"spdx-sbom-generator -p .", "spdx-tools convert"},
+			shouldNotMatch: []string{
+				"# SPDX-License-Identifier: MIT",
+				"SPDX-License-Identifier: Apache-2.0",
+				"spdx",
+			},
+		},
+		{
+			ruleID:         "slsa-rule",
+			shouldMatch:    []string{"slsa-framework/slsa-github-generator", "slsa provenance"},
+			shouldNotMatch: []string{"slsawesome", "salsa", "slsax"},
+		},
+		{
+			ruleID:         "github-attestation-rule",
+			shouldMatch:    []string{"actions/attest-build-provenance@v1", "actions/attest-sbom@v1"},
+			shouldNotMatch: []string{"actions/checkout@v4", "attestation"},
+		},
+		{
+			// "trivy" alone is SCA; the sbom sub-command is supply chain.
+			ruleID:         "trivy-sbom-rule",
+			shouldMatch:    []string{"trivy sbom --format cyclonedx .", "trivy  sbom ."},
+			shouldNotMatch: []string{"trivy fs .", "trivy image alpine", "trivy config ."},
+		},
 	}
 
 	for _, tt := range tests {

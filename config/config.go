@@ -45,22 +45,31 @@ func normalizeCategories(categories []string) ([]string, error) {
 	return normalized, nil
 }
 
-func CreateConfig(cmd *cobra.Command) (*Config, error) {
+func resolveDir(cmd *cobra.Command) (string, error) {
 	dir, _ := cmd.Flags().GetString("dir")
 	if dir == "" {
 		_ = cmd.Help()
-		return nil, fmt.Errorf("error: --dir (-d) flag is required")
+		return "", fmt.Errorf("error: --dir (-d) flag is required")
 	}
 
 	dir = filepath.Clean(dir)
 
 	info, err := os.Lstat(dir)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
-		return nil, fmt.Errorf("error: Symlinks are not allowed")
+		return "", fmt.Errorf("error: Symlinks are not allowed")
+	}
+
+	return dir, nil
+}
+
+func CreateConfig(cmd *cobra.Command) (*Config, error) {
+	dir, err := resolveDir(cmd)
+	if err != nil {
+		return nil, err
 	}
 
 	excludedCategories, _ := cmd.Flags().GetStringSlice("excluded-categories")
@@ -102,4 +111,23 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 		Output:             output,
 		OutputFile:         outputFile,
 	}, nil
+}
+
+// CreateFixConfig builds the subset of configuration the fix command needs.
+// It does not read the scan-only flags, which fix does not define.
+func CreateFixConfig(cmd *cobra.Command) (*Config, error) {
+	dir, err := resolveDir(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	excluded, _ := cmd.Flags().GetStringSlice("excluded-categories")
+	excluded, err = normalizeCategories(excluded)
+	if err != nil {
+		return nil, err
+	}
+
+	debug, _ := cmd.Flags().GetBool("debug")
+
+	return &Config{Dir: dir, ExcludedCategories: excluded, Debug: debug}, nil
 }

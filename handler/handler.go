@@ -2,11 +2,13 @@ package handler
 
 import (
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/fixer"
 	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/logger"
 	"github.com/MustacheCase/zanadir/matcher"
@@ -41,25 +43,19 @@ func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 	return ""
 }
 
-func (h *Handler) Execute(cfg *config.Config) error {
-	debugf := func(format string, v ...interface{}) {}
-	if cfg.Debug {
-		debugf = logger.GetLogger().Info
-	}
-
-	debugf("Starting scan for directory: %s", cfg.Dir)
+// uncovered runs the scan pipeline and returns the categories with no tooling.
+func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface{})) ([]*suggester.CategorySuggestion, []*models.Artifact, error) {
 	artifacts, err := h.ScanService.Scan(cfg.Dir)
 	if err != nil {
 		debugf("Scan error: %v", err)
-		return err
+		return nil, nil, err
 	}
 	debugf("Found %d artifacts", len(artifacts))
 
 	var findings []*matcher.Finding
 	for _, c := range models.CategoryTitles {
 		categoryRules := h.RulesService.GetCategoryRules(c)
-		categoryFindings := h.MatchService.Match(artifacts, categoryRules)
-		findings = append(findings, categoryFindings...)
+		findings = append(findings, h.MatchService.Match(artifacts, categoryRules)...)
 	}
 	debugf("Total findings: %d", len(findings))
 
@@ -68,6 +64,44 @@ func (h *Handler) Execute(cfg *config.Config) error {
 
 	suggestions := h.SuggestionService.FindSuggestions(findings, cfg.ExcludedCategories, languages)
 	debugf("Total suggestions: %d", len(suggestions))
+
+	return suggestions, artifacts, nil
+}
+
+// Fix prints ready-to-paste CI configuration for the uncovered categories.
+func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
+	debugf := func(format string, v ...interface{}) {}
+	if cfg.Debug {
+		debugf = logger.GetLogger().Info
+	}
+
+	suggestions, _, err := h.uncovered(cfg, debugf)
+	if err != nil {
+		return err
+	}
+
+	fixService, err := fixer.NewFixService()
+	if err != nil {
+		return err
+	}
+
+	platform := fixer.DetectPlatform(cfg.Dir)
+	debugf("Detected platform: %s", platform)
+
+	return fixer.Render(w, fixService.Snippets(suggestions, platform), platform)
+}
+
+func (h *Handler) Execute(cfg *config.Config) error {
+	debugf := func(format string, v ...interface{}) {}
+	if cfg.Debug {
+		debugf = logger.GetLogger().Info
+	}
+
+	debugf("Starting scan for directory: %s", cfg.Dir)
+	suggestions, artifacts, err := h.uncovered(cfg, debugf)
+	if err != nil {
+		return err
+	}
 
 	err = h.OutputService.Response(output.Report{
 		Suggestions: suggestions,

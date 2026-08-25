@@ -1,0 +1,157 @@
+# Ready-to-use CI configuration for suggested tools, keyed by tool name and
+# platform. Tool names must match suggestions.yaml exactly; NewFixService
+# rejects any that do not.
+#
+# Action versions are pinned to major tags, which stay current without a SHA
+# refresh burden. Revisit them when a tool cuts a new major.
+templates:
+  - tool: "Gitleaks"
+    platform: "github"
+    step: |
+      - name: Detect secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  - tool: "Gitleaks"
+    platform: "gitlab"
+    step: |
+      secret_detection:
+        image:
+          name: zricethezav/gitleaks
+          entrypoint: [""]
+        script:
+          - gitleaks detect --source . --verbose
+
+  - tool: "TruffleHog"
+    platform: "github"
+    step: |
+      - name: Detect secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --results=verified,unknown
+
+  - tool: "Trivy"
+    platform: "github"
+    step: |
+      - name: Scan dependencies
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scanners: vuln
+          exit-code: "1"
+
+  - tool: "Trivy"
+    platform: "gitlab"
+    step: |
+      dependency_scanning:
+        image:
+          name: aquasec/trivy
+          entrypoint: [""]
+        script:
+          - trivy fs --exit-code 1 .
+
+  - tool: "Grype"
+    platform: "github"
+    step: |
+      - name: Scan dependencies
+        uses: anchore/scan-action@v6
+        with:
+          path: .
+          fail-build: true
+
+  - tool: "Semgrep"
+    platform: "github"
+    step: |
+      - name: Static analysis
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: auto
+
+  - tool: "CodeQL"
+    platform: "github"
+    step: |
+      # CodeQL needs its own job; see
+      # https://github.com/github/codeql-action for the full workflow.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
+  - tool: "gosec"
+    platform: "github"
+    step: |
+      - name: Static analysis
+        uses: securego/gosec@master
+        with:
+          args: ./...
+
+  - tool: "Bandit"
+    platform: "github"
+    step: |
+      - name: Static analysis
+        run: |
+          pip install bandit
+          bandit -r .
+
+  - tool: "Checkov"
+    platform: "github"
+    step: |
+      - name: Scan infrastructure as code
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+
+  - tool: "tfsec"
+    platform: "github"
+    step: |
+      - name: Scan Terraform
+        uses: aquasecurity/tfsec-action@v1.0.0
+
+  - tool: "XEOL"
+    platform: "github"
+    step: |
+      - name: Check for end-of-life packages
+        uses: xeol-io/xeol-action@v1
+        with:
+          path: .
+
+  - tool: "Grant"
+    platform: "github"
+    step: |
+      - name: Check licences
+        uses: anchore/grant-action@main
+
+  - tool: "Codecov"
+    platform: "github"
+    step: |
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  - tool: "GolangCI-Lint"
+    platform: "github"
+    step: |
+      - name: Lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          args: --timeout=5m
+
+  - tool: "ESLint"
+    platform: "github"
+    step: |
+      - name: Lint
+        run: |
+          npm ci
+          npx eslint .
+
+  - tool: "k6"
+    platform: "github"
+    step: |
+      - name: Load test
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: load-test.js

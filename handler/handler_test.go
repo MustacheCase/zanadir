@@ -386,3 +386,37 @@ func TestSarifAnchor(t *testing.T) {
 		})
 	}
 }
+
+func TestHandler_Fix(t *testing.T) {
+	h := newEnforcementHandler("Secrets Detection")
+	h.SuggestionService = func() suggester.Suggester {
+		m := new(MockSuggester)
+		m.On("FindSuggestions", mock.Anything, mock.Anything, mock.Anything).Return(
+			[]*suggester.CategorySuggestion{{
+				ID: "Secrets Detection", Name: "Data Leakage & Secrets Detection",
+				Suggestions: []*suggester.Suggestion{
+					{Name: "Gitleaks", Repository: "https://github.com/gitleaks/gitleaks"},
+				},
+			}})
+		return m
+	}()
+
+	dir := t.TempDir()
+	assert.NoError(t, os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0o755))
+
+	var buf bytes.Buffer
+	assert.NoError(t, h.Fix(&config.Config{Dir: dir}, &buf))
+
+	out := buf.String()
+	assert.Contains(t, out, "is not covered")
+	assert.Contains(t, out, ".github/workflows")
+	assert.Contains(t, out, "gitleaks-action")
+}
+
+func TestHandler_FixWithNothingUncovered(t *testing.T) {
+	h := newEnforcementHandler()
+
+	var buf bytes.Buffer
+	assert.NoError(t, h.Fix(&config.Config{Dir: t.TempDir()}, &buf))
+	assert.Contains(t, buf.String(), "Nothing to fix")
+}

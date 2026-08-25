@@ -172,3 +172,8 @@ func NewSuggestionService() (Suggester, error) {
 	}
 	return newService(cats)
 }
+
+// Catalogue returns the embedded suggestions, for callers that extend it.
+func Catalogue() ([]CategorySuggestion, error) {
+	return readEmbeddedSuggestions()
+}

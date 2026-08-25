@@ -179,3 +179,48 @@ func TestCreateConfigDefaultsBaselinePathForWrite(t *testing.T) {
 	assert.True(t, cfg.WriteBaseline)
 	assert.Equal(t, baseline.DefaultPath, cfg.Baseline)
 }
+
+func newFixCmd(dir string) *cobra.Command {
+	cmd := &cobra.Command{Use: "fix"}
+	cmd.Flags().StringP("dir", "d", dir, "dir")
+	cmd.Flags().StringSliceP("excluded-categories", "e", nil, "excluded")
+	cmd.Flags().Bool("debug", false, "debug")
+	return cmd
+}
+
+func TestCreateFixConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := CreateFixConfig(newFixCmd(dir))
+
+	assert.NoError(t, err)
+	assert.Equal(t, dir, cfg.Dir)
+	assert.Empty(t, cfg.ExcludedCategories)
+	assert.False(t, cfg.Debug)
+}
+
+func TestCreateFixConfigNormalizesExclusions(t *testing.T) {
+	cmd := newFixCmd(t.TempDir())
+	assert.NoError(t, cmd.Flags().Set("excluded-categories", "sca"))
+
+	cfg, err := CreateFixConfig(cmd)
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"SCA"}, cfg.ExcludedCategories)
+}
+
+func TestCreateFixConfigRejectsUnknownExclusion(t *testing.T) {
+	cmd := newFixCmd(t.TempDir())
+	assert.NoError(t, cmd.Flags().Set("excluded-categories", "Lintr"))
+
+	cfg, err := CreateFixConfig(cmd)
+
+	assert.Error(t, err)
+	assert.Nil(t, cfg)
+}
+
+func TestCreateFixConfigRequiresDir(t *testing.T) {
+	cfg, err := CreateFixConfig(newFixCmd(""))
+
+	assert.Error(t, err)
+	assert.Nil(t, cfg)
+}

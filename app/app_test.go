@@ -66,3 +66,8 @@ func TestScanErrorReportUnwrapsEnforceError(t *testing.T) {
 	assert.Equal(t, os.Stderr, w)
 	assert.Contains(t, msg, "Enforcement failed")
 }
+
+func TestFixRepo(t *testing.T) {
+	err := fixRepo(&config.Config{})
+	assert.NotNil(t, err, "fixRepo should return an error when the directory is not a repository")
+}

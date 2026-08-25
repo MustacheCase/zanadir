@@ -275,6 +275,37 @@ zanadir scan \
   --debug
 ```
 
+## `zanadir fix`
+
+A scan tells you what is missing. `fix` prints the configuration to add:
+
+```sh
+zanadir fix --dir .
+```
+
+```
+Data Leakage & Secrets Detection is not covered. Add to .github/workflows/security.yml:
+
+  - name: Detect secrets
+    uses: gitleaks/gitleaks-action@v2
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  https://github.com/gitleaks/gitleaks
+```
+
+It prints only; no file is touched. The CI platform is detected from the
+repository, and snippets are emitted for GitHub Actions or GitLab CI
+accordingly.
+
+Not every suggested tool has a template. A category whose tools are all
+untemplated is skipped rather than emitting something half-right, so `fix`
+covers fewer categories than `scan` reports. Templates live in
+`fixer/templates.yaml` and pin actions to major tags; adding one is a
+self-contained contribution.
+
+`--excluded-categories` works as it does for `scan`.
+
 ## Installation
 
 You can install Zanadir using Go:

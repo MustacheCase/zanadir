@@ -40,10 +40,30 @@ var scanCmd = &cobra.Command{
 	},
 }
 
+var fixCmd = &cobra.Command{
+	Use:   "fix",
+	Short: "Prints CI configuration for the categories a scan reports as missing",
+	Long:  "The fix command prints ready-to-paste CI configuration for each uncovered category, so a scan result can be acted on without leaving the tool.",
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg, err := config.CreateFixConfig(cmd)
+		if err != nil {
+			fmt.Printf("Error: Unable to initialize configuration service %v", err)
+			os.Exit(1)
+		}
+
+		if err := fixRepo(cfg); err != nil {
+			w, msg := scanErrorReport(err)
+			_, _ = fmt.Fprint(w, msg)
+			os.Exit(1)
+		}
+	},
+}
+
 // NewApp initializes the CLI application
 func NewApp() *cobra.Command {
 	// Add scan command to root command
 	rootCmd.AddCommand(scanCmd)
+	rootCmd.AddCommand(fixCmd)
 
 	// Add flags to scan command
 	scanCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
@@ -57,6 +77,11 @@ func NewApp() *cobra.Command {
 	scanCmd.Flags().String("output-file", "", "Write the report to this file instead of stdout (optional)")
 
 	_ = scanCmd.MarkFlagRequired("dir")
+
+	fixCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
+	fixCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
+	fixCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
+	_ = fixCmd.MarkFlagRequired("dir")
 
 	return rootCmd
 }
@@ -87,4 +112,12 @@ func scanRepo(config *config.Config) error {
 	}
 
 	return nil
+}
+
+func fixRepo(cfg *config.Config) error {
+	fixHandler, err := handler.Setup()
+	if err != nil {
+		return err
+	}
+	return fixHandler.Fix(cfg, os.Stdout)
 }

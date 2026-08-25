@@ -1,6 +1,8 @@
 package fixer
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -220,3 +222,51 @@ func indent(s, prefix string) string {
 	}
 	return strings.Join(lines, "\n") + "\n"
 }
+
+func TestRenderWritesPasteableBlocks(t *testing.T) {
+	var buf bytes.Buffer
+	snippets := []Snippet{
+		{Category: "Secrets", Tool: "Gitleaks", Repository: "https://github.com/gitleaks/gitleaks",
+			Step: "- name: Detect secrets\n  uses: gitleaks/gitleaks-action@v2"},
+		{Category: "SCA", Tool: "Trivy", Repository: "https://github.com/aquasecurity/trivy",
+			Step: "- name: Scan\n  uses: aquasecurity/trivy-action@master"},
+	}
+
+	assert.NoError(t, Render(&buf, snippets, PlatformGitHub))
+
+	out := buf.String()
+	assert.Contains(t, out, "Secrets is not covered. Add to .github/workflows/security.yml:")
+	assert.Contains(t, out, "  - name: Detect secrets")
+	assert.Contains(t, out, "https://github.com/gitleaks/gitleaks")
+	assert.Contains(t, out, "SCA is not covered")
+}
+
+func TestRenderSaysSoWhenThereIsNothing(t *testing.T) {
+	var buf bytes.Buffer
+	assert.NoError(t, Render(&buf, nil, PlatformGitHub))
+	assert.Contains(t, buf.String(), "Nothing to fix")
+}
+
+func TestRenderNamesThePlatformsFile(t *testing.T) {
+	for platform, want := range map[string]string{
+		PlatformGitHub:   ".github/workflows/security.yml",
+		PlatformGitLab:   ".gitlab-ci.yml",
+		PlatformCircleCI: ".circleci/config.yml",
+	} {
+		var buf bytes.Buffer
+		assert.NoError(t, Render(&buf, []Snippet{{Category: "C", Step: "- run: x"}}, platform))
+		assert.Contains(t, buf.String(), want)
+	}
+}
+
+func TestRenderPropagatesWriteErrors(t *testing.T) {
+	boom := errors.New("disk full")
+	w := failWriter{err: boom}
+
+	assert.ErrorIs(t, Render(w, []Snippet{{Category: "C", Step: "- run: x"}}, PlatformGitHub), boom)
+	assert.ErrorIs(t, Render(w, nil, PlatformGitHub), boom)
+}
+
+type failWriter struct{ err error }
+
+func (f failWriter) Write([]byte) (int, error) { return 0, f.err }

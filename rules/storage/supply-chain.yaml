@@ -1,0 +1,43 @@
+rules:
+  - id: "syft-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)\\bsyft\\b|anchore/sbom-action"
+
+  - id: "cyclonedx-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)\\bcyclonedx\\b|\\bcdxgen\\b"
+
+  # A bare "spdx" matches the SPDX-License-Identifier header, which appears in
+  # workflows that generate no SBOM at all.
+  - id: "spdx-tools-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)spdx-sbom-generator|\\bspdx-tools\\b"
+
+  - id: "cosign-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)\\bcosign\\b|sigstore/cosign-installer"
+
+  - id: "slsa-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)slsa-framework/|\\bslsa\\b"
+
+  - id: "in-toto-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)\\bin-toto\\b"
+
+  - id: "github-attestation-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)actions/attest-(build-provenance|sbom)"
+
+  # "trivy" alone is SCA; the sbom sub-command generates a bill of materials.
+  - id: "trivy-sbom-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)\\btrivy\\s+sbom\\b"

@@ -2,6 +2,10 @@
   <img src="https://github.com/user-attachments/assets/88b976b4-cc46-4706-a3e4-3cfa0e6877d5" alt="zanadir">
 </p>
 
+<p align="center">
+  <a href="#coverage-score"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/MustacheCase/zanadir/main/.github/zanadir-badge.json" alt="zanadir coverage"></a>
+</p>
+
 ## Features
 
 - 📂 **Scan**: Analyze the repository for CI/CD enhancement suggestions, including security services and best practices.
@@ -203,7 +207,8 @@ A workflow that keeps it current on every push to the default branch:
     git config user.name github-actions
     git config user.email github-actions@github.com
     git add .github/zanadir-badge.json
-    git diff --staged --quiet || git commit -m "chore: update zanadir badge"
+    if git diff --staged --quiet; then exit 0; fi
+    git commit -m "chore: update zanadir badge"
     git push
 ```
 

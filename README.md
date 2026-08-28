@@ -61,7 +61,7 @@ zanadir scan --dir . --output table
 
 **Sample Output:**
 ```
-1 category needs attention:
+Coverage 10/11 - 1 category needs attention:
 
 |--------------------------------|--------------------------------|-------------------|
 |            CATEGORY            |          DESCRIPTION           |  SUGGESTED TOOLS  |
@@ -76,7 +76,7 @@ zanadir scan --dir . --output table
 When nothing is missing, the scan says so rather than printing an empty table:
 
 ```
-All categories are covered - no suggestions.
+Coverage 11/11 - all categories are covered.
 ```
 
 The headline is bold on an interactive terminal. Colour is omitted when the
@@ -155,6 +155,62 @@ To publish the report from a GitHub Actions workflow:
 
 Uncovered categories then appear in the repository's **Security** tab alongside
 your other scanners.
+
+## Coverage Score
+
+Every scan is summarised as a coverage score: the categories that apply to the
+repository, minus the ones still uncovered.
+
+Two rules keep the number honest:
+
+- **Excluded categories leave the denominator.** A repository is not marked
+  down for a category it has declared irrelevant with `--excluded-categories`.
+- **Baseline-accepted gaps still count as uncovered.** A baseline records that
+  a gap is tolerated, not that it was closed. A score that rose because someone
+  committed a file would measure nothing.
+
+### README Badge
+
+`--badge` writes the score as a [shields.io endpoint][shields] file:
+
+```sh
+zanadir scan --dir . --badge .github/zanadir-badge.json
+```
+
+```json
+{
+  "schemaVersion": 1,
+  "label": "zanadir",
+  "message": "10/11",
+  "color": "green"
+}
+```
+
+Publish that file from CI and point a badge at it:
+
+```markdown
+![zanadir](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OWNER/REPO/main/.github/zanadir-badge.json)
+```
+
+A workflow that keeps it current on every push to the default branch:
+
+```yaml
+- name: Run zanadir
+  run: zanadir scan --dir . --badge .github/zanadir-badge.json
+
+- name: Commit the badge
+  run: |
+    git config user.name github-actions
+    git config user.email github-actions@github.com
+    git add .github/zanadir-badge.json
+    git diff --staged --quiet || git commit -m "chore: update zanadir badge"
+    git push
+```
+
+The colour tracks the score: green at 80% or above, yellow at 60%, orange at
+40%, red below that, and bright green only at full coverage.
+
+[shields]: https://shields.io/badges/endpoint-badge
 
 ## Language-Aware Suggestions
 

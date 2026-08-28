@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
 )
 
@@ -200,16 +201,33 @@ func TestResponse_TableLeadsWithACount(t *testing.T) {
 	service := NewOutputService()
 
 	out := captureStdout(func() {
-		if err := service.Response(Report{Suggestions: getSampleSuggestions(), Format: config.OutputTable}); err != nil {
+		report := Report{Suggestions: getSampleSuggestions(), Format: config.OutputTable, Score: score.Score{Covered: 9, Total: 11}}
+		if err := service.Response(report); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
-	if !strings.HasPrefix(out, "2 categories need attention:") {
-		t.Errorf("expected the count to lead the output, got:\n%s", out)
+	if !strings.HasPrefix(out, "Coverage 9/11 - 2 categories need attention:") {
+		t.Errorf("expected the score and count to lead the output, got:\n%s", out)
 	}
 	if !strings.Contains(strings.ToLower(out), "suggested tools") {
 		t.Errorf("table should still render below the headline:\n%s", out)
+	}
+}
+
+func TestHeadlineLeadsWithTheScoreWhenThereIsOne(t *testing.T) {
+	for _, tc := range []struct {
+		coverage score.Score
+		count    int
+		want     string
+	}{
+		{score.Score{Covered: 9, Total: 11}, 2, "Coverage 9/11 - 2 categories need attention:"},
+		{score.Score{Covered: 10, Total: 11}, 1, "Coverage 10/11 - 1 category needs attention:"},
+		{score.Score{Covered: 11, Total: 11}, 0, "Coverage 11/11 - all categories are covered."},
+	} {
+		if got := headline(tc.coverage, tc.count); got != tc.want {
+			t.Errorf("headline(%v, %d) = %q, want %q", tc.coverage, tc.count, got, tc.want)
+		}
 	}
 }
 
@@ -219,7 +237,7 @@ func TestHeadlineIsGrammatical(t *testing.T) {
 		1: "1 category needs attention:",
 		2: "2 categories need attention:",
 	} {
-		if got := headline(count); got != want {
+		if got := headline(score.Score{}, count); got != want {
 			t.Errorf("headline(%d) = %q, want %q", count, got, want)
 		}
 	}

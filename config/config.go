@@ -30,6 +30,8 @@ type Config struct {
 	Output        string
 	// OutputFile writes the report to a path instead of stdout; empty means stdout.
 	OutputFile string
+	// Badge writes a shields.io endpoint badge to a path; empty means no badge.
+	Badge string
 	// Write makes the fix command generate a workflow instead of printing.
 	Write bool
 }
@@ -96,6 +98,7 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	}
 
 	debug, _ := cmd.Flags().GetBool("debug")
+	badge, _ := cmd.Flags().GetString("badge")
 	outputFile, _ := cmd.Flags().GetString("output-file")
 	output, _ := cmd.Flags().GetString("output")
 	if output != OutputJSON && output != OutputTable && output != OutputSARIF {
@@ -112,6 +115,7 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 		Debug:              debug,
 		Output:             output,
 		OutputFile:         outputFile,
+		Badge:              badge,
 	}, nil
 }
 

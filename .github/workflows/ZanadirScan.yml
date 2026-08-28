@@ -32,3 +32,35 @@ jobs:
       with:
         sarif_file: zanadir.sarif
         category: zanadir
+
+  # Builds from source rather than using the action: the published action
+  # predates --badge. Only pushes to main publish, so a fork's pull request
+  # cannot move the badge.
+  badge:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+
+    - name: Score our own coverage
+      run: go run . scan --dir . --badge .github/zanadir-badge.json
+
+    - name: Commit the badge when it moved
+      run: |
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+        git add .github/zanadir-badge.json
+        if git diff --staged --quiet; then
+          echo "Coverage unchanged."
+          exit 0
+        fi
+        git commit -m "chore: update the zanadir coverage badge"
+        git push

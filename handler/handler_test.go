@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
 	"github.com/MustacheCase/zanadir/rules"
+	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -560,4 +562,81 @@ func TestFixWriteSurfacesAWriteFailure(t *testing.T) {
 	err := newFixHandler("Secrets Detection").Fix(&config.Config{Dir: dir, Write: true}, &buf)
 
 	assert.Error(t, err)
+}
+
+func TestExecutePassesTheScoreToTheReportAndBadge(t *testing.T) {
+	setup()
+
+	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
+	badgePath := filepath.Join(t.TempDir(), "badge.json")
+	cfg := config.Config{Dir: "test-dir", Badge: badgePath}
+
+	artifacts := []*models.Artifact{{Name: "artifact1"}}
+	suggestions := []*suggester.CategorySuggestion{{ID: "SCA", Name: "SCA"}, {ID: "Linter", Name: "Linter"}}
+
+	mockScanner.On("Scan", cfg.Dir).Return(artifacts, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockMatcher.On("Match", artifacts, []*rules.Rule{}).Return([]*matcher.Finding{})
+	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions, nil)
+
+	var reported output.Report
+	mockOutput.On("Response", mock.Anything).Run(func(args mock.Arguments) {
+		reported = args.Get(0).(output.Report)
+	}).Return(nil)
+
+	assert.NoError(t, h.Execute(&cfg))
+
+	total := len(models.CategoryTitles)
+	assert.Equal(t, score.Score{Covered: total - 2, Total: total}, reported.Score)
+
+	data, err := os.ReadFile(badgePath)
+	assert.NoError(t, err)
+	assert.Contains(t, string(data), fmt.Sprintf(`"message": "%d/%d"`, total-2, total))
+}
+
+func TestExecuteSurfacesABadgeWriteFailure(t *testing.T) {
+	setup()
+
+	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
+	cfg := config.Config{Dir: "test-dir", Badge: filepath.Join(t.TempDir(), "no-such-dir", "badge.json")}
+
+	mockScanner.On("Scan", cfg.Dir).Return([]*models.Artifact{}, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockMatcher.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{})
+	mockSuggester.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{}, nil)
+	mockOutput.On("Response", mock.Anything).Return(nil)
+
+	err := h.Execute(&cfg)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to write badge")
+}
+
+// A baseline records that a gap is accepted, not closed, so it must not move
+// the score: a badge that turned green on a committed file would measure
+// nothing.
+func TestBaselineDoesNotChangeTheScore(t *testing.T) {
+	setup()
+
+	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
+	path := filepath.Join(t.TempDir(), "baseline.yaml")
+	assert.NoError(t, baseline.Write(path, []string{"SCA"}))
+
+	cfg := config.Config{Dir: "test-dir", Enforce: true, Baseline: path}
+	suggestions := []*suggester.CategorySuggestion{{ID: "SCA", Name: "SCA"}}
+
+	mockScanner.On("Scan", cfg.Dir).Return([]*models.Artifact{}, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockMatcher.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{})
+	mockSuggester.On("FindSuggestions", mock.Anything).Return(suggestions, nil)
+
+	var reported output.Report
+	mockOutput.On("Response", mock.Anything).Run(func(args mock.Arguments) {
+		reported = args.Get(0).(output.Report)
+	}).Return(nil)
+
+	assert.NoError(t, h.Execute(&cfg))
+
+	total := len(models.CategoryTitles)
+	assert.Equal(t, score.Score{Covered: total - 1, Total: total}, reported.Score)
 }

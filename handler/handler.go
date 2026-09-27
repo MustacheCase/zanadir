@@ -16,6 +16,7 @@ import (
 	"github.com/MustacheCase/zanadir/output"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/scanner"
+	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
 )
 
@@ -134,15 +135,26 @@ func (h *Handler) Execute(cfg *config.Config) error {
 		return err
 	}
 
+	coverage := score.Of(cfg.ExcludedCategories, len(suggestions))
+	debugf("Coverage score: %s", coverage)
+
 	err = h.OutputService.Response(output.Report{
 		Suggestions: suggestions,
 		Format:      cfg.Output,
 		DestPath:    cfg.OutputFile,
 		Anchor:      sarifAnchor(cfg.Dir, artifacts),
+		Score:       coverage,
 	})
 	if err != nil {
 		debugf("Output error: %v", err)
 		return err
+	}
+
+	if cfg.Badge != "" {
+		if err := score.Write(cfg.Badge, coverage); err != nil {
+			return err
+		}
+		debugf("Wrote badge %s", cfg.Badge)
 	}
 
 	uncovered := make([]string, 0, len(suggestions))

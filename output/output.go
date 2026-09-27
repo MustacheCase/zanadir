@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/olekukonko/tablewriter"
 )
@@ -18,6 +19,9 @@ type Report struct {
 	Format      string
 	DestPath    string // empty means stdout
 	Anchor      string // repo-relative path SARIF results point at
+	// Score is the coverage summary. A zero score means none was computed and
+	// the headline falls back to a plain count.
+	Score score.Score
 }
 
 type Output interface {
@@ -79,14 +83,23 @@ func paint(enabled bool, style, text string) string {
 	return style + text + ansiReset
 }
 
-func headline(count int) string {
-	if count == 0 {
+// headline summarises the scan, led by the coverage score when there is one.
+func headline(s score.Score, count int) string {
+	prefix := ""
+	if s.Total > 0 {
+		prefix = fmt.Sprintf("Coverage %s - ", s)
+	}
+
+	switch {
+	case count == 0 && prefix == "":
 		return "All categories are covered - no suggestions."
+	case count == 0:
+		return prefix + "all categories are covered."
+	case count == 1:
+		return prefix + "1 category needs attention:"
+	default:
+		return prefix + fmt.Sprintf("%d categories need attention:", count)
 	}
-	if count == 1 {
-		return "1 category needs attention:"
-	}
-	return fmt.Sprintf("%d categories need attention:", count)
 }
 
 // The returned close function is always safe to call.
@@ -128,11 +141,11 @@ func render(w io.Writer, report Report) error {
 		colour := useColour(w)
 
 		if len(suggestions) == 0 {
-			_, err := fmt.Fprintln(w, paint(colour, ansiGreen, headline(0)))
+			_, err := fmt.Fprintln(w, paint(colour, ansiGreen, headline(report.Score, 0)))
 			return err
 		}
 
-		if _, err := fmt.Fprintf(w, "%s\n\n", paint(colour, ansiBold, headline(len(suggestions)))); err != nil {
+		if _, err := fmt.Fprintf(w, "%s\n\n", paint(colour, ansiBold, headline(report.Score, len(suggestions)))); err != nil {
 			return err
 		}
 

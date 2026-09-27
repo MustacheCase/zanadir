@@ -3,3 +3,15 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["End Of Life"]
     regex: "(?i)(?:xeol-io/xeol-action|\\bxeol\\b)"
+
+  # Trivy spans several categories, so only the EOL flag counts here - the same
+  # way only "trivy sbom" counts for Supply Chain.
+  - id: "trivy-eol-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["End Of Life"]
+    regex: "(?i)exit-on-eol"
+
+  - id: "docker-scout-eol-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["End Of Life"]
+    regex: "(?i)\\bscout\\b[^\\n]*\\beol\\b"

@@ -110,13 +110,17 @@ templates:
       - name: Scan Terraform
         uses: aquasecurity/tfsec-action@v1.0.0
 
-  - tool: "XEOL"
+  # End-of-life detection is OS-level, so it needs an image, not the repo.
+  - tool: "Trivy"
     platform: "github"
+    category: "End Of Life"
     step: |
-      - name: Check for end-of-life packages
-        uses: xeol-io/xeol-action@v1
-        with:
-          path: .
+      - name: Build the image to check
+        run: docker build -t local/eol-scan .
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+      - name: Check for end-of-life components
+        run: trivy image --exit-on-eol 1 local/eol-scan
 
   - tool: "Grant"
     platform: "github"

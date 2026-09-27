@@ -75,6 +75,7 @@ func NewApp() *cobra.Command {
 	scanCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
 	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif) (optional)")
 	scanCmd.Flags().String("output-file", "", "Write the report to this file instead of stdout (optional)")
+	scanCmd.Flags().String("badge", "", "Write a shields.io endpoint badge of the coverage score to this path (optional)")
 
 	_ = scanCmd.MarkFlagRequired("dir")
 

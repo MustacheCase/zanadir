@@ -17,7 +17,12 @@ jobs:
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - name: Scan current project
-      uses: xeol-io/xeol-action@v1.1.1
-      with:
-        path: "."
+
+    - name: Build the image
+      run: docker build -t zanadir:eol-scan .
+
+    - name: Set up Trivy
+      uses: aquasecurity/setup-trivy@v0.3.1
+
+    - name: Scan the image for end-of-life components
+      run: trivy image --exit-on-eol 1 zanadir:eol-scan

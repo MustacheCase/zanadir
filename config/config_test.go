@@ -101,6 +101,7 @@ func newScanCmd(dir string, excluded []string) *cobra.Command {
 	cmd.Flags().StringSlice("fail-on", nil, "fail on")
 	cmd.Flags().String("baseline", "", "baseline")
 	cmd.Flags().Bool("write-baseline", false, "write baseline")
+	cmd.Flags().String("badge", "", "badge")
 	return cmd
 }
 
@@ -223,4 +224,19 @@ func TestCreateFixConfigRequiresDir(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Nil(t, cfg)
+}
+
+func TestCreateConfigReadsTheBadgePath(t *testing.T) {
+	cmd := newScanCmd(t.TempDir(), nil)
+	assert.NoError(t, cmd.Flags().Set("badge", "badge.json"))
+
+	cfg, err := CreateConfig(cmd)
+	assert.NoError(t, err)
+	assert.Equal(t, "badge.json", cfg.Badge)
+}
+
+func TestCreateConfigDefaultsToNoBadge(t *testing.T) {
+	cfg, err := CreateConfig(newScanCmd(t.TempDir(), nil))
+	assert.NoError(t, err)
+	assert.Empty(t, cfg.Badge)
 }

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/suggester"
 	"gopkg.in/yaml.v3"
 )
@@ -32,6 +33,11 @@ type Template struct {
 	Tool     string `yaml:"tool"`
 	Platform string `yaml:"platform"`
 	Step     string `yaml:"step"`
+	// Category scopes a template to one category. A tool that covers several
+	// categories needs a different step for each; without this, the first
+	// template for the tool wins and the generated fix does not do what the
+	// category asks for.
+	Category string `yaml:"category"`
 }
 
 type templateFile struct {
@@ -58,6 +64,10 @@ func key(tool, platform string) string {
 	return strings.ToLower(tool) + "\x00" + strings.ToLower(platform)
 }
 
+func categoryKey(tool, platform, category string) string {
+	return key(tool, platform) + "\x00" + strings.ToLower(category)
+}
+
 // Snippets returns one snippet per uncovered category that has a template for
 // this platform. A category whose tools are all untemplated is skipped rather
 // than guessed at.
@@ -65,7 +75,10 @@ func (s *service) Snippets(suggestions []*suggester.CategorySuggestion, platform
 	snippets := make([]Snippet, 0, len(suggestions))
 	for _, category := range suggestions {
 		for _, tool := range category.Suggestions {
-			tmpl, ok := s.byToolPlatform[key(tool.Name, platform)]
+			tmpl, ok := s.byToolPlatform[categoryKey(tool.Name, platform, category.ID)]
+			if !ok {
+				tmpl, ok = s.byToolPlatform[key(tool.Name, platform)]
+			}
 			if !ok {
 				continue
 			}
@@ -112,6 +125,11 @@ func validate(templates []Template, catalogue []suggester.CategorySuggestion) er
 		if !knownPlatforms[t.Platform] {
 			return fmt.Errorf("template for %q has unknown platform %q", t.Tool, t.Platform)
 		}
+		if t.Category != "" {
+			if _, ok := models.ResolveCategory(t.Category); !ok {
+				return fmt.Errorf("template for %q has unknown category %q", t.Tool, t.Category)
+			}
+		}
 		if !known[strings.ToLower(t.Tool)] {
 			unknown = append(unknown, t.Tool)
 		}
@@ -139,6 +157,10 @@ func NewFixService() (Fixer, error) {
 
 	byToolPlatform := make(map[string]Template, len(templates))
 	for _, t := range templates {
+		if t.Category != "" {
+			byToolPlatform[categoryKey(t.Tool, t.Platform, t.Category)] = t
+			continue
+		}
 		byToolPlatform[key(t.Tool, t.Platform)] = t
 	}
 	return &service{byToolPlatform: byToolPlatform}, nil

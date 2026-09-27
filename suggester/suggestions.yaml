@@ -56,9 +56,12 @@ categories:
     name: "End-of-Life Package Checkers"
     description: "Tools for identifying outdated or end-of-life software packages to ensure system security and compliance."
     suggestions:
-      - name: "XEOL"
-        repository: "https://github.com/xeol-io/xeol"
-        description: "A scanner for end-of-life (EOL) software and dependencies in container images, filesystems, and SBOMs."
+      - name: "Trivy"
+        repository: "https://github.com/aquasecurity/trivy"
+        description: "Scans images and filesystems, and fails a build with --exit-on-eol once the operating system has reached end of life."
+      - name: "Docker Scout"
+        repository: "https://github.com/docker/scout-action"
+        description: "Evaluates images against policies that include out-of-date and end-of-life base images, and recommends a supported replacement."
 
   - id: "Coverage"
     name: "Code Coverage Tools"

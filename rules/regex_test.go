@@ -39,6 +39,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"trivyscanner", "mytrivy"},
 		},
 		{
+			ruleID:         "trivy-eol-rule",
+			shouldMatch:    []string{"trivy image --exit-on-eol 1 zanadir:eol-scan", "exit-on-eol: 1"},
+			shouldNotMatch: []string{"trivy fs .", "aquasecurity/trivy-action", "trivy sbom"},
+		},
+		{
+			// Scout is used for CVEs far more often than for base-image age, so
+			// the bare command must not count as end-of-life coverage.
+			ruleID:         "docker-scout-eol-rule",
+			shouldMatch:    []string{"docker scout policy --only-eol", "scout recommendations --eol"},
+			shouldNotMatch: []string{"docker scout cves", "docker/scout-action", "scouting the eol", "eol scout"},
+		},
+		{
 			ruleID:         "grype-rule",
 			shouldMatch:    []string{"grype dir:.", "anchore/grype"},
 			shouldNotMatch: []string{"grypeless"},

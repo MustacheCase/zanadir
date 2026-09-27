@@ -58,8 +58,29 @@ func TestScoreWithNothingApplicable(t *testing.T) {
 	if s.String() != "n/a" {
 		t.Errorf("String() = %q, want %q", s.String(), "n/a")
 	}
+	if s.Percent() != 0 {
+		t.Errorf("Percent() = %d, want 0", s.Percent())
+	}
 	if s.colour() != "lightgrey" {
 		t.Errorf("colour() = %q, want lightgrey", s.colour())
+	}
+}
+
+// The colour thresholds compare against Percent, so the rounding decides which
+// colour a score on a boundary gets.
+func TestPercentRoundsDown(t *testing.T) {
+	for _, tc := range []struct {
+		s    Score
+		want int
+	}{
+		{Score{Covered: 8, Total: 11}, 72},
+		{Score{Covered: 4, Total: 5}, 80},
+		{Score{Covered: 1, Total: 3}, 33},
+		{Score{Covered: 0, Total: 7}, 0},
+	} {
+		if got := tc.s.Percent(); got != tc.want {
+			t.Errorf("%s Percent = %d, want %d", tc.s, got, tc.want)
+		}
 	}
 }
 

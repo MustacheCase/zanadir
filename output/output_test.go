@@ -363,3 +363,78 @@ func TestResponse_ReportIsReadableByOthers(t *testing.T) {
 			"(if this fails locally, check for a restrictive umask)", perm)
 	}
 }
+
+func TestResponse_MarkdownOutput(t *testing.T) {
+	service := NewOutputService()
+
+	suggestions := []*suggester.CategorySuggestion{
+		{
+			Name:        "Secrets",
+			Description: "Detect hardcoded secrets.",
+			Suggestions: []*suggester.Suggestion{
+				{Name: "Gitleaks", Repository: "https://github.com/gitleaks/gitleaks"},
+				{Name: "In-house scanner"},
+			},
+		},
+		{Name: "Licenses", Description: "Analyze licence usage.", Suggestions: []*suggester.Suggestion{{Name: "FOSSA", Repository: "https://github.com/fossas/fossa-cli"}}},
+	}
+
+	out := captureStdout(func() {
+		report := Report{Suggestions: suggestions, Format: config.OutputMarkdown, Score: score.Score{Covered: 9, Total: 11}}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.HasPrefix(out, MarkdownMarker) {
+		t.Errorf("the marker must lead so a workflow can find its own comment, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Coverage 9/11 - 2 categories need attention:") {
+		t.Errorf("headline missing:\n%s", out)
+	}
+	if !strings.Contains(out, "| Category | Description | Suggested tools |") {
+		t.Errorf("table header missing:\n%s", out)
+	}
+	if !strings.Contains(out, "[Gitleaks](https://github.com/gitleaks/gitleaks)") {
+		t.Errorf("tools should link to their repository:\n%s", out)
+	}
+	if !strings.Contains(out, "In-house scanner") || strings.Contains(out, "[In-house scanner](") {
+		t.Errorf("a tool with no repository should render as plain text:\n%s", out)
+	}
+	if got := strings.Count(out, "\n|"); got != 4 {
+		t.Errorf("expected a header, a separator and 2 rows, got %d table lines:\n%s", got, out)
+	}
+}
+
+func TestResponse_MarkdownOmitsTheTableWhenCovered(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		report := Report{Suggestions: nil, Format: config.OutputMarkdown, Score: score.Score{Covered: 11, Total: 11}}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "Coverage 11/11 - all categories are covered.") {
+		t.Errorf("expected the all-clear, got:\n%s", out)
+	}
+	if strings.Contains(out, "| Category |") {
+		t.Errorf("expected no table when there is nothing to show, got:\n%s", out)
+	}
+}
+
+// A pipe ends a cell and a newline ends a row, so either one in a description
+// silently breaks the rest of the table.
+func TestMarkdownCellCannotBreakTheTable(t *testing.T) {
+	for input, want := range map[string]string{
+		"a | b":            `a \| b`,
+		"line one\nline 2": "line one line 2",
+		"  spaced   out  ": "spaced out",
+		"plain":            "plain",
+	} {
+		if got := markdownCell(input); got != want {
+			t.Errorf("markdownCell(%q) = %q, want %q", input, got, want)
+		}
+	}
+}

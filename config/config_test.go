@@ -240,3 +240,23 @@ func TestCreateConfigDefaultsToNoBadge(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, cfg.Badge)
 }
+
+func TestCreateConfigAcceptsMarkdown(t *testing.T) {
+	cmd := newScanCmd(t.TempDir(), nil)
+	assert.NoError(t, cmd.Flags().Set("output", OutputMarkdown))
+
+	cfg, err := CreateConfig(cmd)
+	assert.NoError(t, err)
+	assert.Equal(t, OutputMarkdown, cfg.Output)
+}
+
+func TestCreateConfigListsEveryFormatWhenRejecting(t *testing.T) {
+	cmd := newScanCmd(t.TempDir(), nil)
+	assert.NoError(t, cmd.Flags().Set("output", "xml"))
+
+	_, err := CreateConfig(cmd)
+	assert.Error(t, err)
+	for _, format := range OutputFormats {
+		assert.Contains(t, err.Error(), format)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/baseline"
@@ -12,10 +13,15 @@ import (
 )
 
 const (
-	OutputJSON  = "json"
-	OutputTable = "table"
-	OutputSARIF = "sarif"
+	OutputJSON     = "json"
+	OutputTable    = "table"
+	OutputSARIF    = "sarif"
+	OutputMarkdown = "markdown"
 )
+
+// OutputFormats is every value --output accepts, in the order they are listed
+// to the user.
+var OutputFormats = []string{OutputTable, OutputJSON, OutputSARIF, OutputMarkdown}
 
 type Config struct {
 	Dir                string
@@ -101,8 +107,8 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	badge, _ := cmd.Flags().GetString("badge")
 	outputFile, _ := cmd.Flags().GetString("output-file")
 	output, _ := cmd.Flags().GetString("output")
-	if output != OutputJSON && output != OutputTable && output != OutputSARIF {
-		return nil, fmt.Errorf("unsupported output format: %s (expected %s, %s or %s)", output, OutputTable, OutputJSON, OutputSARIF)
+	if !slices.Contains(OutputFormats, output) {
+		return nil, fmt.Errorf("unsupported output format: %s (expected one of %s)", output, strings.Join(OutputFormats, ", "))
 	}
 
 	return &Config{

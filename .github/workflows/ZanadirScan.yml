@@ -64,3 +64,29 @@ jobs:
         fi
         git commit -m "chore: update the zanadir coverage badge"
         git push
+
+  # Builds from source: the published action predates --output markdown.
+  # A fork's pull request gets a read-only token, so it cannot comment.
+  pr-comment:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+
+    - name: Scan
+      run: go run . scan --dir . --output markdown --output-file zanadir.md
+
+    - name: Post the report
+      run: gh pr comment "$NUMBER" --body-file zanadir.md --edit-last --create-if-none
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        NUMBER: ${{ github.event.pull_request.number }}

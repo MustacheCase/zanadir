@@ -102,6 +102,40 @@ func headline(s score.Score, count int) string {
 	}
 }
 
+// MarkdownMarker lets a workflow find the comment it posted last time and
+// update it, instead of adding one on every push.
+const MarkdownMarker = "<!-- zanadir-report -->"
+
+// markdownCell makes a value safe to sit in a table cell: a literal pipe ends
+// the cell, and a newline ends the row.
+func markdownCell(text string) string {
+	return strings.ReplaceAll(strings.Join(strings.Fields(text), " "), "|", "\\|")
+}
+
+func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s\n### zanadir\n\n%s\n", MarkdownMarker, headline(coverage, len(suggestions)))
+
+	if len(suggestions) > 0 {
+		b.WriteString("\n| Category | Description | Suggested tools |\n| --- | --- | --- |\n")
+		for _, suggestion := range suggestions {
+			tools := make([]string, 0, len(suggestion.Suggestions))
+			for _, tool := range suggestion.Suggestions {
+				if tool.Repository == "" {
+					tools = append(tools, markdownCell(tool.Name))
+					continue
+				}
+				tools = append(tools, fmt.Sprintf("[%s](%s)", markdownCell(tool.Name), tool.Repository))
+			}
+			fmt.Fprintf(&b, "| %s | %s | %s |\n",
+				markdownCell(suggestion.Name), markdownCell(suggestion.Description), strings.Join(tools, ", "))
+		}
+	}
+
+	_, err := fmt.Fprint(w, b.String())
+	return err
+}
+
 // The returned close function is always safe to call.
 func destination(path string) (io.Writer, func(), error) {
 	if path == "" {
@@ -135,6 +169,10 @@ func render(w io.Writer, report Report) error {
 		}
 		_, err = fmt.Fprintln(w, sarifReport)
 		return err
+	}
+
+	if responseType == config.OutputMarkdown {
+		return renderMarkdown(w, suggestions, report.Score)
 	}
 
 	if responseType == config.OutputTable {

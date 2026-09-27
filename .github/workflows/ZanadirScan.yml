@@ -19,7 +19,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Run zanadir Github action
-      uses: mustachecase/zanadir-action@v1.8
+      uses: mustachecase/zanadir-action@v1.10
       with:
         dir: .
         debug: true
@@ -33,9 +33,7 @@ jobs:
         sarif_file: zanadir.sarif
         category: zanadir
 
-  # Builds from source rather than using the action: the published action
-  # predates --badge. Only pushes to main publish, so a fork's pull request
-  # cannot move the badge.
+  # Only pushes to main publish, so a fork's pull request cannot move the badge.
   badge:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -45,13 +43,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
-
     - name: Score our own coverage
-      run: go run . scan --dir . --badge .github/zanadir-badge.json
+      uses: mustachecase/zanadir-action@v1.10
+      with:
+        dir: .
+        badge: .github/zanadir-badge.json
 
     - name: Commit the badge when it moved
       run: |
@@ -65,7 +61,6 @@ jobs:
         git commit -m "chore: update the zanadir coverage badge"
         git push
 
-  # Builds from source: the published action predates --output markdown.
   # A fork's pull request gets a read-only token, so it cannot comment.
   pr-comment:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
@@ -77,13 +72,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version-file: go.mod
-
     - name: Scan
-      run: go run . scan --dir . --output markdown --output-file zanadir.md
+      uses: mustachecase/zanadir-action@v1.10
+      with:
+        dir: .
+        output: markdown
+        output-file: zanadir.md
 
     - name: Post the report
       run: gh pr comment "$NUMBER" --body-file zanadir.md --edit-last --create-if-none

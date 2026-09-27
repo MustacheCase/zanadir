@@ -2,8 +2,10 @@ package score
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/models"
@@ -131,5 +133,21 @@ func TestWriteReportsAnUnwritablePath(t *testing.T) {
 	err := Write(path, Score{Covered: 1, Total: 2})
 	if err == nil {
 		t.Fatal("expected an error for an unwritable destination")
+	}
+}
+
+func TestWriteReportsAMarshalFailure(t *testing.T) {
+	original := marshalIndent
+	t.Cleanup(func() { marshalIndent = original })
+	marshalIndent = func(any, string, string) ([]byte, error) {
+		return nil, errors.New("boom")
+	}
+
+	err := Write(filepath.Join(t.TempDir(), "badge.json"), Score{Covered: 1, Total: 2})
+	if err == nil {
+		t.Fatal("expected an error when the badge cannot be marshaled")
+	}
+	if !strings.Contains(err.Error(), "failed to marshal badge") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }

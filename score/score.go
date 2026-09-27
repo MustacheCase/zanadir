@@ -76,6 +76,10 @@ func (s Score) colour() string {
 	}
 }
 
+// marshalIndent is a variable so the failure below can be exercised; endpoint
+// itself cannot fail to marshal.
+var marshalIndent = json.MarshalIndent
+
 // endpoint is the shields.io endpoint badge schema.
 type endpoint struct {
 	SchemaVersion int    `json:"schemaVersion"`
@@ -87,7 +91,7 @@ type endpoint struct {
 // Write saves the score as a shields.io endpoint badge file, for a README to
 // point at once CI publishes it.
 func Write(path string, s Score) error {
-	data, err := json.MarshalIndent(endpoint{
+	data, err := marshalIndent(endpoint{
 		SchemaVersion: 1,
 		Label:         "zanadir",
 		Message:       s.String(),

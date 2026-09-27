@@ -73,7 +73,7 @@ func NewApp() *cobra.Command {
 	scanCmd.Flags().String("baseline", "", "Path to a baseline file of already-accepted gaps (optional)")
 	scanCmd.Flags().Bool("write-baseline", false, "Write the current uncovered categories to the baseline file and exit successfully (optional)")
 	scanCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
-	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif) (optional)")
+	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif, markdown) (optional)")
 	scanCmd.Flags().String("output-file", "", "Write the report to this file instead of stdout (optional)")
 	scanCmd.Flags().String("badge", "", "Write a shields.io endpoint badge of the coverage score to this path (optional)")
 

@@ -134,6 +134,31 @@ added. A missing control is not a defect on a particular line, but every SARIF
 consumer expects a location, and GitHub code scanning rejects a report whose
 results have none.
 
+#### Markdown Output
+
+```sh
+zanadir scan --dir . --output markdown
+```
+
+Markdown is the format for putting a scan in front of people rather than in a
+file. Tools link to their repositories, and the report opens with a hidden
+marker so a workflow can update the comment it posted last time instead of
+adding a new one on every push.
+
+**Sample Output:**
+```markdown
+<!-- zanadir-report -->
+### zanadir
+
+Coverage 10/11 - 1 category needs attention:
+
+| Category | Description | Suggested tools |
+| --- | --- | --- |
+| Performance and Reliability Testing Tools | Tools for load, stress and reliability testing. | [k6](https://github.com/grafana/k6), [JMeter](https://github.com/apache/jmeter) |
+```
+
+When nothing is missing the table is omitted, leaving a single line.
+
 #### Writing the report to a file
 
 Use `--output-file` to write the report to a path instead of stdout. This works
@@ -159,6 +184,54 @@ To publish the report from a GitHub Actions workflow:
 
 Uncovered categories then appear in the repository's **Security** tab alongside
 your other scanners.
+
+### Posting the report to a pull request
+
+SARIF puts uncovered categories in the **Security** tab, which people visit
+occasionally. A pull request comment is where they already are.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+
+steps:
+  - name: Run zanadir
+    run: zanadir scan --dir . --output markdown --output-file zanadir.md
+
+  - name: Post the report
+    run: gh pr comment "$NUMBER" --body-file zanadir.md --edit-last --create-if-none
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      NUMBER: ${{ github.event.pull_request.number }}
+```
+
+`--edit-last` keeps one comment up to date instead of adding one per push. It
+matches on the last comment by the same user, so if something else comments as
+`github-actions` too, match the marker instead:
+
+```yaml
+  - name: Find the previous report
+    uses: peter-evans/find-comment@v4
+    id: previous
+    with:
+      issue-number: ${{ github.event.pull_request.number }}
+      body-includes: "<!-- zanadir-report -->"
+
+  - name: Post the report
+    uses: peter-evans/create-or-update-comment@v5
+    with:
+      comment-id: ${{ steps.previous.outputs.comment-id }}
+      issue-number: ${{ github.event.pull_request.number }}
+      body-path: zanadir.md
+      edit-mode: replace
+```
+
+A pull request from a fork gets a read-only token, so the comment step cannot
+post. Guard it with
+`if: github.event.pull_request.head.repo.full_name == github.repository`
+rather than reaching for `pull_request_target`, which would run your workflow
+with write access to a fork's code.
 
 ## Coverage Score
 

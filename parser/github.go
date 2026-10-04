@@ -43,24 +43,37 @@ type stepDef struct {
 type stringList []string
 
 func (s *stringList) UnmarshalYAML(node *yaml.Node) error {
+	*s = decodeStrings(node)
+	return nil
+}
+
+// decodeStrings reads a scalar or a sequence of scalars, skipping whatever it
+// cannot read. It never fails: these fields come from workflows zanadir did
+// not write, and one malformed value must not abort the scan of a whole
+// repository or discard the entries beside it.
+func decodeStrings(node *yaml.Node) []string {
 	switch node.Kind {
 	case yaml.ScalarNode:
 		var one string
-		if err := node.Decode(&one); err != nil {
-			return err
+		if node.Decode(&one) != nil || one == "" {
+			return nil
 		}
-		*s = stringList{one}
-		return nil
+		return []string{one}
+
 	case yaml.SequenceNode:
-		var many []string
-		if err := node.Decode(&many); err != nil {
-			return err
+		values := make([]string, 0, len(node.Content))
+		for _, item := range node.Content {
+			var one string
+			if item.Decode(&one) == nil && one != "" {
+				values = append(values, one)
+			}
 		}
-		*s = many
-		return nil
-	default:
-		return nil
+		if len(values) == 0 {
+			return nil
+		}
+		return values
 	}
+	return nil
 }
 
 // triggerFilter is the map form of one event, e.g. "push: {branches: [main]}".
@@ -70,23 +83,16 @@ type triggerFilter struct {
 
 // parseTriggers reads the three shapes "on" can take: a single event, a list
 // of events, or a map of events to their filters.
-func parseTriggers(node yaml.Node) []models.Trigger {
+func parseTriggers(node *yaml.Node) []models.Trigger {
 	switch node.Kind {
-	case yaml.ScalarNode:
-		var event string
-		if err := node.Decode(&event); err != nil || event == "" {
-			return nil
-		}
-		return []models.Trigger{{Event: event}}
-
-	case yaml.SequenceNode:
-		var events []string
-		if err := node.Decode(&events); err != nil {
-			return nil
-		}
+	case yaml.ScalarNode, yaml.SequenceNode:
+		events := decodeStrings(node)
 		triggers := make([]models.Trigger, 0, len(events))
 		for _, event := range events {
 			triggers = append(triggers, models.Trigger{Event: event})
+		}
+		if len(triggers) == 0 {
+			return nil
 		}
 		return triggers
 
@@ -106,6 +112,9 @@ func parseTriggers(node yaml.Node) []models.Trigger {
 				_ = node.Content[i+1].Decode(&filter)
 			}
 			triggers = append(triggers, models.Trigger{Event: event, Branches: filter.Branches})
+		}
+		if len(triggers) == 0 {
+			return nil
 		}
 		return triggers
 	}
@@ -202,7 +211,7 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 
 	return &models.Artifact{
 		Name:     wf.Name,
-		Triggers: parseTriggers(wf.On),
+		Triggers: parseTriggers(&wf.On),
 		Jobs:     jobs,
 		Location: filePath,
 	}, nil

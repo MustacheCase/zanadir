@@ -1,6 +1,7 @@
 # Design: grading control effectiveness
 
-**Status:** proposal — no implementation yet
+**Status:** phase 1 (capture the context) implemented for GitHub Actions;
+grading not started
 **Scope:** how zanadir could report whether a control actually protects anything, not just whether it is present
 
 ## Problem
@@ -170,8 +171,11 @@ not require touching 29 rule files.
 
 ## Suggested phasing
 
-1. **Capture the context.** Parser and model changes only, no grading, no
-   output change. Verifiable in isolation and useful on its own.
+1. ~~**Capture the context.**~~ Done for GitHub Actions: triggers with branch
+   filters, `continue-on-error` at both levels, step and job `if:`, `needs:`
+   and `with:`. No grading and no output change. GitLab and CircleCI still
+   capture none of it, so their artifacts carry zero values — phase 2 must not
+   read an empty trigger list as "never runs".
 2. **Generic verdicts.** `continue-on-error`, trigger analysis, branch filters.
    Surface in JSON and SARIF as informational.
 3. **Tool-specific flags.** The narrow `weakenedWhen` escape hatch.

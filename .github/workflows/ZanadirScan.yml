@@ -19,7 +19,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: Run zanadir Github action
-      uses: mustachecase/zanadir-action@v1.10
+      uses: mustachecase/zanadir-action@v1.11
       with:
         dir: .
         debug: true
@@ -44,7 +44,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Score our own coverage
-      uses: mustachecase/zanadir-action@v1.10
+      uses: mustachecase/zanadir-action@v1.11
       with:
         dir: .
         badge: .github/zanadir-badge.json
@@ -73,7 +73,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Scan
-      uses: mustachecase/zanadir-action@v1.10
+      uses: mustachecase/zanadir-action@v1.11
       with:
         dir: .
         output: markdown

@@ -1,8 +1,8 @@
 # Design: grading control effectiveness
 
-**Status:** phases 1-2 implemented for GitHub Actions. Verdicts are reported
+**Status:** phases 1-3 implemented for GitHub Actions. Verdicts are reported
 in the table, markdown and SARIF output, informationally - nothing fails a
-scan on them yet. Phases 3-4 (tool-specific flags, enforcement) not started
+scan on them yet. Phase 4 (enforcement) not started
 **Scope:** how zanadir could report whether a control actually protects anything, not just whether it is present
 
 ## Problem
@@ -190,7 +190,14 @@ not require touching 29 rule files.
    implemented: a workflow with no triggers is indistinguishable from one
    whose parser captured none, so it answers the open question below with
    "trigger analysis alone cannot do it".
-3. **Tool-specific flags.** The narrow `weakenedWhen` escape hatch.
+3. ~~**Tool-specific flags.**~~ Done. `weakenedWhen` takes exactly two shapes,
+   a regex over the step's `run` or one `with:` input compared to a value, so
+   it cannot grow into an expression language. It sits above the `if:` check in
+   precedence: an explicit flag is a statement of fact, a condition is a guess.
+   Populated for trivy, gitleaks, tfsec, checkov and anchore/scan-action.
+   Absence checks were deliberately left out - grype and semgrep need a flag
+   *present* to fail a build, so weakening on absence would flag correct
+   usages, and the design's own warning about false positives applies.
 4. **Enforcement.** `--fail-on-weakened`, baseline records verdicts.
 
 ## Open questions

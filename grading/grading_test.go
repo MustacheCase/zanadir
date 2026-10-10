@@ -1,10 +1,12 @@
 package grading
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/rules"
 )
 
 func finding(triggers []models.Trigger, job *models.Job) *matcher.Finding {
@@ -210,5 +212,129 @@ func TestByCategorySeparatesCategories(t *testing.T) {
 	}
 	if verdicts["Secrets Detection"].Verdict != Advisory {
 		t.Errorf("Secrets Detection = %q, want advisory", verdicts["Secrets Detection"].Verdict)
+	}
+}
+
+// The verdict list in the rules package is duplicated there because it cannot
+// import this one without a cycle. If the two drift, a rule file could assert
+// a verdict grading does not recognise and the mismatch would be silent.
+func TestRuleVerdictsAreAllKnownHere(t *testing.T) {
+	known := map[Verdict]bool{Enforcing: true, Partial: true, Advisory: true, Unknown: true}
+
+	for _, verdict := range rules.WeakenedVerdicts {
+		if !known[Verdict(verdict)] {
+			t.Errorf("rules allows verdict %q, which grading does not know", verdict)
+		}
+		if !Weakened(Verdict(verdict)) {
+			t.Errorf("rules allows verdict %q, which grading would not report", verdict)
+		}
+	}
+}
+
+// Generic signals cannot see a flag that defeats one particular tool.
+func TestGradeToolSpecificFlags(t *testing.T) {
+	pullRequest := []models.Trigger{{Event: "pull_request"}}
+
+	exitCodeZero := &rules.Rule{
+		ID:       "trivy-rule",
+		Weakened: []rules.WeakenedWhen{{RunMatches: regexp.MustCompile(`--exit-code[= ]+0\b`), Verdict: "advisory"}},
+	}
+	softFail := &rules.Rule{
+		ID:       "tfsec-rule",
+		Weakened: []rules.WeakenedWhen{{Input: "soft_fail", Equals: "true", Verdict: "advisory"}},
+	}
+
+	tests := []struct {
+		name     string
+		rule     *rules.Rule
+		job      *models.Job
+		expected Verdict
+	}{
+		{
+			name:     "a flag that stops the tool failing",
+			rule:     exitCodeZero,
+			job:      &models.Job{Run: "trivy fs --exit-code 0 ."},
+			expected: Advisory,
+		},
+		{
+			name:     "the same flag written with an equals sign",
+			rule:     exitCodeZero,
+			job:      &models.Job{Run: "trivy fs --exit-code=0 ."},
+			expected: Advisory,
+		},
+		{
+			// The false positive that would matter most: a correctly wired
+			// tool must not be called weak.
+			name:     "a non-zero exit code is the tool working",
+			rule:     exitCodeZero,
+			job:      &models.Job{Run: "trivy fs --exit-code 1 ."},
+			expected: Enforcing,
+		},
+		{
+			name:     "an action input that disables failure",
+			rule:     softFail,
+			job:      &models.Job{Package: "aquasecurity/tfsec-action", With: map[string]string{"soft_fail": "true"}},
+			expected: Advisory,
+		},
+		{
+			name:     "the input compared case-insensitively",
+			rule:     softFail,
+			job:      &models.Job{With: map[string]string{"soft_fail": "TRUE"}},
+			expected: Advisory,
+		},
+		{
+			name:     "the input set to the safe value",
+			rule:     softFail,
+			job:      &models.Job{With: map[string]string{"soft_fail": "false"}},
+			expected: Enforcing,
+		},
+		{
+			name:     "the input absent entirely",
+			rule:     softFail,
+			job:      &models.Job{With: map[string]string{"additional_args": "--x"}},
+			expected: Enforcing,
+		},
+		{
+			name:     "a rule with no checks",
+			rule:     &rules.Rule{ID: "plain"},
+			job:      &models.Job{Run: "semgrep ci"},
+			expected: Enforcing,
+		},
+		{
+			name:     "no rule at all",
+			rule:     nil,
+			job:      &models.Job{Run: "semgrep ci"},
+			expected: Enforcing,
+		},
+		{
+			// An explicit flag is a statement of fact; an if: is a guess.
+			name:     "a tool-specific flag outranks a condition that cannot be read",
+			rule:     exitCodeZero,
+			job:      &models.Job{Run: "trivy fs --exit-code 0 .", If: "always()"},
+			expected: Advisory,
+		},
+		{
+			name:     "continue-on-error still wins",
+			rule:     exitCodeZero,
+			job:      &models.Job{Run: "trivy fs --exit-code 1 .", ContinueOnError: true},
+			expected: Advisory,
+		},
+		{
+			// A run-matching check must not fire on a step that has no command.
+			name:     "a package step is not matched by a run check",
+			rule:     exitCodeZero,
+			job:      &models.Job{Package: "aquasecurity/trivy-action"},
+			expected: Enforcing,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := finding(pullRequest, tt.job)
+			f.Rule = tt.rule
+			if got := Grade(f); got != tt.expected {
+				t.Errorf("Grade() = %q, want %q", got, tt.expected)
+			}
+		})
 	}
 }

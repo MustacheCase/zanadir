@@ -5,8 +5,11 @@
 package grading
 
 import (
+	"strings"
+
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/rules"
 )
 
 type Verdict string
@@ -39,6 +42,11 @@ func Grade(finding *matcher.Finding) Verdict {
 		if job.ContinueOnError {
 			return Advisory
 		}
+		// A tool-specific flag is an explicit statement that this control
+		// cannot fail, so it outranks a condition we cannot read.
+		if verdict, found := toolSpecific(finding.Rule, job); found {
+			return verdict
+		}
 		// An if: can reference arbitrary context. Reading one wrong is worse
 		// than admitting it cannot be read, so no pattern is recognised yet.
 		if job.If != "" || job.JobIf != "" {
@@ -47,6 +55,27 @@ func Grade(finding *matcher.Finding) Verdict {
 	}
 
 	return gradeTriggers(finding.Artifact)
+}
+
+// toolSpecific applies a rule's weakenedWhen checks: the flags that defeat one
+// particular tool, which no generic signal can see.
+func toolSpecific(rule *rules.Rule, job *models.Job) (Verdict, bool) {
+	if rule == nil {
+		return "", false
+	}
+
+	for _, check := range rule.Weakened {
+		if check.RunMatches != nil {
+			if job.Run != "" && check.RunMatches.MatchString(job.Run) {
+				return Verdict(check.Verdict), true
+			}
+			continue
+		}
+		if value, ok := job.With[check.Input]; ok && strings.EqualFold(value, check.Equals) {
+			return Verdict(check.Verdict), true
+		}
+	}
+	return "", false
 }
 
 func gradeTriggers(artifact *models.Artifact) Verdict {

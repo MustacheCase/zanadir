@@ -8,6 +8,12 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\btrivy\\b"
+    weakenedWhen:
+      - runMatches: "--exit-code[= ]+0\\b"
+        verdict: "advisory"
+      - input: "exit-code"
+        equals: "0"
+        verdict: "advisory"
 
   - id: "snyk-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
@@ -18,3 +24,7 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["SCA"]
     regex: "(?i)anchore/scan-action"
+    weakenedWhen:
+      - input: "fail-build"
+        equals: "false"
+        verdict: "advisory"

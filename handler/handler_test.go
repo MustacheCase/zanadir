@@ -720,3 +720,59 @@ func TestWeakenedDropsLocationsOutsideTheScanDirectory(t *testing.T) {
 	assert.Len(t, weaknesses, 1)
 	assert.Empty(t, weaknesses[0].Location)
 }
+
+// The scanner can hand back a nil artifact, and the anchor has to step over it
+// rather than dereference it.
+func TestSarifAnchorSkipsNilArtifacts(t *testing.T) {
+	anchor := sarifAnchor("/repo", []*models.Artifact{
+		nil,
+		{Location: "/repo/.github/workflows/ci.yml"},
+	})
+	assert.Equal(t, ".github/workflows/ci.yml", anchor)
+}
+
+func TestSarifAnchorWithNothingUsable(t *testing.T) {
+	assert.Empty(t, sarifAnchor("/repo", []*models.Artifact{nil, {Location: "/elsewhere/ci.yml"}, {}}))
+}
+
+// Setup builds the handler the CLI actually runs with, from the embedded rules
+// and suggestions. Nothing exercised it, so a bad embed would have surfaced
+// only at runtime.
+func TestSetup(t *testing.T) {
+	h, err := Setup()
+	assert.NoError(t, err)
+	assert.NotNil(t, h.RulesService)
+	assert.NotNil(t, h.ScanService)
+	assert.NotNil(t, h.MatchService)
+	assert.NotNil(t, h.SuggestionService)
+	assert.NotNil(t, h.OutputService)
+}
+
+func TestFixInDebugMode(t *testing.T) {
+	setup()
+	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
+	cfg := config.Config{Dir: t.TempDir(), Debug: true}
+
+	mockScanner.On("Scan", cfg.Dir).Return([]*models.Artifact{}, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockMatcher.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{})
+	mockSuggester.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{}, nil)
+
+	var buf bytes.Buffer
+	assert.NoError(t, h.Fix(&cfg, &buf))
+}
+
+func TestExecuteSurfacesAnOutputFailureInDebugMode(t *testing.T) {
+	setup()
+	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
+	cfg := config.Config{Dir: "test-dir", Debug: true}
+	boom := errors.New("disk full")
+
+	mockScanner.On("Scan", cfg.Dir).Return([]*models.Artifact{}, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockMatcher.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{})
+	mockSuggester.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{}, nil)
+	mockOutput.On("Response", mock.Anything).Return(boom)
+
+	assert.ErrorIs(t, h.Execute(&cfg), boom)
+}

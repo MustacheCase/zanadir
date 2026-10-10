@@ -529,3 +529,57 @@ func TestResponse_MarkdownListsWeakenedControls(t *testing.T) {
 		t.Errorf("weakness detail missing:\n%s", out)
 	}
 }
+
+// failAfterWriter succeeds for a number of writes and then fails, so an error
+// partway through a multi-line block can be reached.
+type failAfterWriter struct {
+	ok  int
+	err error
+}
+
+func (f *failAfterWriter) Write(p []byte) (int, error) {
+	if f.ok > 0 {
+		f.ok--
+		return len(p), nil
+	}
+	return 0, f.err
+}
+
+func TestRenderWeakenedPropagatesWriteErrors(t *testing.T) {
+	boom := errors.New("disk full")
+	weaknesses := sampleWeaknesses()
+
+	t.Run("on the headline", func(t *testing.T) {
+		if err := renderWeakened(failingWriter{err: boom}, weaknesses, false); !errors.Is(err, boom) {
+			t.Errorf("expected the write error to propagate, got %v", err)
+		}
+	})
+
+	t.Run("part way through the list", func(t *testing.T) {
+		// The headline and the first weakness land, the second does not.
+		w := &failAfterWriter{ok: 2, err: boom}
+		if err := renderWeakened(w, weaknesses, false); !errors.Is(err, boom) {
+			t.Errorf("expected the write error to propagate, got %v", err)
+		}
+	})
+
+	t.Run("nothing to write cannot fail", func(t *testing.T) {
+		if err := renderWeakened(failingWriter{err: boom}, nil, false); err != nil {
+			t.Errorf("an empty block should not touch the writer, got %v", err)
+		}
+	})
+}
+
+// The weakened block is written after the table and after the all-clear, so
+// both callers have to propagate a failure from it.
+func TestRenderPropagatesWeakenedWriteError(t *testing.T) {
+	boom := errors.New("disk full")
+
+	t.Run("after the all-clear", func(t *testing.T) {
+		w := &failAfterWriter{ok: 1, err: boom}
+		err := render(w, Report{Format: config.OutputTable, Weakened: sampleWeaknesses()})
+		if !errors.Is(err, boom) {
+			t.Errorf("expected the write error to propagate, got %v", err)
+		}
+	})
+}

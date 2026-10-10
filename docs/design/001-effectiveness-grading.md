@@ -1,7 +1,8 @@
 # Design: grading control effectiveness
 
-**Status:** phase 1 (capture the context) implemented for GitHub Actions;
-grading not started
+**Status:** phase 1 (capture the context) and the phase 2 grading engine
+implemented for GitHub Actions; verdicts are computed but not yet surfaced to
+users, so no output carries them
 **Scope:** how zanadir could report whether a control actually protects anything, not just whether it is present
 
 ## Problem
@@ -176,8 +177,19 @@ not require touching 29 rule files.
    and `with:`. No grading and no output change. GitLab and CircleCI still
    capture none of it, so their artifacts carry zero values — phase 2 must not
    read an empty trigger list as "never runs".
-2. **Generic verdicts.** `continue-on-error`, trigger analysis, branch filters.
-   Surface in JSON and SARIF as informational.
+2. **Generic verdicts.** Engine done: `continue-on-error` at either level,
+   trigger analysis, and an unreadable `if:` reported as `unknown` rather than
+   guessed. Visible only under `--debug` so far; the JSON and SARIF shape for
+   "covered, but weakened" is still open, and JSON's top-level array cannot
+   carry it without a breaking change.
+
+   Two judgments worth knowing. `unknown` outranks `partial` and `advisory`
+   when rolling a category up, so one unreadable control keeps the category
+   quiet - claiming "weakened" when the honest answer is "cannot tell" is the
+   false positive this feature can least afford. And `unreachable` is not
+   implemented: a workflow with no triggers is indistinguishable from one
+   whose parser captured none, so it answers the open question below with
+   "trigger analysis alone cannot do it".
 3. **Tool-specific flags.** The narrow `weakenedWhen` escape hatch.
 4. **Enforcement.** `--fail-on-weakened`, baseline records verdicts.
 

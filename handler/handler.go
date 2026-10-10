@@ -9,6 +9,7 @@ import (
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/fixer"
+	"github.com/MustacheCase/zanadir/grading"
 	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/logger"
 	"github.com/MustacheCase/zanadir/matcher"
@@ -71,6 +72,16 @@ func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface
 		findings = append(findings, h.MatchService.Match(artifacts, categoryRules)...)
 	}
 	debugf("Total findings: %d", len(findings))
+
+	// Graded but not reported yet: the verdicts are informational until the
+	// output shape for "covered, but weakened" is settled.
+	for category, verdict := range grading.ByCategory(findings) {
+		if grading.Weakened(verdict) {
+			debugf("Category %s is covered but %s", category, verdict)
+			continue
+		}
+		debugf("Category %s is %s", category, verdict)
+	}
 
 	languages := language.Detect(cfg.Dir)
 	debugf("Detected languages: %v", languages)

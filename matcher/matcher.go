@@ -9,6 +9,11 @@ type Finding struct {
 	Category string
 	RuleID   string
 	Location string
+	// Artifact is the workflow the rule matched and Job the step inside it.
+	// Grading needs both. Job is nil when the match was on the workflow name,
+	// which belongs to no step.
+	Artifact *models.Artifact
+	Job      *models.Job
 }
 
 type Matcher interface {
@@ -23,12 +28,14 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 	for _, rule := range ruleSet {
 		for _, artifact := range artifacts {
 			for _, applyField := range rule.ApplyOn {
-				if matchesRule(artifact, rule, applyField) {
+				for _, job := range matchingJobs(artifact, rule, applyField) {
 					for _, c := range rule.Categories {
 						findings = append(findings, &Finding{
 							Category: c,
 							RuleID:   rule.ID,
 							Location: artifact.Location,
+							Artifact: artifact,
+							Job:      job,
 						})
 					}
 				}
@@ -39,30 +46,40 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 	return findings
 }
 
-func matchesRule(artifact *models.Artifact, rule *rules.Rule, field string) bool {
-	switch field {
-	case rules.FieldArtifactName:
-		return rule.Regex.MatchString(artifact.Name)
-	case rules.FieldJobName:
-		for _, job := range artifact.Jobs {
-			if rule.Regex.MatchString(job.Name) {
-				return true
-			}
+// matchingJobs returns every step a rule matches, not just the first: the same
+// tool can be enforcing in one job and unable to fail the build in another,
+// and a category is only as weak as its strongest control.
+//
+// A match on the workflow name belongs to no step, so it yields a single nil
+// and grading has only the workflow's triggers to go on.
+func matchingJobs(artifact *models.Artifact, rule *rules.Rule, field string) []*models.Job {
+	if field == rules.FieldArtifactName {
+		if rule.Regex.MatchString(artifact.Name) {
+			return []*models.Job{nil}
 		}
-	case rules.FieldJobPackage:
-		for _, job := range artifact.Jobs {
-			if rule.Regex.MatchString(job.Package) {
-				return true
-			}
+		return nil
+	}
+
+	var matched []*models.Job
+	for _, job := range artifact.Jobs {
+		var text string
+		switch field {
+		case rules.FieldJobName:
+			text = job.Name
+		case rules.FieldJobPackage:
+			text = job.Package
+		case rules.FieldJobRun:
+			text = job.Run
+		default:
+			continue
 		}
-	case rules.FieldJobRun:
-		for _, job := range artifact.Jobs {
-			if job.Run != "" && rule.Regex.MatchString(job.Run) {
-				return true
-			}
+		// Guarding the empty string keeps a rule that can match it from
+		// matching every step that lacks the field. No shipped rule can.
+		if text != "" && rule.Regex.MatchString(text) {
+			matched = append(matched, job)
 		}
 	}
-	return false
+	return matched
 }
 
 func NewMatchService() Matcher {

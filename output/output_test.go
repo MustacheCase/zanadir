@@ -438,3 +438,148 @@ func TestMarkdownCellCannotBreakTheTable(t *testing.T) {
 		}
 	}
 }
+
+func sampleWeaknesses() []Weakness {
+	return []Weakness{
+		{Category: "Linter", Verdict: "partial", Location: ".github/workflows/push.yml"},
+		{Category: "Secrets Detection", Verdict: "advisory", Location: ".github/workflows/ci.yml"},
+	}
+}
+
+// A control that is present but cannot fail the build is reported below the
+// table: a missing category is still the more actionable finding.
+func TestResponse_TableListsWeakenedControls(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		report := Report{
+			Suggestions: getSampleSuggestions(),
+			Format:      config.OutputTable,
+			Score:       score.Score{Covered: 9, Total: 11},
+			Weakened:    sampleWeaknesses(),
+		}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "2 covered categories are weakened:") {
+		t.Errorf("weakened headline missing:\n%s", out)
+	}
+	if !strings.Contains(out, "Secrets Detection is advisory (.github/workflows/ci.yml)") {
+		t.Errorf("weakness detail missing:\n%s", out)
+	}
+	if strings.Index(out, "SUGGESTED TOOLS") > strings.Index(out, "are weakened") {
+		t.Error("the table should come before the weakened block")
+	}
+}
+
+// Nothing missing is not the same as nothing wrong, so the all-clear still has
+// to carry the weakened controls.
+func TestResponse_TableListsWeaknessesWithNothingMissing(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		report := Report{
+			Format:   config.OutputTable,
+			Score:    score.Score{Covered: 11, Total: 11},
+			Weakened: sampleWeaknesses()[:1],
+		}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "all categories are covered.") {
+		t.Errorf("expected the all-clear:\n%s", out)
+	}
+	if !strings.Contains(out, "1 covered category is weakened:") {
+		t.Errorf("expected the singular headline:\n%s", out)
+	}
+}
+
+func TestResponse_TableOmitsTheWeakenedBlockWhenThereIsNone(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		if err := service.Response(Report{Suggestions: getSampleSuggestions(), Format: config.OutputTable}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if strings.Contains(out, "weakened") {
+		t.Errorf("expected no weakened block:\n%s", out)
+	}
+}
+
+func TestResponse_MarkdownListsWeakenedControls(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		report := Report{Format: config.OutputMarkdown, Score: score.Score{Covered: 11, Total: 11}, Weakened: sampleWeaknesses()}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "**2 covered categories are weakened:**") {
+		t.Errorf("weakened headline missing:\n%s", out)
+	}
+	if !strings.Contains(out, "- `Linter` is **partial** in `.github/workflows/push.yml`") {
+		t.Errorf("weakness detail missing:\n%s", out)
+	}
+}
+
+// failAfterWriter succeeds for a number of writes and then fails, so an error
+// partway through a multi-line block can be reached.
+type failAfterWriter struct {
+	ok  int
+	err error
+}
+
+func (f *failAfterWriter) Write(p []byte) (int, error) {
+	if f.ok > 0 {
+		f.ok--
+		return len(p), nil
+	}
+	return 0, f.err
+}
+
+func TestRenderWeakenedPropagatesWriteErrors(t *testing.T) {
+	boom := errors.New("disk full")
+	weaknesses := sampleWeaknesses()
+
+	t.Run("on the headline", func(t *testing.T) {
+		if err := renderWeakened(failingWriter{err: boom}, weaknesses, false); !errors.Is(err, boom) {
+			t.Errorf("expected the write error to propagate, got %v", err)
+		}
+	})
+
+	t.Run("part way through the list", func(t *testing.T) {
+		// The headline and the first weakness land, the second does not.
+		w := &failAfterWriter{ok: 2, err: boom}
+		if err := renderWeakened(w, weaknesses, false); !errors.Is(err, boom) {
+			t.Errorf("expected the write error to propagate, got %v", err)
+		}
+	})
+
+	t.Run("nothing to write cannot fail", func(t *testing.T) {
+		if err := renderWeakened(failingWriter{err: boom}, nil, false); err != nil {
+			t.Errorf("an empty block should not touch the writer, got %v", err)
+		}
+	})
+}
+
+// The weakened block is written after the table and after the all-clear, so
+// both callers have to propagate a failure from it.
+func TestRenderPropagatesWeakenedWriteError(t *testing.T) {
+	boom := errors.New("disk full")
+
+	t.Run("after the all-clear", func(t *testing.T) {
+		w := &failAfterWriter{ok: 1, err: boom}
+		err := render(w, Report{Format: config.OutputTable, Weakened: sampleWeaknesses()})
+		if !errors.Is(err, boom) {
+			t.Errorf("expected the write error to propagate, got %v", err)
+		}
+	})
+}

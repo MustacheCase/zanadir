@@ -290,6 +290,59 @@ The colour tracks the score: green at 80% or above, yellow at 60%, orange at
 
 [shields]: https://shields.io/badges/endpoint-badge
 
+## Effectiveness
+
+Presence is not protection. A scanner wired up so it can never fail a build
+leaves a repository worse off than one with no scanner at all, because
+everybody believes the control is there. All of these used to report
+**covered**:
+
+```yaml
+- uses: gitleaks/gitleaks-action@v2
+  continue-on-error: true          # the job stays green whatever it finds
+```
+
+```yaml
+on:
+  schedule: [{cron: "0 3 * * *"}]  # nothing is blocked at merge time
+```
+
+```yaml
+on:
+  push: {branches: [main]}         # pull requests are never checked
+```
+
+A scan now grades each control it finds and reports the ones that protect less
+than their presence suggests:
+
+```
+3 covered categories are weakened:
+  Linter is partial (.github/workflows/pushonly.yml)
+  SCA is advisory (.github/workflows/nightly.yml)
+  Secrets Detection is advisory (.github/workflows/ci.yml)
+```
+
+| Verdict | Meaning |
+|---|---|
+| `enforcing` | the control can fail the build on the path that gates a change |
+| `partial` | it can fail a build, but not on that path - pushes only, say |
+| `advisory` | it runs, and cannot block anything |
+| `unknown` | the configuration cannot be read well enough to say |
+
+This is **informational**: a weakened control never fails a scan, and
+`--enforce` and `--fail-on` still only act on categories with no tooling at
+all.
+
+Two deliberate silences. An `if:` condition is never interpreted, because it
+can reference arbitrary context and reading one wrong is worse than admitting
+it cannot be read - the control is reported `unknown` instead. And a category
+is judged by its strongest control, so one properly wired scanner keeps the
+category quiet however many weak ones sit beside it.
+
+In SARIF a weakened control is a `note`, pointing at the workflow that
+produced the verdict, while a missing category stays a `warning`. Only GitHub
+Actions is graded so far; GitLab CI and CircleCI report nothing here.
+
 ## Language-Aware Suggestions
 
 Zanadir detects which languages a repository uses and suggests only tools that

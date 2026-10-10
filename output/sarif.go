@@ -98,8 +98,28 @@ func helpText(suggestion *suggester.CategorySuggestion) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
+// locateAt builds the single-location list SARIF wants, or none when there is
+// nowhere to point. Code scanning rejects a result with no location.
+func locateAt(uri string) []sarifLocation {
+	if uri == "" {
+		return nil
+	}
+	return []sarifLocation{{
+		PhysicalLocation: sarifPhysicalLocation{
+			ArtifactLocation: sarifArtifactLocation{URI: uri},
+			Region:           sarifRegion{StartLine: 1},
+		},
+	}}
+}
+
+// weakenedRuleID keeps a weakened control distinct from a missing one, so code
+// scanning tracks them as separate alerts rather than one changing its mind.
+func weakenedRuleID(category string) string {
+	return category + "/weakened"
+}
+
 // buildSarif converts suggestions into one rule and one result per category.
-func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string) sarifLog {
+func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weaknesses []Weakness) sarifLog {
 	rules := make([]sarifRule, 0, len(suggestions))
 	results := make([]sarifResult, 0, len(suggestions))
 
@@ -124,24 +144,43 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string) sari
 			message = fmt.Sprintf("%s Consider adding one of: %s.", message, strings.Join(toolNames, ", "))
 		}
 
-		result := sarifResult{
+		results = append(results, sarifResult{
 			RuleID:              suggestion.ID,
 			Level:               "warning",
 			Message:             sarifMessage{Text: message},
 			PartialFingerprints: map[string]string{"categoryId": suggestion.ID},
-		}
+			Locations:           locateAt(anchor),
+		})
+	}
 
-		// Code scanning rejects a result with no location.
-		if anchor != "" {
-			result.Locations = []sarifLocation{{
-				PhysicalLocation: sarifPhysicalLocation{
-					ArtifactLocation: sarifArtifactLocation{URI: anchor},
-					Region:           sarifRegion{StartLine: 1},
-				},
-			}}
-		}
+	// A weakened control is a note: the tooling is there, so it is a weaker
+	// finding than a category with nothing at all, and this ships
+	// informational before it can fail anything.
+	for _, weakness := range weaknesses {
+		ruleID := weakenedRuleID(weakness.Category)
 
-		results = append(results, result)
+		rules = append(rules, sarifRule{
+			ID:                   ruleID,
+			Name:                 weakness.Category,
+			ShortDescription:     sarifMessage{Text: fmt.Sprintf("Weakened CI/CD control: %s", weakness.Category)},
+			FullDescription:      sarifMessage{Text: fmt.Sprintf("%s tooling is present but cannot fully protect this repository.", weakness.Category)},
+			Help:                 sarifMessage{Text: weakenedHelp(weakness.Verdict)},
+			DefaultConfiguration: sarifRuleConfig{Level: "note"},
+			Properties:           sarifRuleProperty{Tags: []string{"ci-cd", "coverage", "effectiveness"}},
+		})
+
+		results = append(results, sarifResult{
+			RuleID:  ruleID,
+			Level:   "note",
+			Message: sarifMessage{Text: fmt.Sprintf("%s tooling is present but %s: %s", weakness.Category, weakness.Verdict, weakenedHelp(weakness.Verdict))},
+			PartialFingerprints: map[string]string{
+				"categoryId": weakness.Category,
+				"verdict":    weakness.Verdict,
+			},
+			// The workflow that produced the verdict, which is a better
+			// location than the anchor a missing category has to fall back on.
+			Locations: locateAt(weakness.Location),
+		})
 	}
 
 	return sarifLog{
@@ -158,8 +197,20 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string) sari
 	}
 }
 
-func renderSarif(suggestions []*suggester.CategorySuggestion, anchor string) (string, error) {
-	data, err := json.MarshalIndent(buildSarif(suggestions, anchor), "", "  ")
+// weakenedHelp explains a verdict in terms of what it fails to stop.
+func weakenedHelp(verdict string) string {
+	switch verdict {
+	case "advisory":
+		return "it runs but cannot fail the build, so nothing it finds blocks a change."
+	case "partial":
+		return "it can fail a build, but not on the path that gates a change, so pull requests go unchecked."
+	default:
+		return "it provides less protection than its presence suggests."
+	}
+}
+
+func renderSarif(suggestions []*suggester.CategorySuggestion, anchor string, weaknesses []Weakness) (string, error) {
+	data, err := json.MarshalIndent(buildSarif(suggestions, anchor, weaknesses), "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal SARIF report: %w", err)
 	}

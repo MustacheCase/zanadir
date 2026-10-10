@@ -99,31 +99,6 @@ func TestGrade(t *testing.T) {
 	}
 }
 
-// One properly wired control is enough, and one unreadable control keeps the
-// category quiet rather than reporting a weakness that may not exist.
-func TestBest(t *testing.T) {
-	tests := []struct {
-		name     string
-		verdicts []Verdict
-		expected Verdict
-	}{
-		{"nothing to go on", nil, Unknown},
-		{"one enforcing control is enough", []Verdict{Advisory, Enforcing, Partial}, Enforcing},
-		{"unknown outranks the reportable verdicts", []Verdict{Advisory, Unknown}, Unknown},
-		{"partial beats advisory", []Verdict{Advisory, Partial}, Partial},
-		{"all advisory stays advisory", []Verdict{Advisory, Advisory}, Advisory},
-		{"enforcing beats unknown", []Verdict{Unknown, Enforcing}, Enforcing},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := Best(tt.verdicts); got != tt.expected {
-				t.Errorf("Best(%v) = %q, want %q", tt.verdicts, got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestWeakened(t *testing.T) {
 	for verdict, want := range map[Verdict]bool{
 		Advisory:  true,
@@ -138,26 +113,102 @@ func TestWeakened(t *testing.T) {
 	}
 }
 
-func TestByCategory(t *testing.T) {
+// One properly wired control is enough, and one unreadable control keeps the
+// category quiet rather than reporting a weakness that may not exist.
+func TestByCategoryKeepsTheStrongestVerdict(t *testing.T) {
 	pullRequest := []models.Trigger{{Event: "pull_request"}}
 
-	weak := finding(pullRequest, &models.Job{ContinueOnError: true})
-	strong := finding(pullRequest, &models.Job{})
-	strong.Category = "SCA"
-
-	other := finding([]models.Trigger{{Event: "schedule"}}, &models.Job{})
-	other.Category = "Secrets Detection"
-
-	verdicts := ByCategory([]*matcher.Finding{weak, strong, other, nil})
-
-	if verdicts["SCA"] != Enforcing {
-		t.Errorf("SCA = %q, want enforcing", verdicts["SCA"])
+	at := func(location string, f *matcher.Finding) *matcher.Finding {
+		f.Location = location
+		f.Artifact.Location = location
+		return f
 	}
-	// Both of its controls are advisory, so the category is.
-	if verdicts["Secrets Detection"] != Advisory {
-		t.Errorf("Secrets Detection = %q, want advisory", verdicts["Secrets Detection"])
+
+	tests := []struct {
+		name             string
+		findings         []*matcher.Finding
+		expectedVerdict  Verdict
+		expectedLocation string
+	}{
+		{
+			name: "an enforcing control outranks a weak one beside it",
+			findings: []*matcher.Finding{
+				at("weak.yml", finding(pullRequest, &models.Job{ContinueOnError: true})),
+				at("good.yml", finding(pullRequest, &models.Job{})),
+			},
+			expectedVerdict:  Enforcing,
+			expectedLocation: "good.yml",
+		},
+		{
+			name: "order does not matter",
+			findings: []*matcher.Finding{
+				at("good.yml", finding(pullRequest, &models.Job{})),
+				at("weak.yml", finding(pullRequest, &models.Job{ContinueOnError: true})),
+			},
+			expectedVerdict:  Enforcing,
+			expectedLocation: "good.yml",
+		},
+		{
+			name: "an unreadable control keeps the category quiet",
+			findings: []*matcher.Finding{
+				at("weak.yml", finding(pullRequest, &models.Job{ContinueOnError: true})),
+				at("cond.yml", finding(pullRequest, &models.Job{If: "always()"})),
+			},
+			expectedVerdict:  Unknown,
+			expectedLocation: "cond.yml",
+		},
+		{
+			name: "partial beats advisory",
+			findings: []*matcher.Finding{
+				at("sched.yml", finding([]models.Trigger{{Event: "schedule"}}, &models.Job{})),
+				at("push.yml", finding([]models.Trigger{{Event: "push"}}, &models.Job{})),
+			},
+			expectedVerdict:  Partial,
+			expectedLocation: "push.yml",
+		},
+		{
+			name: "all weak stays weak and points at the evidence",
+			findings: []*matcher.Finding{
+				at("weak.yml", finding(pullRequest, &models.Job{ContinueOnError: true})),
+			},
+			expectedVerdict:  Advisory,
+			expectedLocation: "weak.yml",
+		},
 	}
-	if len(verdicts) != 2 {
-		t.Errorf("expected 2 categories, got %d", len(verdicts))
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ByCategory(tt.findings)["Secrets Detection"]
+			if got.Verdict != tt.expectedVerdict {
+				t.Errorf("verdict = %q, want %q", got.Verdict, tt.expectedVerdict)
+			}
+			if got.Location != tt.expectedLocation {
+				t.Errorf("location = %q, want %q", got.Location, tt.expectedLocation)
+			}
+		})
+	}
+}
+
+func TestByCategorySkipsNilFindings(t *testing.T) {
+	verdicts := ByCategory([]*matcher.Finding{nil, nil})
+	if len(verdicts) != 0 {
+		t.Errorf("expected no categories, got %d", len(verdicts))
+	}
+}
+
+func TestByCategorySeparatesCategories(t *testing.T) {
+	pullRequest := []models.Trigger{{Event: "pull_request"}}
+
+	sca := finding(pullRequest, &models.Job{})
+	sca.Category = "SCA"
+	secrets := finding(pullRequest, &models.Job{ContinueOnError: true})
+
+	verdicts := ByCategory([]*matcher.Finding{sca, secrets})
+
+	if verdicts["SCA"].Verdict != Enforcing {
+		t.Errorf("SCA = %q, want enforcing", verdicts["SCA"].Verdict)
+	}
+	if verdicts["Secrets Detection"].Verdict != Advisory {
+		t.Errorf("Secrets Detection = %q, want advisory", verdicts["Secrets Detection"].Verdict)
 	}
 }

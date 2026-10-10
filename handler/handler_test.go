@@ -640,3 +640,139 @@ func TestBaselineDoesNotChangeTheScore(t *testing.T) {
 	total := len(models.CategoryTitles)
 	assert.Equal(t, score.Score{Covered: total - 1, Total: total}, reported.Score)
 }
+
+func weakFinding(category, location string, job *models.Job) *matcher.Finding {
+	return &matcher.Finding{
+		Category: category,
+		Location: location,
+		Artifact: &models.Artifact{
+			Triggers: []models.Trigger{{Event: "pull_request"}},
+			Location: location,
+		},
+		Job: job,
+	}
+}
+
+func TestWeakenedReportsOnlyWhatItShould(t *testing.T) {
+	coe := &models.Job{ContinueOnError: true}
+	cfg := &config.Config{Dir: "/repo"}
+	silent := func(string, ...interface{}) {}
+
+	findings := []*matcher.Finding{
+		weakFinding("Secrets Detection", "/repo/.github/workflows/ci.yml", coe),
+		// Enforcing, so it must not be reported at all.
+		weakFinding("SAST", "/repo/.github/workflows/sast.yml", &models.Job{}),
+		// Unreadable, so the category stays quiet rather than being called weak.
+		weakFinding("SCA", "/repo/.github/workflows/sca.yml", &models.Job{If: "always()"}),
+	}
+
+	weaknesses := weakened(cfg, findings, silent)
+
+	assert.Len(t, weaknesses, 1)
+	assert.Equal(t, "Secrets Detection", weaknesses[0].Category)
+	assert.Equal(t, "advisory", weaknesses[0].Verdict)
+	// Reports point at repo-relative paths, not the scan directory's.
+	assert.Equal(t, ".github/workflows/ci.yml", weaknesses[0].Location)
+}
+
+// Excluding a category says it does not apply; grading it anyway would argue
+// with the operator.
+func TestWeakenedSkipsExcludedCategories(t *testing.T) {
+	coe := &models.Job{ContinueOnError: true}
+	cfg := &config.Config{Dir: "/repo", ExcludedCategories: []string{"Secrets Detection"}}
+
+	weaknesses := weakened(cfg, []*matcher.Finding{
+		weakFinding("Secrets Detection", "/repo/a.yml", coe),
+		weakFinding("Linter", "/repo/b.yml", coe),
+	}, func(string, ...interface{}) {})
+
+	assert.Len(t, weaknesses, 1)
+	assert.Equal(t, "Linter", weaknesses[0].Category)
+}
+
+// Map iteration order is random, so without sorting the report would reshuffle
+// between identical runs.
+func TestWeakenedIsSorted(t *testing.T) {
+	coe := &models.Job{ContinueOnError: true}
+	cfg := &config.Config{Dir: "/repo"}
+
+	weaknesses := weakened(cfg, []*matcher.Finding{
+		weakFinding("Unit Tests", "/repo/c.yml", coe),
+		weakFinding("Coverage", "/repo/a.yml", coe),
+		weakFinding("Linter", "/repo/b.yml", coe),
+	}, func(string, ...interface{}) {})
+
+	names := make([]string, 0, len(weaknesses))
+	for _, weakness := range weaknesses {
+		names = append(names, weakness.Category)
+	}
+	assert.Equal(t, []string{"Coverage", "Linter", "Unit Tests"}, names)
+}
+
+// A workflow outside the scan directory has no path a report can point at.
+func TestWeakenedDropsLocationsOutsideTheScanDirectory(t *testing.T) {
+	cfg := &config.Config{Dir: "/repo"}
+
+	weaknesses := weakened(cfg, []*matcher.Finding{
+		weakFinding("Linter", "/elsewhere/ci.yml", &models.Job{ContinueOnError: true}),
+	}, func(string, ...interface{}) {})
+
+	assert.Len(t, weaknesses, 1)
+	assert.Empty(t, weaknesses[0].Location)
+}
+
+// The scanner can hand back a nil artifact, and the anchor has to step over it
+// rather than dereference it.
+func TestSarifAnchorSkipsNilArtifacts(t *testing.T) {
+	anchor := sarifAnchor("/repo", []*models.Artifact{
+		nil,
+		{Location: "/repo/.github/workflows/ci.yml"},
+	})
+	assert.Equal(t, ".github/workflows/ci.yml", anchor)
+}
+
+func TestSarifAnchorWithNothingUsable(t *testing.T) {
+	assert.Empty(t, sarifAnchor("/repo", []*models.Artifact{nil, {Location: "/elsewhere/ci.yml"}, {}}))
+}
+
+// Setup builds the handler the CLI actually runs with, from the embedded rules
+// and suggestions. Nothing exercised it, so a bad embed would have surfaced
+// only at runtime.
+func TestSetup(t *testing.T) {
+	h, err := Setup()
+	assert.NoError(t, err)
+	assert.NotNil(t, h.RulesService)
+	assert.NotNil(t, h.ScanService)
+	assert.NotNil(t, h.MatchService)
+	assert.NotNil(t, h.SuggestionService)
+	assert.NotNil(t, h.OutputService)
+}
+
+func TestFixInDebugMode(t *testing.T) {
+	setup()
+	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
+	cfg := config.Config{Dir: t.TempDir(), Debug: true}
+
+	mockScanner.On("Scan", cfg.Dir).Return([]*models.Artifact{}, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockMatcher.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{})
+	mockSuggester.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{}, nil)
+
+	var buf bytes.Buffer
+	assert.NoError(t, h.Fix(&cfg, &buf))
+}
+
+func TestExecuteSurfacesAnOutputFailureInDebugMode(t *testing.T) {
+	setup()
+	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
+	cfg := config.Config{Dir: "test-dir", Debug: true}
+	boom := errors.New("disk full")
+
+	mockScanner.On("Scan", cfg.Dir).Return([]*models.Artifact{}, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockMatcher.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{})
+	mockSuggester.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{}, nil)
+	mockOutput.On("Response", mock.Anything).Return(boom)
+
+	assert.ErrorIs(t, h.Execute(&cfg), boom)
+}

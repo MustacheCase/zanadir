@@ -14,6 +14,9 @@ type Finding struct {
 	// which belongs to no step.
 	Artifact *models.Artifact
 	Job      *models.Job
+	// Rule is what matched, so grading can read the tool-specific ways this
+	// particular tool can be configured not to fail a build.
+	Rule *rules.Rule
 }
 
 type Matcher interface {
@@ -36,6 +39,7 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 							Location: artifact.Location,
 							Artifact: artifact,
 							Job:      job,
+							Rule:     rule,
 						})
 					}
 				}

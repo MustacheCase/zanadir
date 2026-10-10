@@ -54,7 +54,8 @@ func TestMatch(t *testing.T) {
 			Location: "path/to/artifact1",
 			Artifact: artifacts[0],
 			// A workflow-name match belongs to no step.
-			Job: nil,
+			Job:  nil,
+			Rule: ruleSet[0],
 		},
 		{
 			Category: "CategoryB",
@@ -62,6 +63,7 @@ func TestMatch(t *testing.T) {
 			Location: "path/to/artifact2",
 			Artifact: artifacts[1],
 			Job:      artifacts[1].Jobs[0],
+			Rule:     ruleSet[1],
 		},
 	}
 

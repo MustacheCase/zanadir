@@ -3,11 +3,23 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bcheckov\\b|bridgecrewio/checkov"
+    weakenedWhen:
+      - runMatches: "--soft-fail\\b"
+        verdict: "advisory"
+      - input: "soft_fail"
+        equals: "true"
+        verdict: "advisory"
 
   - id: "tfsec-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\btfsec\\b"
+    weakenedWhen:
+      - runMatches: "--soft-fail\\b"
+        verdict: "advisory"
+      - input: "soft_fail"
+        equals: "true"
+        verdict: "advisory"
 
   - id: "terrascan-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

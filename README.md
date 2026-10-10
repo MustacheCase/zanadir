@@ -333,6 +333,27 @@ This is **informational**: a weakened control never fails a scan, and
 `--enforce` and `--fail-on` still only act on categories with no tooling at
 all.
 
+Some of this is generic - `continue-on-error` defeats any control, and so does
+a workflow that only runs on a schedule. The rest is specific to one tool, and
+a rule can say so:
+
+```yaml
+  - id: "tfsec-rule"
+    regex: "(?i)\\btfsec\\b"
+    weakenedWhen:
+      - runMatches: "--soft-fail\\b"
+        verdict: "advisory"
+      - input: "soft_fail"
+        equals: "true"
+        verdict: "advisory"
+```
+
+A check is either a regex over the step's shell command or one action input
+compared to a value - deliberately not an expression language. Covered today:
+`trivy --exit-code 0`, `gitleaks --exit-code 0`, `tfsec` and `checkov`
+`--soft-fail` / `soft_fail: true`, and `anchore/scan-action` with
+`fail-build: false`.
+
 Two deliberate silences. An `if:` condition is never interpreted, because it
 can reference arbitrary context and reading one wrong is worse than admitting
 it cannot be read - the control is reported `unknown` instead. And a category

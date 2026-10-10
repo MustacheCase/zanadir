@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/baseline"
@@ -29,28 +30,67 @@ type Handler struct {
 	OutputService     output.Output
 }
 
-// sarifAnchor returns a repo-relative CI file for SARIF results to point at.
-// A path outside the scan directory is skipped: worse than no location.
+// repoRelative turns a scanned path into one a report can point at. A path
+// outside the scan directory yields nothing: worse than no location.
+func repoRelative(dir, path string) string {
+	if path == "" {
+		return ""
+	}
+	rel, err := filepath.Rel(dir, path)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return ""
+	}
+	return filepath.ToSlash(rel)
+}
+
+// sarifAnchor returns a repo-relative CI file for SARIF results to point at
+// when a finding has no location of its own.
 func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 	for _, a := range artifacts {
-		if a == nil || a.Location == "" {
+		if a == nil {
 			continue
 		}
-		rel, err := filepath.Rel(dir, a.Location)
-		if err != nil || strings.HasPrefix(rel, "..") {
-			continue
+		if rel := repoRelative(dir, a.Location); rel != "" {
+			return rel
 		}
-		return filepath.ToSlash(rel)
 	}
 	return ""
 }
 
+// weakened lists the covered categories whose tooling cannot fully protect the
+// repository. An excluded category is left out: the operator has said it does
+// not apply, and grading it anyway would argue with them.
+func weakened(cfg *config.Config, findings []*matcher.Finding, debugf func(string, ...interface{})) []output.Weakness {
+	skip := make(map[string]bool, len(cfg.ExcludedCategories))
+	for _, category := range cfg.ExcludedCategories {
+		skip[category] = true
+	}
+
+	assessments := grading.ByCategory(findings)
+	list := make([]output.Weakness, 0, len(assessments))
+	for category, assessment := range assessments {
+		debugf("Category %s is %s", category, assessment.Verdict)
+		if skip[category] || !grading.Weakened(assessment.Verdict) {
+			continue
+		}
+		list = append(list, output.Weakness{
+			Category: category,
+			Verdict:  string(assessment.Verdict),
+			Location: repoRelative(cfg.Dir, assessment.Location),
+		})
+	}
+
+	// Map iteration order is random and a report has to be stable.
+	sort.Slice(list, func(i, j int) bool { return list[i].Category < list[j].Category })
+	return list
+}
+
 // uncovered runs the scan pipeline and returns the categories with no tooling.
-func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface{}), ignore func(string) bool) ([]*suggester.CategorySuggestion, []*models.Artifact, error) {
+func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface{}), ignore func(string) bool) ([]*suggester.CategorySuggestion, []*models.Artifact, []output.Weakness, error) {
 	artifacts, err := h.ScanService.Scan(cfg.Dir)
 	if err != nil {
 		debugf("Scan error: %v", err)
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	debugf("Found %d artifacts", len(artifacts))
 
@@ -73,23 +113,16 @@ func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface
 	}
 	debugf("Total findings: %d", len(findings))
 
-	// Graded but not reported yet: the verdicts are informational until the
-	// output shape for "covered, but weakened" is settled.
-	for category, verdict := range grading.ByCategory(findings) {
-		if grading.Weakened(verdict) {
-			debugf("Category %s is covered but %s", category, verdict)
-			continue
-		}
-		debugf("Category %s is %s", category, verdict)
-	}
-
 	languages := language.Detect(cfg.Dir)
 	debugf("Detected languages: %v", languages)
 
 	suggestions := h.SuggestionService.FindSuggestions(findings, cfg.ExcludedCategories, languages)
 	debugf("Total suggestions: %d", len(suggestions))
 
-	return suggestions, artifacts, nil
+	weaknesses := weakened(cfg, findings, debugf)
+	debugf("Weakened categories: %d", len(weaknesses))
+
+	return suggestions, artifacts, weaknesses, nil
 }
 
 // Fix prints ready-to-paste CI configuration for the uncovered categories.
@@ -99,7 +132,7 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 		debugf = logger.GetLogger().Info
 	}
 
-	suggestions, _, err := h.uncovered(cfg, debugf, fixer.IsGeneratedWorkflow)
+	suggestions, _, _, err := h.uncovered(cfg, debugf, fixer.IsGeneratedWorkflow)
 	if err != nil {
 		return err
 	}
@@ -141,7 +174,7 @@ func (h *Handler) Execute(cfg *config.Config) error {
 	}
 
 	debugf("Starting scan for directory: %s", cfg.Dir)
-	suggestions, artifacts, err := h.uncovered(cfg, debugf, nil)
+	suggestions, artifacts, weaknesses, err := h.uncovered(cfg, debugf, nil)
 	if err != nil {
 		return err
 	}
@@ -155,6 +188,7 @@ func (h *Handler) Execute(cfg *config.Config) error {
 		DestPath:    cfg.OutputFile,
 		Anchor:      sarifAnchor(cfg.Dir, artifacts),
 		Score:       coverage,
+		Weakened:    weaknesses,
 	})
 	if err != nil {
 		debugf("Output error: %v", err)

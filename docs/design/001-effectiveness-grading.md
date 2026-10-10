@@ -1,8 +1,8 @@
 # Design: grading control effectiveness
 
-**Status:** phase 1 (capture the context) and the phase 2 grading engine
-implemented for GitHub Actions; verdicts are computed but not yet surfaced to
-users, so no output carries them
+**Status:** phases 1-2 implemented for GitHub Actions. Verdicts are reported
+in the table, markdown and SARIF output, informationally - nothing fails a
+scan on them yet. Phases 3-4 (tool-specific flags, enforcement) not started
 **Scope:** how zanadir could report whether a control actually protects anything, not just whether it is present
 
 ## Problem
@@ -198,6 +198,10 @@ not require touching 29 rule files.
 - Should a category with only advisory controls still produce a tool
   suggestion, or a different message ("you have gitleaks, wire it up")? The
   second is more useful and needs new output shape.
-- Does `unreachable` need the full `needs:` graph, or is trigger analysis
-  enough for a first version?
-- How should the table output show verdicts without becoming unreadable?
+- ~~Does `unreachable` need the full `needs:` graph, or is trigger analysis
+  enough for a first version?~~ Trigger analysis alone cannot do it: a
+  workflow with no triggers is indistinguishable from one whose parser
+  captured none, so `unreachable` is not implemented.
+- ~~How should the table output show verdicts without becoming unreadable?~~
+  A short list under the table, not a column: the table is already three
+  columns of wrapped text, and a fourth made it unreadable.

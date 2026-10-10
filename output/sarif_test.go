@@ -29,7 +29,7 @@ func testSuggestions() []*suggester.CategorySuggestion {
 }
 
 func TestBuildSarifStructure(t *testing.T) {
-	log := buildSarif(testSuggestions(), "")
+	log := buildSarif(testSuggestions(), "", nil)
 
 	assert.Equal(t, sarifVersion, log.Version)
 	assert.Equal(t, sarifSchema, log.Schema)
@@ -54,7 +54,7 @@ func TestBuildSarifStructure(t *testing.T) {
 }
 
 func TestSarifHelpListsTools(t *testing.T) {
-	log := buildSarif(testSuggestions(), "")
+	log := buildSarif(testSuggestions(), "", nil)
 
 	var scaHelp, coverageHelp string
 	for _, rule := range log.Runs[0].Tool.Driver.Rules {
@@ -76,7 +76,7 @@ func TestSarifHelpListsTools(t *testing.T) {
 }
 
 func TestSarifMessageMentionsTools(t *testing.T) {
-	log := buildSarif(testSuggestions(), "")
+	log := buildSarif(testSuggestions(), "", nil)
 
 	for _, result := range log.Runs[0].Results {
 		if result.RuleID == "SCA" {
@@ -86,7 +86,7 @@ func TestSarifMessageMentionsTools(t *testing.T) {
 }
 
 func TestRenderSarifIsValidJSON(t *testing.T) {
-	report, err := renderSarif(testSuggestions(), "")
+	report, err := renderSarif(testSuggestions(), "", nil)
 	assert.NoError(t, err)
 
 	var decoded map[string]interface{}
@@ -97,7 +97,7 @@ func TestRenderSarifIsValidJSON(t *testing.T) {
 
 // SARIF requires runs[].results, so it must serialise as [] rather than null.
 func TestRenderSarifWithNoSuggestions(t *testing.T) {
-	report, err := renderSarif(nil, "")
+	report, err := renderSarif(nil, "", nil)
 	assert.NoError(t, err)
 	assert.Contains(t, report, `"results": []`)
 	assert.Contains(t, report, `"rules": []`)
@@ -107,7 +107,7 @@ func TestRenderSarifWithNoSuggestions(t *testing.T) {
 }
 
 func TestSarifResultsCarryALocation(t *testing.T) {
-	log := buildSarif(testSuggestions(), ".github/workflows/ci.yml")
+	log := buildSarif(testSuggestions(), ".github/workflows/ci.yml", nil)
 
 	assert.NotEmpty(t, log.Runs[0].Results)
 	for _, result := range log.Runs[0].Results {
@@ -119,7 +119,7 @@ func TestSarifResultsCarryALocation(t *testing.T) {
 }
 
 func TestSarifOmitsLocationWithoutAnAnchor(t *testing.T) {
-	log := buildSarif(testSuggestions(), "")
+	log := buildSarif(testSuggestions(), "", nil)
 
 	for _, result := range log.Runs[0].Results {
 		assert.Empty(t, result.Locations, "no anchor means no location rather than a wrong one")
@@ -127,7 +127,7 @@ func TestSarifOmitsLocationWithoutAnAnchor(t *testing.T) {
 }
 
 func TestRenderSarifSerialisesLocations(t *testing.T) {
-	report, err := renderSarif(testSuggestions(), ".github/workflows/ci.yml")
+	report, err := renderSarif(testSuggestions(), ".github/workflows/ci.yml", nil)
 	assert.NoError(t, err)
 
 	var decoded struct {
@@ -147,4 +147,68 @@ func TestRenderSarifSerialisesLocations(t *testing.T) {
 	assert.Len(t, decoded.Runs[0].Results[0].Locations, 1)
 	assert.Equal(t, ".github/workflows/ci.yml",
 		decoded.Runs[0].Results[0].Locations[0].PhysicalLocation.ArtifactLocation.URI)
+}
+
+// A weakened control is a note, not a warning: the tooling is there, so it is
+// a weaker finding than a category with nothing at all.
+func TestSarifReportsWeakenedControlsAsNotes(t *testing.T) {
+	weaknesses := []Weakness{
+		{Category: "Secrets Detection", Verdict: "advisory", Location: ".github/workflows/ci.yml"},
+		{Category: "Linter", Verdict: "partial", Location: ".github/workflows/push.yml"},
+	}
+
+	log := buildSarif(testSuggestions(), "anchor.yml", weaknesses)
+	run := log.Runs[0]
+
+	notes := map[string]sarifResult{}
+	for _, result := range run.Results {
+		if result.Level == "note" {
+			notes[result.RuleID] = result
+		}
+	}
+	if len(notes) != 2 {
+		t.Fatalf("expected 2 note results, got %d", len(notes))
+	}
+
+	advisory, ok := notes["Secrets Detection/weakened"]
+	if !ok {
+		t.Fatal("expected a rule id distinct from the missing-category one")
+	}
+	if advisory.PartialFingerprints["verdict"] != "advisory" {
+		t.Errorf("verdict fingerprint = %q", advisory.PartialFingerprints["verdict"])
+	}
+	// The workflow that produced the verdict beats the generic anchor.
+	if len(advisory.Locations) != 1 || advisory.Locations[0].PhysicalLocation.ArtifactLocation.URI != ".github/workflows/ci.yml" {
+		t.Errorf("expected the weak workflow as the location, got %+v", advisory.Locations)
+	}
+
+	declared := map[string]string{}
+	for _, rule := range run.Tool.Driver.Rules {
+		declared[rule.ID] = rule.DefaultConfiguration.Level
+	}
+	for ruleID := range notes {
+		if declared[ruleID] != "note" {
+			t.Errorf("rule %q declared level %q, want note", ruleID, declared[ruleID])
+		}
+	}
+}
+
+func TestSarifWeakenedResultWithNoLocation(t *testing.T) {
+	log := buildSarif(nil, "", []Weakness{{Category: "SCA", Verdict: "advisory"}})
+
+	results := log.Runs[0].Results
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Locations != nil {
+		t.Errorf("expected no locations, got %+v", results[0].Locations)
+	}
+}
+
+func TestWeakenedHelpCoversEveryVerdict(t *testing.T) {
+	for _, verdict := range []string{"advisory", "partial", "unknown", ""} {
+		if weakenedHelp(verdict) == "" {
+			t.Errorf("no help text for %q", verdict)
+		}
+	}
 }

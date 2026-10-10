@@ -438,3 +438,94 @@ func TestMarkdownCellCannotBreakTheTable(t *testing.T) {
 		}
 	}
 }
+
+func sampleWeaknesses() []Weakness {
+	return []Weakness{
+		{Category: "Linter", Verdict: "partial", Location: ".github/workflows/push.yml"},
+		{Category: "Secrets Detection", Verdict: "advisory", Location: ".github/workflows/ci.yml"},
+	}
+}
+
+// A control that is present but cannot fail the build is reported below the
+// table: a missing category is still the more actionable finding.
+func TestResponse_TableListsWeakenedControls(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		report := Report{
+			Suggestions: getSampleSuggestions(),
+			Format:      config.OutputTable,
+			Score:       score.Score{Covered: 9, Total: 11},
+			Weakened:    sampleWeaknesses(),
+		}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "2 covered categories are weakened:") {
+		t.Errorf("weakened headline missing:\n%s", out)
+	}
+	if !strings.Contains(out, "Secrets Detection is advisory (.github/workflows/ci.yml)") {
+		t.Errorf("weakness detail missing:\n%s", out)
+	}
+	if strings.Index(out, "SUGGESTED TOOLS") > strings.Index(out, "are weakened") {
+		t.Error("the table should come before the weakened block")
+	}
+}
+
+// Nothing missing is not the same as nothing wrong, so the all-clear still has
+// to carry the weakened controls.
+func TestResponse_TableListsWeaknessesWithNothingMissing(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		report := Report{
+			Format:   config.OutputTable,
+			Score:    score.Score{Covered: 11, Total: 11},
+			Weakened: sampleWeaknesses()[:1],
+		}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "all categories are covered.") {
+		t.Errorf("expected the all-clear:\n%s", out)
+	}
+	if !strings.Contains(out, "1 covered category is weakened:") {
+		t.Errorf("expected the singular headline:\n%s", out)
+	}
+}
+
+func TestResponse_TableOmitsTheWeakenedBlockWhenThereIsNone(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		if err := service.Response(Report{Suggestions: getSampleSuggestions(), Format: config.OutputTable}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if strings.Contains(out, "weakened") {
+		t.Errorf("expected no weakened block:\n%s", out)
+	}
+}
+
+func TestResponse_MarkdownListsWeakenedControls(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		report := Report{Format: config.OutputMarkdown, Score: score.Score{Covered: 11, Total: 11}, Weakened: sampleWeaknesses()}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "**2 covered categories are weakened:**") {
+		t.Errorf("weakened headline missing:\n%s", out)
+	}
+	if !strings.Contains(out, "- `Linter` is **partial** in `.github/workflows/push.yml`") {
+		t.Errorf("weakness detail missing:\n%s", out)
+	}
+}

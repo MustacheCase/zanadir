@@ -22,6 +22,25 @@ type Report struct {
 	// Score is the coverage summary. A zero score means none was computed and
 	// the headline falls back to a plain count.
 	Score score.Score
+	// Weakened lists categories that have tooling which cannot fully protect
+	// the repository. Informational: it never fails a scan.
+	Weakened []Weakness
+}
+
+// Weakness is a category whose tooling is present but cannot fully protect the
+// repository, with the workflow the verdict came from.
+type Weakness struct {
+	Category string
+	Verdict  string
+	Location string
+}
+
+// weakenedHeadline introduces the weakened block.
+func weakenedHeadline(count int) string {
+	if count == 1 {
+		return "1 covered category is weakened:"
+	}
+	return fmt.Sprintf("%d covered categories are weakened:", count)
 }
 
 type Output interface {
@@ -112,7 +131,7 @@ func markdownCell(text string) string {
 	return strings.ReplaceAll(strings.Join(strings.Fields(text), " "), "|", "\\|")
 }
 
-func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score) error {
+func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score, weaknesses []Weakness) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n### zanadir\n\n%s\n", MarkdownMarker, headline(coverage, len(suggestions)))
 
@@ -132,8 +151,35 @@ func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, co
 		}
 	}
 
+	if len(weaknesses) > 0 {
+		fmt.Fprintf(&b, "\n**%s**\n\n", weakenedHeadline(len(weaknesses)))
+		for _, weakness := range weaknesses {
+			fmt.Fprintf(&b, "- `%s` is **%s** in `%s`\n",
+				markdownCell(weakness.Category), markdownCell(weakness.Verdict), markdownCell(weakness.Location))
+		}
+	}
+
 	_, err := fmt.Fprint(w, b.String())
 	return err
+}
+
+// renderWeakened lists controls that are present but cannot fully protect the
+// repository. It sits below the table: a missing category is still the more
+// actionable finding.
+func renderWeakened(w io.Writer, weaknesses []Weakness, colour bool) error {
+	if len(weaknesses) == 0 {
+		return nil
+	}
+
+	if _, err := fmt.Fprintf(w, "\n%s\n", paint(colour, ansiBold, weakenedHeadline(len(weaknesses)))); err != nil {
+		return err
+	}
+	for _, weakness := range weaknesses {
+		if _, err := fmt.Fprintf(w, "  %s is %s (%s)\n", weakness.Category, weakness.Verdict, weakness.Location); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // The returned close function is always safe to call.
@@ -163,7 +209,7 @@ func (s *service) Response(report Report) error {
 func render(w io.Writer, report Report) error {
 	suggestions, responseType := report.Suggestions, report.Format
 	if responseType == config.OutputSARIF {
-		sarifReport, err := renderSarif(suggestions, report.Anchor)
+		sarifReport, err := renderSarif(suggestions, report.Anchor, report.Weakened)
 		if err != nil {
 			return err
 		}
@@ -172,15 +218,17 @@ func render(w io.Writer, report Report) error {
 	}
 
 	if responseType == config.OutputMarkdown {
-		return renderMarkdown(w, suggestions, report.Score)
+		return renderMarkdown(w, suggestions, report.Score, report.Weakened)
 	}
 
 	if responseType == config.OutputTable {
 		colour := useColour(w)
 
 		if len(suggestions) == 0 {
-			_, err := fmt.Fprintln(w, paint(colour, ansiGreen, headline(report.Score, 0)))
-			return err
+			if _, err := fmt.Fprintln(w, paint(colour, ansiGreen, headline(report.Score, 0))); err != nil {
+				return err
+			}
+			return renderWeakened(w, report.Weakened, colour)
 		}
 
 		if _, err := fmt.Fprintf(w, "%s\n\n", paint(colour, ansiBold, headline(report.Score, len(suggestions)))); err != nil {
@@ -211,7 +259,7 @@ func render(w io.Writer, report Report) error {
 		}
 
 		table.Render()
-		return nil
+		return renderWeakened(w, report.Weakened, colour)
 	}
 
 	data, err := json.MarshalIndent(suggestions, "", "  ")

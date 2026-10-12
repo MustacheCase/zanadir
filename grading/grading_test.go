@@ -362,3 +362,17 @@ func TestGradeControlsDeclaredOutsideThePipeline(t *testing.T) {
 		t.Errorf("without the marker the triggers alone give %q, so the marker is what makes this advisory", got)
 	}
 }
+
+// A job that only runs when somebody asks cannot gate anything, the same way
+// GitHub's workflow_dispatch cannot.
+func TestGradeManualJob(t *testing.T) {
+	pullRequest := []models.Trigger{{Event: "pull_request"}}
+
+	if got := Grade(finding(pullRequest, &models.Job{Manual: true})); got != Advisory {
+		t.Errorf("Grade() = %q, want advisory", got)
+	}
+	// It outranks a condition that cannot be read.
+	if got := Grade(finding(pullRequest, &models.Job{Manual: true, If: "always()"})); got != Advisory {
+		t.Errorf("Grade() = %q, want advisory", got)
+	}
+}

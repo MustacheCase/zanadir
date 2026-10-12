@@ -2,13 +2,11 @@ package models
 
 type Artifact struct {
 	Name string
-	// Triggers empty means none were captured, not that the workflow runs on
-	// everything.
+	// Empty means none were captured, not that it runs on everything.
 	Triggers []Trigger
 	Jobs     []*Job
 	Location string
-	// OutsidePipeline marks a control declared in configuration rather than a
-	// CI job, such as Dependabot: no triggers because there is no pipeline.
+	// Declared in configuration rather than a CI job, such as Dependabot.
 	OutsidePipeline bool
 }
 
@@ -23,8 +21,10 @@ type Job struct {
 	Version string
 	// Run is the shell command of a step that invokes a tool directly.
 	Run string
-	// ContinueOnError is set when the step or its job sets it.
+	// ContinueOnError covers GitLab's allow_failure too.
 	ContinueOnError bool
+	// Manual runs only when somebody asks.
+	Manual bool
 	// If is the step's condition, JobIf the enclosing job's.
 	If    string
 	JobIf string

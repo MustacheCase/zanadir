@@ -23,6 +23,8 @@ type gitlabJobDef struct {
 	AfterScript  []string `yaml:"after_script"`
 	Image        string   `yaml:"image"`
 	Services     []string `yaml:"services"`
+	AllowFailure bool     `yaml:"allow_failure"`
+	When         string   `yaml:"when"`
 }
 
 func (g *GitlabParser) Exists(location string) bool {
@@ -51,10 +53,12 @@ func (g *GitlabParser) Parse(location string) ([]*models.Artifact, error) {
 		script = append(script, job.AfterScript...)
 
 		jobs = append(jobs, &models.Job{
-			Name:    jobName,
-			Package: job.Image,
-			Version: "",
-			Run:     strings.Join(script, "\n"),
+			Name:            jobName,
+			Package:         job.Image,
+			Version:         "",
+			Run:             strings.Join(script, "\n"),
+			ContinueOnError: job.AllowFailure,
+			Manual:          strings.EqualFold(job.When, "manual"),
 		})
 	}
 

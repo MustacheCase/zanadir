@@ -1,8 +1,9 @@
 # Design: grading control effectiveness
 
-**Status:** phases 1-3 implemented for GitHub Actions. Verdicts are reported
-in the table, markdown and SARIF output, informationally - nothing fails a
-scan on them yet. Phase 4 (enforcement) not started
+**Status:** phases 1-3 implemented for GitHub Actions, and the unambiguous
+GitLab signals (`allow_failure`, `when: manual`). Verdicts are reported in the
+table, markdown and SARIF output, informationally - nothing fails a scan on
+them yet. Phase 4 (enforcement) not started
 **Scope:** how zanadir could report whether a control actually protects anything, not just whether it is present
 
 ## Problem

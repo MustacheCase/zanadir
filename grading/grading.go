@@ -50,7 +50,7 @@ func Grade(finding *matcher.Finding) Verdict {
 	}
 
 	if job := finding.Job; job != nil {
-		if job.ContinueOnError {
+		if job.ContinueOnError || job.Manual {
 			return Advisory
 		}
 		if verdict, found := toolSpecific(finding.Rule, job); found {

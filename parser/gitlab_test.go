@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
 )
@@ -210,4 +211,69 @@ scan:
 	assert.Equal(t, "alpine:3.20", job.Package)
 	assert.Contains(t, job.Run, "gitleaks detect")
 	assert.Contains(t, job.Run, "apk add", "before_script should be captured too")
+}
+
+func gitlabRepo(t *testing.T, config string) *models.Artifact {
+	t.Helper()
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, ".gitlab-ci.yml"), []byte(config), 0o644))
+
+	artifacts, err := parser.NewGitlabParser().Parse(dir)
+	assert.NoError(t, err)
+	assert.Len(t, artifacts, 1)
+	return artifacts[0]
+}
+
+// allow_failure is GitLab's continue-on-error, and when: manual is a job that
+// only runs when somebody asks. Neither can stand between a change and the
+// branch, and neither was read before.
+func TestGitlabParsesWeakeningFields(t *testing.T) {
+	tests := []struct {
+		name                    string
+		config                  string
+		expectedContinueOnError bool
+		expectedManual          bool
+	}{
+		{
+			name:                    "allow_failure",
+			config:                  "sast:\n  script:\n    - semgrep ci\n  allow_failure: true\n",
+			expectedContinueOnError: true,
+		},
+		{
+			name:   "allow_failure set to false",
+			config: "sast:\n  script:\n    - semgrep ci\n  allow_failure: false\n",
+		},
+		{
+			name:           "when manual",
+			config:         "sast:\n  script:\n    - semgrep ci\n  when: manual\n",
+			expectedManual: true,
+		},
+		{
+			name:           "when manual in any case",
+			config:         "sast:\n  script:\n    - semgrep ci\n  when: Manual\n",
+			expectedManual: true,
+		},
+		{
+			name:   "when on_success is the default and weakens nothing",
+			config: "sast:\n  script:\n    - semgrep ci\n  when: on_success\n",
+		},
+		{
+			// Runs automatically, just later.
+			name:   "when delayed is not manual",
+			config: "sast:\n  script:\n    - semgrep ci\n  when: delayed\n  start_in: 5 minutes\n",
+		},
+		{
+			name:   "neither set",
+			config: "sast:\n  script:\n    - semgrep ci\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			artifact := gitlabRepo(t, tt.config)
+			assert.Len(t, artifact.Jobs, 1)
+			assert.Equal(t, tt.expectedContinueOnError, artifact.Jobs[0].ContinueOnError)
+			assert.Equal(t, tt.expectedManual, artifact.Jobs[0].Manual)
+		})
+	}
 }

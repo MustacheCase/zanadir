@@ -391,9 +391,21 @@ useful answer than either "you have no SCA" or "you are covered":
   SCA is advisory (.github/dependabot.yml)
 ```
 
+### Platform coverage
+
+GitHub Actions is graded in full. GitLab CI is graded for the two signals that
+are unambiguous there - `allow_failure: true`, which is `continue-on-error`
+under another name, and `when: manual`, a job that only runs when somebody
+asks.
+
+GitLab's `rules:`, `only:` and `except:` are deliberately not interpreted.
+Whether a branch pipeline gates a merge depends on a project setting that is
+not in the repository, so reading them would be guessing. A GitLab job with
+neither weakening field is reported `unknown`, which says nothing rather than
+something wrong. CircleCI has no equivalent signal and is not graded.
+
 In SARIF a weakened control is a `note`, pointing at the file that produced
-the verdict, while a missing category stays a `warning`. Only GitHub Actions
-is graded so far; GitLab CI and CircleCI report nothing here.
+the verdict, while a missing category stays a `warning`.
 
 ## Language-Aware Suggestions
 

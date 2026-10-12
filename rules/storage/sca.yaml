@@ -28,3 +28,17 @@ rules:
       - input: "fail-build"
         equals: "false"
         verdict: "advisory"
+
+  # Both bots declare themselves in a config file, which the dependency-bot
+  # parser reports with the tool name as the whole package. Anchored because
+  # "dependabot/fetch-metadata" is a real action for reading pull request
+  # metadata, and repositories have whole workflows named dependabot-triage.
+  - id: "dependabot-rule"
+    applyOn: ["Job.Package"]
+    categories: ["SCA"]
+    regex: "^dependabot$"
+
+  - id: "renovate-rule"
+    applyOn: ["Job.Package"]
+    categories: ["SCA"]
+    regex: "^renovate$"

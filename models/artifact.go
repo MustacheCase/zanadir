@@ -7,6 +7,11 @@ type Artifact struct {
 	Triggers []Trigger
 	Jobs     []*Job
 	Location string
+	// OutsidePipeline marks a control declared in configuration rather than in
+	// a CI job - Dependabot, Renovate. It runs on the forge's own schedule, so
+	// it has no triggers and can never fail a build, which is a different
+	// thing from a workflow whose triggers could not be read.
+	OutsidePipeline bool
 }
 
 // Trigger is one event a workflow runs on.

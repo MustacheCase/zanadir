@@ -16,33 +16,42 @@ type RepositoryScanner struct {
 	ciParsers []ciParser
 }
 
+// Scan collects artifacts from every parser that finds something, not just the
+// first. Returning early meant a repository using two platforms, or one whose
+// dependency updates are declared outside its pipeline, had the rest of its
+// configuration go unread.
 func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, error) {
+	var artifacts []*models.Artifact
+
 	for _, cp := range r.ciParsers {
 		path := filepath.Join(repositoryDir, cp.Path)
 		if !cp.Parser.Exists(path) {
-			// print log and continue
 			continue
 		}
-		artifacts, err := cp.Parser.Parse(path)
+		parsed, err := cp.Parser.Parse(path)
 		if err != nil {
 			return nil, err
 		}
-		return artifacts, nil
+		artifacts = append(artifacts, parsed...)
 	}
-	// print log which we didn't find any ci actions
-	return nil, nil
+
+	return artifacts, nil
 }
 
 func NewRepositoryScanner() Scanner {
 	githubParser := parser.NewGithubParser()
 	circleCIParser := parser.NewCircleCIParser()
 	gitlabParser := parser.NewGitlabParser()
+	botParser := parser.NewDependencyBotParser()
 
 	return &RepositoryScanner{
 		ciParsers: []ciParser{
 			{Path: "/.github/workflows/", Parser: githubParser},
 			{Path: "/.circleci/", Parser: circleCIParser},
 			{Path: "/.gitlab-ci.yml", Parser: gitlabParser},
+			// Rooted at the repository: these configs have several possible
+			// names and the parser knows them.
+			{Path: "/", Parser: botParser},
 		},
 	}
 }

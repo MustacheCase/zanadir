@@ -38,6 +38,13 @@ func Grade(finding *matcher.Finding) Verdict {
 		return Unknown
 	}
 
+	// A control declared in configuration runs on the forge's schedule and
+	// opens pull requests; it never stands between a change and the branch.
+	// That is advisory, not unknown: there is nothing unreadable about it.
+	if finding.Artifact.OutsidePipeline {
+		return Advisory
+	}
+
 	if job := finding.Job; job != nil {
 		if job.ContinueOnError {
 			return Advisory

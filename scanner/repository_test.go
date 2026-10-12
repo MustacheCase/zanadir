@@ -42,9 +42,12 @@ func TestRepositoryScanner_Scan(t *testing.T) {
 	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
 	circleCIPath := filepath.Join(repoDir, "/.circleci/")
 
+	gitlabCIPath := filepath.Join(repoDir, "/.gitlab-ci.yml")
+
 	mockParser.On("Exists", githubCIPath).Return(false)
 	mockParser.On("Exists", circleCIPath).Return(true)
 	mockParser.On("Parse", circleCIPath).Return([]*models.Artifact{{Name: "artifact1"}}, nil)
+	mockParser.On("Exists", gitlabCIPath).Return(false)
 
 	s := &RepositoryScanner{
 		ciParsers: []ciParser{
@@ -59,6 +62,37 @@ func TestRepositoryScanner_Scan(t *testing.T) {
 	assert.NotNil(t, artifacts)
 	assert.Len(t, artifacts, 1)
 	assert.Equal(t, "artifact1", artifacts[0].Name)
+
+	mockParser.AssertExpectations(t)
+}
+
+// Scanning used to stop at the first parser that found anything, so a
+// repository using two platforms had the second one go unread - and a
+// dependency bot declared outside the pipeline could never be seen at all.
+func TestRepositoryScannerReadsEveryParser(t *testing.T) {
+	setup()
+
+	repoDir := "/test/repo"
+	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
+	circleCIPath := filepath.Join(repoDir, "/.circleci/")
+
+	mockParser.On("Exists", githubCIPath).Return(true)
+	mockParser.On("Parse", githubCIPath).Return([]*models.Artifact{{Name: "from-github"}}, nil)
+	mockParser.On("Exists", circleCIPath).Return(true)
+	mockParser.On("Parse", circleCIPath).Return([]*models.Artifact{{Name: "from-circleci"}}, nil)
+
+	s := &RepositoryScanner{
+		ciParsers: []ciParser{
+			{Path: "/.github/workflows/", Parser: mockParser},
+			{Path: "/.circleci/", Parser: mockParser},
+		},
+	}
+	artifacts, err := s.Scan(repoDir)
+
+	assert.NoError(t, err)
+	assert.Len(t, artifacts, 2)
+	assert.Equal(t, "from-github", artifacts[0].Name)
+	assert.Equal(t, "from-circleci", artifacts[1].Name)
 
 	mockParser.AssertExpectations(t)
 }
@@ -100,6 +134,7 @@ func TestRepositoryScanner_Scan_ParseError(t *testing.T) {
 	mockParser.On("Exists", githubCIPath).Return(false)
 	mockParser.On("Exists", circleCIPath).Return(true)
 	mockParser.On("Parse", circleCIPath).Return(nil, errors.New("parse error"))
+	mockParser.On("Exists", filepath.Join(repoDir, "/.gitlab-ci.yml")).Return(false).Maybe()
 
 	s := &RepositoryScanner{
 		ciParsers: []ciParser{

@@ -338,3 +338,27 @@ func TestGradeToolSpecificFlags(t *testing.T) {
 		})
 	}
 }
+
+// Dependabot and Renovate run on the forge's schedule and open pull requests.
+// They never stand between a change and the branch, which is advisory - and
+// specifically not unknown, because there is nothing unreadable about them.
+func TestGradeControlsDeclaredOutsideThePipeline(t *testing.T) {
+	bot := &matcher.Finding{
+		Category: "SCA",
+		Artifact: &models.Artifact{
+			Name:            "dependabot",
+			Location:        ".github/dependabot.yml",
+			OutsidePipeline: true,
+		},
+		Job: &models.Job{Name: "dependabot", Package: "dependabot"},
+	}
+
+	if got := Grade(bot); got != Advisory {
+		t.Errorf("Grade() = %q, want advisory", got)
+	}
+
+	// It outranks the trigger analysis that would otherwise call it unknown.
+	if got := gradeTriggers(bot.Artifact); got != Unknown {
+		t.Errorf("without the marker the triggers alone give %q, so the marker is what makes this advisory", got)
+	}
+}

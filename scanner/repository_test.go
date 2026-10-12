@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -149,4 +150,56 @@ func TestRepositoryScanner_Scan_ParseError(t *testing.T) {
 	assert.Nil(t, artifacts)
 
 	mockParser.AssertExpectations(t)
+}
+
+// The mocked tests above cannot catch a path-convention mismatch between the
+// scanner and a parser, which is how GitLab CI went undetected: the scanner
+// handed the parser the file path and the parser appended the filename again,
+// so Exists never returned true. This exercises the real parsers.
+func TestRepositoryScannerFindsEveryPlatform(t *testing.T) {
+	tests := []struct {
+		name  string
+		files map[string]string
+	}{
+		{
+			name: "github actions",
+			files: map[string]string{
+				".github/workflows/ci.yml": "name: ci\non: pull_request\njobs:\n  a:\n    steps:\n      - run: semgrep ci\n",
+			},
+		},
+		{
+			name: "gitlab ci",
+			files: map[string]string{
+				".gitlab-ci.yml": "sast:\n  script:\n    - semgrep ci\n",
+			},
+		},
+		{
+			name: "circleci",
+			files: map[string]string{
+				".circleci/config.yml": "version: 2.1\njobs:\n  sast:\n    steps:\n      - run: semgrep ci\n",
+			},
+		},
+		{
+			name: "dependabot",
+			files: map[string]string{
+				".github/dependabot.yml": "version: 2\n",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for rel, content := range tt.files {
+				path := filepath.Join(dir, rel)
+				assert.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+				assert.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+			}
+
+			artifacts, err := NewRepositoryScanner().Scan(dir)
+
+			assert.NoError(t, err)
+			assert.NotEmpty(t, artifacts, "the platform's configuration was not read at all")
+		})
+	}
 }

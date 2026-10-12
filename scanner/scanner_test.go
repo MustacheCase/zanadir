@@ -85,9 +85,9 @@ func TestNewRepositoryScanner(t *testing.T) {
 	expectedPaths := []string{
 		"/.github/workflows/",
 		"/.circleci/",
-		"/.gitlab-ci.yml",
-		// The dependency bots are rooted at the repository: their configs have
-		// several possible names and sit outside any CI directory.
+		// GitLab and the dependency bots are rooted at the repository: the
+		// parsers take the directory to look in, not the file.
+		"/",
 		"/",
 	}
 

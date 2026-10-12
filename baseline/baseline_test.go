@@ -21,7 +21,7 @@ func TestLoadMissingFileIsNotAnError(t *testing.T) {
 func TestWriteThenLoadRoundTrips(t *testing.T) {
 	path := filepath.Join(t.TempDir(), baseline.DefaultPath)
 
-	assert.NoError(t, baseline.Write(path, []string{"Coverage", "SCA"}))
+	assert.NoError(t, baseline.Write(path, []string{"Coverage", "SCA"}, nil))
 
 	b, err := baseline.Load(path)
 	assert.NoError(t, err)
@@ -33,7 +33,7 @@ func TestWriteThenLoadRoundTrips(t *testing.T) {
 
 func TestWriteSortsForStableDiffs(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "b.yaml")
-	assert.NoError(t, baseline.Write(path, []string{"Linter", "Coverage", "SCA"}))
+	assert.NoError(t, baseline.Write(path, []string{"Linter", "Coverage", "SCA"}, nil))
 
 	b, err := baseline.Load(path)
 	assert.NoError(t, err)
@@ -42,7 +42,7 @@ func TestWriteSortsForStableDiffs(t *testing.T) {
 
 func TestWriteIncludesExplanatoryHeader(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "b.yaml")
-	assert.NoError(t, baseline.Write(path, []string{"SCA"}))
+	assert.NoError(t, baseline.Write(path, []string{"SCA"}, nil))
 
 	data, err := os.ReadFile(path)
 	assert.NoError(t, err)
@@ -88,7 +88,72 @@ func TestLoadReportsUnreadablePath(t *testing.T) {
 func TestWriteReportsUnwritablePath(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "no-such-dir", "b.yaml")
 
-	err := baseline.Write(path, []string{"SCA"})
+	err := baseline.Write(path, []string{"SCA"}, nil)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to write baseline")
+}
+
+func TestWriteAndLoadWeakenedVerdicts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "base.yaml")
+
+	assert.NoError(t, baseline.Write(path, []string{"SCA"}, map[string]string{
+		"Secrets Detection": "partial",
+		"Linter":            "advisory",
+	}))
+
+	loaded, err := baseline.Load(path)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"SCA"}, loaded.Categories)
+
+	verdict, ok := loaded.AcceptedVerdict("Secrets Detection")
+	assert.True(t, ok)
+	assert.Equal(t, "partial", verdict)
+
+	verdict, ok = loaded.AcceptedVerdict("Linter")
+	assert.True(t, ok)
+	assert.Equal(t, "advisory", verdict)
+
+	_, ok = loaded.AcceptedVerdict("SAST")
+	assert.False(t, ok)
+}
+
+// Category names come from a file a person edits.
+func TestAcceptedVerdictIsCaseInsensitive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "base.yaml")
+	assert.NoError(t, baseline.Write(path, nil, map[string]string{"  secrets detection ": "advisory"}))
+
+	loaded, err := baseline.Load(path)
+	assert.NoError(t, err)
+
+	verdict, ok := loaded.AcceptedVerdict("Secrets Detection")
+	assert.True(t, ok)
+	assert.Equal(t, "advisory", verdict)
+}
+
+// A missing baseline file accepts nothing rather than everything.
+func TestAcceptedVerdictWithNoBaseline(t *testing.T) {
+	var absent *baseline.Baseline
+	_, ok := absent.AcceptedVerdict("SCA")
+	assert.False(t, ok)
+
+	loaded, err := baseline.Load(filepath.Join(t.TempDir(), "absent.yaml"))
+	assert.NoError(t, err)
+	_, ok = loaded.AcceptedVerdict("SCA")
+	assert.False(t, ok)
+}
+
+// The weakened section is omitted when there is nothing in it, so a baseline
+// written before verdicts existed keeps loading and keeps looking the same.
+func TestWriteOmitsAnEmptyWeakenedSection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "base.yaml")
+	assert.NoError(t, baseline.Write(path, []string{"SCA"}, nil))
+
+	data, err := os.ReadFile(path)
+	assert.NoError(t, err)
+	// The key, not the word: the header explains what the section is for.
+	assert.NotContains(t, string(data), "weakened:")
+
+	loaded, err := baseline.Load(path)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"SCA"}, loaded.Categories)
 }

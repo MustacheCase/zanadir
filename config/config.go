@@ -29,6 +29,8 @@ type Config struct {
 	Enforce            bool
 	// FailOn limits enforcement to specific categories; empty means all.
 	FailOn []string
+	// FailOnWeakened makes a control that cannot fail a build fail the scan.
+	FailOnWeakened bool
 	// Baseline is the path to a file of already-accepted gaps.
 	Baseline      string
 	WriteBaseline bool
@@ -89,6 +91,7 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	}
 
 	enforce, _ := cmd.Flags().GetBool("enforce")
+	failOnWeakened, _ := cmd.Flags().GetBool("fail-on-weakened")
 	failOn, _ := cmd.Flags().GetStringSlice("fail-on")
 	failOn, err = normalizeCategories(failOn)
 	if err != nil {
@@ -116,6 +119,7 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 		ExcludedCategories: excludedCategories,
 		Enforce:            enforce,
 		FailOn:             failOn,
+		FailOnWeakened:     failOnWeakened,
 		Baseline:           baselinePath,
 		WriteBaseline:      writeBaseline,
 		Debug:              debug,

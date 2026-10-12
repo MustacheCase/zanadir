@@ -102,6 +102,7 @@ func newScanCmd(dir string, excluded []string) *cobra.Command {
 	cmd.Flags().String("baseline", "", "baseline")
 	cmd.Flags().Bool("write-baseline", false, "write baseline")
 	cmd.Flags().String("badge", "", "badge")
+	cmd.Flags().Bool("fail-on-weakened", false, "fail on weakened")
 	return cmd
 }
 
@@ -259,4 +260,20 @@ func TestCreateConfigListsEveryFormatWhenRejecting(t *testing.T) {
 	for _, format := range OutputFormats {
 		assert.Contains(t, err.Error(), format)
 	}
+}
+
+func TestCreateConfigReadsFailOnWeakened(t *testing.T) {
+	cmd := newScanCmd(t.TempDir(), nil)
+	assert.NoError(t, cmd.Flags().Set("fail-on-weakened", "true"))
+
+	cfg, err := CreateConfig(cmd)
+	assert.NoError(t, err)
+	assert.True(t, cfg.FailOnWeakened)
+}
+
+// Off by default: a weakened control must not start failing builds on upgrade.
+func TestCreateConfigDefaultsToNotFailingOnWeakened(t *testing.T) {
+	cfg, err := CreateConfig(newScanCmd(t.TempDir(), nil))
+	assert.NoError(t, err)
+	assert.False(t, cfg.FailOnWeakened)
 }

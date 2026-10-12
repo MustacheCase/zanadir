@@ -70,6 +70,7 @@ func NewApp() *cobra.Command {
 	scanCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
 	scanCmd.Flags().Bool("enforce", false, "Fails the CI process when any category is uncovered (optional)")
 	scanCmd.Flags().StringSlice("fail-on", []string{}, "Fail only when these specific categories are uncovered (optional)")
+	scanCmd.Flags().Bool("fail-on-weakened", false, "Also fail when a category has tooling that cannot fail a build (optional)")
 	scanCmd.Flags().String("baseline", "", "Path to a baseline file of already-accepted gaps (optional)")
 	scanCmd.Flags().Bool("write-baseline", false, "Write the current uncovered categories to the baseline file and exit successfully (optional)")
 	scanCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")

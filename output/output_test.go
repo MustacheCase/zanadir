@@ -583,3 +583,63 @@ func TestRenderPropagatesWeakenedWriteError(t *testing.T) {
 		}
 	})
 }
+
+// The score's denominator shrinks when a category is ruled out, so the report
+// has to say which, or the number looks arbitrary.
+func TestResponse_TableNamesCategoriesThatAreNotApplicable(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		report := Report{
+			Suggestions:   getSampleSuggestions(),
+			Format:        config.OutputTable,
+			Score:         score.Score{Covered: 8, Total: 10},
+			NotApplicable: []string{"IaC Security"},
+		}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "IaC Security is not applicable and is out of the score") {
+		t.Errorf("expected the ruled-out category to be named:\n%s", out)
+	}
+}
+
+func TestNotApplicableLine(t *testing.T) {
+	one := notApplicableLine([]string{"IaC Security"})
+	if !strings.HasPrefix(one, "IaC Security is not applicable") {
+		t.Errorf("singular form reads badly: %q", one)
+	}
+
+	two := notApplicableLine([]string{"IaC Security", "Performance Testing"})
+	if !strings.Contains(two, "2 categories are not applicable") || !strings.Contains(two, "IaC Security, Performance Testing") {
+		t.Errorf("plural form reads badly: %q", two)
+	}
+}
+
+func TestResponse_MarkdownNamesCategoriesThatAreNotApplicable(t *testing.T) {
+	service := NewOutputService()
+
+	out := captureStdout(func() {
+		report := Report{Format: config.OutputMarkdown, Score: score.Score{Covered: 10, Total: 10}, NotApplicable: []string{"IaC Security"}}
+		if err := service.Response(report); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "_IaC Security is not applicable") {
+		t.Errorf("expected the ruled-out category in markdown:\n%s", out)
+	}
+}
+
+func TestRenderNotApplicablePropagatesWriteErrors(t *testing.T) {
+	boom := errors.New("disk full")
+
+	if err := renderNotApplicable(failingWriter{err: boom}, []string{"IaC Security"}, false); !errors.Is(err, boom) {
+		t.Errorf("expected the write error to propagate, got %v", err)
+	}
+	if err := renderNotApplicable(failingWriter{err: boom}, nil, false); err != nil {
+		t.Errorf("an empty line should not touch the writer, got %v", err)
+	}
+}

@@ -25,6 +25,9 @@ type Report struct {
 	// Weakened lists categories that have tooling which cannot fully protect
 	// the repository. Informational: it never fails a scan.
 	Weakened []Weakness
+	// NotApplicable lists categories the repository has nothing for. They are
+	// out of the score, so the report has to say which.
+	NotApplicable []string
 }
 
 // Weakness is a category whose tooling is present but cannot fully protect the
@@ -131,7 +134,7 @@ func markdownCell(text string) string {
 	return strings.ReplaceAll(strings.Join(strings.Fields(text), " "), "|", "\\|")
 }
 
-func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score, weaknesses []Weakness) error {
+func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score, weaknesses []Weakness, notApplicable []string) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n### zanadir\n\n%s\n", MarkdownMarker, headline(coverage, len(suggestions)))
 
@@ -151,6 +154,10 @@ func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, co
 		}
 	}
 
+	if len(notApplicable) > 0 {
+		fmt.Fprintf(&b, "\n_%s_\n", markdownCell(notApplicableLine(notApplicable)))
+	}
+
 	if len(weaknesses) > 0 {
 		fmt.Fprintf(&b, "\n**%s**\n\n", weakenedHeadline(len(weaknesses)))
 		for _, weakness := range weaknesses {
@@ -160,6 +167,22 @@ func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, co
 	}
 
 	_, err := fmt.Fprint(w, b.String())
+	return err
+}
+
+func notApplicableLine(categories []string) string {
+	if len(categories) == 1 {
+		return fmt.Sprintf("%s is not applicable and is out of the score: nothing in this repository needs it.", categories[0])
+	}
+	return fmt.Sprintf("%d categories are not applicable and are out of the score: %s.",
+		len(categories), strings.Join(categories, ", "))
+}
+
+func renderNotApplicable(w io.Writer, categories []string, colour bool) error {
+	if len(categories) == 0 {
+		return nil
+	}
+	_, err := fmt.Fprintf(w, "\n%s\n", paint(colour, ansiGreen, notApplicableLine(categories)))
 	return err
 }
 
@@ -218,7 +241,7 @@ func render(w io.Writer, report Report) error {
 	}
 
 	if responseType == config.OutputMarkdown {
-		return renderMarkdown(w, suggestions, report.Score, report.Weakened)
+		return renderMarkdown(w, suggestions, report.Score, report.Weakened, report.NotApplicable)
 	}
 
 	if responseType == config.OutputTable {
@@ -228,7 +251,10 @@ func render(w io.Writer, report Report) error {
 			if _, err := fmt.Fprintln(w, paint(colour, ansiGreen, headline(report.Score, 0))); err != nil {
 				return err
 			}
-			return renderWeakened(w, report.Weakened, colour)
+			if err := renderWeakened(w, report.Weakened, colour); err != nil {
+				return err
+			}
+			return renderNotApplicable(w, report.NotApplicable, colour)
 		}
 
 		if _, err := fmt.Fprintf(w, "%s\n\n", paint(colour, ansiBold, headline(report.Score, len(suggestions)))); err != nil {
@@ -259,7 +285,10 @@ func render(w io.Writer, report Report) error {
 		}
 
 		table.Render()
-		return renderWeakened(w, report.Weakened, colour)
+		if err := renderWeakened(w, report.Weakened, colour); err != nil {
+			return err
+		}
+		return renderNotApplicable(w, report.NotApplicable, colour)
 	}
 
 	data, err := json.MarshalIndent(suggestions, "", "  ")

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/applicability"
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/fixer"
@@ -60,9 +61,9 @@ func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 // weakened lists the covered categories whose tooling cannot fully protect the
 // repository. An excluded category is left out: the operator has said it does
 // not apply, and grading it anyway would argue with them.
-func weakened(cfg *config.Config, findings []*matcher.Finding, debugf func(string, ...interface{})) []output.Weakness {
-	skip := make(map[string]bool, len(cfg.ExcludedCategories))
-	for _, category := range cfg.ExcludedCategories {
+func weakened(excluded []string, dir string, findings []*matcher.Finding, debugf func(string, ...interface{})) []output.Weakness {
+	skip := make(map[string]bool, len(excluded))
+	for _, category := range excluded {
 		skip[category] = true
 	}
 
@@ -76,7 +77,7 @@ func weakened(cfg *config.Config, findings []*matcher.Finding, debugf func(strin
 		list = append(list, output.Weakness{
 			Category: category,
 			Verdict:  string(assessment.Verdict),
-			Location: repoRelative(cfg.Dir, assessment.Location),
+			Location: repoRelative(dir, assessment.Location),
 		})
 	}
 
@@ -85,12 +86,20 @@ func weakened(cfg *config.Config, findings []*matcher.Finding, debugf func(strin
 	return list
 }
 
+// scanResult is one run of the pipeline.
+type scanResult struct {
+	suggestions   []*suggester.CategorySuggestion
+	artifacts     []*models.Artifact
+	weaknesses    []output.Weakness
+	notApplicable []string
+}
+
 // uncovered runs the scan pipeline and returns the categories with no tooling.
-func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface{}), ignore func(string) bool) ([]*suggester.CategorySuggestion, []*models.Artifact, []output.Weakness, error) {
+func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface{}), ignore func(string) bool) (*scanResult, error) {
 	artifacts, err := h.ScanService.Scan(cfg.Dir)
 	if err != nil {
 		debugf("Scan error: %v", err)
-		return nil, nil, nil, err
+		return nil, err
 	}
 	debugf("Found %d artifacts", len(artifacts))
 
@@ -116,13 +125,25 @@ func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface
 	languages := language.Detect(cfg.Dir)
 	debugf("Detected languages: %v", languages)
 
-	suggestions := h.SuggestionService.FindSuggestions(findings, cfg.ExcludedCategories, languages)
+	notApplicable := applicability.NotApplicable(cfg.Dir)
+	debugf("Not applicable: %v", notApplicable)
+
+	// A category with nothing to scan is skipped exactly as an operator-
+	// excluded one is, and leaves the score's denominator the same way.
+	skip := append(append([]string{}, cfg.ExcludedCategories...), notApplicable...)
+
+	suggestions := h.SuggestionService.FindSuggestions(findings, skip, languages)
 	debugf("Total suggestions: %d", len(suggestions))
 
-	weaknesses := weakened(cfg, findings, debugf)
+	weaknesses := weakened(skip, cfg.Dir, findings, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
 
-	return suggestions, artifacts, weaknesses, nil
+	return &scanResult{
+		suggestions:   suggestions,
+		artifacts:     artifacts,
+		weaknesses:    weaknesses,
+		notApplicable: notApplicable,
+	}, nil
 }
 
 // Fix prints ready-to-paste CI configuration for the uncovered categories.
@@ -132,10 +153,11 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 		debugf = logger.GetLogger().Info
 	}
 
-	suggestions, _, _, err := h.uncovered(cfg, debugf, fixer.IsGeneratedWorkflow)
+	result, err := h.uncovered(cfg, debugf, fixer.IsGeneratedWorkflow)
 	if err != nil {
 		return err
 	}
+	suggestions := result.suggestions
 
 	fixService, err := fixer.NewFixService()
 	if err != nil {
@@ -174,21 +196,23 @@ func (h *Handler) Execute(cfg *config.Config) error {
 	}
 
 	debugf("Starting scan for directory: %s", cfg.Dir)
-	suggestions, artifacts, weaknesses, err := h.uncovered(cfg, debugf, nil)
+	result, err := h.uncovered(cfg, debugf, nil)
 	if err != nil {
 		return err
 	}
+	suggestions := result.suggestions
 
-	coverage := score.Of(cfg.ExcludedCategories, len(suggestions))
+	coverage := score.Of(append(append([]string{}, cfg.ExcludedCategories...), result.notApplicable...), len(suggestions))
 	debugf("Coverage score: %s", coverage)
 
 	err = h.OutputService.Response(output.Report{
-		Suggestions: suggestions,
-		Format:      cfg.Output,
-		DestPath:    cfg.OutputFile,
-		Anchor:      sarifAnchor(cfg.Dir, artifacts),
-		Score:       coverage,
-		Weakened:    weaknesses,
+		Suggestions:   suggestions,
+		Format:        cfg.Output,
+		DestPath:      cfg.OutputFile,
+		Anchor:        sarifAnchor(cfg.Dir, result.artifacts),
+		Score:         coverage,
+		Weakened:      result.weaknesses,
+		NotApplicable: result.notApplicable,
 	})
 	if err != nil {
 		debugf("Output error: %v", err)

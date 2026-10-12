@@ -15,6 +15,20 @@ categories:
         repository: "https://github.com/snyk/snyk"
         description: "A developer-first security tool that finds and automatically fixes vulnerabilities in dependencies."
 
+      - name: "govulncheck"
+        repository: "https://github.com/golang/vuln"
+        description: "Reports the known vulnerabilities that actually reach your code, using the Go module graph and call graph."
+        language: "Go"
+
+      - name: "pip-audit"
+        repository: "https://github.com/pypa/pip-audit"
+        description: "Audits Python environments and requirements files against the Python Packaging Advisory Database."
+        language: "Python"
+
+      - name: "OSV-Scanner"
+        repository: "https://github.com/google/osv-scanner"
+        description: "Matches a project's lockfiles against the OSV database, which aggregates advisories across ecosystems."
+
         
   - id: "Secrets Detection"
     name: "Data Leakage & Secrets Detection"

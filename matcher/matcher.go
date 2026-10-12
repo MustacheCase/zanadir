@@ -9,14 +9,10 @@ type Finding struct {
 	Category string
 	RuleID   string
 	Location string
-	// Artifact is the workflow the rule matched and Job the step inside it.
-	// Grading needs both. Job is nil when the match was on the workflow name,
-	// which belongs to no step.
+	// Job is nil when the match was on the workflow name.
 	Artifact *models.Artifact
 	Job      *models.Job
-	// Rule is what matched, so grading can read the tool-specific ways this
-	// particular tool can be configured not to fail a build.
-	Rule *rules.Rule
+	Rule     *rules.Rule
 }
 
 type Matcher interface {
@@ -50,12 +46,8 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 	return findings
 }
 
-// matchingJobs returns every step a rule matches, not just the first: the same
-// tool can be enforcing in one job and unable to fail the build in another,
-// and a category is only as weak as its strongest control.
-//
-// A match on the workflow name belongs to no step, so it yields a single nil
-// and grading has only the workflow's triggers to go on.
+// matchingJobs returns every step a rule matches. A match on the workflow name
+// belongs to no step and yields a single nil.
 func matchingJobs(artifact *models.Artifact, rule *rules.Rule, field string) []*models.Job {
 	if field == rules.FieldArtifactName {
 		if rule.Regex.MatchString(artifact.Name) {
@@ -77,8 +69,8 @@ func matchingJobs(artifact *models.Artifact, rule *rules.Rule, field string) []*
 		default:
 			continue
 		}
-		// Guarding the empty string keeps a rule that can match it from
-		// matching every step that lacks the field. No shipped rule can.
+		// A rule that can match "" would otherwise match every step that
+		// lacks the field.
 		if text != "" && rule.Regex.MatchString(text) {
 			matched = append(matched, job)
 		}

@@ -41,7 +41,8 @@ func NewRepositoryScanner() Scanner {
 		ciParsers: []ciParser{
 			{Path: "/.github/workflows/", Parser: parser.NewGithubParser()},
 			{Path: "/.circleci/", Parser: parser.NewCircleCIParser()},
-			{Path: "/.gitlab-ci.yml", Parser: parser.NewGitlabParser()},
+			// The parsers take the directory to look in, not the file.
+			{Path: "/", Parser: parser.NewGitlabParser()},
 			// Rooted at the repository: these configs sit outside any CI
 			// directory and have several possible names.
 			{Path: "/", Parser: parser.NewDependencyBotParser()},

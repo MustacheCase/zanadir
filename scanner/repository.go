@@ -16,10 +16,8 @@ type RepositoryScanner struct {
 	ciParsers []ciParser
 }
 
-// Scan collects artifacts from every parser that finds something, not just the
-// first. Returning early meant a repository using two platforms, or one whose
-// dependency updates are declared outside its pipeline, had the rest of its
-// configuration go unread.
+// Scan collects artifacts from every parser that finds something. Stopping at
+// the first left a repository using two platforms half read.
 func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 
@@ -39,19 +37,14 @@ func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, erro
 }
 
 func NewRepositoryScanner() Scanner {
-	githubParser := parser.NewGithubParser()
-	circleCIParser := parser.NewCircleCIParser()
-	gitlabParser := parser.NewGitlabParser()
-	botParser := parser.NewDependencyBotParser()
-
 	return &RepositoryScanner{
 		ciParsers: []ciParser{
-			{Path: "/.github/workflows/", Parser: githubParser},
-			{Path: "/.circleci/", Parser: circleCIParser},
-			{Path: "/.gitlab-ci.yml", Parser: gitlabParser},
-			// Rooted at the repository: these configs have several possible
-			// names and the parser knows them.
-			{Path: "/", Parser: botParser},
+			{Path: "/.github/workflows/", Parser: parser.NewGithubParser()},
+			{Path: "/.circleci/", Parser: parser.NewCircleCIParser()},
+			{Path: "/.gitlab-ci.yml", Parser: parser.NewGitlabParser()},
+			// Rooted at the repository: these configs sit outside any CI
+			// directory and have several possible names.
+			{Path: "/", Parser: parser.NewDependencyBotParser()},
 		},
 	}
 }

@@ -8,19 +8,14 @@ import (
 )
 
 // DependencyBotParser reads the dependency-update bots, which declare
-// themselves in a configuration file rather than in a CI job. Nothing else
-// read them, so a repository whose dependency updates come from Dependabot was
-// told it had no software composition analysis at all.
+// themselves in a configuration file rather than a CI job.
 type DependencyBotParser struct{}
 
-// botConfig is one bot and the paths it may be configured at, relative to the
-// repository root. Renovate accepts many names and reads the first it finds.
-type botConfig struct {
+// Renovate accepts many names and reads the first it finds.
+var botConfigs = []struct {
 	tool  string
 	paths []string
-}
-
-var botConfigs = []botConfig{
+}{
 	{
 		tool:  "dependabot",
 		paths: []string{".github/dependabot.yml", ".github/dependabot.yaml"},
@@ -40,9 +35,8 @@ var botConfigs = []botConfig{
 	},
 }
 
-// found returns the first configured path for a bot, relative to the root.
-func (b *DependencyBotParser) found(root string, bot botConfig) string {
-	for _, rel := range bot.paths {
+func found(root string, paths []string) string {
+	for _, rel := range paths {
 		info, err := os.Stat(filepath.Join(root, rel))
 		if err == nil && !info.IsDir() {
 			return rel
@@ -53,7 +47,7 @@ func (b *DependencyBotParser) found(root string, bot botConfig) string {
 
 func (b *DependencyBotParser) Exists(root string) bool {
 	for _, bot := range botConfigs {
-		if b.found(root, bot) != "" {
+		if found(root, bot.paths) != "" {
 			return true
 		}
 	}
@@ -61,13 +55,12 @@ func (b *DependencyBotParser) Exists(root string) bool {
 }
 
 // Parse reports one artifact per configured bot. The contents are not read:
-// the file existing is the control, and its ecosystems say which manifests are
-// watched, not whether anything is watched at all.
+// the file existing is the control.
 func (b *DependencyBotParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 
 	for _, bot := range botConfigs {
-		rel := b.found(root, bot)
+		rel := found(root, bot.paths)
 		if rel == "" {
 			continue
 		}
@@ -75,9 +68,7 @@ func (b *DependencyBotParser) Parse(root string) ([]*models.Artifact, error) {
 			Name:            bot.tool,
 			Location:        filepath.Join(root, rel),
 			OutsidePipeline: true,
-			// The tool name is the whole of the match, so the rule can anchor
-			// on it: "dependabot/fetch-metadata" is a real action that has
-			// nothing to do with dependency updates.
+			// The tool name is the whole package so the rule can anchor on it.
 			Jobs: []*models.Job{{Name: bot.tool, Package: bot.tool}},
 		})
 	}

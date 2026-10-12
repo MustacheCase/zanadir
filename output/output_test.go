@@ -643,3 +643,43 @@ func TestRenderNotApplicablePropagatesWriteErrors(t *testing.T) {
 		t.Errorf("an empty line should not touch the writer, got %v", err)
 	}
 }
+
+// failOnWriter fails once it sees a given string, so the failing write is the
+// one intended rather than whichever happens to land Nth.
+type failOnWriter struct {
+	substr string
+	err    error
+}
+
+func (f failOnWriter) Write(p []byte) (int, error) {
+	if strings.Contains(string(p), f.substr) {
+		return 0, f.err
+	}
+	return len(p), nil
+}
+
+// The weakened and not-applicable blocks are written after the table, so a
+// failure in either has to come back out through render.
+func TestRenderPropagatesErrorsFromTheBlocksBelowTheTable(t *testing.T) {
+	boom := errors.New("disk full")
+	report := Report{
+		Suggestions:   getSampleSuggestions(),
+		Format:        config.OutputTable,
+		Weakened:      sampleWeaknesses(),
+		NotApplicable: []string{"IaC Security"},
+	}
+
+	t.Run("weakened", func(t *testing.T) {
+		err := render(failOnWriter{substr: "are weakened", err: boom}, report)
+		if !errors.Is(err, boom) {
+			t.Errorf("expected the write error to propagate, got %v", err)
+		}
+	})
+
+	t.Run("not applicable", func(t *testing.T) {
+		err := render(failOnWriter{substr: "not applicable", err: boom}, report)
+		if !errors.Is(err, boom) {
+			t.Errorf("expected the write error to propagate, got %v", err)
+		}
+	})
+}

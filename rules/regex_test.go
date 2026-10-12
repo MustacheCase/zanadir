@@ -71,6 +71,28 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"grypeless"},
 		},
 		{
+			ruleID:         "govulncheck-rule",
+			shouldMatch:    []string{"govulncheck ./...", "golang/govulncheck-action", "go run golang.org/x/vuln/cmd/govulncheck@latest ./..."},
+			shouldNotMatch: []string{"govulncheckers", "mygovulncheck"},
+		},
+		{
+			ruleID:         "osv-scanner-rule",
+			shouldMatch:    []string{"osv-scanner -r .", "google/osv-scanner-action"},
+			shouldNotMatch: []string{"osv-scannerx", "osv database"},
+		},
+		{
+			ruleID:         "pip-audit-rule",
+			shouldMatch:    []string{"pip-audit -r requirements.txt", "pypa/gh-action-pip-audit"},
+			shouldNotMatch: []string{"pip-auditor", "pip install audit"},
+		},
+		{
+			// "audit" on its own is in half the workflow names on GitHub, so
+			// only the subcommand counts.
+			ruleID:         "npm-audit-rule",
+			shouldMatch:    []string{"npm audit", "npm audit --audit-level=high", "yarn audit", "pnpm audit --prod"},
+			shouldNotMatch: []string{"npm auditor", "audit", "security audit job", "npm install", "npm run audit-ci"},
+		},
+		{
 			ruleID:         "snyk-rule",
 			shouldMatch:    []string{"snyk test", "snyk/actions/golang"},
 			shouldNotMatch: []string{"snyking"},

@@ -238,10 +238,25 @@ with write access to a fork's code.
 Every scan is summarised as a coverage score: the categories that apply to the
 repository, minus the ones still uncovered.
 
-Two rules keep the number honest:
+Three rules keep the number honest:
 
 - **Excluded categories leave the denominator.** A repository is not marked
   down for a category it has declared irrelevant with `--excluded-categories`.
+- **So do categories with nothing to scan.** A repository with no Terraform,
+  Helm chart, Kubernetes manifest or Dockerfile is not told to add Checkov,
+  and is scored out of ten rather than eleven. The scan says which:
+
+  ```
+  IaC Security is not applicable and is out of the score: nothing in this
+  repository needs it.
+  ```
+
+  Only IaC Security is ruled out this way. Every other category applies to any
+  codebase, and the ones that arguably do not — load testing a library, an
+  SBOM for something that ships nothing — cannot be told apart from the ones
+  that do, so guessing would rule out categories a repository does need. The
+  detection is deliberately broad: a directory called `infra`, `k8s` or
+  `charts` is enough to keep the category.
 - **Baseline-accepted gaps still count as uncovered.** A baseline records that
   a gap is tolerated, not that it was closed. A score that rose because someone
   committed a file would measure nothing.

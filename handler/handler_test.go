@@ -655,7 +655,6 @@ func weakFinding(category, location string, job *models.Job) *matcher.Finding {
 
 func TestWeakenedReportsOnlyWhatItShould(t *testing.T) {
 	coe := &models.Job{ContinueOnError: true}
-	cfg := &config.Config{Dir: "/repo"}
 	silent := func(string, ...interface{}) {}
 
 	findings := []*matcher.Finding{
@@ -666,7 +665,7 @@ func TestWeakenedReportsOnlyWhatItShould(t *testing.T) {
 		weakFinding("SCA", "/repo/.github/workflows/sca.yml", &models.Job{If: "always()"}),
 	}
 
-	weaknesses := weakened(cfg, findings, silent)
+	weaknesses := weakened(nil, "/repo", findings, silent)
 
 	assert.Len(t, weaknesses, 1)
 	assert.Equal(t, "Secrets Detection", weaknesses[0].Category)
@@ -679,9 +678,7 @@ func TestWeakenedReportsOnlyWhatItShould(t *testing.T) {
 // with the operator.
 func TestWeakenedSkipsExcludedCategories(t *testing.T) {
 	coe := &models.Job{ContinueOnError: true}
-	cfg := &config.Config{Dir: "/repo", ExcludedCategories: []string{"Secrets Detection"}}
-
-	weaknesses := weakened(cfg, []*matcher.Finding{
+	weaknesses := weakened([]string{"Secrets Detection"}, "/repo", []*matcher.Finding{
 		weakFinding("Secrets Detection", "/repo/a.yml", coe),
 		weakFinding("Linter", "/repo/b.yml", coe),
 	}, func(string, ...interface{}) {})
@@ -694,9 +691,7 @@ func TestWeakenedSkipsExcludedCategories(t *testing.T) {
 // between identical runs.
 func TestWeakenedIsSorted(t *testing.T) {
 	coe := &models.Job{ContinueOnError: true}
-	cfg := &config.Config{Dir: "/repo"}
-
-	weaknesses := weakened(cfg, []*matcher.Finding{
+	weaknesses := weakened(nil, "/repo", []*matcher.Finding{
 		weakFinding("Unit Tests", "/repo/c.yml", coe),
 		weakFinding("Coverage", "/repo/a.yml", coe),
 		weakFinding("Linter", "/repo/b.yml", coe),
@@ -711,9 +706,7 @@ func TestWeakenedIsSorted(t *testing.T) {
 
 // A workflow outside the scan directory has no path a report can point at.
 func TestWeakenedDropsLocationsOutsideTheScanDirectory(t *testing.T) {
-	cfg := &config.Config{Dir: "/repo"}
-
-	weaknesses := weakened(cfg, []*matcher.Finding{
+	weaknesses := weakened(nil, "/repo", []*matcher.Finding{
 		weakFinding("Linter", "/elsewhere/ci.yml", &models.Job{ContinueOnError: true}),
 	}, func(string, ...interface{}) {})
 

@@ -1,9 +1,9 @@
 # Design: grading control effectiveness
 
-**Status:** phases 1-3 implemented for GitHub Actions, and the unambiguous
-GitLab signals (`allow_failure`, `when: manual`). Verdicts are reported in the
-table, markdown and SARIF output, informationally - nothing fails a scan on
-them yet. Phase 4 (enforcement) not started
+**Status:** all four phases implemented, for GitHub Actions and the
+unambiguous GitLab signals (`allow_failure`, `when: manual`). Verdicts are
+reported in the table, markdown and SARIF, and `--fail-on-weakened` makes them
+fail a scan. Off by default
 **Scope:** how zanadir could report whether a control actually protects anything, not just whether it is present
 
 ## Problem
@@ -149,13 +149,12 @@ not require touching 29 rule files.
 
 ## Interaction with existing features
 
-- **Enforcement** (`--fail-on`, baseline): a weakened control should be able to
-  fail a build. Probably a `--fail-on-weakened` flag, off by default, since
-  turning weak controls into failures overnight would break people.
+- **Enforcement** (`--fail-on`, baseline): done as described - a
+  `--fail-on-weakened` flag, off by default.
 - **SARIF**: maps naturally. A weakened control is a `note`-level result;
   a missing one stays `warning`.
-- **Baseline**: needs to record verdicts, not just category names, or accepting
-  a gap would also silently accept a later degradation of it.
+- **Baseline**: done. It records verdicts alongside category names, so
+  accepting a gap does not silently accept a later degradation of it.
 
 ## Risks
 
@@ -199,7 +198,12 @@ not require touching 29 rule files.
    Absence checks were deliberately left out - grype and semgrep need a flag
    *present* to fail a build, so weakening on absence would flag correct
    usages, and the design's own warning about false positives applies.
-4. **Enforcement.** `--fail-on-weakened`, baseline records verdicts.
+4. ~~**Enforcement.**~~ Done. `--fail-on-weakened`, off by default and
+   independent of `--enforce`, so an upgrade cannot start failing builds that
+   passed. The baseline records the verdict a weakness was accepted at, so
+   accepting `partial` does not also accept it becoming `advisory`; the
+   `weakened` key is omitted when empty, which keeps older baselines loading
+   unchanged.
 
 ## Open questions
 

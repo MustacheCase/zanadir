@@ -376,3 +376,25 @@ func TestGradeManualJob(t *testing.T) {
 		t.Errorf("Grade() = %q, want advisory", got)
 	}
 }
+
+func TestWorse(t *testing.T) {
+	for _, tc := range []struct {
+		a, b Verdict
+		want bool
+	}{
+		{Advisory, Partial, true},
+		{Advisory, Enforcing, true},
+		{Partial, Enforcing, true},
+		{Partial, Advisory, false},
+		{Enforcing, Advisory, false},
+		{Advisory, Advisory, false},
+		// Unknown sits above the reported verdicts, so a control going from
+		// unreadable to advisory counts as getting worse.
+		{Advisory, Unknown, true},
+		{Unknown, Advisory, false},
+	} {
+		if got := Worse(tc.a, tc.b); got != tc.want {
+			t.Errorf("Worse(%q, %q) = %v, want %v", tc.a, tc.b, got, tc.want)
+		}
+	}
+}

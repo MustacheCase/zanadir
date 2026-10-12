@@ -116,6 +116,11 @@ func stronger(a, b Verdict) bool {
 	return strength[a] > strength[b]
 }
 
+// Worse reports whether a protects less than b.
+func Worse(a, b Verdict) bool {
+	return strength[a] < strength[b]
+}
+
 // Weakened reports whether a verdict is worth reporting as a weakness. Unknown
 // is excluded: not knowing is not a finding.
 func Weakened(verdict Verdict) bool {

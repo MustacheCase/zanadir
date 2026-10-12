@@ -232,21 +232,25 @@ func (h *Handler) Execute(cfg *config.Config) error {
 	}
 
 	if cfg.WriteBaseline {
-		if err := baseline.Write(cfg.Baseline, uncovered); err != nil {
+		acceptedWeaknesses := make(map[string]string, len(result.weaknesses))
+		for _, weakness := range result.weaknesses {
+			acceptedWeaknesses[weakness.Category] = weakness.Verdict
+		}
+		if err := baseline.Write(cfg.Baseline, uncovered, acceptedWeaknesses); err != nil {
 			return err
 		}
 		debugf("Wrote %d categories to baseline %s", len(uncovered), cfg.Baseline)
 		return nil
 	}
 
-	failing, err := h.enforceableCategories(cfg, uncovered, debugf)
+	failing, err := h.enforceableCategories(cfg, uncovered, result.weaknesses, debugf)
 	if err != nil {
 		return err
 	}
 
-	if len(failing) > 0 {
-		debugf("Failing scan for categories: %s", strings.Join(failing, ", "))
-		return models.NewEnforceError(fmt.Sprintf("uncovered categories: %s", strings.Join(failing, ", ")))
+	if !failing.empty() {
+		debugf("Failing scan: %s", failing.Error())
+		return models.NewEnforceError(failing.Error())
 	}
 
 	debugf("Scan completed successfully")
@@ -255,16 +259,40 @@ func (h *Handler) Execute(cfg *config.Config) error {
 
 // enforceableCategories narrows uncovered categories to those that should fail
 // the scan: not accepted in the baseline, and named by --fail-on if given.
-func (h *Handler) enforceableCategories(cfg *config.Config, uncovered []string, debugf func(string, ...interface{})) ([]string, error) {
-	if !cfg.Enforce && len(cfg.FailOn) == 0 {
-		return nil, nil
+// enforcement is what should fail the scan. The two are kept apart because a
+// missing category and a control that cannot fail a build are different
+// problems and read as nonsense under one heading.
+type enforcement struct {
+	uncovered []string
+	weakened  []string
+}
+
+func (e enforcement) empty() bool {
+	return len(e.uncovered) == 0 && len(e.weakened) == 0
+}
+
+func (e enforcement) Error() string {
+	var parts []string
+	if len(e.uncovered) > 0 {
+		parts = append(parts, "uncovered categories: "+strings.Join(e.uncovered, ", "))
+	}
+	if len(e.weakened) > 0 {
+		parts = append(parts, "controls that cannot fail a build: "+strings.Join(e.weakened, ", "))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func (h *Handler) enforceableCategories(cfg *config.Config, uncovered []string, weaknesses []output.Weakness, debugf func(string, ...interface{})) (enforcement, error) {
+	var result enforcement
+	if !cfg.Enforce && len(cfg.FailOn) == 0 && !cfg.FailOnWeakened {
+		return result, nil
 	}
 
 	var accepted *baseline.Baseline
 	if cfg.Baseline != "" {
 		loaded, err := baseline.Load(cfg.Baseline)
 		if err != nil {
-			return nil, err
+			return result, err
 		}
 		accepted = loaded
 		debugf("Loaded baseline %s with %d accepted categories", cfg.Baseline, len(loaded.Categories))
@@ -276,18 +304,40 @@ func (h *Handler) enforceableCategories(cfg *config.Config, uncovered []string, 
 		selected[c] = true
 	}
 
-	var failing []string
-	for _, category := range uncovered {
-		if accepted.Contains(category) {
-			debugf("Category %s is accepted by the baseline", category)
-			continue
+	// An uncovered category only fails when enforcement was asked for;
+	// --fail-on-weakened on its own is about weakened controls.
+	if cfg.Enforce || len(cfg.FailOn) > 0 {
+		for _, category := range uncovered {
+			if accepted.Contains(category) {
+				debugf("Category %s is accepted by the baseline", category)
+				continue
+			}
+			if len(selected) > 0 && !selected[category] {
+				continue
+			}
+			result.uncovered = append(result.uncovered, category)
 		}
-		if len(selected) > 0 && !selected[category] {
-			continue
-		}
-		failing = append(failing, category)
 	}
-	return failing, nil
+
+	if !cfg.FailOnWeakened {
+		return result, nil
+	}
+
+	for _, weakness := range weaknesses {
+		if len(selected) > 0 && !selected[weakness.Category] {
+			continue
+		}
+		if recorded, ok := accepted.AcceptedVerdict(weakness.Category); ok {
+			if !grading.Worse(grading.Verdict(weakness.Verdict), grading.Verdict(recorded)) {
+				debugf("Category %s is accepted by the baseline at %s", weakness.Category, recorded)
+				continue
+			}
+			debugf("Category %s was accepted at %s but is now %s", weakness.Category, recorded, weakness.Verdict)
+		}
+		result.weakened = append(result.weakened, fmt.Sprintf("%s (%s)", weakness.Category, weakness.Verdict))
+	}
+
+	return result, nil
 }
 
 func Setup() (*Handler, error) {

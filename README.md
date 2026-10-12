@@ -344,9 +344,35 @@ than their presence suggests:
 | `advisory` | it runs, and cannot block anything |
 | `unknown` | the configuration cannot be read well enough to say |
 
-This is **informational**: a weakened control never fails a scan, and
-`--enforce` and `--fail-on` still only act on categories with no tooling at
-all.
+A weakened control does not fail a scan unless you ask it to. `--enforce` and
+`--fail-on` act only on categories with no tooling; `--fail-on-weakened` is
+what turns a weak control into a failure:
+
+```sh
+zanadir scan --dir . --fail-on-weakened
+```
+
+```
+Enforcement failed: controls that cannot fail a build: Secrets Detection (advisory)
+```
+
+The two are independent. `--enforce` on its own still ignores weakened
+controls, so upgrading does not start failing builds that passed before.
+`--fail-on` narrows both.
+
+A baseline accepts a weakness **at the verdict it had when accepted**:
+
+```yaml
+version: 1
+categories:
+  - Performance Testing
+weakened:
+    Secrets Detection: partial
+```
+
+So accepting `partial` does not also accept it becoming `advisory` later. If
+the control gets worse than its recorded verdict, the scan fails again.
+`--write-baseline` records the verdicts for you.
 
 Some of this is generic - `continue-on-error` defeats any control, and so does
 a workflow that only runs on a schedule. The rest is specific to one tool, and

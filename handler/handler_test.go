@@ -296,7 +296,7 @@ func TestEnforcementDecision(t *testing.T) {
 // A baseline lets enforcement be switched on before everything is fixed.
 func TestBaselineSuppressesAcceptedGaps(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "baseline.yaml")
-	assert.NoError(t, baseline.Write(path, []string{"SCA", "Coverage"}))
+	assert.NoError(t, baseline.Write(path, []string{"SCA", "Coverage"}, nil))
 
 	h := newEnforcementHandler("SCA", "Coverage")
 	err := h.Execute(&config.Config{Dir: t.TempDir(), Enforce: true, Baseline: path})
@@ -305,7 +305,7 @@ func TestBaselineSuppressesAcceptedGaps(t *testing.T) {
 
 func TestBaselineStillFailsOnNewGaps(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "baseline.yaml")
-	assert.NoError(t, baseline.Write(path, []string{"SCA"}))
+	assert.NoError(t, baseline.Write(path, []string{"SCA"}, nil))
 
 	h := newEnforcementHandler("SCA", "Secrets Detection")
 	err := h.Execute(&config.Config{Dir: t.TempDir(), Enforce: true, Baseline: path})
@@ -620,7 +620,7 @@ func TestBaselineDoesNotChangeTheScore(t *testing.T) {
 
 	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
 	path := filepath.Join(t.TempDir(), "baseline.yaml")
-	assert.NoError(t, baseline.Write(path, []string{"SCA"}))
+	assert.NoError(t, baseline.Write(path, []string{"SCA"}, nil))
 
 	cfg := config.Config{Dir: "test-dir", Enforce: true, Baseline: path}
 	suggestions := []*suggester.CategorySuggestion{{ID: "SCA", Name: "SCA"}}
@@ -768,4 +768,134 @@ func TestExecuteSurfacesAnOutputFailureInDebugMode(t *testing.T) {
 	mockOutput.On("Response", mock.Anything).Return(boom)
 
 	assert.ErrorIs(t, h.Execute(&cfg), boom)
+}
+
+func weakenedCfg(flags func(*config.Config)) *config.Config {
+	cfg := &config.Config{Dir: "/repo"}
+	flags(cfg)
+	return cfg
+}
+
+// Turning weak controls into failures overnight would break people, so it
+// takes its own flag and --enforce alone does not do it.
+func TestEnforcementSeparatesUncoveredFromWeakened(t *testing.T) {
+	h := &Handler{}
+	silent := func(string, ...interface{}) {}
+	uncovered := []string{"SCA"}
+	weaknesses := []output.Weakness{{Category: "Secrets Detection", Verdict: "advisory"}}
+
+	tests := []struct {
+		name              string
+		cfg               *config.Config
+		expectedUncovered []string
+		expectedWeakened  []string
+	}{
+		{
+			name: "nothing asked for",
+			cfg:  weakenedCfg(func(c *config.Config) {}),
+		},
+		{
+			name:              "enforce alone leaves weakened controls alone",
+			cfg:               weakenedCfg(func(c *config.Config) { c.Enforce = true }),
+			expectedUncovered: []string{"SCA"},
+		},
+		{
+			name:             "fail-on-weakened alone leaves uncovered alone",
+			cfg:              weakenedCfg(func(c *config.Config) { c.FailOnWeakened = true }),
+			expectedWeakened: []string{"Secrets Detection (advisory)"},
+		},
+		{
+			name:              "both",
+			cfg:               weakenedCfg(func(c *config.Config) { c.Enforce = true; c.FailOnWeakened = true }),
+			expectedUncovered: []string{"SCA"},
+			expectedWeakened:  []string{"Secrets Detection (advisory)"},
+		},
+		{
+			name: "fail-on narrows weakened too",
+			cfg: weakenedCfg(func(c *config.Config) {
+				c.FailOnWeakened = true
+				c.FailOn = []string{"SAST"}
+			}),
+		},
+		{
+			name: "fail-on naming the weakened category",
+			cfg: weakenedCfg(func(c *config.Config) {
+				c.FailOnWeakened = true
+				c.FailOn = []string{"Secrets Detection"}
+			}),
+			expectedWeakened: []string{"Secrets Detection (advisory)"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := h.enforceableCategories(tt.cfg, uncovered, weaknesses, silent)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedUncovered, result.uncovered)
+			assert.Equal(t, tt.expectedWeakened, result.weakened)
+		})
+	}
+}
+
+// Accepting a weakness must not also accept it getting worse later, or the
+// baseline would quietly absorb a degradation of the thing it accepted.
+func TestBaselineAcceptsAWeaknessButNotItsDegradation(t *testing.T) {
+	h := &Handler{}
+	silent := func(string, ...interface{}) {}
+	path := filepath.Join(t.TempDir(), "base.yaml")
+	assert.NoError(t, baseline.Write(path, nil, map[string]string{"Secrets Detection": "partial"}))
+
+	cfg := &config.Config{Dir: "/repo", FailOnWeakened: true, Baseline: path}
+
+	atPartial, err := h.enforceableCategories(cfg, nil,
+		[]output.Weakness{{Category: "Secrets Detection", Verdict: "partial"}}, silent)
+	assert.NoError(t, err)
+	assert.True(t, atPartial.empty(), "the verdict it was accepted at must still pass")
+
+	degraded, err := h.enforceableCategories(cfg, nil,
+		[]output.Weakness{{Category: "Secrets Detection", Verdict: "advisory"}}, silent)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"Secrets Detection (advisory)"}, degraded.weakened)
+}
+
+func TestEnforcementErrorNamesBothKinds(t *testing.T) {
+	both := enforcement{uncovered: []string{"SCA"}, weakened: []string{"Linter (advisory)"}}
+	assert.Equal(t,
+		"uncovered categories: SCA; controls that cannot fail a build: Linter (advisory)",
+		both.Error())
+
+	assert.Equal(t, "uncovered categories: SCA", enforcement{uncovered: []string{"SCA"}}.Error())
+	assert.Equal(t, "controls that cannot fail a build: Linter (advisory)",
+		enforcement{weakened: []string{"Linter (advisory)"}}.Error())
+	assert.Empty(t, enforcement{}.Error())
+}
+
+// --write-baseline has to record the verdicts, or the baseline it writes could
+// not tell a degradation from the state it accepted.
+func TestWriteBaselineRecordsWeakenedVerdicts(t *testing.T) {
+	setup()
+	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)
+	path := filepath.Join(t.TempDir(), "base.yaml")
+	cfg := config.Config{Dir: "test-dir", Baseline: path, WriteBaseline: true}
+
+	artifact := &models.Artifact{
+		Triggers: []models.Trigger{{Event: "pull_request"}},
+		Location: "test-dir/ci.yml",
+		Jobs:     []*models.Job{{ContinueOnError: true}},
+	}
+	finding := &matcher.Finding{Category: "Secrets Detection", Location: "test-dir/ci.yml", Artifact: artifact, Job: artifact.Jobs[0]}
+
+	mockScanner.On("Scan", cfg.Dir).Return([]*models.Artifact{artifact}, nil)
+	mockRuleService.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockMatcher.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{finding})
+	mockSuggester.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{}, nil)
+	mockOutput.On("Response", mock.Anything).Return(nil)
+
+	assert.NoError(t, h.Execute(&cfg))
+
+	loaded, err := baseline.Load(path)
+	assert.NoError(t, err)
+	verdict, ok := loaded.AcceptedVerdict("Secrets Detection")
+	assert.True(t, ok)
+	assert.Equal(t, "advisory", verdict)
 }

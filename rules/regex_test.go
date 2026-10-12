@@ -51,6 +51,21 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"docker scout cves", "docker/scout-action", "scouting the eol", "eol scout"},
 		},
 		{
+			// The bots are reported by the dependency-bot parser with the tool
+			// name as the whole package. dependabot/fetch-metadata is a real
+			// action for reading pull request metadata, and repositories have
+			// entire workflows named dependabot-triage; neither is dependency
+			// scanning, so the regex is anchored.
+			ruleID:         "dependabot-rule",
+			shouldMatch:    []string{"dependabot"},
+			shouldNotMatch: []string{"dependabot/fetch-metadata", "dependabot-triage", "my-dependabot", "dependabot-core"},
+		},
+		{
+			ruleID:         "renovate-rule",
+			shouldMatch:    []string{"renovate"},
+			shouldNotMatch: []string{"renovatebot/github-action", "renovate-config", "auto-renovate"},
+		},
+		{
 			ruleID:         "grype-rule",
 			shouldMatch:    []string{"grype dir:.", "anchore/grype"},
 			shouldNotMatch: []string{"grypeless"},

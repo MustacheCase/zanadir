@@ -1,7 +1,5 @@
-// Package grading judges how much protection a control actually provides.
-// Presence is not effectiveness: a scanner wired up so it can never fail a
-// build leaves a repository worse off than one with no scanner, because
-// everybody believes the control is there.
+// Package grading judges whether a control can actually fail a build, rather
+// than only whether it is present.
 package grading
 
 import (
@@ -15,21 +13,31 @@ import (
 type Verdict string
 
 const (
-	// Enforcing: the control can fail the build on the path that gates a change.
 	Enforcing Verdict = "enforcing"
-	// Partial: it can fail a build, but not on every relevant path.
-	Partial Verdict = "partial"
-	// Advisory: it runs, and cannot block anything.
-	Advisory Verdict = "advisory"
-	// Unknown: the configuration cannot be read well enough to say.
-	Unknown Verdict = "unknown"
+	Partial   Verdict = "partial"
+	Advisory  Verdict = "advisory"
+	Unknown   Verdict = "unknown"
 )
 
-// Events that stand between a change and the default branch.
+// Assessment is a category's verdict and where the evidence for it sits.
+type Assessment struct {
+	Verdict  Verdict
+	Location string
+}
+
 var gatingEvents = map[string]bool{
 	"pull_request":        true,
 	"pull_request_target": true,
 	"merge_group":         true,
+}
+
+// Unknown outranks the reported verdicts, so one unreadable control keeps a
+// category quiet.
+var strength = map[Verdict]int{
+	Advisory:  0,
+	Partial:   1,
+	Unknown:   2,
+	Enforcing: 3,
 }
 
 // Grade judges one matched control.
@@ -37,18 +45,18 @@ func Grade(finding *matcher.Finding) Verdict {
 	if finding == nil || finding.Artifact == nil {
 		return Unknown
 	}
+	if finding.Artifact.OutsidePipeline {
+		return Advisory
+	}
 
 	if job := finding.Job; job != nil {
 		if job.ContinueOnError {
 			return Advisory
 		}
-		// A tool-specific flag is an explicit statement that this control
-		// cannot fail, so it outranks a condition we cannot read.
 		if verdict, found := toolSpecific(finding.Rule, job); found {
 			return verdict
 		}
-		// An if: can reference arbitrary context. Reading one wrong is worse
-		// than admitting it cannot be read, so no pattern is recognised yet.
+		// An if: can reference arbitrary context, so it is never interpreted.
 		if job.If != "" || job.JobIf != "" {
 			return Unknown
 		}
@@ -57,8 +65,7 @@ func Grade(finding *matcher.Finding) Verdict {
 	return gradeTriggers(finding.Artifact)
 }
 
-// toolSpecific applies a rule's weakenedWhen checks: the flags that defeat one
-// particular tool, which no generic signal can see.
+// toolSpecific applies a rule's weakenedWhen checks.
 func toolSpecific(rule *rules.Rule, job *models.Job) (Verdict, bool) {
 	if rule == nil {
 		return "", false
@@ -79,8 +86,8 @@ func toolSpecific(rule *rules.Rule, job *models.Job) (Verdict, bool) {
 }
 
 func gradeTriggers(artifact *models.Artifact) Verdict {
-	// No triggers captured is not the same as a workflow that runs on nothing:
-	// the GitLab and CircleCI parsers record none at all.
+	// No triggers captured is not a workflow that runs on nothing: the GitLab
+	// and CircleCI parsers record none at all.
 	if len(artifact.Triggers) == 0 {
 		return Unknown
 	}
@@ -101,45 +108,21 @@ func gradeTriggers(artifact *models.Artifact) Verdict {
 	case runs:
 		return Partial
 	default:
-		// schedule, workflow_dispatch, release and the rest: the control runs,
-		// but never between a change and the branch it lands on.
 		return Advisory
 	}
 }
 
-// Assessment is a category's verdict and the workflow the verdict came from,
-// so a report can point at the configuration rather than guess at a location.
-type Assessment struct {
-	Verdict  Verdict
-	Location string
-}
-
-// strength orders verdicts. Unknown sits above the verdicts that get
-// reported so that one unreadable control keeps a category quiet: saying
-// "weakened" when the answer is "cannot tell" is the false positive this
-// feature can least afford.
-var strength = map[Verdict]int{
-	Advisory:  0,
-	Partial:   1,
-	Unknown:   2,
-	Enforcing: 3,
-}
-
-// stronger reports whether a is the better verdict of the two.
 func stronger(a, b Verdict) bool {
 	return strength[a] > strength[b]
 }
 
-// Weakened reports whether a verdict means the control protects less than its
-// presence suggests. Unknown is deliberately excluded: not knowing is not a
-// finding.
+// Weakened reports whether a verdict is worth reporting as a weakness. Unknown
+// is excluded: not knowing is not a finding.
 func Weakened(verdict Verdict) bool {
 	return verdict == Advisory || verdict == Partial
 }
 
-// ByCategory grades every finding and keeps the strongest verdict for each
-// category: one enforcing control is enough, however many weak ones sit
-// beside it.
+// ByCategory keeps the strongest verdict for each category.
 func ByCategory(findings []*matcher.Finding) map[string]Assessment {
 	best := make(map[string]Assessment)
 	for _, finding := range findings {

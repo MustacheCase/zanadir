@@ -86,6 +86,9 @@ func TestNewRepositoryScanner(t *testing.T) {
 		"/.github/workflows/",
 		"/.circleci/",
 		"/.gitlab-ci.yml",
+		// The dependency bots are rooted at the repository: their configs have
+		// several possible names and sit outside any CI directory.
+		"/",
 	}
 
 	assert.Len(t, repoScanner.ciParsers, len(expectedPaths), "Expected number of parsers to match")

@@ -360,9 +360,25 @@ it cannot be read - the control is reported `unknown` instead. And a category
 is judged by its strongest control, so one properly wired scanner keeps the
 category quiet however many weak ones sit beside it.
 
-In SARIF a weakened control is a `note`, pointing at the workflow that
-produced the verdict, while a missing category stays a `warning`. Only GitHub
-Actions is graded so far; GitLab CI and CircleCI report nothing here.
+### Controls declared outside the pipeline
+
+Dependabot and Renovate are detected from their configuration -
+`.github/dependabot.yml`, `renovate.json` and the other names Renovate
+accepts - not from a CI job, because that is not where they live.
+
+They are graded `advisory`. Both run on the forge's own schedule and open pull
+requests; neither can fail a build. So a repository whose only dependency
+control is Dependabot is reported as covered **and** weakened, which is a more
+useful answer than either "you have no SCA" or "you are covered":
+
+```
+1 covered category is weakened:
+  SCA is advisory (.github/dependabot.yml)
+```
+
+In SARIF a weakened control is a `note`, pointing at the file that produced
+the verdict, while a missing category stays a `warning`. Only GitHub Actions
+is graded so far; GitLab CI and CircleCI report nothing here.
 
 ## Language-Aware Suggestions
 

@@ -16,33 +16,35 @@ type RepositoryScanner struct {
 	ciParsers []ciParser
 }
 
+// Scan collects artifacts from every parser that finds something. Stopping at
+// the first left a repository using two platforms half read.
 func (r *RepositoryScanner) Scan(repositoryDir string) ([]*models.Artifact, error) {
+	var artifacts []*models.Artifact
+
 	for _, cp := range r.ciParsers {
 		path := filepath.Join(repositoryDir, cp.Path)
 		if !cp.Parser.Exists(path) {
-			// print log and continue
 			continue
 		}
-		artifacts, err := cp.Parser.Parse(path)
+		parsed, err := cp.Parser.Parse(path)
 		if err != nil {
 			return nil, err
 		}
-		return artifacts, nil
+		artifacts = append(artifacts, parsed...)
 	}
-	// print log which we didn't find any ci actions
-	return nil, nil
+
+	return artifacts, nil
 }
 
 func NewRepositoryScanner() Scanner {
-	githubParser := parser.NewGithubParser()
-	circleCIParser := parser.NewCircleCIParser()
-	gitlabParser := parser.NewGitlabParser()
-
 	return &RepositoryScanner{
 		ciParsers: []ciParser{
-			{Path: "/.github/workflows/", Parser: githubParser},
-			{Path: "/.circleci/", Parser: circleCIParser},
-			{Path: "/.gitlab-ci.yml", Parser: gitlabParser},
+			{Path: "/.github/workflows/", Parser: parser.NewGithubParser()},
+			{Path: "/.circleci/", Parser: parser.NewCircleCIParser()},
+			{Path: "/.gitlab-ci.yml", Parser: parser.NewGitlabParser()},
+			// Rooted at the repository: these configs sit outside any CI
+			// directory and have several possible names.
+			{Path: "/", Parser: parser.NewDependencyBotParser()},
 		},
 	}
 }

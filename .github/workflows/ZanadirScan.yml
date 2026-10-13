@@ -17,7 +17,7 @@ jobs:
       security-events: write
     steps:
     - name: Checkout code
-      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
         fetch-depth: 0
@@ -31,7 +31,7 @@ jobs:
         output-file: zanadir.sarif
 
     - name: Upload zanadir SARIF
-      uses: github/codeql-action/upload-sarif@9f759ee644a3e7c15c1390abf49868036c00067b # v3
+      uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
       with:
         sarif_file: zanadir.sarif
         category: zanadir
@@ -46,7 +46,7 @@ jobs:
     - name: Checkout code
       # zizmor: ignore[artipacked] - the badge is pushed back from this job, so
       # the checkout credential is the point.
-      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Score our own coverage
       uses: mustachecase/zanadir-action@a680c322fa9cf63f4ea5202b66c84fa3b69d154a # v1.12
       with:
@@ -74,7 +74,7 @@ jobs:
       pull-requests: write
     steps:
     - name: Checkout code
-      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         persist-credentials: false
     - name: Scan

@@ -1,0 +1,11 @@
+# Actions are pinned to commit SHAs, which the Workflow Security audit
+# requires. Nothing would ever update them without this.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]

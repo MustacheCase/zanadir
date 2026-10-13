@@ -8,18 +8,21 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   zanadir-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       with:
+        persist-credentials: false
         fetch-depth: 0
     - name: Run zanadir Github action
-      uses: mustachecase/zanadir-action@v1.12
+      uses: mustachecase/zanadir-action@a680c322fa9cf63f4ea5202b66c84fa3b69d154a # v1.12
       with:
         dir: .
         debug: true
@@ -28,7 +31,7 @@ jobs:
         output-file: zanadir.sarif
 
     - name: Upload zanadir SARIF
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@9f759ee644a3e7c15c1390abf49868036c00067b # v3
       with:
         sarif_file: zanadir.sarif
         category: zanadir
@@ -41,10 +44,11 @@ jobs:
       contents: write
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
-
+      # zizmor: ignore[artipacked] - the badge is pushed back from this job, so
+      # the checkout credential is the point.
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
     - name: Score our own coverage
-      uses: mustachecase/zanadir-action@v1.12
+      uses: mustachecase/zanadir-action@a680c322fa9cf63f4ea5202b66c84fa3b69d154a # v1.12
       with:
         dir: .
         badge: .github/zanadir-badge.json
@@ -70,10 +74,11 @@ jobs:
       pull-requests: write
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
-
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        persist-credentials: false
     - name: Scan
-      uses: mustachecase/zanadir-action@v1.12
+      uses: mustachecase/zanadir-action@a680c322fa9cf63f4ea5202b66c84fa3b69d154a # v1.12
       with:
         dir: .
         output: markdown

@@ -27,16 +27,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
-
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: '1.26'
 
       - name: Update dependencies
+        env:
+          UPDATE_ALL: ${{ github.event.inputs.update_all }}
         run: |
-          if [ "${{ github.event.inputs.update_all }}" = "true" ]; then
+          if [ "$UPDATE_ALL" = "true" ]; then
             go get -u -t ./...
           else
             go get -u ./...
@@ -50,7 +53,7 @@ jobs:
         run: go test -v ./...
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@4e1beaa7521e8b457b572c090b25bd3db56bf1c5 # v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore(deps): Go dependency update"

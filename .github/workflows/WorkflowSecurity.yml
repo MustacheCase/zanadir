@@ -6,12 +6,16 @@ on:
       - main
   pull_request:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   zizmor:
     runs-on: ubuntu-latest
+    # The action uploads its SARIF to code scanning, which needs this. Without
+    # it the job passes and the findings go nowhere.
+    permissions:
+      contents: read
+      security-events: write
     steps:
     - name: Checkout code
       uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

@@ -48,7 +48,8 @@ func TestIaCStaysApplicable(t *testing.T) {
 		"helm/values-prod.txt",
 	} {
 		t.Run(file, func(t *testing.T) {
-			assert.Empty(t, applicability.NotApplicable(repoWith(t, file)))
+			assert.Equal(t, []string{"Workflow Security"},
+				applicability.NotApplicable(repoWith(t, file)))
 		})
 	}
 }
@@ -57,6 +58,54 @@ func TestIaCIsRuledOutWithoutInfrastructure(t *testing.T) {
 	dir := repoWith(t, "src/main.go", "go.mod", "README.md", "docs/guide.md", ".github/workflows/ci.yml")
 
 	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+}
+
+// Every tool in the Workflow Security category reads the GitHub Actions
+// format, so a repository on another platform has nothing to point them at.
+func TestWorkflowSecurityNeedsGithubWorkflows(t *testing.T) {
+	tests := []struct {
+		name     string
+		files    []string
+		expected []string
+	}{
+		{
+			name:     "github actions present",
+			files:    []string{"Dockerfile", ".github/workflows/ci.yml"},
+			expected: nil,
+		},
+		{
+			name:     "a yaml workflow by its other extension",
+			files:    []string{"Dockerfile", ".github/workflows/ci.yaml"},
+			expected: nil,
+		},
+		{
+			name:     "gitlab only",
+			files:    []string{"Dockerfile", ".gitlab-ci.yml"},
+			expected: []string{"Workflow Security"},
+		},
+		{
+			name:     "circleci only",
+			files:    []string{"Dockerfile", ".circleci/config.yml"},
+			expected: []string{"Workflow Security"},
+		},
+		{
+			// The directory exists but holds nothing GitHub would run.
+			name:     "a workflows directory with no workflow in it",
+			files:    []string{"Dockerfile", ".github/workflows/README.md"},
+			expected: []string{"Workflow Security"},
+		},
+		{
+			name:     "no CI at all rules out both",
+			files:    []string{"go.mod"},
+			expected: []string{"IaC Security", "Workflow Security"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, applicability.NotApplicable(repoWith(t, tt.files...)))
+		})
+	}
 }
 
 // A dependency's Dockerfile says nothing about the repository.
@@ -68,7 +117,7 @@ func TestIaCIgnoresVendoredDirectories(t *testing.T) {
 		"third_party/lib/Chart.yaml",
 	} {
 		t.Run(vendored, func(t *testing.T) {
-			dir := repoWith(t, "go.mod", vendored)
+			dir := repoWith(t, "go.mod", ".github/workflows/ci.yml", vendored)
 			assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
 		})
 	}
@@ -78,9 +127,9 @@ func TestNotApplicableWithNoDirectory(t *testing.T) {
 	assert.Nil(t, applicability.NotApplicable(filepath.Join(t.TempDir(), "absent")))
 }
 
-// An empty repository has no infrastructure either.
+// An empty repository has no infrastructure and no workflows either.
 func TestNotApplicableWithAnEmptyRepository(t *testing.T) {
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(t.TempDir()))
+	assert.Equal(t, []string{"IaC Security", "Workflow Security"}, applicability.NotApplicable(t.TempDir()))
 }
 
 // A directory it cannot read must not crash the walk, and must not be taken as
@@ -90,11 +139,22 @@ func TestIaCToleratesAnUnreadableDirectory(t *testing.T) {
 		t.Skip("root ignores directory permissions")
 	}
 
-	dir := repoWith(t, "go.mod")
+	dir := repoWith(t, "go.mod", ".github/workflows/ci.yml")
 	locked := filepath.Join(dir, "locked")
 	assert.NoError(t, os.MkdirAll(locked, 0o755))
 	assert.NoError(t, os.Chmod(locked, 0o000))
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 
 	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+}
+
+// cli/cli keeps a scripts directory inside .github/workflows, which is not a
+// workflow and must not be mistaken for one.
+func TestWorkflowSecurityIgnoresSubdirectories(t *testing.T) {
+	dir := repoWith(t, "Dockerfile", ".github/workflows/scripts/data.yml")
+
+	assert.Equal(t, []string{"Workflow Security"}, applicability.NotApplicable(dir))
+
+	withWorkflow := repoWith(t, "Dockerfile", ".github/workflows/scripts/data.yml", ".github/workflows/ci.yml")
+	assert.Empty(t, applicability.NotApplicable(withWorkflow))
 }

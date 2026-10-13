@@ -71,6 +71,22 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"grypeless"},
 		},
 		{
+			ruleID:         "zizmor-rule",
+			shouldMatch:    []string{"zizmorcore/zizmor-action", "zizmor .github/workflows", "pipx run zizmor"},
+			shouldNotMatch: []string{"zizmorish", "myzizmor"},
+		},
+		{
+			ruleID:         "actionlint-rule",
+			shouldMatch:    []string{"rhysd/actionlint", "reviewdog/action-actionlint", "actionlint -color"},
+			shouldNotMatch: []string{"actionlinter", "action lint"},
+		},
+		{
+			// The plural is a different thing, and the boundary excludes it.
+			ruleID:         "scorecard-rule",
+			shouldMatch:    []string{"ossf/scorecard-action", "Scorecard analysis", "scorecard --repo=."},
+			shouldNotMatch: []string{"scorecards", "scorecarding"},
+		},
+		{
 			ruleID:         "govulncheck-rule",
 			shouldMatch:    []string{"govulncheck ./...", "golang/govulncheck-action", "go run golang.org/x/vuln/cmd/govulncheck@latest ./..."},
 			shouldNotMatch: []string{"govulncheckers", "mygovulncheck"},

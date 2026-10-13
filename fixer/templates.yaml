@@ -172,3 +172,8 @@ templates:
           format: spdx-json
           artifact-name: sbom.spdx.json
 
+  - tool: "zizmor"
+    platform: "github"
+    step: |
+      - name: Check workflows for security problems
+        uses: zizmorcore/zizmor-action@v0.6.4

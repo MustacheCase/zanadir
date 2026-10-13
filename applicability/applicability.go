@@ -92,14 +92,38 @@ func hasIaC(dir string) bool {
 	return found
 }
 
-// NotApplicable returns the categories a repository has nothing for. Only IaC
-// Security is decided; the others cannot be ruled out without guessing.
+// hasGithubWorkflows reports whether there is a GitHub Actions workflow to
+// check. Every tool in the Workflow Security category reads that format.
+func hasGithubWorkflows(dir string) bool {
+	entries, err := os.ReadDir(filepath.Join(dir, ".github", "workflows"))
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		switch filepath.Ext(entry.Name()) {
+		case ".yml", ".yaml":
+			return true
+		}
+	}
+	return false
+}
+
+// NotApplicable returns the categories a repository has nothing for. The
+// others cannot be ruled out without guessing.
 func NotApplicable(dir string) []string {
 	if _, err := os.Stat(dir); err != nil {
 		return nil
 	}
-	if hasIaC(dir) {
-		return nil
+
+	var ruledOut []string
+	if !hasIaC(dir) {
+		ruledOut = append(ruledOut, string(models.IaC))
 	}
-	return []string{string(models.IaC)}
+	if !hasGithubWorkflows(dir) {
+		ruledOut = append(ruledOut, string(models.WorkflowSecurity))
+	}
+	return ruledOut
 }

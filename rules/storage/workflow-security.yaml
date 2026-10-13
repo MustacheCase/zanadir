@@ -1,0 +1,17 @@
+rules:
+  - id: "actionlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Workflow Security"]
+    regex: "(?i)\\bactionlint\\b|rhysd/actionlint|reviewdog/action-actionlint"
+
+  - id: "zizmor-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Workflow Security"]
+    regex: "(?i)\\bzizmor\\b"
+
+  # "scorecard" is the tool's whole name, so the word is enough; the plural
+  # "scorecards" is a different thing and the boundary excludes it.
+  - id: "scorecard-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Workflow Security"]
+    regex: "(?i)ossf/scorecard-action|\\bscorecard\\b"

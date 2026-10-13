@@ -246,3 +246,18 @@ categories:
         repository: "https://github.com/actions/attest-build-provenance"
         description: "Creates signed build provenance for artifacts directly from a workflow."
 
+  - id: "Workflow Security"
+    name: "Workflow Security and Hardening"
+    description: "Tools that check the pipeline definition itself - unpinned actions, over-broad token permissions, script injection through untrusted input - rather than the code it builds."
+    suggestions:
+      - name: "zizmor"
+        repository: "https://github.com/zizmorcore/zizmor"
+        description: "Finds security problems in GitHub Actions workflows: unpinned actions, dangerous triggers, template injection and excessive permissions."
+
+      - name: "actionlint"
+        repository: "https://github.com/rhysd/actionlint"
+        description: "Static checker for GitHub Actions workflows, covering syntax, expressions, shell scripts in run steps and action input validity."
+
+      - name: "OpenSSF Scorecard"
+        repository: "https://github.com/ossf/scorecard-action"
+        description: "Grades a repository against supply-chain practices including pinned dependencies, token permissions and branch protection."

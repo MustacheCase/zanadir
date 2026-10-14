@@ -77,6 +77,7 @@ func NewApp() *cobra.Command {
 	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif, markdown) (optional)")
 	scanCmd.Flags().String("output-file", "", "Write the report to this file instead of stdout (optional)")
 	scanCmd.Flags().String("badge", "", "Write a shields.io endpoint badge of the coverage score to this path (optional)")
+	scanCmd.Flags().StringP("config", "c", "", "Read flag values from this YAML file; flags given on the command line win (optional)")
 
 	_ = scanCmd.MarkFlagRequired("dir")
 
@@ -84,6 +85,7 @@ func NewApp() *cobra.Command {
 	fixCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
 	fixCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
 	fixCmd.Flags().Bool("write", false, "Generate .github/workflows/zanadir-suggested.yml instead of printing (optional)")
+	fixCmd.Flags().StringP("config", "c", "", "Read flag values from this YAML file; flags given on the command line win (optional)")
 	_ = fixCmd.MarkFlagRequired("dir")
 
 	return rootCmd

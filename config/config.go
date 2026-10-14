@@ -83,6 +83,9 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := applyFile(cmd); err != nil {
+		return nil, err
+	}
 
 	excludedCategories, _ := cmd.Flags().GetStringSlice("excluded-categories")
 	excludedCategories, err = normalizeCategories(excludedCategories)
@@ -134,6 +137,9 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 func CreateFixConfig(cmd *cobra.Command) (*Config, error) {
 	dir, err := resolveDir(cmd)
 	if err != nil {
+		return nil, err
+	}
+	if err := applyFile(cmd); err != nil {
 		return nil, err
 	}
 

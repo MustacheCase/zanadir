@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="#coverage-score"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/MustacheCase/zanadir/main/.github/zanadir-badge.json" alt="zanadir coverage"></a>
+  <a href="#coverage-score"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/MustacheCase/zanadir/badges/zanadir-badge.json" alt="zanadir coverage"></a>
 </p>
 
 ## Features
@@ -271,7 +271,7 @@ Three rules keep the number honest:
 `--badge` writes the score as a [shields.io endpoint][shields] file:
 
 ```sh
-zanadir scan --dir . --badge .github/zanadir-badge.json
+zanadir scan --dir . --badge zanadir-badge.json
 ```
 
 ```json
@@ -283,27 +283,52 @@ zanadir scan --dir . --badge .github/zanadir-badge.json
 }
 ```
 
-Publish that file from CI and point a badge at it:
+Publish that file from CI and point a badge at it. Put it on a branch of its
+own rather than committing it to the default branch: a protected default
+branch only takes changes through a pull request, so a workflow that pushes
+the badge there is rejected.
 
 ```markdown
-![zanadir](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OWNER/REPO/main/.github/zanadir-badge.json)
+![zanadir](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OWNER/REPO/badges/zanadir-badge.json)
 ```
 
-A workflow that keeps it current on every push to the default branch:
+A job that keeps it current on every push to the default branch, publishing
+to a `badges` branch it creates on the first run:
 
 ```yaml
-- name: Run zanadir
-  run: zanadir scan --dir . --badge .github/zanadir-badge.json
+badge:
+  if: github.event_name == 'push'
+  runs-on: ubuntu-latest
+  permissions:
+    contents: write
+  steps:
+    - uses: actions/checkout@v4
 
-- name: Commit the badge
-  run: |
-    git config user.name github-actions
-    git config user.email github-actions@github.com
-    git add .github/zanadir-badge.json
-    if git diff --staged --quiet; then exit 0; fi
-    git commit -m "chore: update zanadir badge"
-    git push
+    - name: Run zanadir
+      run: zanadir scan --dir . --badge zanadir-badge.json
+
+    - name: Publish the badge when it moved
+      run: |
+        set -euo pipefail
+        cp zanadir-badge.json "$RUNNER_TEMP/zanadir-badge.json"
+        rm -f zanadir-badge.json
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+        if git fetch --depth=1 origin badges 2>/dev/null; then
+          git switch --discard-changes -C badges FETCH_HEAD
+        else
+          git switch --orphan badges
+        fi
+        cp "$RUNNER_TEMP/zanadir-badge.json" zanadir-badge.json
+        git add zanadir-badge.json
+        if git diff --cached --quiet; then exit 0; fi
+        git commit -m "chore: update zanadir badge"
+        git push origin badges
 ```
+
+The `badges` branch holds that one file and nothing else. If a ruleset
+covers every branch rather than only the default one, exclude `badges` from
+it.
 
 The colour tracks the score: green at 80% or above, yellow at 60%, orange at
 40%, red below that, and bright green only at full coverage.

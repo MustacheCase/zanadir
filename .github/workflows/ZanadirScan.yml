@@ -55,19 +55,30 @@ jobs:
         dir: .
         # Load and stress testing is for services under traffic; this is a CLI.
         excluded-categories: Performance Testing
-        badge: .github/zanadir-badge.json
+        badge: zanadir-badge.json
 
-    - name: Commit the badge when it moved
+    # main only takes changes through a pull request, so the badge lives on a
+    # branch of its own that holds nothing else.
+    - name: Publish the badge when it moved
       run: |
+        set -euo pipefail
+        cp zanadir-badge.json "$RUNNER_TEMP/zanadir-badge.json"
+        rm -f zanadir-badge.json
         git config user.name github-actions
         git config user.email github-actions@github.com
-        git add .github/zanadir-badge.json
-        if git diff --staged --quiet; then
+        if git fetch --depth=1 origin badges 2>/dev/null; then
+          git switch --discard-changes -C badges FETCH_HEAD
+        else
+          git switch --orphan badges
+        fi
+        cp "$RUNNER_TEMP/zanadir-badge.json" zanadir-badge.json
+        git add zanadir-badge.json
+        if git diff --cached --quiet; then
           echo "Coverage unchanged."
           exit 0
         fi
         git commit -m "chore: update the zanadir coverage badge"
-        git push
+        git push origin badges
 
   # A fork's pull request gets a read-only token, so it cannot comment.
   pr-comment:

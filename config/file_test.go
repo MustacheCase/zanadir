@@ -111,3 +111,10 @@ func TestConfigFileValueTheFlagRejects(t *testing.T) {
 	_, err := CreateConfig(withConfig(cmd, path))
 	assert.ErrorContains(t, err, "enforce")
 }
+
+func TestFixRejectsABadConfigFile(t *testing.T) {
+	path := writeConfig(t, "exclude-categories: [linter]\n")
+	cfg, err := CreateFixConfig(withConfig(newFixCmd(t.TempDir()), path))
+	assert.Nil(t, cfg)
+	assert.ErrorContains(t, err, "exclude-categories")
+}

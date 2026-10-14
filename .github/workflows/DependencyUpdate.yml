@@ -3,6 +3,7 @@ name: Update Go Dependencies
 on:
   schedule:
     - cron: '0 7 * * *'  # Every day at 07:00 UTC
+  # checkov:skip=CKV_GHA_7: a maintenance workflow that opens a pull request, not a build that publishes anything
   workflow_dispatch:
     inputs:
       update_all:

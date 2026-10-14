@@ -25,6 +25,8 @@ jobs:
       uses: mustachecase/zanadir-action@a680c322fa9cf63f4ea5202b66c84fa3b69d154a # v1.12
       with:
         dir: .
+        # Load and stress testing is for services under traffic; this is a CLI.
+        excluded-categories: Performance Testing
         debug: true
         enforce: false
         output: sarif
@@ -51,6 +53,8 @@ jobs:
       uses: mustachecase/zanadir-action@a680c322fa9cf63f4ea5202b66c84fa3b69d154a # v1.12
       with:
         dir: .
+        # Load and stress testing is for services under traffic; this is a CLI.
+        excluded-categories: Performance Testing
         badge: .github/zanadir-badge.json
 
     - name: Commit the badge when it moved
@@ -81,6 +85,8 @@ jobs:
       uses: mustachecase/zanadir-action@a680c322fa9cf63f4ea5202b66c84fa3b69d154a # v1.12
       with:
         dir: .
+        # Load and stress testing is for services under traffic; this is a CLI.
+        excluded-categories: Performance Testing
         output: markdown
         output-file: zanadir.md
 

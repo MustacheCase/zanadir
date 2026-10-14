@@ -1,0 +1,3 @@
+# Settings for zanadir scanning itself. See README "Config File".
+# Performance Testing does not apply to a CLI that runs once and exits.
+excluded-categories: [Performance Testing]

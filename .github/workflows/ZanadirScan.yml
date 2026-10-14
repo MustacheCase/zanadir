@@ -22,11 +22,11 @@ jobs:
         persist-credentials: false
         fetch-depth: 0
     - name: Run zanadir Github action
-      uses: mustachecase/zanadir-action@e91971d159518acc30641b44fbbb01caec51f0cf # v1.13
+      uses: mustachecase/zanadir-action@bbb18d2dc356752769d11206a089062fad66abec # v1.14
       with:
         dir: .
         # Load and stress testing is for services under traffic; this is a CLI.
-        excluded-categories: Performance Testing
+        config: .zanadir.yml
         debug: true
         enforce: false
         output: sarif
@@ -50,11 +50,11 @@ jobs:
       # the checkout credential is the point.
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Score our own coverage
-      uses: mustachecase/zanadir-action@e91971d159518acc30641b44fbbb01caec51f0cf # v1.13
+      uses: mustachecase/zanadir-action@bbb18d2dc356752769d11206a089062fad66abec # v1.14
       with:
         dir: .
         # Load and stress testing is for services under traffic; this is a CLI.
-        excluded-categories: Performance Testing
+        config: .zanadir.yml
         badge: zanadir-badge.json
 
     # main only takes changes through a pull request, so the badge lives on a
@@ -93,11 +93,11 @@ jobs:
       with:
         persist-credentials: false
     - name: Scan
-      uses: mustachecase/zanadir-action@e91971d159518acc30641b44fbbb01caec51f0cf # v1.13
+      uses: mustachecase/zanadir-action@bbb18d2dc356752769d11206a089062fad66abec # v1.14
       with:
         dir: .
         # Load and stress testing is for services under traffic; this is a CLI.
-        excluded-categories: Performance Testing
+        config: .zanadir.yml
         output: markdown
         output-file: zanadir.md
 

@@ -11,13 +11,24 @@ on:
 jobs:
   license-compliance-scan:
     runs-on: ubuntu-latest
+    # Secrets are not available to Dependabot or to pull requests from forks.
+    # Mapped to env so a step can test for it; the secrets context cannot be
+    # read from an if:.
+    env:
+      FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Report that the scan cannot run
+        if: env.FOSSA_API_KEY == ''
+        run: |
+          echo "::warning::FOSSA_API_KEY is not available to this run, so licences were not scanned. Dependabot and pull requests from forks do not receive repository secrets."
+
       - name: License Compliance Scan
+        if: env.FOSSA_API_KEY != ''
         uses: fossas/fossa-action@7f9093e8e9864a4fd9ab58426a3e34c54040da04 # main
         with:
-          api-key: ${{ secrets.FOSSA_API_KEY }}
+          api-key: ${{ env.FOSSA_API_KEY }}

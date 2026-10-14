@@ -571,6 +571,36 @@ Get detailed logging information:
 zanadir scan --dir . --debug
 ```
 
+#### Config File
+
+`--config` (`-c`) reads flag values from a YAML file, so a team stops
+repeating them on every invocation. Each key is the name of the flag it sets:
+
+```yaml
+# .zanadir.yml
+excluded-categories: [Performance Testing]
+enforce: true
+fail-on-weakened: true
+baseline: .zanadir-baseline.yaml
+badge: zanadir-badge.json
+output: markdown
+```
+
+```sh
+zanadir scan --dir . -c .zanadir.yml
+zanadir scan --dir . -c .zanadir.yml --output json   # the command line wins
+```
+
+- A flag given on the command line overrides the same key in the file.
+- An unknown key is an error, so a misspelt `exclude-categories` fails the
+  scan instead of silently scanning without the exclusion.
+- Relative paths (`baseline`, `badge`, `output-file`) are resolved against the
+  directory holding the config file, not the directory you run from.
+- `zanadir fix -c` reads the same file and uses only `excluded-categories` and
+  `debug`.
+- `dir` and `write-baseline` stay on the command line: one says what to scan,
+  the other is a one-off action rather than a setting.
+
 #### Complete Example
 
 ```sh

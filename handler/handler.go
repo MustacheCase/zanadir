@@ -340,8 +340,8 @@ func (h *Handler) enforceableCategories(cfg *config.Config, uncovered []string, 
 	return result, nil
 }
 
-func Setup() (*Handler, error) {
-	rulesService, err := rules.NewRulesService()
+func Setup(custom ...rules.FileRule) (*Handler, error) {
+	rulesService, err := rules.NewRulesService(custom...)
 	if err != nil {
 		return nil, err
 	}

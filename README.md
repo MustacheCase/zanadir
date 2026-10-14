@@ -601,6 +601,29 @@ zanadir scan --dir . -c .zanadir.yml --output json   # the command line wins
 - `dir` and `write-baseline` stay on the command line: one says what to scan,
   the other is a one-off action rather than a setting.
 
+#### Custom Rules
+
+zanadir only recognises the tools in its catalogue, so an in-house scanner
+reads as a missing category. Teach it with `rules:` in the config file, in the
+same shape as the [built-in rules](rules/storage):
+
+```yaml
+rules:
+  - id: acme-scan
+    applyOn: [Job.Run]          # Artifact.Name, Job.Name, Job.Package, Job.Run
+    categories: [SAST]
+    regex: '\bacme-scan\b'
+    weakenedWhen:               # optional: configurations that cannot fail a build
+      - runMatches: '--report-only'
+        verdict: advisory       # advisory or partial
+```
+
+Custom rules add to the catalogue and never replace a built-in rule, so an
+`id` that is already taken is an error, as is a regex that does not compile or
+an unknown category. A rule that matches counts as coverage and is graded like
+any other, so `--fail-on-weakened` catches `acme-scan --report-only` too.
+`zanadir fix` uses the same rules to decide what is uncovered.
+
 #### Complete Example
 
 ```sh

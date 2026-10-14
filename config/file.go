@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/MustacheCase/zanadir/rules"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v3"
@@ -25,6 +26,8 @@ type File struct {
 	Output             string   `yaml:"output"`
 	OutputFile         string   `yaml:"output-file"`
 	Badge              string   `yaml:"badge"`
+	// Rules has no flag: it is only ever set from a file.
+	Rules []rules.FileRule `yaml:"rules"`
 }
 
 func loadFile(path string) (*File, error) {
@@ -73,14 +76,14 @@ func (f *File) values(base string) map[string][]string {
 // applyFile fills every flag the command defines but was not given from the
 // file named by --config. Keys for flags the command lacks are skipped, so scan
 // and fix can share one file.
-func applyFile(cmd *cobra.Command) error {
+func applyFile(cmd *cobra.Command) (*File, error) {
 	path, _ := cmd.Flags().GetString("config")
 	if path == "" {
-		return nil
+		return &File{}, nil
 	}
 	f, err := loadFile(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for name, vals := range f.values(filepath.Dir(path)) {
@@ -94,8 +97,8 @@ func applyFile(cmd *cobra.Command) error {
 			err = flag.Value.Set(vals[0])
 		}
 		if err != nil {
-			return fmt.Errorf("config %s: %s: %w", path, name, err)
+			return nil, fmt.Errorf("config %s: %s: %w", path, name, err)
 		}
 	}
-	return nil
+	return f, nil
 }

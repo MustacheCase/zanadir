@@ -105,7 +105,7 @@ func scanErrorReport(err error) (io.Writer, string) {
 
 // scanRepo function
 func scanRepo(config *config.Config) error {
-	scanHandler, err := handler.Setup()
+	scanHandler, err := handler.Setup(config.Rules...)
 	if err != nil {
 		// log the error
 		return err
@@ -120,7 +120,7 @@ func scanRepo(config *config.Config) error {
 }
 
 func fixRepo(cfg *config.Config) error {
-	fixHandler, err := handler.Setup()
+	fixHandler, err := handler.Setup(cfg.Rules...)
 	if err != nil {
 		return err
 	}

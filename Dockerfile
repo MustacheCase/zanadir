@@ -1,3 +1,5 @@
+# checkov:skip=CKV_DOCKER_2: a CLI that runs once and exits has nothing for a HEALTHCHECK to probe
+# checkov:skip=CKV_DOCKER_3: GitHub requires a Docker action to run as root to reach GITHUB_WORKSPACE
 # Stage 1 - Build binary and get CA certs
 FROM golang:1.26-alpine AS builder
 

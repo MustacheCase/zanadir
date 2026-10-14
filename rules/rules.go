@@ -174,11 +174,16 @@ func validateWeakened(r FileRule) error {
 	return nil
 }
 
-func (s *service) createRulesCollection() (*Collection, error) {
+func (s *service) createRulesCollection(custom []FileRule) (*Collection, error) {
 	rules, err := readEmbeddedRules()
 	if err != nil {
 		return nil, err
 	}
+	custom, err = prepareCustom(rules, custom)
+	if err != nil {
+		return nil, err
+	}
+	rules = append(rules, custom...)
 
 	if err := validateRules(rules); err != nil {
 		return nil, err
@@ -225,9 +230,52 @@ func readEmbeddedRules() ([]FileRule, error) {
 	return rules, nil
 }
 
-func NewRulesService() (RuleService, error) {
+// prepareCustom checks rules supplied by the user, which unlike the embedded
+// ones have not been through a test run, and canonicalises their categories.
+func prepareCustom(embedded, custom []FileRule) ([]FileRule, error) {
+	seen := make(map[string]bool, len(embedded)+len(custom))
+	for _, r := range embedded {
+		seen[r.ID] = true
+	}
+
+	prepared := make([]FileRule, 0, len(custom))
+	for _, r := range custom {
+		switch {
+		case r.ID == "":
+			return nil, fmt.Errorf("custom rule with regex %q: needs an id", r.Regex)
+		case seen[r.ID]:
+			return nil, fmt.Errorf("custom rule %q: id is already taken", r.ID)
+		case r.Regex == "":
+			return nil, fmt.Errorf("custom rule %q: needs a regex", r.ID)
+		case len(r.ApplyOn) == 0:
+			return nil, fmt.Errorf("custom rule %q: needs applyOn, one or more of %s", r.ID, strings.Join(SupportedFields, ", "))
+		case len(r.Categories) == 0:
+			return nil, fmt.Errorf("custom rule %q: needs at least one category", r.ID)
+		}
+		seen[r.ID] = true
+
+		if _, err := regexp.Compile(r.Regex); err != nil {
+			return nil, fmt.Errorf("custom rule %q: regex %q: %w", r.ID, r.Regex, err)
+		}
+		categories := make([]string, 0, len(r.Categories))
+		for _, c := range r.Categories {
+			title, ok := models.ResolveCategory(c)
+			if !ok {
+				return nil, fmt.Errorf("custom rule %q: unknown category %q", r.ID, c)
+			}
+			categories = append(categories, string(title))
+		}
+		r.Categories = categories
+		prepared = append(prepared, r)
+	}
+	return prepared, nil
+}
+
+// NewRulesService loads the embedded catalogue plus any custom rules, which
+// add to it and never replace an embedded rule.
+func NewRulesService(custom ...FileRule) (RuleService, error) {
 	s := &service{}
-	collection, err := s.createRulesCollection()
+	collection, err := s.createRulesCollection(custom)
 	if err != nil {
 		return nil, err
 	}

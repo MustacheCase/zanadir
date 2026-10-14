@@ -9,6 +9,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/rules"
 	"github.com/spf13/cobra"
 )
 
@@ -42,6 +43,8 @@ type Config struct {
 	Badge string
 	// Write makes the fix command generate a workflow instead of printing.
 	Write bool
+	// Rules are custom rules from the config file, added to the catalogue.
+	Rules []rules.FileRule
 }
 
 // normalizeCategories canonicalises category names and rejects unknown ones.
@@ -83,7 +86,8 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := applyFile(cmd); err != nil {
+	file, err := applyFile(cmd)
+	if err != nil {
 		return nil, err
 	}
 
@@ -129,6 +133,7 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 		Output:             output,
 		OutputFile:         outputFile,
 		Badge:              badge,
+		Rules:              file.Rules,
 	}, nil
 }
 
@@ -139,7 +144,8 @@ func CreateFixConfig(cmd *cobra.Command) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := applyFile(cmd); err != nil {
+	file, err := applyFile(cmd)
+	if err != nil {
 		return nil, err
 	}
 
@@ -152,5 +158,5 @@ func CreateFixConfig(cmd *cobra.Command) (*Config, error) {
 	debug, _ := cmd.Flags().GetBool("debug")
 	write, _ := cmd.Flags().GetBool("write")
 
-	return &Config{Dir: dir, ExcludedCategories: excluded, Debug: debug, Write: write}, nil
+	return &Config{Dir: dir, ExcludedCategories: excluded, Debug: debug, Write: write, Rules: file.Rules}, nil
 }

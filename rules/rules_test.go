@@ -113,3 +113,57 @@ func TestEmbeddedRulesCarryWeakenedChecks(t *testing.T) {
 	}
 	assert.True(t, hasInput, "tfsec should be weakened by soft_fail: true")
 }
+
+func TestCustomRuleJoinsTheCatalogue(t *testing.T) {
+	rs, err := rules.NewRulesService(rules.FileRule{
+		ID:         "acme-scan",
+		ApplyOn:    []string{rules.FieldJobRun},
+		Categories: []string{"sast"},
+		Regex:      `\bacme-scan\b`,
+	})
+	assert.NoError(t, err)
+
+	var ids []string
+	for _, r := range rs.GetCategoryRules(models.CategoryTitle("SAST")) {
+		ids = append(ids, r.ID)
+	}
+	assert.Contains(t, ids, "acme-scan")
+	assert.Contains(t, ids, "semgrep-rule")
+}
+
+func TestCustomRulesAreChecked(t *testing.T) {
+	valid := func() rules.FileRule {
+		return rules.FileRule{ID: "acme", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SAST"}, Regex: "acme"}
+	}
+	tests := []struct {
+		name     string
+		edit     func(*rules.FileRule)
+		contains string
+	}{
+		{"no id", func(r *rules.FileRule) { r.ID = "" }, "needs an id"},
+		{"embedded id", func(r *rules.FileRule) { r.ID = "semgrep-rule" }, "already taken"},
+		{"no regex", func(r *rules.FileRule) { r.Regex = "" }, "needs a regex"},
+		{"bad regex", func(r *rules.FileRule) { r.Regex = "acme(" }, "regex"},
+		{"no applyOn", func(r *rules.FileRule) { r.ApplyOn = nil }, "needs applyOn"},
+		{"bad applyOn", func(r *rules.FileRule) { r.ApplyOn = []string{"Job.Steps"} }, "unknown applyOn"},
+		{"no category", func(r *rules.FileRule) { r.Categories = nil }, "at least one category"},
+		{"bad category", func(r *rules.FileRule) { r.Categories = []string{"Fuzzing"} }, "unknown category"},
+		{"bad weakenedWhen", func(r *rules.FileRule) {
+			r.Weakened = []rules.FileWeakenedWhen{{RunMatches: "--dry-run", Verdict: "broken"}}
+		}, "verdict"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := valid()
+			tt.edit(&r)
+			_, err := rules.NewRulesService(r)
+			assert.ErrorContains(t, err, tt.contains)
+		})
+	}
+}
+
+func TestCustomRuleIDsMustBeUnique(t *testing.T) {
+	r := rules.FileRule{ID: "acme", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SAST"}, Regex: "acme"}
+	_, err := rules.NewRulesService(r, r)
+	assert.ErrorContains(t, err, "already taken")
+}

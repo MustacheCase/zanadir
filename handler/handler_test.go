@@ -741,6 +741,11 @@ func TestSetup(t *testing.T) {
 	assert.NotNil(t, h.OutputService)
 }
 
+func TestSetupRejectsABadCustomRule(t *testing.T) {
+	_, err := Setup(rules.FileRule{ID: "acme"})
+	assert.ErrorContains(t, err, "acme")
+}
+
 func TestFixInDebugMode(t *testing.T) {
 	setup()
 	h := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput)

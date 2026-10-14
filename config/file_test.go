@@ -118,3 +118,31 @@ func TestFixRejectsABadConfigFile(t *testing.T) {
 	assert.Nil(t, cfg)
 	assert.ErrorContains(t, err, "exclude-categories")
 }
+
+func TestConfigFileCarriesCustomRules(t *testing.T) {
+	path := writeConfig(t, `
+rules:
+  - id: acme-scan
+    applyOn: [Job.Run]
+    categories: [SAST]
+    regex: '\bacme-scan\b'
+    weakenedWhen:
+      - runMatches: '--report-only'
+        verdict: advisory
+`)
+	scan, err := CreateConfig(withConfig(newScanCmd(t.TempDir(), nil), path))
+	require.NoError(t, err)
+	require.Len(t, scan.Rules, 1)
+	assert.Equal(t, "acme-scan", scan.Rules[0].ID)
+	assert.Equal(t, "advisory", scan.Rules[0].Weakened[0].Verdict)
+
+	fix, err := CreateFixConfig(withConfig(newFixCmd(t.TempDir()), path))
+	require.NoError(t, err)
+	assert.Equal(t, scan.Rules, fix.Rules)
+}
+
+func TestConfigFileRejectsAMisspeltRuleKey(t *testing.T) {
+	path := writeConfig(t, "rules:\n  - id: acme\n    aplyOn: [Job.Run]\n")
+	_, err := CreateConfig(withConfig(newScanCmd(t.TempDir(), nil), path))
+	assert.ErrorContains(t, err, "aplyOn")
+}

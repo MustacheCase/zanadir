@@ -376,6 +376,15 @@ than their presence suggests:
 | `advisory` | it runs, and cannot block anything |
 | `unknown` | the configuration cannot be read well enough to say |
 
+Supply Chain is graded against a different path. An SBOM, a signature or a
+provenance attestation describes what ships rather than looking for something
+to block, so it belongs where the artifact is published: running on a release,
+a push, a tag, a pull request or a workflow chained after one is `enforcing`.
+A manual run may be the release itself, which the file cannot tell, so it is
+`unknown`. Only a schedule, detached from anything that ships, is `advisory`,
+and `continue-on-error` is `advisory` here as everywhere: a signing step that
+can fail silently publishes unsigned artifacts.
+
 A weakened control does not fail a scan unless you ask it to. `--enforce` and
 `--fail-on` act only on categories with no tooling; `--fail-on-weakened` is
 what turns a weak control into a failure:

@@ -49,8 +49,16 @@ func Grade(finding *matcher.Finding) Verdict {
 		return Advisory
 	}
 
+	shipping := finding.Category == string(models.SupplyChain)
 	if job := finding.Job; job != nil {
-		if job.ContinueOnError || job.Manual {
+		if job.ContinueOnError {
+			return Advisory
+		}
+		// A manual step may be the release itself; the file cannot say.
+		if job.Manual && shipping {
+			return Unknown
+		}
+		if job.Manual {
 			return Advisory
 		}
 		if verdict, found := toolSpecific(finding.Rule, job); found {
@@ -62,6 +70,9 @@ func Grade(finding *matcher.Finding) Verdict {
 		}
 	}
 
+	if shipping {
+		return gradeShipping(finding.Artifact)
+	}
 	return gradeTriggers(finding.Artifact)
 }
 
@@ -110,6 +121,34 @@ func gradeTriggers(artifact *models.Artifact) Verdict {
 	default:
 		return Advisory
 	}
+}
+
+// Supply chain tools record and sign what ships rather than look for
+// something to block, so their path is the one that publishes: a release, a
+// push, a tag or a workflow chained after one. Running there is enforcing. A
+// manual run may be the release, which the file cannot tell, so it is
+// unknown; only a schedule is detached from what ships.
+var shippingEvents = map[string]bool{
+	"release":      true,
+	"push":         true,
+	"tag":          true,
+	"workflow_run": true,
+}
+
+func gradeShipping(artifact *models.Artifact) Verdict {
+	if len(artifact.Triggers) == 0 {
+		return Unknown
+	}
+	verdict := Advisory
+	for _, trigger := range artifact.Triggers {
+		switch {
+		case shippingEvents[trigger.Event] || gatingEvents[trigger.Event]:
+			return Enforcing
+		case trigger.Event == "workflow_dispatch":
+			verdict = Unknown
+		}
+	}
+	return verdict
 }
 
 func stronger(a, b Verdict) bool {

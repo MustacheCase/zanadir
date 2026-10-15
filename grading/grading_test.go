@@ -398,3 +398,45 @@ func TestWorse(t *testing.T) {
 		}
 	}
 }
+
+// Supply chain tools are judged on the path that ships, not the one that
+// gates, so an SBOM made at release time is not a weakness.
+func TestGradeSupplyChainOnTheShippingPath(t *testing.T) {
+	grade := func(category string, triggers []models.Trigger, job *models.Job) Verdict {
+		return Grade(&matcher.Finding{
+			Category: category,
+			Artifact: &models.Artifact{Triggers: triggers, Location: "sbom.yml"},
+			Job:      job,
+		})
+	}
+	release := []models.Trigger{{Event: "release"}}
+
+	tests := []struct {
+		name     string
+		category string
+		triggers []models.Trigger
+		job      *models.Job
+		expected Verdict
+	}{
+		{"on release", "Supply Chain", release, &models.Job{Run: "syft ."}, Enforcing},
+		{"on a tag push", "Supply Chain", []models.Trigger{{Event: "push", Branches: []string{"main"}}}, &models.Job{}, Enforcing},
+		{"on a Bitbucket tag", "Supply Chain", []models.Trigger{{Event: "tag"}}, &models.Job{}, Enforcing},
+		{"after another workflow", "Supply Chain", []models.Trigger{{Event: "workflow_run"}}, &models.Job{}, Enforcing},
+		{"on pull requests", "Supply Chain", []models.Trigger{{Event: "pull_request"}}, &models.Job{}, Enforcing},
+		{"only on a schedule", "Supply Chain", []models.Trigger{{Event: "schedule"}}, &models.Job{}, Advisory},
+		{"by hand, which may be the release", "Supply Chain", []models.Trigger{{Event: "workflow_dispatch"}}, &models.Job{}, Unknown},
+		{"by hand or on a schedule", "Supply Chain", []models.Trigger{{Event: "schedule"}, {Event: "workflow_dispatch"}}, &models.Job{}, Unknown},
+		{"a manual step in a release pipeline", "Supply Chain", release, &models.Job{Manual: true}, Unknown},
+		{"a manual scanner is still advisory", "SCA", release, &models.Job{Manual: true}, Advisory},
+		{"no triggers captured", "Supply Chain", nil, &models.Job{}, Unknown},
+		{"signing that may fail silently", "Supply Chain", release, &models.Job{ContinueOnError: true}, Advisory},
+		{"a scanner on release is still advisory", "SCA", release, &models.Job{}, Advisory},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := grade(tt.category, tt.triggers, tt.job); got != tt.expected {
+				t.Errorf("Grade() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

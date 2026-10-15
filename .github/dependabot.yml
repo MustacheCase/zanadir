@@ -9,3 +9,13 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+
+  # Minor and patch updates share one pull request; a major update gets its
+  # own, so one breaking API change cannot hold the rest back.
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      go:
+        update-types: ["minor", "patch"]

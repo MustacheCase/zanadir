@@ -19,6 +19,11 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bsnyk\\b"
+    # The snyk/snyk-scan Bitbucket pipe reports without failing when asked to.
+    weakenedWhen:
+      - input: "DONT_BREAK_BUILD"
+        equals: "true"
+        verdict: "advisory"
 
   - id: "anchore-rule"
     applyOn: ["Job.Package"]

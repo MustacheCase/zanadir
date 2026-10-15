@@ -180,6 +180,12 @@ func TestRepositoryScannerFindsEveryPlatform(t *testing.T) {
 			},
 		},
 		{
+			name: "bitbucket pipelines",
+			files: map[string]string{
+				"bitbucket-pipelines.yml": "pipelines:\n  pull-requests:\n    '**':\n      - step:\n          script:\n            - semgrep ci\n",
+			},
+		},
+		{
 			name: "dependabot",
 			files: map[string]string{
 				".github/dependabot.yml": "version: 2\n",

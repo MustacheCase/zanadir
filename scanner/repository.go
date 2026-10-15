@@ -44,6 +44,7 @@ func NewRepositoryScanner() Scanner {
 			// The parsers take the directory to look in, not the file.
 			{Path: "/", Parser: parser.NewGitlabParser()},
 			{Path: "/", Parser: parser.NewBitbucketParser()},
+			{Path: "/", Parser: parser.NewAzureParser()},
 			// Rooted at the repository: these configs sit outside any CI
 			// directory and have several possible names.
 			{Path: "/", Parser: parser.NewDependencyBotParser()},

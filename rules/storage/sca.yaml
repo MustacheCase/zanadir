@@ -18,11 +18,15 @@ rules:
   - id: "snyk-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)\\bsnyk\\b"
-    # The snyk/snyk-scan Bitbucket pipe reports without failing when asked to.
+    regex: "(?i)\\bsnyk\\b|^snyksecurityscan$"
+    # The Bitbucket pipe and the Azure task each report without failing when
+    # asked to.
     weakenedWhen:
       - input: "DONT_BREAK_BUILD"
         equals: "true"
+        verdict: "advisory"
+      - input: "failOnIssues"
+        equals: "false"
         verdict: "advisory"
 
   - id: "anchore-rule"
@@ -75,3 +79,9 @@ rules:
         verdict: "advisory"
       - runMatches: "(?i)--audit-level[= ]+none\\b"
         verdict: "advisory"
+
+  # GitHub Advanced Security for Azure DevOps.
+  - id: "azure-dependency-scanning-rule"
+    applyOn: ["Job.Package"]
+    categories: ["SCA"]
+    regex: "(?i)^advancedsecurity-dependency-scanning$"

@@ -18,3 +18,8 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
     regex: "(?i)\\bcoveralls(app)?\\b"
+
+  - id: "azure-coverage-rule"
+    applyOn: ["Job.Package"]
+    categories: ["Coverage"]
+    regex: "(?i)^publishcodecoverageresults$"

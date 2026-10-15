@@ -21,6 +21,7 @@ Zanadir currently supports:
 - CircleCI
 - GitLab
 - Bitbucket Pipelines
+- Azure Pipelines
 
 Future work will include support for:
 
@@ -477,6 +478,26 @@ left `unknown` for the same reason as GitLab's branch pipelines. Pipes are read
 like GitHub actions: `pipe: snyk/snyk-scan` counts as Snyk, and
 `DONT_BREAK_BUILD: "true"` grades it `advisory`.
 
+Azure Pipelines is read from `azure-pipelines.yml` (or `.yaml`) at the
+repository root, following `template:` and `extends:` references to files in
+the same repository. A template in another repository (`path@alias`) or one
+named by an expression cannot be read and is skipped.
+
+| Where the tool runs | Verdict |
+| --- | --- |
+| a pipeline whose `pr:` names branches | `enforcing` |
+| `continueOnError: true` on the step or its job | `advisory` |
+| `trigger: none`, `pr: none` and only `schedules:` | `advisory` |
+| any `condition:` other than `succeeded()` | `unknown` |
+| a pipeline with no `pr:` | `unknown` |
+
+With no `pr:`, an Azure Repos pull request is validated by a branch policy
+outside the repository, so the file cannot say whether the pipeline gates it.
+`succeeded()` is ignored because it is the default every step already has. A
+step with `enabled: false` never runs and counts for nothing. Tasks are read
+like actions, with `inputs:` as their inputs, so `SnykSecurityScan` with
+`failOnIssues: false` grades `advisory`.
+
 In SARIF a weakened control is a `note`, pointing at the file that produced
 the verdict, while a missing category stays a `warning`.
 
@@ -673,7 +694,7 @@ Data Leakage & Secrets Detection is not covered. Add to .github/workflows/securi
 ```
 
 It prints only; no file is touched. The CI platform is detected from the
-repository, and snippets are emitted for GitHub Actions, GitLab CI or Bitbucket Pipelines
+repository, and snippets are emitted for GitHub Actions, GitLab CI, Bitbucket Pipelines or Azure Pipelines
 accordingly.
 
 Not every suggested tool has a template. A category whose tools are all

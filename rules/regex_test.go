@@ -39,6 +39,31 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"trivyscanner", "mytrivy"},
 		},
 		{
+			ruleID:         "sonar-rule",
+			shouldMatch:    []string{"SonarCloudAnalyze", "SonarQubeAnalyze", "sonarsource/sonarcloud-github-action", "sonar-scanner"},
+			shouldNotMatch: []string{"SonarCloudPrepare", "SonarQubePublish", "sonarlint"},
+		},
+		{
+			ruleID:         "snyk-rule",
+			shouldMatch:    []string{"SnykSecurityScan", "snyk test", "snyk/snyk-scan"},
+			shouldNotMatch: []string{"snykish", "SnykSecurityScanner"},
+		},
+		{
+			ruleID:         "azure-dependency-scanning-rule",
+			shouldMatch:    []string{"AdvancedSecurity-Dependency-Scanning"},
+			shouldNotMatch: []string{"AdvancedSecurity-Codeql-Analyze", "AdvancedSecurity-Dependency-Scanning-Extra"},
+		},
+		{
+			ruleID:         "azure-coverage-rule",
+			shouldMatch:    []string{"PublishCodeCoverageResults"},
+			shouldNotMatch: []string{"PublishTestResults", "PublishCodeCoverageResultsV2Wrapper"},
+		},
+		{
+			ruleID:         "azure-test-task-rule",
+			shouldMatch:    []string{"VSTest", "PublishTestResults"},
+			shouldNotMatch: []string{"VSBuild", "PublishTestResultsLegacy"},
+		},
+		{
 			ruleID:         "git-secrets-rule",
 			shouldMatch:    []string{"atlassian/git-secrets-scan", "git secrets --scan", "git-secrets --scan-history"},
 			shouldNotMatch: []string{"git-secretsmanager", "github secrets", "git secret reveal"},

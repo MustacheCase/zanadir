@@ -1,6 +1,7 @@
 package output
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,8 @@ import (
 	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/renderer"
+	"github.com/olekukonko/tablewriter/tw"
 )
 
 // Report is one scan result to render.
@@ -51,32 +54,6 @@ type Output interface {
 }
 
 type service struct{}
-
-func wrapText(text string, lineWidth int) string {
-	words := strings.Fields(text)
-	if len(words) == 0 {
-		return ""
-	}
-
-	var lines []string
-	var currentLine string
-
-	for _, word := range words {
-		if len(currentLine)+len(word)+1 > lineWidth {
-			lines = append(lines, currentLine)
-			currentLine = word
-		} else {
-			if currentLine != "" {
-				currentLine += " "
-			}
-			currentLine += word
-		}
-	}
-	if currentLine != "" {
-		lines = append(lines, currentLine)
-	}
-	return strings.Join(lines, "\n")
-}
 
 // Only the lines around the table are styled: tablewriter measures width in
 // runes and escape codes would misalign every column.
@@ -261,30 +238,30 @@ func render(w io.Writer, report Report) error {
 			return err
 		}
 
-		table := tablewriter.NewWriter(w)
-		table.SetHeader([]string{"Category", "Description", "Suggested Tools"})
-		table.SetBorders(tablewriter.Border{Left: true, Top: true, Right: true, Bottom: true})
-		table.SetCenterSeparator("|")
-		table.SetColumnSeparator("|")
-		table.SetRowSeparator("-")
-		table.SetRowLine(true)
-		table.SetAutoWrapText(true)
-		table.SetReflowDuringAutoWrap(true)
-
+		rows := make([][]string, 0, len(suggestions))
 		for _, suggestion := range suggestions {
 			toolNames := []string{}
 			for _, tool := range suggestion.Suggestions {
 				toolNames = append(toolNames, tool.Name)
 			}
-			tools := strings.Join(toolNames, ", ")
-
-			// Wrap description for better display
-			description := wrapText(suggestion.Description, 60)
-
-			table.Append([]string{suggestion.Name, description, tools})
+			rows = append(rows, []string{suggestion.Name, suggestion.Description, strings.Join(toolNames, ", ")})
 		}
 
-		table.Render()
+		// tablewriter drops write errors, so the table is built in memory and
+		// written in one call whose error is checked.
+		var buf bytes.Buffer
+		table := newTable(&buf)
+		table.Header("Category", "Description", "Suggested Tools")
+		err := table.Bulk(rows)
+		if err == nil {
+			err = table.Render()
+		}
+		if err == nil {
+			_, err = w.Write(buf.Bytes())
+		}
+		if err != nil {
+			return err
+		}
 		if err := renderWeakened(w, report.Weakened, colour); err != nil {
 			return err
 		}
@@ -301,4 +278,24 @@ func render(w io.Writer, report Report) error {
 
 func NewOutputService() Output {
 	return &service{}
+}
+
+// newTable draws the ASCII grid tablewriter v0 drew, so upgrading the library
+// does not change what a terminal or a log file shows.
+func newTable(w io.Writer) *tablewriter.Table {
+	symbols := tw.NewSymbolCustom("zanadir").WithRow("-").WithColumn("|").WithCenter("|").
+		WithTopLeft("|").WithTopMid("|").WithTopRight("|").
+		WithMidLeft("|").WithMidRight("|").
+		WithBottomLeft("|").WithBottomMid("|").WithBottomRight("|").
+		WithHeaderLeft("|").WithHeaderMid("|").WithHeaderRight("|")
+
+	return tablewriter.NewTable(w,
+		tablewriter.WithRenderer(renderer.NewBlueprint(tw.Rendition{
+			Symbols:  symbols,
+			Settings: tw.Settings{Separators: tw.Separators{BetweenRows: tw.On}},
+		})),
+		tablewriter.WithRowAutoWrap(tw.WrapNormal),
+		tablewriter.WithRowMaxWidth(32),
+		tablewriter.WithHeaderMaxWidth(32),
+	)
 }

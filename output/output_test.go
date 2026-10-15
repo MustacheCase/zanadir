@@ -116,12 +116,6 @@ func TestResponse_SARIFOutput(t *testing.T) {
 	}
 }
 
-func TestWrapTextEmptyInput(t *testing.T) {
-	if got := wrapText("   ", 10); got != "" {
-		t.Errorf("expected empty string for blank input, got %q", got)
-	}
-}
-
 func TestResponse_WritesSARIFToFile(t *testing.T) {
 	service := NewOutputService()
 	suggestions := getSampleSuggestions()
@@ -287,6 +281,29 @@ func TestResponse_MachineFormatsHaveNoHeadline(t *testing.T) {
 type failingWriter struct{ err error }
 
 func (f failingWriter) Write([]byte) (int, error) { return 0, f.err }
+
+// failsAfter accepts its first n writes, so an error can land inside the table
+// rather than on the headline above it.
+type failsAfter struct {
+	n   int
+	err error
+}
+
+func (f *failsAfter) Write(p []byte) (int, error) {
+	if f.n == 0 {
+		return 0, f.err
+	}
+	f.n--
+	return len(p), nil
+}
+
+func TestRenderPropagatesWriteErrorInsideTheTable(t *testing.T) {
+	boom := errors.New("disk full")
+	err := render(&failsAfter{n: 1, err: boom}, Report{Suggestions: getSampleSuggestions(), Format: config.OutputTable})
+	if !errors.Is(err, boom) {
+		t.Errorf("expected the table's write error to propagate, got %v", err)
+	}
+}
 
 func TestUseColour(t *testing.T) {
 	t.Run("not a file", func(t *testing.T) {

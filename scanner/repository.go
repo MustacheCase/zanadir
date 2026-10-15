@@ -43,6 +43,7 @@ func NewRepositoryScanner() Scanner {
 			{Path: "/.circleci/", Parser: parser.NewCircleCIParser()},
 			// The parsers take the directory to look in, not the file.
 			{Path: "/", Parser: parser.NewGitlabParser()},
+			{Path: "/", Parser: parser.NewBitbucketParser()},
 			// Rooted at the repository: these configs sit outside any CI
 			// directory and have several possible names.
 			{Path: "/", Parser: parser.NewDependencyBotParser()},

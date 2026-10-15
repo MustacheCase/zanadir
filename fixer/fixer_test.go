@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -171,6 +172,8 @@ func TestShippedTemplatesParseWhenPasted(t *testing.T) {
 			case PlatformGitHub:
 				doc = "name: ci\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n" +
 					indent(tmpl.Step, "      ")
+			case PlatformBitbucket:
+				doc = bitbucketSkeleton(tmpl.Step)
 			default:
 				doc = tmpl.Step
 			}
@@ -470,4 +473,41 @@ func TestValidateRejectsUnknownCategory(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown category")
+}
+
+func bitbucketSkeleton(step string) string {
+	return "pipelines:\n  pull-requests:\n    '**':\n" + indent(step, "      ")
+}
+
+// The Bitbucket templates are read back by the real parser, so a snippet fix
+// prints is one a later scan would count.
+func TestBitbucketTemplatesAreReadByTheParser(t *testing.T) {
+	templates, err := readTemplates()
+	assert.NoError(t, err)
+
+	for _, tmpl := range templates {
+		if tmpl.Platform != PlatformBitbucket {
+			continue
+		}
+		t.Run(tmpl.Tool, func(t *testing.T) {
+			dir := t.TempDir()
+			assert.NoError(t, os.WriteFile(filepath.Join(dir, "bitbucket-pipelines.yml"), []byte(bitbucketSkeleton(tmpl.Step)), 0o600))
+
+			artifacts, err := parser.NewBitbucketParser().Parse(dir)
+			assert.NoError(t, err)
+			if assert.Len(t, artifacts, 1) && assert.Len(t, artifacts[0].Jobs, 1) {
+				assert.True(t, artifacts[0].HasTrigger("pull_request"))
+				job := artifacts[0].Jobs[0]
+				assert.Contains(t, strings.ToLower(job.Run), strings.ToLower(tmpl.Tool))
+				assert.NotEmpty(t, job.Package)
+			}
+		})
+	}
+}
+
+func TestDetectPlatformBitbucket(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "bitbucket-pipelines.yml"), []byte("pipelines: {}\n"), 0o600))
+	assert.Equal(t, PlatformBitbucket, DetectPlatform(dir))
+	assert.Equal(t, "bitbucket-pipelines.yml", targetFile(PlatformBitbucket))
 }

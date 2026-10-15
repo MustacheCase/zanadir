@@ -39,6 +39,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"trivyscanner", "mytrivy"},
 		},
 		{
+			ruleID:         "git-secrets-rule",
+			shouldMatch:    []string{"atlassian/git-secrets-scan", "git secrets --scan", "git-secrets --scan-history"},
+			shouldNotMatch: []string{"git-secretsmanager", "github secrets", "git secret reveal"},
+		},
+		{
 			ruleID:         "trivy-eol-rule",
 			shouldMatch:    []string{"trivy image --exit-on-eol 1 zanadir:eol-scan", "exit-on-eol: 1"},
 			shouldNotMatch: []string{"trivy fs .", "aquasecurity/trivy-action", "trivy sbom"},

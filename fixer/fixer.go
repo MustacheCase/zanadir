@@ -18,15 +18,17 @@ import (
 var templatesFS embed.FS
 
 const (
-	PlatformGitHub   = "github"
-	PlatformGitLab   = "gitlab"
-	PlatformCircleCI = "circleci"
+	PlatformGitHub    = "github"
+	PlatformGitLab    = "gitlab"
+	PlatformCircleCI  = "circleci"
+	PlatformBitbucket = "bitbucket"
 )
 
 var knownPlatforms = map[string]bool{
-	PlatformGitHub:   true,
-	PlatformGitLab:   true,
-	PlatformCircleCI: true,
+	PlatformGitHub:    true,
+	PlatformGitLab:    true,
+	PlatformCircleCI:  true,
+	PlatformBitbucket: true,
 }
 
 type Template struct {
@@ -178,6 +180,9 @@ func DetectPlatform(dir string) string {
 	if info, err := os.Stat(filepath.Join(dir, ".circleci")); err == nil && info.IsDir() {
 		return PlatformCircleCI
 	}
+	if info, err := os.Stat(filepath.Join(dir, "bitbucket-pipelines.yml")); err == nil && !info.IsDir() {
+		return PlatformBitbucket
+	}
 	return PlatformGitHub
 }
 
@@ -188,6 +193,8 @@ func targetFile(platform string) string {
 		return ".gitlab-ci.yml"
 	case PlatformCircleCI:
 		return ".circleci/config.yml"
+	case PlatformBitbucket:
+		return "bitbucket-pipelines.yml"
 	default:
 		return ".github/workflows/security.yml"
 	}

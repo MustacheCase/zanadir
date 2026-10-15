@@ -23,6 +23,15 @@ templates:
         script:
           - gitleaks detect --source . --verbose
 
+  - tool: "Gitleaks"
+    platform: "bitbucket"
+    step: |
+      - step:
+          name: Secret detection
+          image: zricethezav/gitleaks
+          script:
+            - gitleaks detect --source . --verbose
+
   - tool: "TruffleHog"
     platform: "github"
     step: |
@@ -50,6 +59,15 @@ templates:
           entrypoint: [""]
         script:
           - trivy fs --exit-code 1 .
+
+  - tool: "Trivy"
+    platform: "bitbucket"
+    step: |
+      - step:
+          name: Dependency scanning
+          image: aquasec/trivy
+          script:
+            - trivy fs --exit-code 1 .
 
   - tool: "Grype"
     platform: "github"

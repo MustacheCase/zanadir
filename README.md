@@ -20,10 +20,11 @@ Zanadir currently supports:
 - GitHub Actions
 - CircleCI
 - GitLab
+- Bitbucket Pipelines
 
 Future work will include support for:
 
-- Bitbucket
+- Jenkins
 
 ## Categories We Suggest
 
@@ -460,6 +461,22 @@ not in the repository, so reading them would be guessing. A GitLab job with
 neither weakening field is reported `unknown`, which says nothing rather than
 something wrong. CircleCI has no equivalent signal and is not graded.
 
+Bitbucket Pipelines splits its file by trigger, so most of it is graded:
+
+| Where the tool runs | Verdict |
+| --- | --- |
+| `pull-requests:` | `enforcing` |
+| `branches:` for one named branch, such as `main` | `partial` - it runs after the merge |
+| `tags:`, `custom:`, or a step or stage with `trigger: manual` | `advisory` |
+| `after-script:` | `advisory` - a failing after-script does not fail the step |
+| `default:`, or a wildcard branch pattern | `unknown` |
+
+`default:` also runs on a pull request's source branch, and whether that build
+blocks the merge is a merge check configured outside the repository, so it is
+left `unknown` for the same reason as GitLab's branch pipelines. Pipes are read
+like GitHub actions: `pipe: snyk/snyk-scan` counts as Snyk, and
+`DONT_BREAK_BUILD: "true"` grades it `advisory`.
+
 In SARIF a weakened control is a `note`, pointing at the file that produced
 the verdict, while a missing category stays a `warning`.
 
@@ -656,7 +673,7 @@ Data Leakage & Secrets Detection is not covered. Add to .github/workflows/securi
 ```
 
 It prints only; no file is touched. The CI platform is detected from the
-repository, and snippets are emitted for GitHub Actions or GitLab CI
+repository, and snippets are emitted for GitHub Actions, GitLab CI or Bitbucket Pipelines
 accordingly.
 
 Not every suggested tool has a template. A category whose tools are all

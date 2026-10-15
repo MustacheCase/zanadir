@@ -1,11 +1,14 @@
 # Actions are pinned to commit SHAs, which the Workflow Security audit
-# requires. Nothing would ever update them without this.
+# requires. Nothing would ever update them without this. The cooldown holds
+# a release back for a week, long enough for a compromised one to be pulled.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
@@ -16,6 +19,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
       go:
         update-types: ["minor", "patch"]

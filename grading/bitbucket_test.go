@@ -45,6 +45,7 @@ pipelines:
 		"SAST":              Enforcing,
 		"SCA":               Advisory,
 		"Linter":            Advisory,
-		"Supply Chain":      Advisory,
+		// A custom pipeline is started by hand and may be the release.
+		"Supply Chain": Unknown,
 	}, verdicts)
 }

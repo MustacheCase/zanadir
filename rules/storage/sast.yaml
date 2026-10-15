@@ -9,12 +9,12 @@ rules:
     categories: ["SAST"]
     regex: "(?i)\\bcodeql\\b"
 
-  # Bare "sonar" appears in unrelated names, so require a product suffix or the
-  # action's org prefix.
+  # Bare "sonar" appears in unrelated names, so require a product suffix, the
+  # action's org prefix, or the Azure task that runs the analysis.
   - id: "sonar-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
-    regex: "(?i)\\bsonar(qube|cloud|-scanner)\\b|sonarsource/"
+    regex: "(?i)\\bsonar(qube|cloud|-scanner)\\b|sonarsource/|^sonar(?:qube|cloud)analyze$"
 
   - id: "gosec-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

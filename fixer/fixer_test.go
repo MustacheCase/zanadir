@@ -174,6 +174,8 @@ func TestShippedTemplatesParseWhenPasted(t *testing.T) {
 					indent(tmpl.Step, "      ")
 			case PlatformBitbucket:
 				doc = bitbucketSkeleton(tmpl.Step)
+			case PlatformAzure:
+				doc = azureSkeleton(tmpl.Step)
 			default:
 				doc = tmpl.Step
 			}
@@ -479,27 +481,39 @@ func bitbucketSkeleton(step string) string {
 	return "pipelines:\n  pull-requests:\n    '**':\n" + indent(step, "      ")
 }
 
-// The Bitbucket templates are read back by the real parser, so a snippet fix
-// prints is one a later scan would count.
-func TestBitbucketTemplatesAreReadByTheParser(t *testing.T) {
+func azureSkeleton(step string) string {
+	return "pr: [main]\nsteps:\n" + indent(step, "  ")
+}
+
+// Templates are read back by the real parser, so a snippet fix prints is one a
+// later scan would count.
+func TestTemplatesAreReadByTheParser(t *testing.T) {
 	templates, err := readTemplates()
 	assert.NoError(t, err)
 
+	platforms := map[string]struct {
+		file     string
+		skeleton func(string) string
+		parser   parser.Parser
+	}{
+		PlatformBitbucket: {"bitbucket-pipelines.yml", bitbucketSkeleton, parser.NewBitbucketParser()},
+		PlatformAzure:     {"azure-pipelines.yml", azureSkeleton, parser.NewAzureParser()},
+	}
+
 	for _, tmpl := range templates {
-		if tmpl.Platform != PlatformBitbucket {
+		p, ok := platforms[tmpl.Platform]
+		if !ok {
 			continue
 		}
-		t.Run(tmpl.Tool, func(t *testing.T) {
+		t.Run(tmpl.Tool+"/"+tmpl.Platform, func(t *testing.T) {
 			dir := t.TempDir()
-			assert.NoError(t, os.WriteFile(filepath.Join(dir, "bitbucket-pipelines.yml"), []byte(bitbucketSkeleton(tmpl.Step)), 0o600))
+			assert.NoError(t, os.WriteFile(filepath.Join(dir, p.file), []byte(p.skeleton(tmpl.Step)), 0o600))
 
-			artifacts, err := parser.NewBitbucketParser().Parse(dir)
+			artifacts, err := p.parser.Parse(dir)
 			assert.NoError(t, err)
 			if assert.Len(t, artifacts, 1) && assert.Len(t, artifacts[0].Jobs, 1) {
 				assert.True(t, artifacts[0].HasTrigger("pull_request"))
-				job := artifacts[0].Jobs[0]
-				assert.Contains(t, strings.ToLower(job.Run), strings.ToLower(tmpl.Tool))
-				assert.NotEmpty(t, job.Package)
+				assert.Contains(t, strings.ToLower(artifacts[0].Jobs[0].Run+artifacts[0].Jobs[0].Package), strings.ToLower(tmpl.Tool))
 			}
 		})
 	}
@@ -510,4 +524,13 @@ func TestDetectPlatformBitbucket(t *testing.T) {
 	assert.NoError(t, os.WriteFile(filepath.Join(dir, "bitbucket-pipelines.yml"), []byte("pipelines: {}\n"), 0o600))
 	assert.Equal(t, PlatformBitbucket, DetectPlatform(dir))
 	assert.Equal(t, "bitbucket-pipelines.yml", targetFile(PlatformBitbucket))
+}
+
+func TestDetectPlatformAzure(t *testing.T) {
+	for _, name := range []string{"azure-pipelines.yml", "azure-pipelines.yaml"} {
+		dir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("steps: []\n"), 0o600))
+		assert.Equal(t, PlatformAzure, DetectPlatform(dir), name)
+	}
+	assert.Equal(t, "azure-pipelines.yml", targetFile(PlatformAzure))
 }

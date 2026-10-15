@@ -186,6 +186,12 @@ func TestRepositoryScannerFindsEveryPlatform(t *testing.T) {
 			},
 		},
 		{
+			name: "azure pipelines",
+			files: map[string]string{
+				"azure-pipelines.yml": "pr: [main]\nsteps:\n  - script: semgrep ci\n",
+			},
+		},
+		{
 			name: "dependabot",
 			files: map[string]string{
 				".github/dependabot.yml": "version: 2\n",

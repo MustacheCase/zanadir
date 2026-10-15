@@ -22,6 +22,7 @@ const (
 	PlatformGitLab    = "gitlab"
 	PlatformCircleCI  = "circleci"
 	PlatformBitbucket = "bitbucket"
+	PlatformAzure     = "azure"
 )
 
 var knownPlatforms = map[string]bool{
@@ -29,6 +30,7 @@ var knownPlatforms = map[string]bool{
 	PlatformGitLab:    true,
 	PlatformCircleCI:  true,
 	PlatformBitbucket: true,
+	PlatformAzure:     true,
 }
 
 type Template struct {
@@ -183,6 +185,11 @@ func DetectPlatform(dir string) string {
 	if info, err := os.Stat(filepath.Join(dir, "bitbucket-pipelines.yml")); err == nil && !info.IsDir() {
 		return PlatformBitbucket
 	}
+	for _, name := range []string{"azure-pipelines.yml", "azure-pipelines.yaml"} {
+		if info, err := os.Stat(filepath.Join(dir, name)); err == nil && !info.IsDir() {
+			return PlatformAzure
+		}
+	}
 	return PlatformGitHub
 }
 
@@ -195,6 +202,8 @@ func targetFile(platform string) string {
 		return ".circleci/config.yml"
 	case PlatformBitbucket:
 		return "bitbucket-pipelines.yml"
+	case PlatformAzure:
+		return "azure-pipelines.yml"
 	default:
 		return ".github/workflows/security.yml"
 	}

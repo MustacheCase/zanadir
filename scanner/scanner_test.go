@@ -85,8 +85,9 @@ func TestNewRepositoryScanner(t *testing.T) {
 	expectedPaths := []string{
 		"/.github/workflows/",
 		"/.circleci/",
-		// GitLab, Bitbucket and the dependency bots are rooted at the
+		// GitLab, Bitbucket, Azure and the dependency bots are rooted at the
 		// repository: the parsers take the directory to look in, not the file.
+		"/",
 		"/",
 		"/",
 		"/",

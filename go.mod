@@ -1,6 +1,6 @@
 module github.com/MustacheCase/zanadir
 
-go 1.26
+go 1.26.0
 
 require (
 	github.com/olekukonko/tablewriter v1.1.5
@@ -25,5 +25,5 @@ require (
 	github.com/olekukonko/ll v0.1.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
-	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 )

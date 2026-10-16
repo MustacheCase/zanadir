@@ -32,6 +32,9 @@ var fixCmd = &cobra.Command{
 	Run:   run(config.CreateFixConfig, fixRepo),
 }
 
+// exit is os.Exit, replaced in tests.
+var exit = os.Exit
+
 // run builds a command's configuration and does its work, exiting non-zero
 // on any failure.
 func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Config) error) func(*cobra.Command, []string) {
@@ -39,12 +42,13 @@ func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Con
 		cfg, err := build(cmd)
 		if err != nil {
 			fmt.Printf("Error: Unable to initialize configuration service %v\n", err)
-			os.Exit(1)
+			exit(1)
+			return
 		}
 		if err := do(cfg); err != nil {
 			w, msg := scanErrorReport(err)
 			_, _ = fmt.Fprint(w, msg)
-			os.Exit(1)
+			exit(1)
 		}
 	}
 }

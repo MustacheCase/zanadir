@@ -12,81 +12,68 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Root command (CLI entry point)
 var rootCmd = &cobra.Command{
 	Use:   "zanadir",
-	Short: "zanadir CLI tool",
-	Long:  "zanadir is a CLI tool that provides which provides suggestions how to improve your CI.",
+	Short: "Grades whether a repository's CI actually protects it",
+	Long:  "zanadir reads a repository's CI configuration and reports which security and quality controls are missing, or wired so they cannot fail a build.",
 }
 
-// scanCmd represents the "scan" command
 var scanCmd = &cobra.Command{
 	Use:   "scan",
-	Short: "Scans a GitHub repository directory",
-	Long:  "The scan command scans a specified GitHub repository directory for CI analysis.",
-	Run: func(cmd *cobra.Command, args []string) {
-		config, err := config.CreateConfig(cmd)
-
-		if err != nil {
-			fmt.Printf("Error: Unable to initialize configuration service %v", err)
-			os.Exit(1)
-		}
-
-		if err := scanRepo(config); err != nil {
-			w, msg := scanErrorReport(err)
-			_, _ = fmt.Fprint(w, msg)
-			os.Exit(1)
-		}
-	},
+	Short: "Scans a repository's CI configuration",
+	Long:  "The scan command reads a repository's CI configuration and reports the categories it does not cover.",
+	Run:   run(config.CreateConfig, scanRepo),
 }
 
 var fixCmd = &cobra.Command{
 	Use:   "fix",
 	Short: "Prints CI configuration for the categories a scan reports as missing",
 	Long:  "The fix command prints ready-to-paste CI configuration for each uncovered category, so a scan result can be acted on without leaving the tool.",
-	Run: func(cmd *cobra.Command, args []string) {
-		cfg, err := config.CreateFixConfig(cmd)
+	Run:   run(config.CreateFixConfig, fixRepo),
+}
+
+// run builds a command's configuration and does its work, exiting non-zero
+// on any failure.
+func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Config) error) func(*cobra.Command, []string) {
+	return func(cmd *cobra.Command, _ []string) {
+		cfg, err := build(cmd)
 		if err != nil {
-			fmt.Printf("Error: Unable to initialize configuration service %v", err)
+			fmt.Printf("Error: Unable to initialize configuration service %v\n", err)
 			os.Exit(1)
 		}
-
-		if err := fixRepo(cfg); err != nil {
+		if err := do(cfg); err != nil {
 			w, msg := scanErrorReport(err)
 			_, _ = fmt.Fprint(w, msg)
 			os.Exit(1)
 		}
-	},
+	}
+}
+
+// addSharedFlags defines the flags scan and fix both take.
+func addSharedFlags(cmd *cobra.Command) {
+	cmd.Flags().StringP("dir", "d", "", "Path to the repository directory (required)")
+	cmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
+	cmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
+	cmd.Flags().StringP("config", "c", "", "Read flag values from this YAML file; flags given on the command line win (optional)")
+	_ = cmd.MarkFlagRequired("dir")
 }
 
 // NewApp initializes the CLI application
 func NewApp() *cobra.Command {
-	// Add scan command to root command
-	rootCmd.AddCommand(scanCmd)
-	rootCmd.AddCommand(fixCmd)
+	rootCmd.AddCommand(scanCmd, fixCmd)
 
-	// Add flags to scan command
-	scanCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
-	scanCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
+	addSharedFlags(scanCmd)
 	scanCmd.Flags().Bool("enforce", false, "Fails the CI process when any category is uncovered (optional)")
 	scanCmd.Flags().StringSlice("fail-on", []string{}, "Fail only when these specific categories are uncovered (optional)")
 	scanCmd.Flags().Bool("fail-on-weakened", false, "Also fail when a category has tooling that cannot fail a build (optional)")
 	scanCmd.Flags().String("baseline", "", "Path to a baseline file of already-accepted gaps (optional)")
 	scanCmd.Flags().Bool("write-baseline", false, "Write the current uncovered categories to the baseline file and exit successfully (optional)")
-	scanCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
 	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif, markdown) (optional)")
 	scanCmd.Flags().String("output-file", "", "Write the report to this file instead of stdout (optional)")
 	scanCmd.Flags().String("badge", "", "Write a shields.io endpoint badge of the coverage score to this path (optional)")
-	scanCmd.Flags().StringP("config", "c", "", "Read flag values from this YAML file; flags given on the command line win (optional)")
 
-	_ = scanCmd.MarkFlagRequired("dir")
-
-	fixCmd.Flags().StringP("dir", "d", "", "Path to the GitHub repository directory (required)")
-	fixCmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
-	fixCmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
+	addSharedFlags(fixCmd)
 	fixCmd.Flags().Bool("write", false, "Generate .github/workflows/zanadir-suggested.yml instead of printing (optional)")
-	fixCmd.Flags().StringP("config", "c", "", "Read flag values from this YAML file; flags given on the command line win (optional)")
-	_ = fixCmd.MarkFlagRequired("dir")
 
 	return rootCmd
 }
@@ -100,29 +87,21 @@ func scanErrorReport(err error) (io.Writer, string) {
 	if errors.As(err, &enforceErr) {
 		return os.Stderr, fmt.Sprintf("Enforcement failed: %v\n", err)
 	}
-	return os.Stdout, fmt.Sprintf("Error: scan repo failed: %v", err)
+	return os.Stdout, fmt.Sprintf("Error: scan repo failed: %v\n", err)
 }
 
-// scanRepo function
-func scanRepo(config *config.Config) error {
-	scanHandler, err := handler.Setup(config.Rules...)
-	if err != nil {
-		// log the error
-		return err
-	}
-	// Add scanning logic here
-	err = scanHandler.Execute(config)
+func scanRepo(cfg *config.Config) error {
+	h, err := handler.Setup(cfg.Rules...)
 	if err != nil {
 		return err
 	}
-
-	return nil
+	return h.Execute(cfg)
 }
 
 func fixRepo(cfg *config.Config) error {
-	fixHandler, err := handler.Setup(cfg.Rules...)
+	h, err := handler.Setup(cfg.Rules...)
 	if err != nil {
 		return err
 	}
-	return fixHandler.Fix(cfg, os.Stdout)
+	return h.Fix(cfg, os.Stdout)
 }

@@ -21,7 +21,7 @@ func TestScanCmdFlags(t *testing.T) {
 
 	dirFlag := cmd.Flags().Lookup("dir")
 	assert.NotNil(t, dirFlag, "The 'dir' flag should be defined")
-	assert.Equal(t, "Path to the GitHub repository directory (required)", dirFlag.Usage)
+	assert.Equal(t, "Path to the repository directory (required)", dirFlag.Usage)
 
 	excludedCategoriesFlag := cmd.Flags().Lookup("excluded-categories")
 	assert.NotNil(t, excludedCategoriesFlag, "The 'excluded-categories' flag should be defined")

@@ -10,11 +10,16 @@ rules:
     regex: "(?i)\\bcodeql\\b"
 
   # Bare "sonar" appears in unrelated names, so require a product suffix, the
-  # action's org prefix, or the Azure task that runs the analysis.
+  # action's org prefix, or the Azure task or Jenkins step that runs it.
   - id: "sonar-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
-    regex: "(?i)\\bsonar(qube|cloud|-scanner)\\b|sonarsource/|^sonar(?:qube|cloud)analyze$"
+    regex: "(?i)\\bsonar(qube|cloud|-scanner)\\b|sonarsource/|^sonar(?:qube|cloud)analyze$|^withsonarqubeenv$|^waitforqualitygate$"
+    # Jenkins: a quality gate that does not abort the pipeline only reports.
+    weakenedWhen:
+      - input: "abortPipeline"
+        equals: "false"
+        verdict: "advisory"
 
   - id: "gosec-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

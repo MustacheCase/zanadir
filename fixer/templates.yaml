@@ -40,6 +40,18 @@ templates:
           ./gitleaks detect --source . --verbose
         displayName: Secret detection
 
+  - tool: "Gitleaks"
+    platform: "jenkins"
+    step: |
+      stage('Secret detection') {
+          steps {
+              sh '''
+                  curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
+                  ./gitleaks detect --source . --verbose
+              '''
+          }
+      }
+
   - tool: "TruffleHog"
     platform: "github"
     step: |
@@ -82,6 +94,15 @@ templates:
     step: |
       - script: docker run --rm -v "$(Build.SourcesDirectory):/src" aquasec/trivy fs --exit-code 1 /src
         displayName: Dependency scanning
+
+  - tool: "Trivy"
+    platform: "jenkins"
+    step: |
+      stage('Dependency scanning') {
+          steps {
+              sh 'docker run --rm -v "$WORKSPACE:/src" aquasec/trivy fs --exit-code 1 /src'
+          }
+      }
 
   - tool: "Grype"
     platform: "github"

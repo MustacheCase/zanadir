@@ -19,7 +19,8 @@ rules:
     categories: ["Coverage"]
     regex: "(?i)\\bcoveralls(app)?\\b"
 
-  - id: "azure-coverage-rule"
+  # Azure's task and the Jenkins coverage plugins' steps.
+  - id: "coverage-results-step-rule"
     applyOn: ["Job.Package"]
     categories: ["Coverage"]
-    regex: "(?i)^publishcodecoverageresults$"
+    regex: "(?i)^(?:publishcodecoverageresults|recordcoverage|publishcoverage)$"

@@ -22,10 +22,11 @@ Zanadir currently supports:
 - GitLab
 - Bitbucket Pipelines
 - Azure Pipelines
+- Jenkins
 
 Future work will include support for:
 
-- Jenkins
+- Tekton
 
 ## Categories We Suggest
 
@@ -496,6 +497,23 @@ left `unknown` for the same reason as GitLab's branch pipelines. Pipes are read
 like GitHub actions: `pipe: snyk/snyk-scan` counts as Snyk, and
 `DONT_BREAK_BUILD: "true"` grades it `advisory`.
 
+A Jenkinsfile (and variants beside it such as `Jenkinsfile.release`) is read
+as Groovy tokens, not run. `sh`, `bat` and `powershell` steps are read like
+`run:`, and other steps such as `snykSecurity`, `dependencyCheck`,
+`withSonarQubeEnv` or `junit` like actions, with their named arguments as
+inputs. Which branches and pull requests build is configured on the Jenkins
+job, not in the file, so a control is `unknown` unless the file itself
+weakens it:
+
+| In the Jenkinsfile | Verdict |
+| --- | --- |
+| inside `catchError(buildResult: 'SUCCESS')` or `buildResult: null` | `advisory` - the build stays green |
+| a step option such as `snykSecurity(failOnIssues: false)` or `waitForQualityGate abortPipeline: false` | `advisory` |
+| inside `when { }`, `if`, `warnError` or `catchError(buildResult: 'UNSTABLE')`, or `sh(returnStatus: true)` | `unknown` |
+
+A shared-library step configured only by assignments, such as
+`mavenBuild { dependencyCheck = 'enabled' }`, cannot be read.
+
 Azure Pipelines is read from `azure-pipelines.yml` (or `.yaml`) at the
 repository root, following `template:` and `extends:` references to files in
 the same repository. A template in another repository (`path@alias`) or one
@@ -712,7 +730,7 @@ Data Leakage & Secrets Detection is not covered. Add to .github/workflows/securi
 ```
 
 It prints only; no file is touched. The CI platform is detected from the
-repository, and snippets are emitted for GitHub Actions, GitLab CI, Bitbucket Pipelines or Azure Pipelines
+repository, and snippets are emitted for GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines or Jenkins
 accordingly.
 
 Not every suggested tool has a template. A category whose tools are all

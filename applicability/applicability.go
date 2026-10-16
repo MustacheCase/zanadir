@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/parser"
 )
 
 // skipDirs hold dependencies rather than the project's own code.
@@ -92,25 +93,6 @@ func hasIaC(dir string) bool {
 	return found
 }
 
-// hasGithubWorkflows reports whether there is a GitHub Actions workflow to
-// check. Every tool in the Workflow Security category reads that format.
-func hasGithubWorkflows(dir string) bool {
-	entries, err := os.ReadDir(filepath.Join(dir, ".github", "workflows"))
-	if err != nil {
-		return false
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		switch filepath.Ext(entry.Name()) {
-		case ".yml", ".yaml":
-			return true
-		}
-	}
-	return false
-}
-
 // NotApplicable returns the categories a repository has nothing for. The
 // others cannot be ruled out without guessing.
 func NotApplicable(dir string) []string {
@@ -122,7 +104,8 @@ func NotApplicable(dir string) []string {
 	if !hasIaC(dir) {
 		ruledOut = append(ruledOut, string(models.IaC))
 	}
-	if !hasGithubWorkflows(dir) {
+	// Every tool in Workflow Security reads GitHub Actions workflows.
+	if !parser.Uses(dir, parser.GitHub) {
 		ruledOut = append(ruledOut, string(models.WorkflowSecurity))
 	}
 	return ruledOut

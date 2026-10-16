@@ -66,7 +66,7 @@ func TestSnippetsOnePerCategory(t *testing.T) {
 		},
 	}
 
-	snippets := testFixer(t).Snippets(suggestions, PlatformGitHub)
+	snippets := testFixer(t).Snippets(suggestions, parser.GitHub)
 
 	assert.Len(t, snippets, 1, "one snippet per category, not per tool")
 	assert.Equal(t, "Gitleaks", snippets[0].Tool)
@@ -85,7 +85,7 @@ func TestSnippetsFallsThroughToATemplatedTool(t *testing.T) {
 		},
 	}
 
-	snippets := testFixer(t).Snippets(suggestions, PlatformGitHub)
+	snippets := testFixer(t).Snippets(suggestions, parser.GitHub)
 
 	assert.Len(t, snippets, 1)
 	assert.Equal(t, "Trivy", snippets[0].Tool)
@@ -97,7 +97,7 @@ func TestSnippetsSkipsUntemplatedCategory(t *testing.T) {
 			Suggestions: []*suggester.Suggestion{{Name: "JUnit"}, {Name: "pytest"}}},
 	}
 
-	assert.Empty(t, testFixer(t).Snippets(suggestions, PlatformGitHub),
+	assert.Empty(t, testFixer(t).Snippets(suggestions, parser.GitHub),
 		"a category with no template is skipped rather than guessed at")
 }
 
@@ -107,8 +107,8 @@ func TestSnippetsArePlatformSpecific(t *testing.T) {
 			Suggestions: []*suggester.Suggestion{{Name: "Gitleaks"}}},
 	}
 
-	gh := testFixer(t).Snippets(suggestions, PlatformGitHub)
-	gl := testFixer(t).Snippets(suggestions, PlatformGitLab)
+	gh := testFixer(t).Snippets(suggestions, parser.GitHub)
+	gl := testFixer(t).Snippets(suggestions, parser.GitLab)
 
 	assert.Contains(t, gh[0].Step, "uses: gitleaks/gitleaks-action")
 	assert.Contains(t, gl[0].Step, "secret_detection:")
@@ -121,31 +121,7 @@ func TestSnippetsEmptyForCircleCI(t *testing.T) {
 			Suggestions: []*suggester.Suggestion{{Name: "Gitleaks"}}},
 	}
 
-	assert.Empty(t, testFixer(t).Snippets(suggestions, PlatformCircleCI))
-}
-
-func TestDetectPlatform(t *testing.T) {
-	t.Run("github", func(t *testing.T) {
-		dir := t.TempDir()
-		assert.NoError(t, os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0o755))
-		assert.Equal(t, PlatformGitHub, DetectPlatform(dir))
-	})
-
-	t.Run("gitlab", func(t *testing.T) {
-		dir := t.TempDir()
-		assert.NoError(t, os.WriteFile(filepath.Join(dir, ".gitlab-ci.yml"), []byte("x"), 0o600))
-		assert.Equal(t, PlatformGitLab, DetectPlatform(dir))
-	})
-
-	t.Run("circleci", func(t *testing.T) {
-		dir := t.TempDir()
-		assert.NoError(t, os.MkdirAll(filepath.Join(dir, ".circleci"), 0o755))
-		assert.Equal(t, PlatformCircleCI, DetectPlatform(dir))
-	})
-
-	t.Run("defaults to github", func(t *testing.T) {
-		assert.Equal(t, PlatformGitHub, DetectPlatform(t.TempDir()))
-	})
+	assert.Empty(t, testFixer(t).Snippets(suggestions, parser.CircleCI))
 }
 
 func TestShippedTemplatesLookLikeYAML(t *testing.T) {
@@ -169,12 +145,12 @@ func TestShippedTemplatesParseWhenPasted(t *testing.T) {
 		t.Run(tmpl.Tool+"/"+tmpl.Platform, func(t *testing.T) {
 			var doc string
 			switch tmpl.Platform {
-			case PlatformGitHub:
+			case parser.GitHub:
 				doc = "name: ci\non: [push]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n" +
 					indent(tmpl.Step, "      ")
-			case PlatformBitbucket:
+			case parser.Bitbucket:
 				doc = bitbucketSkeleton(tmpl.Step)
-			case PlatformAzure:
+			case parser.Azure:
 				doc = azureSkeleton(tmpl.Step)
 			default:
 				doc = tmpl.Step
@@ -193,7 +169,7 @@ func TestGitHubTemplatesProduceRealSteps(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, tmpl := range templates {
-		if tmpl.Platform != PlatformGitHub {
+		if tmpl.Platform != parser.GitHub {
 			continue
 		}
 		t.Run(tmpl.Tool, func(t *testing.T) {
@@ -237,7 +213,7 @@ func TestRenderWritesPasteableBlocks(t *testing.T) {
 			Step: "- name: Scan\n  uses: aquasecurity/trivy-action@master"},
 	}
 
-	assert.NoError(t, Render(&buf, snippets, PlatformGitHub))
+	assert.NoError(t, Render(&buf, snippets, github))
 
 	out := buf.String()
 	assert.Contains(t, out, "Secrets is not covered. Add to .github/workflows/security.yml:")
@@ -248,19 +224,15 @@ func TestRenderWritesPasteableBlocks(t *testing.T) {
 
 func TestRenderSaysSoWhenThereIsNothing(t *testing.T) {
 	var buf bytes.Buffer
-	assert.NoError(t, Render(&buf, nil, PlatformGitHub))
+	assert.NoError(t, Render(&buf, nil, github))
 	assert.Contains(t, buf.String(), "Nothing to fix")
 }
 
 func TestRenderNamesThePlatformsFile(t *testing.T) {
-	for platform, want := range map[string]string{
-		PlatformGitHub:   ".github/workflows/security.yml",
-		PlatformGitLab:   ".gitlab-ci.yml",
-		PlatformCircleCI: ".circleci/config.yml",
-	} {
+	for _, platform := range parser.Platforms {
 		var buf bytes.Buffer
 		assert.NoError(t, Render(&buf, []Snippet{{Category: "C", Step: "- run: x"}}, platform))
-		assert.Contains(t, buf.String(), want)
+		assert.Contains(t, buf.String(), "Add to "+platform.Target+":", platform.ID)
 	}
 }
 
@@ -268,8 +240,8 @@ func TestRenderPropagatesWriteErrors(t *testing.T) {
 	boom := errors.New("disk full")
 	w := failWriter{err: boom}
 
-	assert.ErrorIs(t, Render(w, []Snippet{{Category: "C", Step: "- run: x"}}, PlatformGitHub), boom)
-	assert.ErrorIs(t, Render(w, nil, PlatformGitHub), boom)
+	assert.ErrorIs(t, Render(w, []Snippet{{Category: "C", Step: "- run: x"}}, github), boom)
+	assert.ErrorIs(t, Render(w, nil, github), boom)
 }
 
 type failWriter struct{ err error }
@@ -365,7 +337,7 @@ func TestIsGeneratedWorkflow(t *testing.T) {
 
 func TestRenderPropagatesWriteErrorBetweenSnippets(t *testing.T) {
 	boom := errors.New("disk full")
-	err := Render(failWriter{err: boom}, sampleSnippets(), PlatformGitHub)
+	err := Render(failWriter{err: boom}, sampleSnippets(), github)
 	assert.ErrorIs(t, err, boom)
 }
 
@@ -454,14 +426,14 @@ func TestSnippetsPickTheTemplateForTheCategory(t *testing.T) {
 
 	eol := f.Snippets([]*suggester.CategorySuggestion{
 		{ID: "End Of Life", Name: "End-of-Life Package Checkers", Suggestions: trivy},
-	}, PlatformGitHub)
+	}, parser.GitHub)
 	assert.Len(t, eol, 1)
 	assert.Contains(t, eol[0].Step, "--exit-on-eol")
 	assert.NotContains(t, eol[0].Step, "scan-type: fs")
 
 	sca := f.Snippets([]*suggester.CategorySuggestion{
 		{ID: "SCA", Name: "Software Composition Analysis", Suggestions: trivy},
-	}, PlatformGitHub)
+	}, parser.GitHub)
 	assert.Len(t, sca, 1)
 	assert.Contains(t, sca[0].Step, "scan-type: fs")
 	assert.NotContains(t, sca[0].Step, "--exit-on-eol")
@@ -496,8 +468,8 @@ func TestTemplatesAreReadByTheParser(t *testing.T) {
 		skeleton func(string) string
 		parser   parser.Parser
 	}{
-		PlatformBitbucket: {"bitbucket-pipelines.yml", bitbucketSkeleton, parser.NewBitbucketParser()},
-		PlatformAzure:     {"azure-pipelines.yml", azureSkeleton, parser.NewAzureParser()},
+		parser.Bitbucket: {"bitbucket-pipelines.yml", bitbucketSkeleton, parser.NewBitbucketParser()},
+		parser.Azure:     {"azure-pipelines.yml", azureSkeleton, parser.NewAzureParser()},
 	}
 
 	for _, tmpl := range templates {
@@ -519,18 +491,5 @@ func TestTemplatesAreReadByTheParser(t *testing.T) {
 	}
 }
 
-func TestDetectPlatformBitbucket(t *testing.T) {
-	dir := t.TempDir()
-	assert.NoError(t, os.WriteFile(filepath.Join(dir, "bitbucket-pipelines.yml"), []byte("pipelines: {}\n"), 0o600))
-	assert.Equal(t, PlatformBitbucket, DetectPlatform(dir))
-	assert.Equal(t, "bitbucket-pipelines.yml", targetFile(PlatformBitbucket))
-}
-
-func TestDetectPlatformAzure(t *testing.T) {
-	for _, name := range []string{"azure-pipelines.yml", "azure-pipelines.yaml"} {
-		dir := t.TempDir()
-		assert.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("steps: []\n"), 0o600))
-		assert.Equal(t, PlatformAzure, DetectPlatform(dir), name)
-	}
-	assert.Equal(t, "azure-pipelines.yml", targetFile(PlatformAzure))
-}
+// github is the platform most Render tests write for.
+var github, _ = parser.Lookup(parser.GitHub)

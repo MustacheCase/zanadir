@@ -17,6 +17,7 @@ import (
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
+	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/scanner"
 	"github.com/MustacheCase/zanadir/score"
@@ -164,17 +165,17 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 		return err
 	}
 
-	platform := fixer.DetectPlatform(cfg.Dir)
-	debugf("Detected platform: %s", platform)
+	platform := parser.Detect(cfg.Dir)
+	debugf("Detected platform: %s", platform.ID)
 
-	snippets := fixService.Snippets(suggestions, platform)
+	snippets := fixService.Snippets(suggestions, platform.ID)
 
 	if !cfg.Write {
 		return fixer.Render(w, snippets, platform)
 	}
 
-	if platform != fixer.PlatformGitHub {
-		return fmt.Errorf("--write generates a GitHub Actions workflow; %s is not supported yet, run without --write to print the snippets", platform)
+	if platform.ID != parser.GitHub {
+		return fmt.Errorf("--write generates a GitHub Actions workflow; %s is not supported yet, run without --write to print the snippets", platform.ID)
 	}
 	if len(snippets) == 0 {
 		_, err := fmt.Fprintln(w, "Nothing to write: every uncovered category either has no template yet, or there is nothing uncovered.")

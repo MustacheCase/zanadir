@@ -1,24 +1,14 @@
 package parser_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
 )
 
-const circleCITestDir = "test-circleci-utils"
-
-func setupCircleCiTestDir() error {
-	// Ensure test directory exists
-	if err := os.MkdirAll(circleCITestDir, 0755); err != nil {
-		return err
-	}
-
-	// Create a mock CircleCI workflow file
-	workflowContent := `
+const testCircleCIConfig = `
 version: 2.1
 orbs:
   checkout: circleci/checkout@v4
@@ -48,33 +38,20 @@ workflows:
     jobs:
       - test-and-build
 `
-	testFile := filepath.Join(circleCITestDir, "config.yml")
-	return os.WriteFile(testFile, []byte(workflowContent), 0644)
-}
 
-func teardownCircleCiTestDir() {
-	_ = os.RemoveAll(circleCITestDir)
+func circleCIDir(t *testing.T, config string) string {
+	t.Helper()
+	return testrepo.Write(t, map[string]string{".circleci/config.yml": config})
 }
 
 func TestCircleCIExists(t *testing.T) {
-	err := setupCircleCiTestDir()
-	assert.NoError(t, err)
-
-	defer teardownCircleCiTestDir()
-
 	cp := parser.NewCircleCIParser()
-	assert.True(t, cp.Exists(circleCITestDir))
+	assert.True(t, cp.Exists(circleCIDir(t, testCircleCIConfig)))
 	assert.False(t, cp.Exists("nonexistent-dir"))
 }
 
 func TestCircleCIParse(t *testing.T) {
-	err := setupCircleCiTestDir()
-	assert.NoError(t, err)
-
-	defer teardownCircleCiTestDir()
-
-	cp := parser.NewCircleCIParser()
-	artifacts, err := cp.Parse(circleCITestDir)
+	artifacts, err := parser.NewCircleCIParser().Parse(circleCIDir(t, testCircleCIConfig))
 	assert.NoError(t, err)
 	assert.Len(t, artifacts, 1)
 	assert.Equal(t, "CircleCI Workflow Orbs", artifacts[0].Name)
@@ -92,7 +69,6 @@ func TestCircleCIParse(t *testing.T) {
 
 // The parser declared a Steps field but never read it; only orbs were parsed.
 func TestCircleCIParserCapturesRunSteps(t *testing.T) {
-	dir := t.TempDir()
 	config := `
 version: 2.1
 jobs:
@@ -106,10 +82,7 @@ jobs:
           name: SCA scan
           command: trivy fs .
 `
-	err := os.WriteFile(filepath.Join(dir, "config.yml"), []byte(config), 0600)
-	assert.NoError(t, err)
-
-	artifacts, err := parser.NewCircleCIParser().Parse(dir)
+	artifacts, err := parser.NewCircleCIParser().Parse(circleCIDir(t, config))
 	assert.NoError(t, err)
 	assert.Len(t, artifacts, 1)
 

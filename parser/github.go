@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -36,44 +35,6 @@ type stepDef struct {
 	If              string         `yaml:"if"`
 	ContinueOnError bool           `yaml:"continue-on-error"`
 	With            map[string]any `yaml:"with"`
-}
-
-// stringList accepts either a scalar or a sequence, which "needs" and the
-// branch filters both allow.
-type stringList []string
-
-func (s *stringList) UnmarshalYAML(node *yaml.Node) error {
-	*s = decodeStrings(node)
-	return nil
-}
-
-// decodeStrings reads a scalar or a sequence of scalars, skipping whatever it
-// cannot read. It never fails: these fields come from workflows zanadir did
-// not write, and one malformed value must not abort the scan of a whole
-// repository or discard the entries beside it.
-func decodeStrings(node *yaml.Node) []string {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		var one string
-		if node.Decode(&one) != nil || one == "" {
-			return nil
-		}
-		return []string{one}
-
-	case yaml.SequenceNode:
-		values := make([]string, 0, len(node.Content))
-		for _, item := range node.Content {
-			var one string
-			if item.Decode(&one) == nil && one != "" {
-				values = append(values, one)
-			}
-		}
-		if len(values) == 0 {
-			return nil
-		}
-		return values
-	}
-	return nil
 }
 
 // triggerFilter is the map form of one event, e.g. "push: {branches: [main]}".
@@ -134,42 +95,24 @@ func stepInputs(with map[string]any) map[string]string {
 	return inputs
 }
 
-func (g *GithubParser) Exists(location string) bool {
-	info, err := os.Stat(location)
-	if err != nil || !info.IsDir() {
-		return false
-	}
-
-	// Check if the directory is empty
-	entries, err := os.ReadDir(location)
-	if err != nil || len(entries) == 0 {
-		return false
-	}
-
-	return true
+// Only files directly in the directory are workflows; GitHub ignores the rest.
+func githubWorkflows(root string) []string {
+	return utils.YAMLFiles(filepath.Join(root, ".github", "workflows"))
 }
 
-func (g *GithubParser) Parse(location string) ([]*models.Artifact, error) {
-	files, err := os.ReadDir(location)
-	if err != nil {
-		return nil, err
-	}
+func (g *GithubParser) Exists(root string) bool {
+	return len(githubWorkflows(root)) > 0
+}
 
+func (g *GithubParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
-	for _, file := range files {
-		if file.IsDir() {
-			continue
+	for _, path := range githubWorkflows(root) {
+		artifact, err := g.parseGithubWorkflow(path)
+		if err != nil {
+			return nil, err
 		}
-		if filepath.Ext(file.Name()) == ".yml" || filepath.Ext(file.Name()) == ".yaml" {
-			path := filepath.Join(location, file.Name())
-			artifact, err := g.parseGithubWorkflow(path)
-			if err != nil {
-				return nil, err
-			}
-			artifacts = append(artifacts, artifact)
-		}
+		artifacts = append(artifacts, artifact)
 	}
-
 	return artifacts, nil
 }
 

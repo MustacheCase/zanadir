@@ -2,8 +2,10 @@ package parser
 
 import "github.com/MustacheCase/zanadir/models"
 
-// Parser interface
+// Parser reads one kind of CI configuration. Both methods take the
+// repository root; where the configuration lives inside it is the parser's
+// business.
 type Parser interface {
-	Parse(location string) ([]*models.Artifact, error)
-	Exists(location string) bool
+	Parse(root string) ([]*models.Artifact, error)
+	Exists(root string) bool
 }

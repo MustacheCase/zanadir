@@ -2,50 +2,30 @@ package scanner
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/utils"
 )
 
-const (
-	repositoryScanner = iota
-)
-
-type ciScanner struct {
-	Type    int
-	Scanner Scanner
-}
-
-// Scanner interface
+// Scanner finds the CI configuration in a directory.
 type Scanner interface {
 	Scan(dir string) ([]*models.Artifact, error)
 }
 
+// service refuses anything that is not a git repository before handing it to
+// the repository scanner.
 type service struct {
-	CIScanner map[int]ciScanner
+	repository Scanner
 }
 
 func (s *service) Scan(dir string) ([]*models.Artifact, error) {
-	if s.isRepository(dir) {
-		return s.CIScanner[repositoryScanner].Scanner.Scan(dir)
+	if !utils.IsDir(filepath.Join(dir, ".git")) {
+		return nil, errors.New("not a git repository")
 	}
-	return nil, errors.New("not a git repository")
+	return s.repository.Scan(dir)
 }
 
-func (s *service) isRepository(dir string) bool {
-	gitPath := filepath.Join(dir, ".git")
-	info, err := os.Stat(gitPath)
-	if err != nil {
-		return false
-	}
-	return info.IsDir()
-}
-
-func NewScanService(repoScanner Scanner) Scanner {
-	return &service{
-		CIScanner: map[int]ciScanner{
-			repositoryScanner: {Type: repositoryScanner, Scanner: repoScanner},
-		},
-	}
+func NewScanService(repository Scanner) Scanner {
+	return &service{repository: repository}
 }

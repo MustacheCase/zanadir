@@ -7,155 +7,66 @@ import (
 	"testing"
 
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-type MockParser struct {
-	mock.Mock
+// fakeParser stands in for one platform. Every parser is handed the same
+// repository root, so each position in the scanner gets its own fake.
+type fakeParser struct {
+	exists    bool
+	artifacts []*models.Artifact
+	err       error
+	gotRoot   string
 }
 
-func (m *MockParser) Exists(path string) bool {
-	args := m.Called(path)
-	return args.Bool(0)
-}
+func (f *fakeParser) Exists(root string) bool { f.gotRoot = root; return f.exists }
 
-func (m *MockParser) Parse(path string) ([]*models.Artifact, error) {
-	args := m.Called(path)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).([]*models.Artifact), args.Error(1)
-}
+func (f *fakeParser) Parse(string) ([]*models.Artifact, error) { return f.artifacts, f.err }
 
-var (
-	mockParser *MockParser
-)
+func artifactNamed(name string) []*models.Artifact { return []*models.Artifact{{Name: name}} }
 
-func setup() {
-	mockParser = new(MockParser)
-}
-
-func TestRepositoryScanner_Scan(t *testing.T) {
-	setup()
-
-	repoDir := "/test/repo"
-	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
-	circleCIPath := filepath.Join(repoDir, "/.circleci/")
-
-	gitlabCIPath := filepath.Join(repoDir, "/.gitlab-ci.yml")
-
-	mockParser.On("Exists", githubCIPath).Return(false)
-	mockParser.On("Exists", circleCIPath).Return(true)
-	mockParser.On("Parse", circleCIPath).Return([]*models.Artifact{{Name: "artifact1"}}, nil)
-	mockParser.On("Exists", gitlabCIPath).Return(false)
-
-	s := &RepositoryScanner{
-		ciParsers: []ciParser{
-			{Path: "/.github/workflows/", Parser: mockParser},
-			{Path: "/.circleci/", Parser: mockParser},
-			{Path: "/.gitlab-ci.yml", Parser: mockParser},
-		},
-	}
-	artifacts, err := s.Scan(repoDir)
+func TestRepositoryScannerHandsEveryParserTheRoot(t *testing.T) {
+	github, gitlab := &fakeParser{}, &fakeParser{exists: true, artifacts: artifactNamed("gitlab")}
+	artifacts, err := (&RepositoryScanner{parsers: []parser.Parser{github, gitlab}}).Scan("/repo")
 
 	assert.NoError(t, err)
-	assert.NotNil(t, artifacts)
-	assert.Len(t, artifacts, 1)
-	assert.Equal(t, "artifact1", artifacts[0].Name)
-
-	mockParser.AssertExpectations(t)
+	assert.Equal(t, artifactNamed("gitlab"), artifacts)
+	assert.Equal(t, "/repo", github.gotRoot)
+	assert.Equal(t, "/repo", gitlab.gotRoot)
 }
 
 // Scanning used to stop at the first parser that found anything, so a
 // repository using two platforms had the second one go unread - and a
 // dependency bot declared outside the pipeline could never be seen at all.
 func TestRepositoryScannerReadsEveryParser(t *testing.T) {
-	setup()
-
-	repoDir := "/test/repo"
-	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
-	circleCIPath := filepath.Join(repoDir, "/.circleci/")
-
-	mockParser.On("Exists", githubCIPath).Return(true)
-	mockParser.On("Parse", githubCIPath).Return([]*models.Artifact{{Name: "from-github"}}, nil)
-	mockParser.On("Exists", circleCIPath).Return(true)
-	mockParser.On("Parse", circleCIPath).Return([]*models.Artifact{{Name: "from-circleci"}}, nil)
-
-	s := &RepositoryScanner{
-		ciParsers: []ciParser{
-			{Path: "/.github/workflows/", Parser: mockParser},
-			{Path: "/.circleci/", Parser: mockParser},
-		},
-	}
-	artifacts, err := s.Scan(repoDir)
+	artifacts, err := (&RepositoryScanner{parsers: []parser.Parser{
+		&fakeParser{exists: true, artifacts: artifactNamed("from-github")},
+		&fakeParser{exists: true, artifacts: artifactNamed("from-circleci")},
+	}}).Scan("/repo")
 
 	assert.NoError(t, err)
-	assert.Len(t, artifacts, 2)
-	assert.Equal(t, "from-github", artifacts[0].Name)
-	assert.Equal(t, "from-circleci", artifacts[1].Name)
-
-	mockParser.AssertExpectations(t)
+	assert.Equal(t, append(artifactNamed("from-github"), artifactNamed("from-circleci")...), artifacts)
 }
 
-func TestRepositoryScanner_Scan_NoCI(t *testing.T) {
-	setup()
-
-	repoDir := "/test/repo"
-	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
-	circleCIPath := filepath.Join(repoDir, "/.circleci/")
-	gitlabCIPath := filepath.Join(repoDir, "/.gitlab-ci.yml")
-
-	mockParser.On("Exists", githubCIPath).Return(false)
-	mockParser.On("Exists", circleCIPath).Return(false)
-	mockParser.On("Exists", gitlabCIPath).Return(false)
-
-	s := &RepositoryScanner{
-		ciParsers: []ciParser{
-			{Path: "/.github/workflows/", Parser: mockParser},
-			{Path: "/.circleci/", Parser: mockParser},
-			{Path: "/.gitlab-ci.yml", Parser: mockParser},
-		},
-	}
-	artifacts, err := s.Scan(repoDir)
-
+func TestRepositoryScannerWithNoCI(t *testing.T) {
+	artifacts, err := (&RepositoryScanner{parsers: []parser.Parser{&fakeParser{}, &fakeParser{}}}).Scan("/repo")
 	assert.NoError(t, err)
 	assert.Nil(t, artifacts)
-
-	mockParser.AssertExpectations(t)
 }
 
-func TestRepositoryScanner_Scan_ParseError(t *testing.T) {
-	setup()
-
-	repoDir := "/test/repo"
-	githubCIPath := filepath.Join(repoDir, "/.github/workflows/")
-	circleCIPath := filepath.Join(repoDir, "/.circleci/")
-
-	mockParser.On("Exists", githubCIPath).Return(false)
-	mockParser.On("Exists", circleCIPath).Return(true)
-	mockParser.On("Parse", circleCIPath).Return(nil, errors.New("parse error"))
-	mockParser.On("Exists", filepath.Join(repoDir, "/.gitlab-ci.yml")).Return(false).Maybe()
-
-	s := &RepositoryScanner{
-		ciParsers: []ciParser{
-			{Path: "/.github/workflows/", Parser: mockParser},
-			{Path: "/.circleci/", Parser: mockParser},
-			{Path: "/.gitlab-ci.yml", Parser: mockParser},
-		},
-	}
-	artifacts, err := s.Scan(repoDir)
+func TestRepositoryScannerStopsOnAParseError(t *testing.T) {
+	artifacts, err := (&RepositoryScanner{parsers: []parser.Parser{
+		&fakeParser{exists: true, artifacts: artifactNamed("read")},
+		&fakeParser{exists: true, err: errors.New("parse error")},
+	}}).Scan("/repo")
 
 	assert.Error(t, err)
 	assert.Nil(t, artifacts)
-
-	mockParser.AssertExpectations(t)
 }
 
-// The mocked tests above cannot catch a path-convention mismatch between the
-// scanner and a parser, which is how GitLab CI went undetected: the scanner
-// handed the parser the file path and the parser appended the filename again,
-// so Exists never returned true. This exercises the real parsers.
+// The fakes above cannot catch a parser looking in the wrong place, which is
+// how GitLab CI once went undetected. This exercises the real parsers.
 func TestRepositoryScannerFindsEveryPlatform(t *testing.T) {
 	tests := []struct {
 		name  string

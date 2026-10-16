@@ -81,7 +81,15 @@ func resolveDir(cmd *cobra.Command) (string, error) {
 	return dir, nil
 }
 
-func CreateConfig(cmd *cobra.Command) (*Config, error) {
+// categoriesFlag reads a list of category names and canonicalises it.
+func categoriesFlag(cmd *cobra.Command, name string) ([]string, error) {
+	categories, _ := cmd.Flags().GetStringSlice(name)
+	return normalizeCategories(categories)
+}
+
+// newConfig reads what scan and fix share: the directory, the config file
+// with any custom rules, the exclusions and debug.
+func newConfig(cmd *cobra.Command) (*Config, error) {
 	dir, err := resolveDir(cmd)
 	if err != nil {
 		return nil, err
@@ -90,73 +98,49 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	excludedCategories, _ := cmd.Flags().GetStringSlice("excluded-categories")
-	excludedCategories, err = normalizeCategories(excludedCategories)
+	excluded, err := categoriesFlag(cmd, "excluded-categories")
 	if err != nil {
 		return nil, err
 	}
-
-	enforce, _ := cmd.Flags().GetBool("enforce")
-	failOnWeakened, _ := cmd.Flags().GetBool("fail-on-weakened")
-	failOn, _ := cmd.Flags().GetStringSlice("fail-on")
-	failOn, err = normalizeCategories(failOn)
-	if err != nil {
-		return nil, err
-	}
-
-	baselinePath, _ := cmd.Flags().GetString("baseline")
-	writeBaseline, _ := cmd.Flags().GetBool("write-baseline")
-
-	// --baseline may be given without a value, meaning the default location.
-	if writeBaseline && baselinePath == "" {
-		baselinePath = baseline.DefaultPath
-	}
-
 	debug, _ := cmd.Flags().GetBool("debug")
-	badge, _ := cmd.Flags().GetString("badge")
-	outputFile, _ := cmd.Flags().GetString("output-file")
-	output, _ := cmd.Flags().GetString("output")
-	if !slices.Contains(OutputFormats, output) {
-		return nil, fmt.Errorf("unsupported output format: %s (expected one of %s)", output, strings.Join(OutputFormats, ", "))
+	return &Config{Dir: dir, ExcludedCategories: excluded, Debug: debug, Rules: file.Rules}, nil
+}
+
+func CreateConfig(cmd *cobra.Command) (*Config, error) {
+	cfg, err := newConfig(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.FailOn, err = categoriesFlag(cmd, "fail-on"); err != nil {
+		return nil, err
 	}
 
-	return &Config{
-		Dir:                dir,
-		ExcludedCategories: excludedCategories,
-		Enforce:            enforce,
-		FailOn:             failOn,
-		FailOnWeakened:     failOnWeakened,
-		Baseline:           baselinePath,
-		WriteBaseline:      writeBaseline,
-		Debug:              debug,
-		Output:             output,
-		OutputFile:         outputFile,
-		Badge:              badge,
-		Rules:              file.Rules,
-	}, nil
+	flags := cmd.Flags()
+	cfg.Enforce, _ = flags.GetBool("enforce")
+	cfg.FailOnWeakened, _ = flags.GetBool("fail-on-weakened")
+	cfg.Baseline, _ = flags.GetString("baseline")
+	cfg.WriteBaseline, _ = flags.GetBool("write-baseline")
+	cfg.Badge, _ = flags.GetString("badge")
+	cfg.OutputFile, _ = flags.GetString("output-file")
+	cfg.Output, _ = flags.GetString("output")
+
+	// --write-baseline with no --baseline writes to the default location.
+	if cfg.WriteBaseline && cfg.Baseline == "" {
+		cfg.Baseline = baseline.DefaultPath
+	}
+	if !slices.Contains(OutputFormats, cfg.Output) {
+		return nil, fmt.Errorf("unsupported output format: %s (expected one of %s)", cfg.Output, strings.Join(OutputFormats, ", "))
+	}
+	return cfg, nil
 }
 
 // CreateFixConfig builds the subset of configuration the fix command needs.
 // It does not read the scan-only flags, which fix does not define.
 func CreateFixConfig(cmd *cobra.Command) (*Config, error) {
-	dir, err := resolveDir(cmd)
+	cfg, err := newConfig(cmd)
 	if err != nil {
 		return nil, err
 	}
-	file, err := applyFile(cmd)
-	if err != nil {
-		return nil, err
-	}
-
-	excluded, _ := cmd.Flags().GetStringSlice("excluded-categories")
-	excluded, err = normalizeCategories(excluded)
-	if err != nil {
-		return nil, err
-	}
-
-	debug, _ := cmd.Flags().GetBool("debug")
-	write, _ := cmd.Flags().GetBool("write")
-
-	return &Config{Dir: dir, ExcludedCategories: excluded, Debug: debug, Write: write, Rules: file.Rules}, nil
+	cfg.Write, _ = cmd.Flags().GetBool("write")
+	return cfg, nil
 }

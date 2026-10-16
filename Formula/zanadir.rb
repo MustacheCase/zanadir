@@ -1,8 +1,8 @@
 class Zanadir < Formula
   desc "Scans CI/CD pipelines and suggests missing security and quality tools"
   homepage "https://github.com/MustacheCase/zanadir"
-  url "https://github.com/MustacheCase/zanadir/archive/refs/tags/0.8.0.tar.gz"
-  sha256 "b7aac0baaf371486b9d0ab0a7831c59c654cf64266557233ae8572e5df99d2fd"
+  url "https://github.com/MustacheCase/zanadir/archive/refs/tags/0.9.0.tar.gz"
+  sha256 "e10c2aa7ed807b0b7529a003f62085e397b6c6201016b18005ecb6b7866c755b"
   license "MIT"
   head "https://github.com/MustacheCase/zanadir.git", branch: "main"
 

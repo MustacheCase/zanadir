@@ -64,7 +64,7 @@ func (b *BitbucketParser) Parse(root string) ([]*models.Artifact, error) {
 		return nil, err
 	}
 
-	defaultImage := bitbucketImage(&config.Image)
+	defaultImage := imageName(&config.Image)
 	var artifacts []*models.Artifact
 	add := func(node *yaml.Node, triggers []models.Trigger) {
 		jobs := bitbucketJobs(node, defaultImage)
@@ -174,7 +174,7 @@ func bitbucketItemJobs(node *yaml.Node, defaultImage string, manual bool) []*mod
 // there is recorded as unable to fail a build.
 func bitbucketStepJobs(step *bitbucketStep, defaultImage string, manual bool) []*models.Job {
 	manual = manual || strings.EqualFold(step.Trigger, "manual")
-	image := bitbucketImage(&step.Image)
+	image := imageName(&step.Image)
 	if image == "" {
 		image = defaultImage
 	}
@@ -233,23 +233,6 @@ func bitbucketPipeJob(stepName string, pipe bitbucketPipe, manual, afterScript b
 		Manual:          manual,
 		ContinueOnError: afterScript,
 	}
-}
-
-// bitbucketImage reads an image given as a name or as a mapping with a name.
-func bitbucketImage(node *yaml.Node) string {
-	node = resolve(node)
-	switch node.Kind {
-	case yaml.ScalarNode:
-		return node.Value
-	case yaml.MappingNode:
-		var image struct {
-			Name string `yaml:"name"`
-		}
-		if node.Decode(&image) == nil {
-			return image.Name
-		}
-	}
-	return ""
 }
 
 func NewBitbucketParser() Parser {

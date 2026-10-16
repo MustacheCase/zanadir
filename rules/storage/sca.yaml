@@ -85,3 +85,9 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["SCA"]
     regex: "(?i)^advancedsecurity-dependency-scanning$"
+
+  # GitLab's own templates and CI/CD components, recorded by name from include:.
+  - id: "gitlab-dependency-scanning-template-rule"
+    applyOn: ["Job.Package"]
+    categories: ["SCA"]
+    regex: "(?i)^(?:jobs|security)/(?:dependency|container)-scanning(?:\\.latest|\\.v2)?\\.gitlab-ci\\.yml$|/components/(?:dependency|container)-scanning/"

@@ -13,3 +13,9 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["License Compliance"]
     regex: "(?i)\\banchore/grant\\b|\\bgrant\\s+(?:check|list)\\b"
+
+  # GitLab's own templates and CI/CD components, recorded by name from include:.
+  - id: "gitlab-license-scanning-template-rule"
+    applyOn: ["Job.Package"]
+    categories: ["License Compliance"]
+    regex: "(?i)^(?:jobs|security)/license-scanning(?:\\.latest)?\\.gitlab-ci\\.yml$"

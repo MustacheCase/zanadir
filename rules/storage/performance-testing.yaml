@@ -28,3 +28,9 @@ rules:
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Performance Testing" ]
     regex: "(?i)\\bblazemeter\\b"
+
+  # GitLab's own templates and CI/CD components, recorded by name from include:.
+  - id: "gitlab-performance-template-rule"
+    applyOn: ["Job.Package"]
+    categories: ["Performance Testing"]
+    regex: "(?i)^(?:jobs|verify)/(?:browser|load)-performance(?:-testing)?\\.gitlab-ci\\.yml$"

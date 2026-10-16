@@ -64,6 +64,41 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"VSBuild", "PublishTestResultsLegacy"},
 		},
 		{
+			ruleID:         "gitlab-sast-template-rule",
+			shouldMatch:    []string{"Jobs/SAST.gitlab-ci.yml", "Security/SAST.gitlab-ci.yml", "Jobs/SAST.latest.gitlab-ci.yml", "$CI_SERVER_FQDN/components/sast/sast@2.0.2"},
+			shouldNotMatch: []string{"Jobs/SAST-IaC.gitlab-ci.yml", "Security/DAST.gitlab-ci.yml", "my/SAST.gitlab-ci.yml"},
+		},
+		{
+			ruleID:         "gitlab-sast-iac-template-rule",
+			shouldMatch:    []string{"Jobs/SAST-IaC.gitlab-ci.yml", "Security/SAST-IaC.latest.gitlab-ci.yml"},
+			shouldNotMatch: []string{"Jobs/SAST.gitlab-ci.yml"},
+		},
+		{
+			ruleID:         "gitlab-secret-detection-template-rule",
+			shouldMatch:    []string{"Jobs/Secret-Detection.gitlab-ci.yml", "Security/Secret-Detection.gitlab-ci.yml", "gitlab.com/components/secret-detection/secret-detection@1"},
+			shouldNotMatch: []string{"Jobs/SAST.gitlab-ci.yml"},
+		},
+		{
+			ruleID:         "gitlab-dependency-scanning-template-rule",
+			shouldMatch:    []string{"Jobs/Dependency-Scanning.latest.gitlab-ci.yml", "Security/Dependency-Scanning.gitlab-ci.yml", "Jobs/Dependency-Scanning.v2.gitlab-ci.yml", "Security/Container-Scanning.gitlab-ci.yml", "$CI_SERVER_FQDN/components/container-scanning/container-scanning@6"},
+			shouldNotMatch: []string{"Jobs/Code-Quality.gitlab-ci.yml", "Security/DAST.gitlab-ci.yml"},
+		},
+		{
+			ruleID:         "gitlab-license-scanning-template-rule",
+			shouldMatch:    []string{"Security/License-Scanning.gitlab-ci.yml"},
+			shouldNotMatch: []string{"Security/Secret-Detection.gitlab-ci.yml"},
+		},
+		{
+			ruleID:         "gitlab-code-quality-template-rule",
+			shouldMatch:    []string{"Jobs/Code-Quality.gitlab-ci.yml", "Code-Quality.gitlab-ci.yml"},
+			shouldNotMatch: []string{"Jobs/Code-Intelligence.gitlab-ci.yml"},
+		},
+		{
+			ruleID:         "gitlab-performance-template-rule",
+			shouldMatch:    []string{"Jobs/Browser-Performance-Testing.gitlab-ci.yml", "Verify/Load-Performance-Testing.gitlab-ci.yml", "Verify/Browser-Performance.gitlab-ci.yml"},
+			shouldNotMatch: []string{"Security/DAST.gitlab-ci.yml"},
+		},
+		{
 			ruleID:         "git-secrets-rule",
 			shouldMatch:    []string{"atlassian/git-secrets-scan", "git secrets --scan", "git-secrets --scan-history"},
 			shouldNotMatch: []string{"git-secretsmanager", "github secrets", "git secret reveal"},

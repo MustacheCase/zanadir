@@ -1,6 +1,8 @@
 package parser_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/internal/testrepo"
@@ -209,4 +211,148 @@ func TestGitlabParsesWeakeningFields(t *testing.T) {
 			assert.Equal(t, tt.expectedManual, artifact.Jobs[0].Manual)
 		})
 	}
+}
+
+func gitlabJobs(t *testing.T, files map[string]string) map[string]*models.Job {
+	t.Helper()
+	artifacts, err := parser.NewGitlabParser().Parse(testrepo.Write(t, files))
+	assert.NoError(t, err)
+	assert.Len(t, artifacts, 1)
+	jobs := map[string]*models.Job{}
+	for _, job := range artifacts[0].Jobs {
+		key := job.Name
+		if key == "include" {
+			key = job.Package
+		}
+		jobs[key] = job
+	}
+	return jobs
+}
+
+// Every real .gitlab-ci.yml tried had at least one of these, and each used to
+// be decoded as a job and abort the whole scan.
+func TestGitlabSkipsGlobalKeywords(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{".gitlab-ci.yml": `
+image: golang:1.22
+services: [docker:dind]
+before_script: [go version]
+cache: {paths: [.cache]}
+variables:
+  GOFLAGS: -mod=vendor
+default:
+  image: alpine
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+stages: [test]
+test:
+  script: go test ./...
+`})
+	assert.Len(t, jobs, 1)
+	assert.Equal(t, "go test ./...", jobs["test"].Run)
+}
+
+// A spec: header is its own YAML document; the jobs are in the next one.
+func TestGitlabReadsPastASpecHeader(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{".gitlab-ci.yml": `spec:
+  inputs:
+    version:
+      default: "1"
+---
+lint:
+  script: [golangci-lint run]
+`})
+	assert.Equal(t, "golangci-lint run", jobs["lint"].Run)
+}
+
+func TestGitlabReadsJobFieldsInEveryShape(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{".gitlab-ci.yml": `
+.setup: &setup
+  - apk add git
+scan:
+  image:
+    name: zricethezav/gitleaks
+    entrypoint: [""]
+  before_script:
+    - *setup
+    - !reference [.prepare, script]
+  script:
+    - - gitleaks detect
+      - echo done
+  allow_failure:
+    exit_codes: [2]
+  when: manual
+nightly:
+  script: trivy fs .
+  allow_failure: true
+not-a-job: just a string
+broken:
+  script: {not: a script}
+  when: [odd]
+`})
+	scan := jobs["scan"]
+	assert.Equal(t, "zricethezav/gitleaks", scan.Package)
+	assert.Equal(t, "apk add git\ngitleaks detect\necho done", scan.Run, "a !reference cannot be followed and adds nothing")
+	assert.False(t, scan.ContinueOnError, "exit_codes still fails on every other code")
+	assert.True(t, scan.Manual)
+
+	assert.True(t, jobs["nightly"].ContinueOnError)
+	assert.NotContains(t, jobs, "not-a-job")
+	assert.NotContains(t, jobs, ".setup", "an anchored list is not a job")
+	assert.Empty(t, jobs["broken"].Run)
+	assert.False(t, jobs["broken"].Manual)
+}
+
+func TestGitlabFollowsIncludes(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{
+		".gitlab-ci.yml": `
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - component: $CI_SERVER_FQDN/components/secret-detection/secret-detection@1
+  - local: /ci/lint.yml
+  - ci/scan-*.yml
+  - project: group/shared
+    file: /security.yml
+  - remote: https://example.com/ci.yml
+  - https://example.com/also-remote.yml
+  - $CI_VARIABLE.yml
+  - ../outside.yml
+  - [not, an, include]
+`,
+		"ci/lint.yml":       "include: /ci/lint.yml\nlint:\n  script: eslint .\n",
+		"ci/scan-trivy.yml": "trivy:\n  script: trivy fs .\n",
+		"ci/scan-grype.yml": "grype:\n  script: grype dir:.\n",
+	})
+
+	assert.Contains(t, jobs, "Jobs/SAST.gitlab-ci.yml")
+	assert.Contains(t, jobs, "$CI_SERVER_FQDN/components/secret-detection/secret-detection@1")
+	assert.Equal(t, "eslint .", jobs["lint"].Run, "a file that includes itself is read until the depth bound")
+	assert.Equal(t, "trivy fs .", jobs["trivy"].Run)
+	assert.Equal(t, "grype dir:.", jobs["grype"].Run)
+	assert.Len(t, jobs, 5)
+}
+
+func TestGitlabIncludeAsASingleString(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{
+		".gitlab-ci.yml": "include: ci/test.yml\n",
+		"ci/test.yml":    "unit:\n  script: go test ./...\n",
+	})
+	assert.Equal(t, "go test ./...", jobs["unit"].Run)
+}
+
+func TestGitlabFailsOnUnparseableYAML(t *testing.T) {
+	_, err := parser.NewGitlabParser().Parse(gitlabDir(t, "test:\n  script: [oops\n"))
+	assert.Error(t, err)
+	_, err = parser.NewGitlabParser().Parse(t.TempDir())
+	assert.Error(t, err)
+}
+
+func TestGitlabDoesNotIncludeFilesOutsideTheRepository(t *testing.T) {
+	root := testrepo.Write(t, map[string]string{".gitlab-ci.yml": "include: ../outside.yml\n"})
+	outside := filepath.Join(filepath.Dir(root), "outside.yml")
+	assert.NoError(t, os.WriteFile(outside, []byte("escaped:\n  script: semgrep ci\n"), 0o600))
+
+	artifacts, err := parser.NewGitlabParser().Parse(root)
+	assert.NoError(t, err)
+	assert.Empty(t, artifacts[0].Jobs)
 }

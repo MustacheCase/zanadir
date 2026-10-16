@@ -74,3 +74,43 @@ func decodeStrings(node *yaml.Node) []string {
 	}
 	return nil
 }
+
+// imageName reads a container image given as a name or as a mapping with one.
+func imageName(node *yaml.Node) string {
+	node = resolve(node)
+	switch node.Kind {
+	case yaml.ScalarNode:
+		return node.Value
+	case yaml.MappingNode:
+		var image struct {
+			Name string `yaml:"name"`
+		}
+		if node.Decode(&image) == nil {
+			return image.Name
+		}
+	}
+	return ""
+}
+
+// scriptLines flattens a script given as one line or as lists nested to any
+// depth. A !reference points into another job and cannot be followed, so it
+// contributes nothing rather than its own arguments.
+func scriptLines(node *yaml.Node) []string {
+	node = resolve(node)
+	if node.Tag == "!reference" {
+		return nil
+	}
+	switch node.Kind {
+	case yaml.ScalarNode:
+		if node.Value != "" {
+			return []string{node.Value}
+		}
+	case yaml.SequenceNode:
+		var lines []string
+		for _, item := range node.Content {
+			lines = append(lines, scriptLines(item)...)
+		}
+		return lines
+	}
+	return nil
+}

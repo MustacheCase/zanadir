@@ -1,59 +1,42 @@
 package parser_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
 )
 
-func setupGitlabTestDir() error {
-	// Ensure test directory exists
-	if err := os.MkdirAll(testDir, 0755); err != nil {
-		return err
-	}
+const testGitlabConfig = `
+stages:
+  - test
+build:
+  stage: test
+  script:
+    - echo "Building..."
+  image: golang:1.19
+deploy:
+  stage: test
+  script:
+    - echo "Deploying..."
+  image: node:18
+`
 
-	// Create a mock GitLab CI file
-	gitlabCIContent := `
-    stages:
-      - test
-    build:
-      stage: test
-      script:
-        - echo "Building..."
-      image: golang:1.19
-    deploy:
-      stage: test
-      script:
-        - echo "Deploying..."
-      image: node:18
-    `
-	testFile := filepath.Join(testDir, ".gitlab-ci.yml")
-	return os.WriteFile(testFile, []byte(gitlabCIContent), 0644)
+func gitlabDir(t *testing.T, config string) string {
+	t.Helper()
+	return testrepo.Write(t, map[string]string{".gitlab-ci.yml": config})
 }
 
 func TestGitlabExists(t *testing.T) {
-	err := setupGitlabTestDir()
-	assert.NoError(t, err)
-
-	defer teardownTestDir()
-
 	gp := parser.NewGitlabParser()
-	assert.True(t, gp.Exists(testDir))
+	assert.True(t, gp.Exists(gitlabDir(t, testGitlabConfig)))
 	assert.False(t, gp.Exists("nonexistent-dir"))
 }
 
-func TesGitlabParse(t *testing.T) {
-	err := setupGitlabTestDir()
-	assert.NoError(t, err)
-
-	defer teardownTestDir()
-
-	gp := parser.NewGitlabParser()
-	artifacts, err := gp.Parse(testDir)
+func TestGitlabParse(t *testing.T) {
+	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, testGitlabConfig))
 	assert.NoError(t, err)
 	assert.Len(t, artifacts, 1)
 	assert.Equal(t, "GitLab CI/CD", artifacts[0].Name)
@@ -69,13 +52,6 @@ func TesGitlabParse(t *testing.T) {
 }
 
 func TestGitlabMalformedFile(t *testing.T) {
-	err := setupGitlabTestDir()
-	assert.NoError(t, err)
-
-	defer teardownTestDir()
-
-	// Overwrite the .gitlab-ci.yml file with malformed content
-	testFile := filepath.Join(testDir, ".gitlab-ci.yml")
 	malformedContent := `
     stages:
       - test
@@ -90,46 +66,26 @@ func TestGitlabMalformedFile(t *testing.T) {
         - echo "Deploying..."
       image: node:18
       invalid_field: [`
-	err = os.WriteFile(testFile, []byte(malformedContent), 0644)
-	assert.NoError(t, err)
 
-	gp := parser.NewGitlabParser()
-	artifacts, err := gp.Parse(testDir)
+	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, malformedContent))
 	assert.Error(t, err, "Expected an error for a malformed file")
 	assert.Nil(t, artifacts, "Expected no artifacts for a malformed file")
 }
 
 func TestGitlabParserHandlesNoStages(t *testing.T) {
-	err := setupGitlabTestDir()
-	assert.NoError(t, err)
-
-	defer teardownTestDir()
-
-	// Overwrite the .gitlab-ci.yml file with no stages
-	testFile := filepath.Join(testDir, ".gitlab-ci.yml")
 	noStagesContent := `
     build:
       script:
         - echo "Building..."
     `
-	err = os.WriteFile(testFile, []byte(noStagesContent), 0644)
-	assert.NoError(t, err)
 
-	gp := parser.NewGitlabParser()
-	artifacts, err := gp.Parse(testDir)
+	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, noStagesContent))
 	assert.NoError(t, err)
 	assert.Len(t, artifacts, 1, "Expected one artifact even with no stages")
 	assert.Len(t, artifacts[0].Jobs, 1, "Expected one job even with no stages")
 }
 
 func TestGitlabParserHandlesDuplicateJobs(t *testing.T) {
-	err := setupGitlabTestDir()
-	assert.NoError(t, err)
-
-	defer teardownTestDir()
-
-	// Overwrite the .gitlab-ci.yml file with jobs having identical definitions but unique names
-	testFile := filepath.Join(testDir, ".gitlab-ci.yml")
 	duplicateJobsContent := `
     stages:
       - test
@@ -144,24 +100,14 @@ func TestGitlabParserHandlesDuplicateJobs(t *testing.T) {
         - echo "Building..."
       image: golang:1.19
     `
-	err = os.WriteFile(testFile, []byte(duplicateJobsContent), 0644)
-	assert.NoError(t, err)
 
-	gp := parser.NewGitlabParser()
-	artifacts, err := gp.Parse(testDir)
+	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, duplicateJobsContent))
 	assert.NoError(t, err)
 	assert.Len(t, artifacts, 1, "Expected one artifact for duplicate jobs")
 	assert.Len(t, artifacts[0].Jobs, 2, "Expected two jobs with identical definitions but unique names")
 }
 
 func TestGitlabParserHandlesInvalidJobStructure(t *testing.T) {
-	err := setupGitlabTestDir()
-	assert.NoError(t, err)
-
-	defer teardownTestDir()
-
-	// Overwrite the .gitlab-ci.yml file with an invalid job structure
-	testFile := filepath.Join(testDir, ".gitlab-ci.yml")
 	invalidJobContent := `
     stages:
       - test
@@ -169,11 +115,8 @@ func TestGitlabParserHandlesInvalidJobStructure(t *testing.T) {
       stage: test
       invalid_field: true
     `
-	err = os.WriteFile(testFile, []byte(invalidJobContent), 0644)
-	assert.NoError(t, err)
 
-	gp := parser.NewGitlabParser()
-	artifacts, err := gp.Parse(testDir)
+	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, invalidJobContent))
 
 	// Adjust expectations based on the actual behavior of the Parse method
 	assert.NoError(t, err, "Expected no error for invalid job structure")
@@ -184,10 +127,6 @@ func TestGitlabParserHandlesInvalidJobStructure(t *testing.T) {
 
 // The parser previously read only `image:` and ignored script blocks.
 func TestGitlabParserCapturesScript(t *testing.T) {
-	err := setupGitlabTestDir()
-	assert.NoError(t, err)
-	defer teardownTestDir()
-
 	content := `
 stages:
   - security
@@ -199,10 +138,7 @@ scan:
   script:
     - gitleaks detect --source .
 `
-	err = os.WriteFile(filepath.Join(testDir, ".gitlab-ci.yml"), []byte(content), 0600)
-	assert.NoError(t, err)
-
-	artifacts, err := parser.NewGitlabParser().Parse(testDir)
+	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, content))
 	assert.NoError(t, err)
 	assert.Len(t, artifacts, 1)
 	assert.Len(t, artifacts[0].Jobs, 1)
@@ -215,10 +151,7 @@ scan:
 
 func gitlabRepo(t *testing.T, config string) *models.Artifact {
 	t.Helper()
-	dir := t.TempDir()
-	assert.NoError(t, os.WriteFile(filepath.Join(dir, ".gitlab-ci.yml"), []byte(config), 0o644))
-
-	artifacts, err := parser.NewGitlabParser().Parse(dir)
+	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, config))
 	assert.NoError(t, err)
 	assert.Len(t, artifacts, 1)
 	return artifacts[0]

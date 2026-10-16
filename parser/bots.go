@@ -1,10 +1,10 @@
 package parser
 
 import (
-	"os"
 	"path/filepath"
 
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/utils"
 )
 
 // DependencyBotParser reads the dependency-update bots, which declare
@@ -35,19 +35,9 @@ var botConfigs = []struct {
 	},
 }
 
-func found(root string, paths []string) string {
-	for _, rel := range paths {
-		info, err := os.Stat(filepath.Join(root, rel))
-		if err == nil && !info.IsDir() {
-			return rel
-		}
-	}
-	return ""
-}
-
 func (b *DependencyBotParser) Exists(root string) bool {
 	for _, bot := range botConfigs {
-		if found(root, bot.paths) != "" {
+		if utils.FirstFile(root, bot.paths...) != "" {
 			return true
 		}
 	}
@@ -60,7 +50,7 @@ func (b *DependencyBotParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 
 	for _, bot := range botConfigs {
-		rel := found(root, bot.paths)
+		rel := utils.FirstFile(root, bot.paths...)
 		if rel == "" {
 			continue
 		}

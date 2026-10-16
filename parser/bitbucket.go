@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -51,15 +50,14 @@ type bitbucketPipe struct {
 	Variables map[string]yaml.Node `yaml:"variables"`
 }
 
-func (b *BitbucketParser) Exists(location string) bool {
-	info, err := os.Stat(filepath.Join(location, bitbucketFile))
-	return err == nil && !info.IsDir()
+func (b *BitbucketParser) Exists(root string) bool {
+	return utils.IsFile(filepath.Join(root, bitbucketFile))
 }
 
 // Parse returns one artifact per pipeline, since each section of the file runs
 // on a different trigger and the trigger is what grading reads.
-func (b *BitbucketParser) Parse(location string) ([]*models.Artifact, error) {
-	path := filepath.Join(location, bitbucketFile)
+func (b *BitbucketParser) Parse(root string) ([]*models.Artifact, error) {
+	path := filepath.Join(root, bitbucketFile)
 	var config bitbucketConfig
 	if err := utils.ReadYAML(path, &config); err != nil {
 		return nil, err
@@ -82,27 +80,28 @@ func (b *BitbucketParser) Parse(location string) ([]*models.Artifact, error) {
 
 	p := config.Pipelines
 	add(&p.Default, nil)
-	for _, pattern := range sortedKeys(p.Branches) {
-		node := p.Branches[pattern]
-		add(&node, branchTriggers(pattern))
+	sections := []struct {
+		pipelines map[string]yaml.Node
+		triggers  func(key string) []models.Trigger
+	}{
+		{p.Branches, branchTriggers},
+		{p.Bookmarks, branchTriggers},
+		{p.PullRequests, on("pull_request")},
+		{p.Tags, on("tag")},
+		{p.Custom, on("workflow_dispatch")},
 	}
-	for _, pattern := range sortedKeys(p.Bookmarks) {
-		node := p.Bookmarks[pattern]
-		add(&node, branchTriggers(pattern))
-	}
-	for _, pattern := range sortedKeys(p.PullRequests) {
-		node := p.PullRequests[pattern]
-		add(&node, []models.Trigger{{Event: "pull_request"}})
-	}
-	for _, pattern := range sortedKeys(p.Tags) {
-		node := p.Tags[pattern]
-		add(&node, []models.Trigger{{Event: "tag"}})
-	}
-	for _, name := range sortedKeys(p.Custom) {
-		node := p.Custom[name]
-		add(&node, []models.Trigger{{Event: "workflow_dispatch"}})
+	for _, section := range sections {
+		for _, key := range sortedKeys(section.pipelines) {
+			node := section.pipelines[key]
+			add(&node, section.triggers(key))
+		}
 	}
 	return artifacts, nil
+}
+
+// on gives every pipeline in a section the same trigger, whatever its key.
+func on(event string) func(string) []models.Trigger {
+	return func(string) []models.Trigger { return []models.Trigger{{Event: event}} }
 }
 
 // branchTriggers records a push only for a single named branch, which runs
@@ -124,13 +123,6 @@ func sortedKeys(m map[string]yaml.Node) []string {
 	}
 	sort.Strings(keys)
 	return keys
-}
-
-func resolve(node *yaml.Node) *yaml.Node {
-	for node != nil && node.Kind == yaml.AliasNode {
-		node = node.Alias
-	}
-	return node
 }
 
 // bitbucketJobs reads a pipeline's list of steps. An entry that cannot be read,
@@ -241,17 +233,11 @@ func bitbucketPipeJob(stepName string, pipe bitbucketPipe, manual, afterScript b
 		name, version = ref[:i], ref[i+1:]
 	}
 
-	with := make(map[string]string, len(pipe.Variables))
-	for key, value := range pipe.Variables {
-		if v := resolve(&value); v.Kind == yaml.ScalarNode {
-			with[key] = v.Value
-		}
-	}
 	return &models.Job{
 		Name:            stepName,
 		Package:         name,
 		Version:         version,
-		With:            with,
+		With:            scalars(pipe.Variables),
 		Manual:          manual,
 		ContinueOnError: afterScript,
 	}

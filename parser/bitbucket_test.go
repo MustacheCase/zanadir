@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,9 +90,7 @@ pipelines:
 
 func parseBitbucket(t *testing.T, content string) []*models.Artifact {
 	t.Helper()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, bitbucketFile), []byte(content), 0o600))
-	artifacts, err := NewBitbucketParser().Parse(dir)
+	artifacts, err := NewBitbucketParser().Parse(testrepo.Write(t, map[string]string{bitbucketFile: content}))
 	require.NoError(t, err)
 	return artifacts
 }

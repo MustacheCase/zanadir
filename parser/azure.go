@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -70,28 +69,25 @@ type azureReader struct {
 	depth int
 }
 
-func (a *AzureParser) Exists(location string) bool {
-	return azurePipelineFile(location) != ""
+func (a *AzureParser) Exists(root string) bool {
+	return azurePipelineFile(root) != ""
 }
 
-func azurePipelineFile(location string) string {
-	for _, name := range azureFiles {
-		path := filepath.Join(location, name)
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			return path
-		}
+func azurePipelineFile(root string) string {
+	if name := utils.FirstFile(root, azureFiles...); name != "" {
+		return filepath.Join(root, name)
 	}
 	return ""
 }
 
-func (a *AzureParser) Parse(location string) ([]*models.Artifact, error) {
-	path := azurePipelineFile(location)
+func (a *AzureParser) Parse(root string) ([]*models.Artifact, error) {
+	path := azurePipelineFile(root)
 	var doc azureDoc
 	if err := utils.ReadYAML(path, &doc); err != nil {
 		return nil, err
 	}
 
-	r := &azureReader{root: location}
+	r := &azureReader{root: root}
 	return []*models.Artifact{{
 		Name:     "Azure Pipelines",
 		Triggers: azureTriggers(&doc),
@@ -109,15 +105,10 @@ func azureTriggers(doc *azureDoc) []models.Trigger {
 	if azureSet(&doc.PR) {
 		return []models.Trigger{{Event: "pull_request"}}
 	}
-	if azureNone(&doc.Trigger) && azureNone(&doc.PR) && len(doc.Schedules) > 0 {
+	if scalarIs(&doc.Trigger, "none") && scalarIs(&doc.PR, "none") && len(doc.Schedules) > 0 {
 		return []models.Trigger{{Event: "schedule"}}
 	}
 	return nil
-}
-
-func azureNone(node *yaml.Node) bool {
-	node = resolve(node)
-	return node.Kind == yaml.ScalarNode && strings.EqualFold(node.Value, "none")
 }
 
 func azureSet(node *yaml.Node) bool {
@@ -202,7 +193,7 @@ func (r *azureReader) job(node *yaml.Node, dir string, ctx azureContext) []*mode
 		ctx.job = job.Deployment
 	}
 	ctx.condition = joinConditions(ctx.condition, job.Condition)
-	ctx.continueOnError = ctx.continueOnError || azureTrue(&job.ContinueOnError)
+	ctx.continueOnError = ctx.continueOnError || scalarIs(&job.ContinueOnError, "true")
 
 	steps := make([]*yaml.Node, 0, len(job.Steps))
 	for i := range job.Steps {
@@ -244,13 +235,13 @@ func (r *azureReader) step(node *yaml.Node, dir string, ctx azureContext) []*mod
 		return r.template(step.Template, dir, ctx)
 	}
 	// A disabled step never runs, so it protects nothing and is not coverage.
-	if enabled := resolve(&step.Enabled); enabled.Kind == yaml.ScalarNode && strings.EqualFold(enabled.Value, "false") {
+	if scalarIs(&step.Enabled, "false") {
 		return nil
 	}
 
 	record := &models.Job{
 		Name:            ctx.job,
-		ContinueOnError: ctx.continueOnError || azureTrue(&step.ContinueOnError),
+		ContinueOnError: ctx.continueOnError || scalarIs(&step.ContinueOnError, "true"),
 		If:              azureCondition(step.Condition),
 		JobIf:           ctx.condition,
 	}
@@ -265,20 +256,8 @@ func (r *azureReader) step(node *yaml.Node, dir string, ctx azureContext) []*mod
 	}
 
 	record.Package, record.Version, _ = strings.Cut(step.Task, "@")
-	if len(step.Inputs) > 0 {
-		record.With = make(map[string]string, len(step.Inputs))
-		for key, value := range step.Inputs {
-			if v := resolve(&value); v.Kind == yaml.ScalarNode {
-				record.With[key] = v.Value
-			}
-		}
-	}
+	record.With = scalars(step.Inputs)
 	return []*models.Job{record}
-}
-
-func azureTrue(node *yaml.Node) bool {
-	node = resolve(node)
-	return node.Kind == yaml.ScalarNode && strings.EqualFold(node.Value, "true")
 }
 
 // azureCondition drops succeeded(), the default every step has anyway. Any

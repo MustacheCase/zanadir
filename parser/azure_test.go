@@ -5,25 +5,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func azureRepo(t *testing.T, files map[string]string) string {
-	t.Helper()
-	dir := t.TempDir()
-	for rel, content := range files {
-		path := filepath.Join(dir, rel)
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	}
-	return dir
-}
-
 func parseAzure(t *testing.T, files map[string]string) *models.Artifact {
 	t.Helper()
-	artifacts, err := NewAzureParser().Parse(azureRepo(t, files))
+	artifacts, err := NewAzureParser().Parse(testrepo.Write(t, files))
 	require.NoError(t, err)
 	require.Len(t, artifacts, 1)
 	return artifacts[0]
@@ -219,7 +209,7 @@ func TestAzureExistsAndErrors(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "azure-pipelines.yml"), 0o755))
 	assert.False(t, p.Exists(dir), "a directory with the name is not a pipeline")
 
-	dir = azureRepo(t, map[string]string{"azure-pipelines.yml": "steps: [\n"})
+	dir = testrepo.Write(t, map[string]string{"azure-pipelines.yml": "steps: [\n"})
 	assert.True(t, p.Exists(dir))
 	_, err := p.Parse(dir)
 	assert.Error(t, err)

@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -27,18 +26,14 @@ type gitlabJobDef struct {
 	When         string   `yaml:"when"`
 }
 
-func (g *GitlabParser) Exists(location string) bool {
-	path := filepath.Join(location, ".gitlab-ci.yml")
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
+const gitlabFile = ".gitlab-ci.yml"
+
+func (g *GitlabParser) Exists(root string) bool {
+	return utils.IsFile(filepath.Join(root, gitlabFile))
 }
 
-func (g *GitlabParser) Parse(location string) ([]*models.Artifact, error) {
-	path := filepath.Join(location, ".gitlab-ci.yml")
-	if _, err := os.Stat(path); err != nil {
-		return nil, err
-	}
-
+func (g *GitlabParser) Parse(root string) ([]*models.Artifact, error) {
+	path := filepath.Join(root, gitlabFile)
 	var config gitlabCIConfig
 	if err := utils.ReadYAML(path, &config); err != nil {
 		return nil, err

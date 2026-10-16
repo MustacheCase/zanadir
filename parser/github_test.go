@@ -1,25 +1,16 @@
 package parser_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
 )
 
-const testDir = "test-utils"
-
-func setupGithubTestDir() error {
-	// Ensure test directory exists
-	if err := os.MkdirAll(testDir, 0755); err != nil {
-		return err
-	}
-
-	// Create a mock workflow file
-	workflowContent := `
+const testWorkflow = `
 name: Test Workflow
 jobs:
   build:
@@ -35,33 +26,25 @@ jobs:
       - name: Deploy
         uses: ./.github/workflows/deploy.yml
 `
-	testFile := filepath.Join(testDir, "test-workflow.yml")
-	return os.WriteFile(testFile, []byte(workflowContent), 0644)
-}
 
-func teardownTestDir() {
-	_ = os.RemoveAll(testDir)
+// workflows creates a repository with these files in .github/workflows.
+func workflows(t *testing.T, files map[string]string) string {
+	t.Helper()
+	inDir := make(map[string]string, len(files))
+	for name, content := range files {
+		inDir[filepath.Join(".github", "workflows", name)] = content
+	}
+	return testrepo.Write(t, inDir)
 }
 
 func TestGithubExists(t *testing.T) {
-	err := setupGithubTestDir()
-	assert.NoError(t, err)
-
-	defer teardownTestDir()
-
 	gp := parser.NewGithubParser()
-	assert.True(t, gp.Exists(testDir))
+	assert.True(t, gp.Exists(workflows(t, map[string]string{"test-workflow.yml": testWorkflow})))
 	assert.False(t, gp.Exists("nonexistent-dir"))
 }
 
 func TestGithubParse(t *testing.T) {
-	err := setupGithubTestDir()
-	assert.NoError(t, err)
-
-	defer teardownTestDir()
-
-	gp := parser.NewGithubParser()
-	artifacts, err := gp.Parse(testDir)
+	artifacts, err := parser.NewGithubParser().Parse(workflows(t, map[string]string{"test-workflow.yml": testWorkflow}))
 	assert.NoError(t, err)
 	assert.Len(t, artifacts, 1)
 	assert.Equal(t, "Test Workflow", artifacts[0].Name)
@@ -80,8 +63,7 @@ func TestGithubParse(t *testing.T) {
 
 // The parser previously skipped any step without a `uses:` key.
 func TestGithubParserCapturesRunSteps(t *testing.T) {
-	dir := t.TempDir()
-	workflow := `
+	dir := workflows(t, map[string]string{"ci.yml": `
 name: ci
 jobs:
   security:
@@ -89,9 +71,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Scan
         run: trivy fs --exit-code 1 .
-`
-	err := os.WriteFile(filepath.Join(dir, "ci.yml"), []byte(workflow), 0600)
-	assert.NoError(t, err)
+`})
 
 	artifacts, err := parser.NewGithubParser().Parse(dir)
 	assert.NoError(t, err)
@@ -114,10 +94,7 @@ jobs:
 // parseOne writes a single workflow and returns the artifact parsed from it.
 func parseOne(t *testing.T, workflow string) *models.Artifact {
 	t.Helper()
-	dir := t.TempDir()
-	assert.NoError(t, os.WriteFile(filepath.Join(dir, "wf.yml"), []byte(workflow), 0o644))
-
-	artifacts, err := parser.NewGithubParser().Parse(dir)
+	artifacts, err := parser.NewGithubParser().Parse(workflows(t, map[string]string{"wf.yml": workflow}))
 	assert.NoError(t, err)
 	assert.Len(t, artifacts, 1)
 	return artifacts[0]
@@ -350,15 +327,16 @@ jobs:
 	assert.Equal(t, "gitleaks detect", artifact.Jobs[0].Run)
 }
 
-func TestGithubExistsRejectsAnEmptyDirectory(t *testing.T) {
+func TestGithubExistsRejectsADirectoryWithNoWorkflow(t *testing.T) {
 	assert.False(t, parser.NewGithubParser().Exists(t.TempDir()))
+	assert.False(t, parser.NewGithubParser().Exists(workflows(t, map[string]string{"README.md": "x"})))
 }
 
 func TestParseSkipsSubdirectories(t *testing.T) {
-	dir := t.TempDir()
-	assert.NoError(t, os.MkdirAll(filepath.Join(dir, "nested"), 0o755))
-	assert.NoError(t, os.WriteFile(filepath.Join(dir, "wf.yml"),
-		[]byte("name: w\non: push\njobs:\n  a:\n    steps:\n      - run: z\n"), 0o644))
+	dir := workflows(t, map[string]string{
+		"wf.yml":            "name: w\non: push\njobs:\n  a:\n    steps:\n      - run: z\n",
+		"nested/inside.yml": "name: n\non: push\njobs:\n  a:\n    steps:\n      - run: z\n",
+	})
 
 	artifacts, err := parser.NewGithubParser().Parse(dir)
 	assert.NoError(t, err)
@@ -370,10 +348,6 @@ func TestParseSkipsSubdirectories(t *testing.T) {
 // zanadir cannot read degrades to empty. Changing it would turn a loud error
 // into a silent partial scan, which is a call for the maintainer.
 func TestParseFailsOnUnparseableYAML(t *testing.T) {
-	dir := t.TempDir()
-	assert.NoError(t, os.WriteFile(filepath.Join(dir, "broken.yml"),
-		[]byte("name: w\n  jobs: [oops\n"), 0o644))
-
-	_, err := parser.NewGithubParser().Parse(dir)
+	_, err := parser.NewGithubParser().Parse(workflows(t, map[string]string{"broken.yml": "name: w\n  jobs: [oops\n"}))
 	assert.Error(t, err)
 }

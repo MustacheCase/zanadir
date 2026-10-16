@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -32,41 +31,23 @@ type circleCIWorkflowsDef struct {
 	TestAndBuild circleCIWorkflowDef `yaml:"test-and-build"`
 }
 
-func (c *CircleCIParser) Exists(location string) bool {
-	info, err := os.Stat(location)
-	if err != nil || !info.IsDir() {
-		return false
-	}
-
-	entries, err := os.ReadDir(location)
-	if err != nil || len(entries) == 0 {
-		return false
-	}
-
-	return true
+func circleCIConfigs(root string) []string {
+	return utils.YAMLFiles(filepath.Join(root, ".circleci"))
 }
 
-func (c *CircleCIParser) Parse(location string) ([]*models.Artifact, error) {
-	files, err := os.ReadDir(location)
-	if err != nil {
-		return nil, err
-	}
+func (c *CircleCIParser) Exists(root string) bool {
+	return len(circleCIConfigs(root)) > 0
+}
 
+func (c *CircleCIParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
-	for _, file := range files {
-		if file.IsDir() {
-			continue
+	for _, path := range circleCIConfigs(root) {
+		artifact, err := c.parseCircleCIWorkflow(path)
+		if err != nil {
+			return nil, err
 		}
-		if filepath.Ext(file.Name()) == ".yml" || filepath.Ext(file.Name()) == ".yaml" {
-			path := filepath.Join(location, file.Name())
-			artifact, err := c.parseCircleCIWorkflow(path)
-			if err != nil {
-				return nil, err
-			}
-			artifacts = append(artifacts, artifact)
-		}
+		artifacts = append(artifacts, artifact)
 	}
-
 	return artifacts, nil
 }
 

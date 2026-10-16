@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -28,8 +29,6 @@ func (m *MockScanner) Scan(dir string) ([]*models.Artifact, error) {
 }
 
 func TestScan_ValidRepository(t *testing.T) {
-	setup()
-
 	dir := t.TempDir()
 	_ = os.Mkdir(filepath.Join(dir, ".git"), 0755)
 
@@ -45,8 +44,6 @@ func TestScan_ValidRepository(t *testing.T) {
 }
 
 func TestScan_NotARepository(t *testing.T) {
-	setup()
-
 	dir := t.TempDir()
 
 	mockScanner = new(MockScanner)
@@ -59,8 +56,6 @@ func TestScan_NotARepository(t *testing.T) {
 }
 
 func TestScan_ScannerError(t *testing.T) {
-	setup()
-
 	dir := t.TempDir()
 	_ = os.Mkdir(filepath.Join(dir, ".git"), 0755)
 
@@ -82,20 +77,9 @@ func TestNewRepositoryScanner(t *testing.T) {
 	repoScanner, ok := scanner.(*RepositoryScanner)
 	assert.True(t, ok, "Expected scanner to be of type *RepositoryScanner")
 
-	expectedPaths := []string{
-		"/.github/workflows/",
-		"/.circleci/",
-		// GitLab, Bitbucket, Azure and the dependency bots are rooted at the
-		// repository: the parsers take the directory to look in, not the file.
-		"/",
-		"/",
-		"/",
-		"/",
-	}
-
-	assert.Len(t, repoScanner.ciParsers, len(expectedPaths), "Expected number of parsers to match")
-	for i, parser := range repoScanner.ciParsers {
-		assert.Equal(t, expectedPaths[i], parser.Path, "Parser path mismatch")
-		assert.NotNil(t, parser.Parser, "Parser should not be nil")
+	// One parser per platform, then the dependency bots.
+	assert.Len(t, repoScanner.parsers, len(parser.Platforms)+1)
+	for i, platform := range parser.Platforms {
+		assert.Same(t, platform.Parser, repoScanner.parsers[i], platform.ID)
 	}
 }

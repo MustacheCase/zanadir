@@ -10,28 +10,13 @@ import (
 	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/suggester"
 	"gopkg.in/yaml.v3"
 )
 
 //go:embed templates.yaml
 var templatesFS embed.FS
-
-const (
-	PlatformGitHub    = "github"
-	PlatformGitLab    = "gitlab"
-	PlatformCircleCI  = "circleci"
-	PlatformBitbucket = "bitbucket"
-	PlatformAzure     = "azure"
-)
-
-var knownPlatforms = map[string]bool{
-	PlatformGitHub:    true,
-	PlatformGitLab:    true,
-	PlatformCircleCI:  true,
-	PlatformBitbucket: true,
-	PlatformAzure:     true,
-}
 
 type Template struct {
 	Tool     string `yaml:"tool"`
@@ -126,7 +111,7 @@ func validate(templates []Template, catalogue []suggester.CategorySuggestion) er
 		if t.Tool == "" || t.Step == "" {
 			return fmt.Errorf("template for %q is missing a tool name or step", t.Tool)
 		}
-		if !knownPlatforms[t.Platform] {
+		if _, ok := parser.Lookup(t.Platform); !ok {
 			return fmt.Errorf("template for %q has unknown platform %q", t.Tool, t.Platform)
 		}
 		if t.Category != "" {
@@ -170,60 +155,20 @@ func NewFixService() (Fixer, error) {
 	return &service{byToolPlatform: byToolPlatform}, nil
 }
 
-// DetectPlatform reports which CI platform a repository uses, defaulting to
-// GitHub Actions when nothing is recognised.
-func DetectPlatform(dir string) string {
-	if info, err := os.Stat(filepath.Join(dir, ".github", "workflows")); err == nil && info.IsDir() {
-		return PlatformGitHub
-	}
-	if info, err := os.Stat(filepath.Join(dir, ".gitlab-ci.yml")); err == nil && !info.IsDir() {
-		return PlatformGitLab
-	}
-	if info, err := os.Stat(filepath.Join(dir, ".circleci")); err == nil && info.IsDir() {
-		return PlatformCircleCI
-	}
-	if info, err := os.Stat(filepath.Join(dir, "bitbucket-pipelines.yml")); err == nil && !info.IsDir() {
-		return PlatformBitbucket
-	}
-	for _, name := range []string{"azure-pipelines.yml", "azure-pipelines.yaml"} {
-		if info, err := os.Stat(filepath.Join(dir, name)); err == nil && !info.IsDir() {
-			return PlatformAzure
-		}
-	}
-	return PlatformGitHub
-}
-
-// targetFile names where a snippet is pasted, per platform.
-func targetFile(platform string) string {
-	switch platform {
-	case PlatformGitLab:
-		return ".gitlab-ci.yml"
-	case PlatformCircleCI:
-		return ".circleci/config.yml"
-	case PlatformBitbucket:
-		return "bitbucket-pipelines.yml"
-	case PlatformAzure:
-		return "azure-pipelines.yml"
-	default:
-		return ".github/workflows/security.yml"
-	}
-}
-
 // Render writes the snippets as copy-paste blocks.
-func Render(w io.Writer, snippets []Snippet, platform string) error {
+func Render(w io.Writer, snippets []Snippet, platform parser.Platform) error {
 	if len(snippets) == 0 {
 		_, err := fmt.Fprintln(w, "Nothing to fix: every uncovered category either has no template yet, or there is nothing uncovered.")
 		return err
 	}
 
-	target := targetFile(platform)
 	for i, s := range snippets {
 		if i > 0 {
 			if _, err := fmt.Fprintln(w); err != nil {
 				return err
 			}
 		}
-		if _, err := fmt.Fprintf(w, "%s is not covered. Add to %s:\n\n", s.Category, target); err != nil {
+		if _, err := fmt.Fprintf(w, "%s is not covered. Add to %s:\n\n", s.Category, platform.Target); err != nil {
 			return err
 		}
 		for _, line := range strings.Split(s.Step, "\n") {

@@ -34,3 +34,10 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["Linter"]
     regex: "(?i)^(?:jobs/)?code-quality\\.gitlab-ci\\.yml$"
+
+  # Jenkins Warnings Next Generation, which publishes linter and static
+  # analysis results.
+  - id: "jenkins-record-issues-rule"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^recordissues$"

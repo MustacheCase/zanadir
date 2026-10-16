@@ -16,9 +16,9 @@ rules:
     categories: ["Unit Tests"]
     regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\b(?:pytest|rspec|phpunit|jest|mocha|vitest|ctest|tox)\\b|\\bmvn\\s[^\\n]*\\btest\\b|\\bgradle\\s[^\\n]*\\btest\\b|\\bbundle\\s+exec\\s+rspec\\b"
 
-  # Azure's DotNetCoreCLI task runs tests through an input zanadir cannot match
-  # on, so the tasks that run or publish test results stand in for it.
-  - id: "azure-test-task-rule"
+  # Steps that run or publish test results stand in for a test command zanadir
+  # cannot see, such as Azure's DotNetCoreCLI test input or a Jenkins junit step.
+  - id: "test-results-step-rule"
     applyOn: ["Job.Package"]
     categories: ["Unit Tests"]
-    regex: "(?i)^(?:vstest|publishtestresults)$"
+    regex: "(?i)^(?:vstest|publishtestresults|junit)$"

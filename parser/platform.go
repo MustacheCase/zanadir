@@ -7,6 +7,7 @@ const (
 	CircleCI  = "circleci"
 	Bitbucket = "bitbucket"
 	Azure     = "azure"
+	Jenkins   = "jenkins"
 )
 
 // Platform is a CI system zanadir reads. Each one is described here and
@@ -26,6 +27,7 @@ var Platforms = []Platform{
 	{ID: CircleCI, Parser: NewCircleCIParser(), Target: ".circleci/config.yml"},
 	{ID: Bitbucket, Parser: NewBitbucketParser(), Target: bitbucketFile},
 	{ID: Azure, Parser: NewAzureParser(), Target: azureFiles[0]},
+	{ID: Jenkins, Parser: NewJenkinsParser(), Target: jenkinsFile},
 }
 
 // Detect returns the platform a repository uses, or GitHub Actions when it

@@ -40,12 +40,12 @@ func TestRuleRegexPrecision(t *testing.T) {
 		},
 		{
 			ruleID:         "sonar-rule",
-			shouldMatch:    []string{"SonarCloudAnalyze", "SonarQubeAnalyze", "sonarsource/sonarcloud-github-action", "sonar-scanner"},
+			shouldMatch:    []string{"SonarCloudAnalyze", "SonarQubeAnalyze", "sonarsource/sonarcloud-github-action", "sonar-scanner", "withSonarQubeEnv", "waitForQualityGate"},
 			shouldNotMatch: []string{"SonarCloudPrepare", "SonarQubePublish", "sonarlint"},
 		},
 		{
 			ruleID:         "snyk-rule",
-			shouldMatch:    []string{"SnykSecurityScan", "snyk test", "snyk/snyk-scan"},
+			shouldMatch:    []string{"SnykSecurityScan", "snyk test", "snyk/snyk-scan", "snykSecurity"},
 			shouldNotMatch: []string{"snykish", "SnykSecurityScanner"},
 		},
 		{
@@ -54,13 +54,13 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"AdvancedSecurity-Codeql-Analyze", "AdvancedSecurity-Dependency-Scanning-Extra"},
 		},
 		{
-			ruleID:         "azure-coverage-rule",
-			shouldMatch:    []string{"PublishCodeCoverageResults"},
+			ruleID:         "coverage-results-step-rule",
+			shouldMatch:    []string{"PublishCodeCoverageResults", "recordCoverage", "publishCoverage"},
 			shouldNotMatch: []string{"PublishTestResults", "PublishCodeCoverageResultsV2Wrapper"},
 		},
 		{
-			ruleID:         "azure-test-task-rule",
-			shouldMatch:    []string{"VSTest", "PublishTestResults"},
+			ruleID:         "test-results-step-rule",
+			shouldMatch:    []string{"VSTest", "PublishTestResults", "junit"},
 			shouldNotMatch: []string{"VSBuild", "PublishTestResultsLegacy"},
 		},
 		{
@@ -97,6 +97,16 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID:         "gitlab-performance-template-rule",
 			shouldMatch:    []string{"Jobs/Browser-Performance-Testing.gitlab-ci.yml", "Verify/Load-Performance-Testing.gitlab-ci.yml", "Verify/Browser-Performance.gitlab-ci.yml"},
 			shouldNotMatch: []string{"Security/DAST.gitlab-ci.yml"},
+		},
+		{
+			ruleID:         "dependency-check-rule",
+			shouldMatch:    []string{"dependencyCheck", "dependencyCheckPublisher", "dependency-check.sh --scan .", "dependency-check --project x"},
+			shouldNotMatch: []string{"dependencyCheckBomName", "my-dependency-checker"},
+		},
+		{
+			ruleID:         "jenkins-record-issues-rule",
+			shouldMatch:    []string{"recordIssues"},
+			shouldNotMatch: []string{"recordIssuesLater"},
 		},
 		{
 			ruleID:         "git-secrets-rule",

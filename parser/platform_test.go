@@ -14,6 +14,7 @@ func TestDetect(t *testing.T) {
 		CircleCI:  {".circleci/config.yml": "version: 2.1\n"},
 		Bitbucket: {"bitbucket-pipelines.yml": "pipelines: {}\n"},
 		Azure:     {"azure-pipelines.yaml": "steps: []\n"},
+		Jenkins:   {"Jenkinsfile": "pipeline { agent any }\n"},
 	}
 	for id, files := range tests {
 		t.Run(id, func(t *testing.T) {
@@ -38,7 +39,7 @@ func TestLookupAndUses(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, p.Target, found.Target)
 	}
-	_, ok := Lookup("jenkins")
+	_, ok := Lookup("tekton")
 	assert.False(t, ok)
-	assert.False(t, Uses(t.TempDir(), "jenkins"))
+	assert.False(t, Uses(t.TempDir(), "tekton"))
 }

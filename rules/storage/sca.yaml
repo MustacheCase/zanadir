@@ -18,7 +18,7 @@ rules:
   - id: "snyk-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)\\bsnyk\\b|^snyksecurityscan$"
+    regex: "(?i)\\bsnyk\\b|^snyksecurityscan$|^snyksecurity$"
     # The Bitbucket pipe and the Azure task each report without failing when
     # asked to.
     weakenedWhen:
@@ -32,7 +32,7 @@ rules:
   - id: "anchore-rule"
     applyOn: ["Job.Package"]
     categories: ["SCA"]
-    regex: "(?i)anchore/scan-action"
+    regex: "(?i)anchore/scan-action|^anchore$"
     weakenedWhen:
       - input: "fail-build"
         equals: "false"
@@ -91,3 +91,9 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["SCA"]
     regex: "(?i)^(?:jobs|security)/(?:dependency|container)-scanning(?:\\.latest|\\.v2)?\\.gitlab-ci\\.yml$|/components/(?:dependency|container)-scanning/"
+
+  # OWASP Dependency-Check, from its CLI or its Jenkins plugin steps.
+  - id: "dependency-check-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\bdependency-check(?:\\.sh|\\.bat)?\\b|^dependencycheck(?:publisher)?$"

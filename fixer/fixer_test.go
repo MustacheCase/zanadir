@@ -153,6 +153,9 @@ func TestShippedTemplatesParseWhenPasted(t *testing.T) {
 				doc = bitbucketSkeleton(tmpl.Step)
 			case parser.Azure:
 				doc = azureSkeleton(tmpl.Step)
+			case parser.Jenkins:
+				// Groovy, not YAML: the round trip below is what checks it.
+				return
 			default:
 				doc = tmpl.Step
 			}
@@ -454,6 +457,10 @@ func bitbucketSkeleton(step string) string {
 	return "pipelines:\n  pull-requests:\n    '**':\n" + indent(step, "      ")
 }
 
+func jenkinsSkeleton(stage string) string {
+	return "pipeline {\n  agent any\n  stages {\n" + indent(stage, "    ") + "  }\n}\n"
+}
+
 func azureSkeleton(step string) string {
 	return "pr: [main]\nsteps:\n" + indent(step, "  ")
 }
@@ -464,13 +471,16 @@ func TestTemplatesAreReadByTheParser(t *testing.T) {
 	templates, err := readTemplates()
 	assert.NoError(t, err)
 
+	// trigger is what the skeleton runs on; a Jenkinsfile records none.
 	platforms := map[string]struct {
 		file     string
 		skeleton func(string) string
 		parser   parser.Parser
+		trigger  string
 	}{
-		parser.Bitbucket: {"bitbucket-pipelines.yml", bitbucketSkeleton, parser.NewBitbucketParser()},
-		parser.Azure:     {"azure-pipelines.yml", azureSkeleton, parser.NewAzureParser()},
+		parser.Bitbucket: {"bitbucket-pipelines.yml", bitbucketSkeleton, parser.NewBitbucketParser(), "pull_request"},
+		parser.Azure:     {"azure-pipelines.yml", azureSkeleton, parser.NewAzureParser(), "pull_request"},
+		parser.Jenkins:   {"Jenkinsfile", jenkinsSkeleton, parser.NewJenkinsParser(), ""},
 	}
 
 	for _, tmpl := range templates {
@@ -482,7 +492,9 @@ func TestTemplatesAreReadByTheParser(t *testing.T) {
 			artifacts, err := p.parser.Parse(testrepo.Write(t, map[string]string{p.file: p.skeleton(tmpl.Step)}))
 			assert.NoError(t, err)
 			if assert.Len(t, artifacts, 1) && assert.Len(t, artifacts[0].Jobs, 1) {
-				assert.True(t, artifacts[0].HasTrigger("pull_request"))
+				if p.trigger != "" {
+					assert.True(t, artifacts[0].HasTrigger(p.trigger))
+				}
 				assert.Contains(t, strings.ToLower(artifacts[0].Jobs[0].Run+artifacts[0].Jobs[0].Package), strings.ToLower(tmpl.Tool))
 			}
 		})

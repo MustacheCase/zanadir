@@ -1,10 +1,9 @@
 package grading
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
@@ -15,10 +14,7 @@ import (
 
 func gradeFile(t *testing.T, p parser.Parser, name, content string) map[string]Verdict {
 	t.Helper()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600))
-
-	artifacts, err := p.Parse(dir)
+	artifacts, err := p.Parse(testrepo.Write(t, map[string]string{name: content}))
 	require.NoError(t, err)
 	rs, err := rules.NewRulesService()
 	require.NoError(t, err)

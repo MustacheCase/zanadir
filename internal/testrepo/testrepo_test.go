@@ -16,3 +16,12 @@ func TestWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTouch(t *testing.T) {
+	dir := Touch(t, "go.mod", "web/package.json")
+	for _, rel := range []string{"go.mod", "web/package.json"} {
+		if _, err := os.Stat(filepath.Join(dir, rel)); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

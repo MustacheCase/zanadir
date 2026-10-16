@@ -2,10 +2,9 @@ package scanner
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
@@ -112,14 +111,7 @@ func TestRepositoryScannerFindsEveryPlatform(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			for rel, content := range tt.files {
-				path := filepath.Join(dir, rel)
-				assert.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-				assert.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-			}
-
-			artifacts, err := NewRepositoryScanner().Scan(dir)
+			artifacts, err := NewRepositoryScanner().Scan(testrepo.Write(t, tt.files))
 
 			assert.NoError(t, err)
 			assert.NotEmpty(t, artifacts, "the platform's configuration was not read at all")

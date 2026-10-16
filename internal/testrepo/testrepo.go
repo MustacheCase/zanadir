@@ -21,3 +21,14 @@ func Write(t testing.TB, files map[string]string) string {
 	}
 	return dir
 }
+
+// Touch creates a temporary repository holding placeholder files at paths,
+// for tests where a file's presence is all that matters.
+func Touch(t testing.TB, paths ...string) string {
+	t.Helper()
+	files := make(map[string]string, len(paths))
+	for _, path := range paths {
+		files[path] = "x"
+	}
+	return Write(t, files)
+}

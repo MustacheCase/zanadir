@@ -1,10 +1,10 @@
 package config
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,9 +12,7 @@ import (
 
 func writeConfig(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), ".zanadir.yml")
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
-	return path
+	return filepath.Join(testrepo.Write(t, map[string]string{".zanadir.yml": body}), ".zanadir.yml")
 }
 
 func withConfig(cmd *cobra.Command, path string) *cobra.Command {

@@ -1,8 +1,9 @@
 package parser
 
 import (
+	"maps"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
@@ -91,7 +92,7 @@ func (b *BitbucketParser) Parse(root string) ([]*models.Artifact, error) {
 		{p.Custom, on("workflow_dispatch")},
 	}
 	for _, section := range sections {
-		for _, key := range sortedKeys(section.pipelines) {
+		for _, key := range slices.Sorted(maps.Keys(section.pipelines)) {
 			node := section.pipelines[key]
 			add(&node, section.triggers(key))
 		}
@@ -114,15 +115,6 @@ func branchTriggers(pattern string) []models.Trigger {
 		return nil
 	}
 	return []models.Trigger{{Event: "push", Branches: []string{pattern}}}
-}
-
-func sortedKeys(m map[string]yaml.Node) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 // bitbucketJobs reads a pipeline's list of steps. An entry that cannot be read,

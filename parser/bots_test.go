@@ -5,20 +5,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
 )
-
-func repoWith(t *testing.T, files map[string]string) string {
-	t.Helper()
-	dir := t.TempDir()
-	for rel, content := range files {
-		path := filepath.Join(dir, rel)
-		assert.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		assert.NoError(t, os.WriteFile(path, []byte(content), 0o644))
-	}
-	return dir
-}
 
 func TestDependencyBotParserFindsEveryKnownPath(t *testing.T) {
 	tests := []struct {
@@ -38,7 +28,7 @@ func TestDependencyBotParserFindsEveryKnownPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := repoWith(t, map[string]string{tt.file: "{}"})
+			dir := testrepo.Write(t, map[string]string{tt.file: "{}"})
 			p := parser.NewDependencyBotParser()
 
 			assert.True(t, p.Exists(dir))
@@ -57,7 +47,7 @@ func TestDependencyBotParserFindsEveryKnownPath(t *testing.T) {
 }
 
 func TestDependencyBotParserWithBothBots(t *testing.T) {
-	dir := repoWith(t, map[string]string{
+	dir := testrepo.Write(t, map[string]string{
 		".github/dependabot.yml": "version: 2",
 		"renovate.json":          "{}",
 	})
@@ -70,7 +60,7 @@ func TestDependencyBotParserWithBothBots(t *testing.T) {
 }
 
 func TestDependencyBotParserWithNoConfig(t *testing.T) {
-	dir := repoWith(t, map[string]string{".github/workflows/ci.yml": "name: ci"})
+	dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "name: ci"})
 	p := parser.NewDependencyBotParser()
 
 	assert.False(t, p.Exists(dir))
@@ -91,7 +81,7 @@ func TestDependencyBotParserIgnoresDirectories(t *testing.T) {
 // Renovate reads the first config it finds, so only one is reported even when
 // a repository has left several lying about.
 func TestDependencyBotParserReportsOneArtifactPerBot(t *testing.T) {
-	dir := repoWith(t, map[string]string{
+	dir := testrepo.Write(t, map[string]string{
 		"renovate.json":         "{}",
 		".github/renovate.json": "{}",
 		".renovaterc":           "{}",

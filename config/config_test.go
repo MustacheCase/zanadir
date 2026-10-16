@@ -277,3 +277,8 @@ func TestCreateConfigDefaultsToNotFailingOnWeakened(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, cfg.FailOnWeakened)
 }
+
+func TestCreateConfigRejectsAMissingDirectory(t *testing.T) {
+	_, err := CreateConfig(newScanCmd(filepath.Join(t.TempDir(), "missing"), nil))
+	assert.Error(t, err)
+}

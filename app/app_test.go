@@ -8,6 +8,8 @@ import (
 
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/rules"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -70,4 +72,45 @@ func TestScanErrorReportUnwrapsEnforceError(t *testing.T) {
 func TestFixRepo(t *testing.T) {
 	err := fixRepo(&config.Config{})
 	assert.NotNil(t, err, "fixRepo should return an error when the directory is not a repository")
+}
+
+// exitCode records what run would have exited with, -1 for not at all.
+func exitCode(t *testing.T) *int {
+	t.Helper()
+	code := -1
+	exit = func(c int) { code = c }
+	t.Cleanup(func() { exit = os.Exit })
+	return &code
+}
+
+func TestRunExitsWhenTheConfigurationIsBad(t *testing.T) {
+	code := exitCode(t)
+	did := false
+	run(func(*cobra.Command) (*config.Config, error) { return nil, errors.New("no --dir") },
+		func(*config.Config) error { did = true; return nil })(&cobra.Command{}, nil)
+
+	assert.Equal(t, 1, *code)
+	assert.False(t, did, "nothing runs without a configuration")
+}
+
+func TestRunExitsWhenTheWorkFails(t *testing.T) {
+	code := exitCode(t)
+	run(func(*cobra.Command) (*config.Config, error) { return &config.Config{}, nil },
+		func(*config.Config) error { return models.NewEnforceError("uncovered categories: SCA") })(&cobra.Command{}, nil)
+
+	assert.Equal(t, 1, *code)
+}
+
+func TestRunDoesNotExitOnSuccess(t *testing.T) {
+	code := exitCode(t)
+	run(func(*cobra.Command) (*config.Config, error) { return &config.Config{}, nil },
+		func(*config.Config) error { return nil })(&cobra.Command{}, nil)
+
+	assert.Equal(t, -1, *code)
+}
+
+func TestABadCustomRuleStopsBothCommands(t *testing.T) {
+	cfg := &config.Config{Rules: []rules.FileRule{{ID: "no-regex"}}}
+	assert.ErrorContains(t, scanRepo(cfg), "no-regex")
+	assert.ErrorContains(t, fixRepo(cfg), "no-regex")
 }

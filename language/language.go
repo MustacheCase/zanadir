@@ -1,10 +1,13 @@
 package language
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
+
+	"github.com/MustacheCase/zanadir/utils"
 )
 
 // Canonical language names, matching the `language` field in suggestions.yaml.
@@ -43,16 +46,6 @@ var suffixMarkers = map[string]string{
 	".sln":     CSharp,
 }
 
-// skipDirs hold dependencies rather than the project's own code, so their
-// manifests say nothing about what the repository is written in.
-var skipDirs = map[string]bool{
-	".git":         true,
-	"node_modules": true,
-	"vendor":       true,
-	"testdata":     true,
-	"third_party":  true,
-}
-
 // Detect returns the languages a repository appears to be written in, sorted.
 // It inspects the root and its immediate subdirectories, covering the common
 // monorepo layout without walking the whole tree.
@@ -62,16 +55,16 @@ func Detect(dir string) []string {
 	collect(dir, found)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return sortedKeys(found)
+		return slices.Sorted(maps.Keys(found))
 	}
 	for _, entry := range entries {
-		if !entry.IsDir() || skipDirs[entry.Name()] || strings.HasPrefix(entry.Name(), ".") {
+		if !entry.IsDir() || utils.IsDependencyDir(entry.Name()) || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
 		collect(filepath.Join(dir, entry.Name()), found)
 	}
 
-	return sortedKeys(found)
+	return slices.Sorted(maps.Keys(found))
 }
 
 func collect(dir string, found map[string]bool) {
@@ -95,13 +88,4 @@ func collect(dir string, found map[string]bool) {
 			}
 		}
 	}
-}
-
-func sortedKeys(m map[string]bool) []string {
-	out := make([]string, 0, len(m))
-	for k := range m {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

@@ -28,3 +28,10 @@ func TestFileHelpers(t *testing.T) {
 	assert.Equal(t, []string{filepath.Join(dir, "a.yml"), filepath.Join(dir, "b.yaml")}, YAMLFiles(dir))
 	assert.Nil(t, YAMLFiles(filepath.Join(dir, "missing")))
 }
+
+func TestIsDependencyDir(t *testing.T) {
+	for _, name := range []string{".git", "node_modules", "vendor", "testdata", "third_party"} {
+		assert.True(t, IsDependencyDir(name), name)
+	}
+	assert.False(t, IsDependencyDir("src"))
+}

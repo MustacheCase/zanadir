@@ -47,3 +47,19 @@ func YAMLFiles(dir string) []string {
 	}
 	return files
 }
+
+// dependencyDirs hold dependencies rather than a project's own code, so
+// nothing in them says what the project is written in or needs.
+var dependencyDirs = map[string]bool{
+	".git":         true,
+	"node_modules": true,
+	"vendor":       true,
+	"testdata":     true,
+	"third_party":  true,
+}
+
+// IsDependencyDir reports whether a directory of this name holds someone
+// else's code.
+func IsDependencyDir(name string) bool {
+	return dependencyDirs[name]
+}

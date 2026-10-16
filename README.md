@@ -465,6 +465,15 @@ are unambiguous there - `allow_failure: true`, which is `continue-on-error`
 under another name, and `when: manual`, a job that only runs when somebody
 asks.
 
+GitLab's `include:` is followed. A local file (`local:` or a bare path,
+wildcards allowed) is read as more of the same configuration. GitLab's own
+templates and CI/CD components cannot be read from the repository, so they are
+recognised by name: `Jobs/SAST.gitlab-ci.yml` or
+`components/sast/sast@...` counts as SAST, and likewise for Secret Detection,
+Dependency and Container Scanning, SAST-IaC, License Scanning, Code Quality and
+the performance-testing templates. A `project:` or `remote:` include is
+skipped. A job zanadir cannot read is skipped rather than failing the scan.
+
 GitLab's `rules:`, `only:` and `except:` are deliberately not interpreted.
 Whether a branch pipeline gates a merge depends on a project setting that is
 not in the repository, so reading them would be guessing. A GitLab job with

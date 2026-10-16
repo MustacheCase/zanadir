@@ -57,3 +57,9 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bhorusec\\b"
+
+  # GitLab's own templates and CI/CD components, recorded by name from include:.
+  - id: "gitlab-sast-template-rule"
+    applyOn: ["Job.Package"]
+    categories: ["SAST"]
+    regex: "(?i)^(?:jobs|security)/sast(?:\\.latest)?\\.gitlab-ci\\.yml$|/components/sast/"

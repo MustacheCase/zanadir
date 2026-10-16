@@ -100,3 +100,40 @@ func TestCircleCIParseFailsOnUnparseableYAML(t *testing.T) {
 	_, err := parser.NewCircleCIParser().Parse(circleCIDir(t, "jobs: [oops\n"))
 	assert.Error(t, err)
 }
+
+// docker: entries carry nested maps and workflows: lists jobs as mappings;
+// typed fields for either aborted the scan of real configurations.
+func TestCircleCIToleratesShapesItDoesNotRead(t *testing.T) {
+	artifacts, err := parser.NewCircleCIParser().Parse(circleCIDir(t, `
+version: 2.1
+orbs:
+  python: circleci/python@2.1.1
+  local:
+    commands:
+      hello:
+        steps: [checkout]
+jobs:
+  build:
+    docker:
+      - image: cimg/python:3.10.2
+        environment:
+          LIMIT: "2"
+        auth:
+          username: $USER
+    steps:
+      - run: pytest
+workflows:
+  main:
+    jobs:
+      - build:
+          filters: {branches: {only: main}}
+`))
+	assert.NoError(t, err)
+	assert.Len(t, artifacts, 1)
+
+	packages := map[string]string{}
+	for _, job := range artifacts[0].Jobs {
+		packages[job.Name] = job.Package + "|" + job.Version + "|" + job.Run
+	}
+	assert.Equal(t, map[string]string{"python": "circleci/python|2.1.1|", "build": "||pytest"}, packages)
+}

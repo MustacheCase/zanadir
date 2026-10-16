@@ -6,29 +6,20 @@ import (
 
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/utils"
+	"gopkg.in/yaml.v3"
 )
 
 type CircleCIParser struct{}
 
+// circleCIDef holds only what is read. Fields like docker: and workflows: take
+// shapes a fixed type cannot, and decoding them anyway aborted whole scans.
 type circleCIDef struct {
-	Version   string                    `yaml:"version"`
-	Orbs      map[string]string         `yaml:"orbs"`
-	Jobs      map[string]circleCIJobDef `yaml:"jobs"`
-	Workflows circleCIWorkflowsDef      `yaml:"workflows"`
+	Orbs map[string]yaml.Node      `yaml:"orbs"`
+	Jobs map[string]circleCIJobDef `yaml:"jobs"`
 }
 
 type circleCIJobDef struct {
-	Docker []map[string]string `yaml:"docker"`
-	Steps  []interface{}       `yaml:"steps"`
-}
-
-type circleCIWorkflowDef struct {
-	Jobs []string `yaml:"jobs"`
-}
-
-type circleCIWorkflowsDef struct {
-	Version      int                 `yaml:"version"`
-	TestAndBuild circleCIWorkflowDef `yaml:"test-and-build"`
+	Steps []interface{} `yaml:"steps"`
 }
 
 func circleCIConfigs(root string) []string {
@@ -58,10 +49,11 @@ func (c *CircleCIParser) parseCircleCIWorkflow(filePath string) (*models.Artifac
 	}
 
 	var jobs []*models.Job
-	for orbName, orbDefinition := range wf.Orbs {
-		pkgName, version := parseOrbDefinition(orbName, map[string]string{orbName: orbDefinition}) // Pass a map with the single orb
-		if pkgName != "" {
-			jobs = append(jobs, &models.Job{Name: orbName, Package: pkgName, Version: version})
+	for name, orb := range wf.Orbs {
+		// An orb defined inline is a mapping, not a reference to a published one.
+		if ref := resolve(&orb); ref.Kind == yaml.ScalarNode && ref.Value != "" {
+			pkg, version, _ := strings.Cut(ref.Value, "@")
+			jobs = append(jobs, &models.Job{Name: name, Package: pkg, Version: version})
 		}
 	}
 
@@ -104,16 +96,6 @@ func extractRunCommands(steps []interface{}) []string {
 	return commands
 }
 
-func parseOrbDefinition(orb string, orbs map[string]string) (string, string) {
-	if definedOrb, exists := orbs[orb]; exists {
-		fields := strings.Split(definedOrb, "@")
-		if len(fields) == 2 {
-			return fields[0], fields[1]
-		}
-		return definedOrb, ""
-	}
-	return "", ""
-}
 func NewCircleCIParser() Parser {
 	return &CircleCIParser{}
 }

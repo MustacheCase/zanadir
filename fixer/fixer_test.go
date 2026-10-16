@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
@@ -478,10 +479,7 @@ func TestTemplatesAreReadByTheParser(t *testing.T) {
 			continue
 		}
 		t.Run(tmpl.Tool+"/"+tmpl.Platform, func(t *testing.T) {
-			dir := t.TempDir()
-			assert.NoError(t, os.WriteFile(filepath.Join(dir, p.file), []byte(p.skeleton(tmpl.Step)), 0o600))
-
-			artifacts, err := p.parser.Parse(dir)
+			artifacts, err := p.parser.Parse(testrepo.Write(t, map[string]string{p.file: p.skeleton(tmpl.Step)}))
 			assert.NoError(t, err)
 			if assert.Len(t, artifacts, 1) && assert.Len(t, artifacts[0].Jobs, 1) {
 				assert.True(t, artifacts[0].HasTrigger("pull_request"))

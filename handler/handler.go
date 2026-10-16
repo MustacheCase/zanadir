@@ -24,6 +24,17 @@ import (
 	"github.com/MustacheCase/zanadir/suggester"
 )
 
+// debugFunc logs a step of the scan when --debug is on and does nothing
+// otherwise.
+type debugFunc func(format string, v ...interface{})
+
+func newDebug(cfg *config.Config) debugFunc {
+	if cfg.Debug {
+		return logger.GetLogger().Info
+	}
+	return func(string, ...interface{}) {}
+}
+
 type Handler struct {
 	RulesService      rules.RuleService
 	ScanService       scanner.Scanner
@@ -62,7 +73,7 @@ func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 // weakened lists the covered categories whose tooling cannot fully protect the
 // repository. An excluded category is left out: the operator has said it does
 // not apply, and grading it anyway would argue with them.
-func weakened(excluded []string, dir string, findings []*matcher.Finding, debugf func(string, ...interface{})) []output.Weakness {
+func weakened(excluded []string, dir string, findings []*matcher.Finding, debugf debugFunc) []output.Weakness {
 	skip := make(map[string]bool, len(excluded))
 	for _, category := range excluded {
 		skip[category] = true
@@ -93,10 +104,14 @@ type scanResult struct {
 	artifacts     []*models.Artifact
 	weaknesses    []output.Weakness
 	notApplicable []string
+	// skipped is every category left out of the score: excluded by the
+	// operator or not applicable to the repository.
+	skipped []string
 }
 
-// uncovered runs the scan pipeline and returns the categories with no tooling.
-func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface{}), ignore func(string) bool) (*scanResult, error) {
+// analyse runs the scan pipeline: it reads the CI configuration, matches it
+// against the rules, and grades what it finds.
+func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(string) bool) (*scanResult, error) {
 	artifacts, err := h.ScanService.Scan(cfg.Dir)
 	if err != nil {
 		debugf("Scan error: %v", err)
@@ -131,12 +146,12 @@ func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface
 
 	// A category with nothing to scan is skipped exactly as an operator-
 	// excluded one is, and leaves the score's denominator the same way.
-	skip := append(append([]string{}, cfg.ExcludedCategories...), notApplicable...)
+	skipped := append(append([]string{}, cfg.ExcludedCategories...), notApplicable...)
 
-	suggestions := h.SuggestionService.FindSuggestions(findings, skip, languages)
+	suggestions := h.SuggestionService.FindSuggestions(findings, skipped, languages)
 	debugf("Total suggestions: %d", len(suggestions))
 
-	weaknesses := weakened(skip, cfg.Dir, findings, debugf)
+	weaknesses := weakened(skipped, cfg.Dir, findings, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
 
 	return &scanResult{
@@ -144,17 +159,14 @@ func (h *Handler) uncovered(cfg *config.Config, debugf func(string, ...interface
 		artifacts:     artifacts,
 		weaknesses:    weaknesses,
 		notApplicable: notApplicable,
+		skipped:       skipped,
 	}, nil
 }
 
 // Fix prints ready-to-paste CI configuration for the uncovered categories.
 func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
-	debugf := func(format string, v ...interface{}) {}
-	if cfg.Debug {
-		debugf = logger.GetLogger().Info
-	}
-
-	result, err := h.uncovered(cfg, debugf, fixer.IsGeneratedWorkflow)
+	debugf := newDebug(cfg)
+	result, err := h.analyse(cfg, debugf, fixer.IsGeneratedWorkflow)
 	if err != nil {
 		return err
 	}
@@ -190,20 +202,18 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 	return err
 }
 
+// Execute scans the repository, reports the result, and fails when
+// enforcement asks it to.
 func (h *Handler) Execute(cfg *config.Config) error {
-	debugf := func(format string, v ...interface{}) {}
-	if cfg.Debug {
-		debugf = logger.GetLogger().Info
-	}
-
+	debugf := newDebug(cfg)
 	debugf("Starting scan for directory: %s", cfg.Dir)
-	result, err := h.uncovered(cfg, debugf, nil)
+	result, err := h.analyse(cfg, debugf, nil)
 	if err != nil {
 		return err
 	}
 	suggestions := result.suggestions
 
-	coverage := score.Of(append(append([]string{}, cfg.ExcludedCategories...), result.notApplicable...), len(suggestions))
+	coverage := score.Of(result.skipped, len(suggestions))
 	debugf("Coverage score: %s", coverage)
 
 	err = h.OutputService.Response(output.Report{
@@ -258,8 +268,6 @@ func (h *Handler) Execute(cfg *config.Config) error {
 	return nil
 }
 
-// enforceableCategories narrows uncovered categories to those that should fail
-// the scan: not accepted in the baseline, and named by --fail-on if given.
 // enforcement is what should fail the scan. The two are kept apart because a
 // missing category and a control that cannot fail a build are different
 // problems and read as nonsense under one heading.
@@ -283,7 +291,9 @@ func (e enforcement) Error() string {
 	return strings.Join(parts, "; ")
 }
 
-func (h *Handler) enforceableCategories(cfg *config.Config, uncovered []string, weaknesses []output.Weakness, debugf func(string, ...interface{})) (enforcement, error) {
+// enforceableCategories narrows uncovered categories to those that should fail
+// the scan: not accepted in the baseline, and named by --fail-on if given.
+func (h *Handler) enforceableCategories(cfg *config.Config, uncovered []string, weaknesses []output.Weakness, debugf debugFunc) (enforcement, error) {
 	var result enforcement
 	if !cfg.Enforce && len(cfg.FailOn) == 0 && !cfg.FailOnWeakened {
 		return result, nil

@@ -10,16 +10,8 @@ import (
 
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
+	"github.com/MustacheCase/zanadir/utils"
 )
-
-// skipDirs hold dependencies rather than the project's own code.
-var skipDirs = map[string]bool{
-	".git":         true,
-	"node_modules": true,
-	"vendor":       true,
-	"testdata":     true,
-	"third_party":  true,
-}
 
 var iacFiles = map[string]bool{
 	".terraform.lock.hcl": true,
@@ -79,7 +71,7 @@ func hasIaC(dir string) bool {
 		}
 		name := entry.Name()
 		if entry.IsDir() && path != dir {
-			if skipDirs[name] || strings.HasPrefix(name, ".") && !isIaC(name, true) {
+			if utils.IsDependencyDir(name) || strings.HasPrefix(name, ".") && !isIaC(name, true) {
 				return fs.SkipDir
 			}
 		}

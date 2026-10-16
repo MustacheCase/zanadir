@@ -6,19 +6,9 @@ import (
 	"testing"
 
 	"github.com/MustacheCase/zanadir/applicability"
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/stretchr/testify/assert"
 )
-
-func repoWith(t *testing.T, paths ...string) string {
-	t.Helper()
-	dir := t.TempDir()
-	for _, rel := range paths {
-		path := filepath.Join(dir, rel)
-		assert.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		assert.NoError(t, os.WriteFile(path, []byte("x"), 0o644))
-	}
-	return dir
-}
 
 // Ruling a category out that a repository does need is the worse mistake, so
 // every marker is checked, including ones nested well below the root.
@@ -49,13 +39,13 @@ func TestIaCStaysApplicable(t *testing.T) {
 	} {
 		t.Run(file, func(t *testing.T) {
 			assert.Equal(t, []string{"Workflow Security"},
-				applicability.NotApplicable(repoWith(t, file)))
+				applicability.NotApplicable(testrepo.Touch(t, file)))
 		})
 	}
 }
 
 func TestIaCIsRuledOutWithoutInfrastructure(t *testing.T) {
-	dir := repoWith(t, "src/main.go", "go.mod", "README.md", "docs/guide.md", ".github/workflows/ci.yml")
+	dir := testrepo.Touch(t, "src/main.go", "go.mod", "README.md", "docs/guide.md", ".github/workflows/ci.yml")
 
 	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
 }
@@ -103,7 +93,7 @@ func TestWorkflowSecurityNeedsGithubWorkflows(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, applicability.NotApplicable(repoWith(t, tt.files...)))
+			assert.Equal(t, tt.expected, applicability.NotApplicable(testrepo.Touch(t, tt.files...)))
 		})
 	}
 }
@@ -117,7 +107,7 @@ func TestIaCIgnoresVendoredDirectories(t *testing.T) {
 		"third_party/lib/Chart.yaml",
 	} {
 		t.Run(vendored, func(t *testing.T) {
-			dir := repoWith(t, "go.mod", ".github/workflows/ci.yml", vendored)
+			dir := testrepo.Touch(t, "go.mod", ".github/workflows/ci.yml", vendored)
 			assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
 		})
 	}
@@ -139,7 +129,7 @@ func TestIaCToleratesAnUnreadableDirectory(t *testing.T) {
 		t.Skip("root ignores directory permissions")
 	}
 
-	dir := repoWith(t, "go.mod", ".github/workflows/ci.yml")
+	dir := testrepo.Touch(t, "go.mod", ".github/workflows/ci.yml")
 	locked := filepath.Join(dir, "locked")
 	assert.NoError(t, os.MkdirAll(locked, 0o755))
 	assert.NoError(t, os.Chmod(locked, 0o000))
@@ -151,10 +141,10 @@ func TestIaCToleratesAnUnreadableDirectory(t *testing.T) {
 // cli/cli keeps a scripts directory inside .github/workflows, which is not a
 // workflow and must not be mistaken for one.
 func TestWorkflowSecurityIgnoresSubdirectories(t *testing.T) {
-	dir := repoWith(t, "Dockerfile", ".github/workflows/scripts/data.yml")
+	dir := testrepo.Touch(t, "Dockerfile", ".github/workflows/scripts/data.yml")
 
 	assert.Equal(t, []string{"Workflow Security"}, applicability.NotApplicable(dir))
 
-	withWorkflow := repoWith(t, "Dockerfile", ".github/workflows/scripts/data.yml", ".github/workflows/ci.yml")
+	withWorkflow := testrepo.Touch(t, "Dockerfile", ".github/workflows/scripts/data.yml", ".github/workflows/ci.yml")
 	assert.Empty(t, applicability.NotApplicable(withWorkflow))
 }

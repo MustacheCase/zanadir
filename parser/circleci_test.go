@@ -95,3 +95,8 @@ jobs:
 	assert.Contains(t, run, "gitleaks detect", "plain run form")
 	assert.Contains(t, run, "trivy fs", "run with a command key")
 }
+
+func TestCircleCIParseFailsOnUnparseableYAML(t *testing.T) {
+	_, err := parser.NewCircleCIParser().Parse(circleCIDir(t, "jobs: [oops\n"))
+	assert.Error(t, err)
+}

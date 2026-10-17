@@ -141,6 +141,20 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"renovatebot/github-action", "renovate-config", "auto-renovate"},
 		},
 		{
+			ruleID: "coverage-command-rule",
+			shouldMatch: []string{
+				"uv run pytest --cov vunnel -v tests/unit/", "pytest tests --cov=src --cov-report=xml",
+				"coverage run -m unittest", "go test ./... -coverprofile=coverage.txt", "go test -race -cover ./...",
+				"npx jest --coverage", "vitest run --coverage", "nyc mocha", "cargo llvm-cov --lcov",
+				"cargo tarpaulin --out Xml", "vendor/bin/phpunit --coverage-clover clover.xml",
+				`dotnet test --collect:"XPlat Code Coverage"`, "vladopajic/go-test-coverage",
+			},
+			shouldNotMatch: []string{
+				"pytest tests/", "go test ./...", "go test -run TestCoverage ./...", "jest", "npm run coverage-badge",
+				"pytest --covid", "go test -coverage-of-nothing",
+			},
+		},
+		{
 			ruleID:         "grype-rule",
 			shouldMatch:    []string{"grype dir:.", "anchore/grype"},
 			shouldNotMatch: []string{"grypeless"},

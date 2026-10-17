@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -34,6 +35,9 @@ func newDebug(cfg *config.Config) debugFunc {
 	}
 	return func(string, ...interface{}) {}
 }
+
+// stderr is where warnings go, keeping them out of a JSON or SARIF report.
+var stderr io.Writer = os.Stderr
 
 type Handler struct {
 	RulesService      rules.RuleService
@@ -118,6 +122,12 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 		return nil, err
 	}
 	debugf("Found %d artifacts", len(artifacts))
+	for _, a := range artifacts {
+		if a != nil && a.Skipped != "" {
+			_, _ = fmt.Fprintf(stderr, "Warning: skipped %s, which is not valid YAML (%s); the CI platform cannot run it either\n",
+				repoRelative(cfg.Dir, a.Location), a.Skipped)
+		}
+	}
 
 	if ignore != nil {
 		kept := artifacts[:0]

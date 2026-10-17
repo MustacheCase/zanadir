@@ -6,6 +6,7 @@ import (
 	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testCircleCIConfig = `
@@ -96,9 +97,43 @@ jobs:
 	assert.Contains(t, run, "trivy fs", "run with a command key")
 }
 
-func TestCircleCIParseFailsOnUnparseableYAML(t *testing.T) {
-	_, err := parser.NewCircleCIParser().Parse(circleCIDir(t, "jobs: [oops\n"))
-	assert.Error(t, err)
+func TestCircleCISkipsUnparseableYAML(t *testing.T) {
+	artifacts, err := parser.NewCircleCIParser().Parse(circleCIDir(t, "jobs: [oops\n"))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.NotEmpty(t, artifacts[0].Skipped)
+	assert.Empty(t, artifacts[0].Jobs)
+}
+
+// CircleCI accepts a mapping that merges twice, which yaml.v3 alone rejects
+// as a duplicate key.
+func TestCircleCIReadsRepeatedMergeKeys(t *testing.T) {
+	artifacts, err := parser.NewCircleCIParser().Parse(circleCIDir(t, `
+references:
+  env: &env
+    environment:
+      CGO_ENABLED: "0"
+  build: &build
+    steps:
+      - run: gitleaks detect
+jobs:
+  "golang:1.17":
+    <<: *env
+    <<: *build
+    docker:
+      - image: cimg/go:1.17
+  lint:
+    <<: [*env]
+    <<: *build
+`))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.Empty(t, artifacts[0].Skipped)
+	runs := map[string]string{}
+	for _, job := range artifacts[0].Jobs {
+		runs[job.Name] = job.Run
+	}
+	assert.Equal(t, map[string]string{"golang:1.17": "gitleaks detect", "lint": "gitleaks detect"}, runs)
 }
 
 // docker: entries carry nested maps and workflows: lists jobs as mappings;

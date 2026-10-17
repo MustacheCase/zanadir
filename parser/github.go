@@ -146,8 +146,8 @@ func (g *GithubParser) Parse(root string) ([]*models.Artifact, error) {
 
 func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, error) {
 	var wf workflowDef
-	if err := utils.ReadYAML(filePath, &wf); err != nil {
-		return nil, err
+	if err := readYAML(filePath, &wf); err != nil {
+		return unreadable(filePath, err)
 	}
 
 	var jobs []*models.Job

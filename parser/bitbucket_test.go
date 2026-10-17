@@ -211,8 +211,10 @@ func TestBitbucketExistsAndErrors(t *testing.T) {
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, bitbucketFile), []byte("pipelines: [\n"), 0o600))
 	assert.True(t, p.Exists(dir))
-	_, err = p.Parse(dir)
-	assert.Error(t, err)
+	artifacts, err := p.Parse(dir)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.NotEmpty(t, artifacts[0].Skipped)
 }
 
 func TestBitbucketBranchTriggers(t *testing.T) {

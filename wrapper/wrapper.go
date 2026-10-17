@@ -23,6 +23,7 @@ type Expander struct {
 	makefiles map[string]*makefile
 	taskfiles map[string]*taskfile
 	toxfiles  map[string]map[string]map[string]string
+	gomakes   map[string]*gomakeBuild
 
 	seen  map[string]bool
 	lines []string
@@ -35,6 +36,7 @@ func New(root string) *Expander {
 		makefiles: map[string]*makefile{},
 		taskfiles: map[string]*taskfile{},
 		toxfiles:  map[string]map[string]map[string]string{},
+		gomakes:   map[string]*gomakeBuild{},
 	}
 }
 
@@ -70,6 +72,8 @@ func (e *Expander) script(dir, script string) {
 			e.task(dir, words[1:])
 		case "tox":
 			e.tox(dir, words[1:])
+		case "go":
+			e.goRun(dir, words[1:])
 		}
 	}
 }

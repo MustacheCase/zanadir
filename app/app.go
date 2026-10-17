@@ -9,6 +9,7 @@ import (
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/handler"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/remote"
 	"github.com/spf13/cobra"
 )
 
@@ -32,8 +33,19 @@ var fixCmd = &cobra.Command{
 	Run:   run(config.CreateFixConfig, fixRepo),
 }
 
-// exit is os.Exit, replaced in tests.
-var exit = os.Exit
+// exit and fetchRepository are replaced in tests.
+var (
+	exit            = os.Exit
+	fetchRepository = remote.Fetch
+)
+
+// githubToken is the token a remote scan sends, if the environment has one.
+func githubToken() string {
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		return token
+	}
+	return os.Getenv("GH_TOKEN")
+}
 
 // run builds a command's configuration and does its work, exiting non-zero
 // on any failure.
@@ -45,7 +57,18 @@ func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Con
 			exit(1)
 			return
 		}
-		if err := do(cfg); err != nil {
+		cleanup := func() {}
+		if cfg.Repo != nil {
+			if cfg.Dir, cleanup, err = fetchRepository(*cfg.Repo, githubToken()); err != nil {
+				fmt.Printf("Error: %v\n", err)
+				exit(1)
+				return
+			}
+		}
+		// exit does not run deferred calls, so the fetched copy goes first.
+		err = do(cfg)
+		cleanup()
+		if err != nil {
 			w, msg := scanErrorReport(err)
 			_, _ = fmt.Fprint(w, msg)
 			exit(1)
@@ -55,11 +78,11 @@ func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Con
 
 // addSharedFlags defines the flags scan and fix both take.
 func addSharedFlags(cmd *cobra.Command) {
-	cmd.Flags().StringP("dir", "d", "", "Path to the repository directory (required)")
+	cmd.Flags().StringP("dir", "d", "", "Path to the repository directory (required unless --repo is given)")
+	cmd.Flags().String("repo", "", "Scan a GitHub repository without cloning it: github.com/owner/name[@ref]; uses GITHUB_TOKEN if set (optional)")
 	cmd.Flags().StringSliceP("excluded-categories", "e", []string{}, "List of excluded categories (optional)")
 	cmd.Flags().Bool("debug", false, "Run the tool using debug mode (optional)")
 	cmd.Flags().StringP("config", "c", "", "Read flag values from this YAML file; flags given on the command line win (optional)")
-	_ = cmd.MarkFlagRequired("dir")
 }
 
 // NewApp initializes the CLI application

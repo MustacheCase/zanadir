@@ -8,6 +8,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/remote"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +24,7 @@ func TestScanCmdFlags(t *testing.T) {
 
 	dirFlag := cmd.Flags().Lookup("dir")
 	assert.NotNil(t, dirFlag, "The 'dir' flag should be defined")
-	assert.Equal(t, "Path to the repository directory (required)", dirFlag.Usage)
+	assert.Equal(t, "Path to the repository directory (required unless --repo is given)", dirFlag.Usage)
 
 	excludedCategoriesFlag := cmd.Flags().Lookup("excluded-categories")
 	assert.NotNil(t, excludedCategoriesFlag, "The 'excluded-categories' flag should be defined")
@@ -113,4 +114,63 @@ func TestABadCustomRuleStopsBothCommands(t *testing.T) {
 	cfg := &config.Config{Rules: []rules.FileRule{{ID: "no-regex"}}}
 	assert.ErrorContains(t, scanRepo(cfg), "no-regex")
 	assert.ErrorContains(t, fixRepo(cfg), "no-regex")
+}
+
+// fakeFetch stands in for remote.Fetch and records whether the copy it
+// handed out was removed.
+func fakeFetch(t *testing.T, err error) *bool {
+	t.Helper()
+	removed := false
+	fetchRepository = func(remote.Repository, string) (string, func(), error) {
+		if err != nil {
+			return "", nil, err
+		}
+		return "/tmp/fetched", func() { removed = true }, nil
+	}
+	t.Cleanup(func() { fetchRepository = remote.Fetch })
+	return &removed
+}
+
+func repoConfig(*cobra.Command) (*config.Config, error) {
+	return &config.Config{Repo: &remote.Repository{Owner: "o", Name: "r"}}, nil
+}
+
+func TestRunScansAFetchedRepositoryAndRemovesIt(t *testing.T) {
+	code := exitCode(t)
+	removed := fakeFetch(t, nil)
+	var scanned string
+	run(repoConfig, func(cfg *config.Config) error { scanned = cfg.Dir; return nil })(&cobra.Command{}, nil)
+
+	assert.Equal(t, "/tmp/fetched", scanned)
+	assert.True(t, *removed)
+	assert.Equal(t, -1, *code)
+}
+
+func TestRunRemovesTheFetchedRepositoryWhenTheScanFails(t *testing.T) {
+	code := exitCode(t)
+	removed := fakeFetch(t, nil)
+	run(repoConfig, func(*config.Config) error { return errors.New("boom") })(&cobra.Command{}, nil)
+
+	assert.True(t, *removed, "exit skips deferred calls, so cleanup must not be deferred")
+	assert.Equal(t, 1, *code)
+}
+
+func TestRunExitsWhenTheFetchFails(t *testing.T) {
+	code := exitCode(t)
+	fakeFetch(t, errors.New("github.com/o/r was not found"))
+	did := false
+	run(repoConfig, func(*config.Config) error { did = true; return nil })(&cobra.Command{}, nil)
+
+	assert.Equal(t, 1, *code)
+	assert.False(t, did)
+}
+
+func TestGithubToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	assert.Empty(t, githubToken())
+	t.Setenv("GH_TOKEN", "gh")
+	assert.Equal(t, "gh", githubToken())
+	t.Setenv("GITHUB_TOKEN", "github")
+	assert.Equal(t, "github", githubToken(), "GITHUB_TOKEN wins, as it does in Actions")
 }

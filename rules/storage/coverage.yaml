@@ -24,3 +24,9 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["Coverage"]
     regex: "(?i)^(?:publishcodecoverageresults|recordcoverage|publishcoverage)$"
+
+  # Coverage the test runner measures itself, which needs no upload service.
+  - id: "coverage-command-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Coverage"]
+    regex: "(?i)\\bpytest\\b[^\\n]*\\s--cov\\b|\\bcoverage\\s+run\\b|\\bgo\\s+test\\b[^\\n]*\\s-cover(?:profile|pkg|mode)?\\b|\\b(?:jest|vitest)\\b[^\\n]*\\s--coverage\\b|\\bnyc\\b|\\bcargo\\s+(?:tarpaulin|llvm-cov)\\b|\\bphpunit\\b[^\\n]*\\s--coverage-|\\bcoverlet\\b|XPlat Code Coverage|\\bgo-test-coverage\\b"

@@ -1,0 +1,27 @@
+{
+  "platforms": [
+    "github",
+    "azure"
+  ],
+  "artifacts": 2,
+  "jobs": 11,
+  "coverage": "2/11",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "Secrets Detection",
+    "Supply Chain",
+    "Unit Tests",
+    "Workflow Security"
+  ],
+  "notApplicable": [
+    "IaC Security"
+  ],
+  "verdicts": {
+    "SAST": "enforcing .github/workflows/codeql-analysis.yml",
+    "SCA": "unknown azure-pipelines.yml"
+  }
+}

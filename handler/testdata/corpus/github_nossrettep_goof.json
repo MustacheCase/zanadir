@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "github",
+    "azure"
+  ],
+  "artifacts": 2,
+  "jobs": 5,
+  "coverage": "2/12",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "IaC Security",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "Secrets Detection",
+    "Supply Chain",
+    "Unit Tests",
+    "Workflow Security"
+  ],
+  "notApplicable": [],
+  "verdicts": {
+    "SAST": "enforcing .github/workflows/snyk-infrastructure-analysis.yml",
+    "SCA": "enforcing .github/workflows/snyk-infrastructure-analysis.yml"
+  }
+}

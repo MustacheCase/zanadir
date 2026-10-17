@@ -73,13 +73,12 @@ func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 // weakened lists the covered categories whose tooling cannot fully protect the
 // repository. An excluded category is left out: the operator has said it does
 // not apply, and grading it anyway would argue with them.
-func weakened(excluded []string, dir string, findings []*matcher.Finding, debugf debugFunc) []output.Weakness {
+func weakened(excluded []string, dir string, assessments map[string]grading.Assessment, debugf debugFunc) []output.Weakness {
 	skip := make(map[string]bool, len(excluded))
 	for _, category := range excluded {
 		skip[category] = true
 	}
 
-	assessments := grading.ByCategory(findings)
 	list := make([]output.Weakness, 0, len(assessments))
 	for category, assessment := range assessments {
 		debugf("Category %s is %s", category, assessment.Verdict)
@@ -107,6 +106,9 @@ type scanResult struct {
 	// skipped is every category left out of the score: excluded by the
 	// operator or not applicable to the repository.
 	skipped []string
+	// assessments is the verdict for every category with tooling, weakened
+	// or not.
+	assessments map[string]grading.Assessment
 }
 
 // analyse runs the scan pipeline: it reads the CI configuration, matches it
@@ -151,7 +153,8 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	suggestions := h.SuggestionService.FindSuggestions(findings, skipped, languages)
 	debugf("Total suggestions: %d", len(suggestions))
 
-	weaknesses := weakened(skipped, cfg.Dir, findings, debugf)
+	assessments := grading.ByCategory(findings)
+	weaknesses := weakened(skipped, cfg.Dir, assessments, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
 
 	return &scanResult{
@@ -160,6 +163,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 		weaknesses:    weaknesses,
 		notApplicable: notApplicable,
 		skipped:       skipped,
+		assessments:   assessments,
 	}, nil
 }
 

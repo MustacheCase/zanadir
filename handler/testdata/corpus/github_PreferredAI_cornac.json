@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "github",
+    "circleci"
+  ],
+  "artifacts": 5,
+  "jobs": 43,
+  "coverage": "3/12",
+  "uncovered": [
+    "End Of Life",
+    "IaC Security",
+    "License Compliance",
+    "Performance Testing",
+    "SAST",
+    "SCA",
+    "Secrets Detection",
+    "Supply Chain",
+    "Workflow Security"
+  ],
+  "notApplicable": [],
+  "verdicts": {
+    "Coverage": "unknown .circleci/config.yml",
+    "Linter": "enforcing .github/workflows/python-package.yml",
+    "Unit Tests": "enforcing .github/workflows/python-package.yml"
+  }
+}

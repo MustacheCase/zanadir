@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "github",
+    "azure"
+  ],
+  "artifacts": 4,
+  "jobs": 14,
+  "coverage": "3/12",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "IaC Security",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "Secrets Detection",
+    "Supply Chain",
+    "Workflow Security"
+  ],
+  "notApplicable": [],
+  "verdicts": {
+    "SAST": "unknown azure-pipelines.yml",
+    "SCA": "unknown azure-pipelines.yml",
+    "Unit Tests": "enforcing .github/workflows/dotnetcore.yml"
+  }
+}

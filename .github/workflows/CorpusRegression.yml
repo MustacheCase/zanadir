@@ -1,0 +1,44 @@
+name: Corpus Regression
+
+# Scans real public repositories, pinned in handler/testdata/corpus/repos.txt,
+# and compares zanadir's conclusions with the committed snapshots beside it. A
+# crash fails here, and a change in behaviour fails until the pull request
+# that makes it updates the snapshots - so the change is reviewed as a diff.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  corpus:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26'
+
+      # The repositories are pinned to commits, so the manifest decides the
+      # cache's content.
+      - name: Restore the corpus
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/corpus
+          key: corpus-${{ hashFiles('handler/testdata/corpus/repos.txt') }}
+
+      - name: Fetch what the cache lacks
+        run: scripts/fetch-corpus.sh handler/testdata/corpus/repos.txt "$RUNNER_TEMP/corpus"
+
+      - name: Compare with the snapshots
+        env:
+          CORPUS_DIR: ${{ runner.temp }}/corpus
+        run: go test ./handler -run TestCorpus -count=1 -v

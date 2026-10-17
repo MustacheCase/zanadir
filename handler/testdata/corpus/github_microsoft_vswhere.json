@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "azure"
+  ],
+  "artifacts": 1,
+  "jobs": 8,
+  "coverage": "1/11",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "IaC Security",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "SAST",
+    "SCA",
+    "Secrets Detection",
+    "Supply Chain"
+  ],
+  "notApplicable": [
+    "Workflow Security"
+  ],
+  "verdicts": {
+    "Unit Tests": "enforcing azure-pipelines.yml"
+  }
+}

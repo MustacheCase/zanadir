@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "github"
+  ],
+  "artifacts": 9,
+  "jobs": 39,
+  "coverage": "4/11",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "Secrets Detection",
+    "Supply Chain"
+  ],
+  "notApplicable": [
+    "IaC Security"
+  ],
+  "verdicts": {
+    "SAST": "enforcing .github/workflows/codeql-analysis.yml",
+    "SCA": "advisory .github/dependabot.yml",
+    "Unit Tests": "enforcing .github/workflows/run-tests.yml",
+    "Workflow Security": "enforcing .github/workflows/zizmor.yml"
+  }
+}

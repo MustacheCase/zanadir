@@ -1,0 +1,25 @@
+{
+  "platforms": [
+    "circleci"
+  ],
+  "artifacts": 1,
+  "jobs": 2,
+  "coverage": "0/10",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "SAST",
+    "SCA",
+    "Secrets Detection",
+    "Supply Chain",
+    "Unit Tests"
+  ],
+  "notApplicable": [
+    "IaC Security",
+    "Workflow Security"
+  ],
+  "verdicts": {}
+}

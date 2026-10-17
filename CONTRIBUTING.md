@@ -56,6 +56,27 @@ Run the test suite:
 go test ./...
 ```
 
+### The corpus
+
+Unit tests use configurations written to test zanadir. The corpus test scans
+real public repositories on every platform, pinned to a commit in
+`handler/testdata/corpus/repos.txt`, and compares what zanadir concludes about
+each with a snapshot beside it. CI runs it on every pull request.
+
+```bash
+make corpus          # downloads the repositories (~25s the first time) and compares
+make corpus-update   # rewrites the snapshots after an intended change
+```
+
+If your change alters what zanadir concludes about a real repository, the
+corpus test fails until you run `make corpus-update` and commit the new
+snapshots. Review that diff: it is exactly what users will see change. A
+repository that makes zanadir error fails the test outright.
+
+To add a repository, append `<github|bitbucket> <owner/repo> <commit>` to
+`repos.txt` and run `make corpus-update`. Only zanadir's snapshots are
+committed, never the repositories themselves.
+
 ## Pull Request Process
 
 1. Update the README.md with details of changes if needed

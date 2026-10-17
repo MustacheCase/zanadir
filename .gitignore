@@ -28,3 +28,6 @@ go.work.sum
 # macOS system files
 .DS_Store
 **/.DS_Store
+
+# Real repositories fetched by make corpus
+.corpus/

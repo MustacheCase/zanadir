@@ -1,0 +1,33 @@
+# Real public repositories the corpus test scans, pinned to a commit so the
+# input never moves. Format: <host> <owner/repo> <commit>. Only zanadir's own
+# conclusions about them are committed (the .json files beside this one); the
+# repositories are downloaded at test time by scripts/fetch-corpus.sh.
+github cli/cli fa92838bef95fe4a29c1587693885d5e9bdb6cf1
+github psf/requests 611c6162cbc4ac2020a2f91c7cfa4f3abf9bbb60
+github expressjs/express a419aa7350389a275ab45fde2e849ed1f02449ef
+github EBISPOT/ols4 493545801ca8f5c86f7d15650eed1f2a4cd765ef
+github ElectricBrainUK/UnraidAPI 2b38277879071bcbdbd6d60a66040a4ce167596b
+github LINBIT/linstor-server e602d32cbdfdd03daaf1858795366c8fcdc7867b
+github PeterMosmans/security-scripts 9a7d81d0c59722d8650c7eff604b5e4f1a1e3b01
+github PreferredAI/cornac cee4b9063adedfea9a502dd84d6bd19d942a254d
+github atomcorp/themes b12c50e8aaff71d12b0e44e92b6c1d6a88b21a13
+github bakpakin/Fennel d370f8d14236c346ae65c18e1bf3921652b6bbee
+github ngxs/store ad229252c570d54b327b8e47e1b0c71fab78d34f
+github lcrowther-snyk/vulnerable_node_app 387dc8cabf8a200db44ecf361f88519ccd4962aa
+github tanathos/ClippyVS c04309cf360398ebf1a1d57caab3bffbcee6dc8b
+github microsoft/vswhere 44ff88ff4dd03f718493152b9d59c6436dc5d55a
+github vriesmarcel/GHAZDO-demo 93c1666e435883c01ea7a36ae20b4d1a55ed0006
+github pyvisa/pyvisa afd2574a3bc0d9622b07eab7c8ad03057eb85f50
+github nossrettep/goof 243071b6045d0e9327a24c76dba5755750873ec1
+github snyk-schmidtty/goof-artifactory 14a287048c5208858477296fce6a88d7ba7650bd
+github rajbos/github-secure-code-game 8fce73a6bf014354ec6aa9b8fab0ba81b1771ea4
+github stryker-mutator/stryker-net 66513343265390b3226513b8c2f506f7c353185f
+github Devops-Accelerators/DevSecOps-Template b554e9ddf30fb059d232273a28042c8bba193b74
+github Kelvinskell/microservices-devops-1 9a6c451eaa35605c01b7fdafbc6feeaa6fe715d0
+github Aseemakram19/hotstar-kubernetes 8eb00cfbfad94d900fc9e82cc2e2370686c598d8
+github BroadleafCommerce/blc-paypal 838ddae511c44c687134624c59ab0fe2627f7653
+bitbucket atlassian/git-secrets-scan 33a02960612ef8d9dd121f1401ae7fd8dcad7e49
+bitbucket snyk/snyk-scan 2014477bbe223068b9073aeb309f0371e63610ae
+bitbucket atlassian/aws-s3-deploy 1bdbb7dbe014019eaf03b00c6f14a40768549c04
+bitbucket atlassian/bitbucket-upload-file e148ce573c38d074b5fc1a6e28544f95fc14d2e8
+bitbucket sonarsource/sonarcloud-scan fcd758d2ab14b64c59e64fff11df1e09f2c2aefb

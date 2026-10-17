@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "github"
+  ],
+  "artifacts": 15,
+  "jobs": 367,
+  "coverage": "4/11",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "License Compliance",
+    "Performance Testing",
+    "Secrets Detection",
+    "Supply Chain",
+    "Workflow Security"
+  ],
+  "notApplicable": [
+    "IaC Security"
+  ],
+  "verdicts": {
+    "Linter": "enforcing .github/workflows/lint.yml",
+    "SAST": "enforcing .github/workflows/codeql.yml",
+    "SCA": "enforcing .github/workflows/lint.yml",
+    "Unit Tests": "enforcing .github/workflows/go.yml"
+  }
+}

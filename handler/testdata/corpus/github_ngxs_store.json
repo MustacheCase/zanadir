@@ -1,0 +1,27 @@
+{
+  "platforms": [
+    "github",
+    "circleci"
+  ],
+  "artifacts": 5,
+  "jobs": 75,
+  "coverage": "2/11",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "SAST",
+    "Secrets Detection",
+    "Supply Chain",
+    "Workflow Security"
+  ],
+  "notApplicable": [
+    "IaC Security"
+  ],
+  "verdicts": {
+    "SCA": "advisory renovate.json",
+    "Unit Tests": "enforcing .github/workflows/pr-validation.yml"
+  }
+}

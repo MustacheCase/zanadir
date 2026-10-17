@@ -1,4 +1,4 @@
-.PHONY: build test clean run lint
+.PHONY: build test clean run lint corpus corpus-update
 
 # Binary name
 BINARY_NAME=zanadir
@@ -18,6 +18,18 @@ build:
 # Run tests
 test:
 	$(GOTEST) -v ./...
+
+# Scan the real repositories in handler/testdata/corpus and compare with the
+# snapshots; corpus-update rewrites them after an intended change.
+CORPUS_DIR ?= $(CURDIR)/.corpus
+
+corpus:
+	scripts/fetch-corpus.sh handler/testdata/corpus/repos.txt $(CORPUS_DIR)
+	CORPUS_DIR=$(CORPUS_DIR) $(GOTEST) ./handler -run TestCorpus -count=1
+
+corpus-update:
+	scripts/fetch-corpus.sh handler/testdata/corpus/repos.txt $(CORPUS_DIR)
+	CORPUS_DIR=$(CORPUS_DIR) $(GOTEST) ./handler -run TestCorpus -count=1 -update-corpus
 
 # Clean build files
 clean:

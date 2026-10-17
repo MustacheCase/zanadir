@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "github"
+  ],
+  "artifacts": 6,
+  "jobs": 41,
+  "coverage": "5/11",
+  "uncovered": [
+    "End Of Life",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "Secrets Detection",
+    "Supply Chain"
+  ],
+  "notApplicable": [
+    "IaC Security"
+  ],
+  "verdicts": {
+    "Coverage": "enforcing .github/workflows/ci.yml",
+    "SAST": "enforcing .github/workflows/codeql.yml",
+    "SCA": "advisory .github/dependabot.yml",
+    "Unit Tests": "enforcing .github/workflows/ci.yml",
+    "Workflow Security": "partial .github/workflows/scorecard.yml"
+  }
+}

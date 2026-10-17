@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "github",
+    "azure"
+  ],
+  "artifacts": 7,
+  "jobs": 44,
+  "coverage": "3/12",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "IaC Security",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "Secrets Detection",
+    "Supply Chain",
+    "Workflow Security"
+  ],
+  "notApplicable": [],
+  "verdicts": {
+    "SAST": "unknown azure-pipelines.yml",
+    "SCA": "advisory .github/renovate.json",
+    "Unit Tests": "enforcing .github/workflows/integration-test.yaml"
+  }
+}

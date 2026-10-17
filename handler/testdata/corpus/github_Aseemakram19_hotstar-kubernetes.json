@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "jenkins"
+  ],
+  "artifacts": 1,
+  "jobs": 19,
+  "coverage": "2/11",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "IaC Security",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "Secrets Detection",
+    "Supply Chain",
+    "Unit Tests"
+  ],
+  "notApplicable": [
+    "Workflow Security"
+  ],
+  "verdicts": {
+    "SAST": "unknown Jenkinsfile",
+    "SCA": "unknown Jenkinsfile"
+  }
+}

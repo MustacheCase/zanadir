@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "bitbucket"
+  ],
+  "artifacts": 2,
+  "jobs": 6,
+  "coverage": "3/11",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "IaC Security",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "SAST",
+    "Supply Chain"
+  ],
+  "notApplicable": [
+    "Workflow Security"
+  ],
+  "verdicts": {
+    "SCA": "partial bitbucket-pipelines.yml",
+    "Secrets Detection": "unknown bitbucket-pipelines.yml",
+    "Unit Tests": "unknown bitbucket-pipelines.yml"
+  }
+}

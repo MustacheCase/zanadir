@@ -11,6 +11,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/grading"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
@@ -665,7 +666,7 @@ func TestWeakenedReportsOnlyWhatItShould(t *testing.T) {
 		weakFinding("SCA", "/repo/.github/workflows/sca.yml", &models.Job{If: "always()"}),
 	}
 
-	weaknesses := weakened(nil, "/repo", findings, silent)
+	weaknesses := weakened(nil, "/repo", grading.ByCategory(findings), silent)
 
 	assert.Len(t, weaknesses, 1)
 	assert.Equal(t, "Secrets Detection", weaknesses[0].Category)
@@ -678,10 +679,10 @@ func TestWeakenedReportsOnlyWhatItShould(t *testing.T) {
 // with the operator.
 func TestWeakenedSkipsExcludedCategories(t *testing.T) {
 	coe := &models.Job{ContinueOnError: true}
-	weaknesses := weakened([]string{"Secrets Detection"}, "/repo", []*matcher.Finding{
+	weaknesses := weakened([]string{"Secrets Detection"}, "/repo", grading.ByCategory([]*matcher.Finding{
 		weakFinding("Secrets Detection", "/repo/a.yml", coe),
 		weakFinding("Linter", "/repo/b.yml", coe),
-	}, func(string, ...interface{}) {})
+	}), func(string, ...interface{}) {})
 
 	assert.Len(t, weaknesses, 1)
 	assert.Equal(t, "Linter", weaknesses[0].Category)
@@ -691,11 +692,11 @@ func TestWeakenedSkipsExcludedCategories(t *testing.T) {
 // between identical runs.
 func TestWeakenedIsSorted(t *testing.T) {
 	coe := &models.Job{ContinueOnError: true}
-	weaknesses := weakened(nil, "/repo", []*matcher.Finding{
+	weaknesses := weakened(nil, "/repo", grading.ByCategory([]*matcher.Finding{
 		weakFinding("Unit Tests", "/repo/c.yml", coe),
 		weakFinding("Coverage", "/repo/a.yml", coe),
 		weakFinding("Linter", "/repo/b.yml", coe),
-	}, func(string, ...interface{}) {})
+	}), func(string, ...interface{}) {})
 
 	names := make([]string, 0, len(weaknesses))
 	for _, weakness := range weaknesses {
@@ -706,9 +707,9 @@ func TestWeakenedIsSorted(t *testing.T) {
 
 // A workflow outside the scan directory has no path a report can point at.
 func TestWeakenedDropsLocationsOutsideTheScanDirectory(t *testing.T) {
-	weaknesses := weakened(nil, "/repo", []*matcher.Finding{
+	weaknesses := weakened(nil, "/repo", grading.ByCategory([]*matcher.Finding{
 		weakFinding("Linter", "/elsewhere/ci.yml", &models.Job{ContinueOnError: true}),
-	}, func(string, ...interface{}) {})
+	}), func(string, ...interface{}) {})
 
 	assert.Len(t, weaknesses, 1)
 	assert.Empty(t, weaknesses[0].Location)

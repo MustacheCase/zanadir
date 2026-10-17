@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    "github",
+    "gitlab"
+  ],
+  "artifacts": 12,
+  "jobs": 107,
+  "coverage": "4/12",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "IaC Security",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "Supply Chain",
+    "Workflow Security"
+  ],
+  "notApplicable": [],
+  "verdicts": {
+    "SAST": "enforcing .github/workflows/build-test.yml",
+    "SCA": "unknown .github/workflows/docker-publish-embed.yml",
+    "Secrets Detection": "enforcing .github/workflows/security-secrets.yml",
+    "Unit Tests": "enforcing .github/workflows/build-test.yml"
+  }
+}

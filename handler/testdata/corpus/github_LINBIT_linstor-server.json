@@ -1,0 +1,27 @@
+{
+  "platforms": [
+    "github",
+    "gitlab",
+    "jenkins"
+  ],
+  "artifacts": 4,
+  "jobs": 27,
+  "coverage": "4/12",
+  "uncovered": [
+    "End Of Life",
+    "IaC Security",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "SAST",
+    "Secrets Detection",
+    "Workflow Security"
+  ],
+  "notApplicable": [],
+  "verdicts": {
+    "Coverage": "unknown .gitlab-ci.yml",
+    "SCA": "advisory .gitlab-ci.yml",
+    "Supply Chain": "unknown .gitlab-ci.yml",
+    "Unit Tests": "enforcing .github/workflows/ci.yml"
+  }
+}

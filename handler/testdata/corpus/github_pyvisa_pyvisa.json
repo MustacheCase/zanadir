@@ -1,0 +1,27 @@
+{
+  "platforms": [
+    "github",
+    "azure"
+  ],
+  "artifacts": 5,
+  "jobs": 44,
+  "coverage": "3/11",
+  "uncovered": [
+    "End Of Life",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "SAST",
+    "Secrets Detection",
+    "Supply Chain",
+    "Workflow Security"
+  ],
+  "notApplicable": [
+    "IaC Security"
+  ],
+  "verdicts": {
+    "Coverage": "enforcing azure-pipelines.yml",
+    "SCA": "advisory .github/dependabot.yml",
+    "Unit Tests": "enforcing .github/workflows/ci.yml"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "platforms": [
+    "github",
+    "gitlab",
+    "circleci",
+    "bitbucket",
+    "azure",
+    "jenkins"
+  ],
+  "artifacts": 18,
+  "jobs": 62,
+  "coverage": "4/12",
+  "uncovered": [
+    "Coverage",
+    "End Of Life",
+    "License Compliance",
+    "Linter",
+    "Performance Testing",
+    "Secrets Detection",
+    "Supply Chain",
+    "Workflow Security"
+  ],
+  "notApplicable": [],
+  "verdicts": {
+    "IaC Security": "advisory .gitlab-ci.yml",
+    "SAST": "enforcing .github/workflows/codeql-analysis.yml",
+    "SCA": "enforcing .github/workflows/snyk-code-manual.yml",
+    "Unit Tests": "enforcing .github/workflows/snyk-code-manual.yml"
+  }
+}

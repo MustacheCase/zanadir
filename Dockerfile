@@ -1,7 +1,10 @@
 # checkov:skip=CKV_DOCKER_2: a CLI that runs once and exits has nothing for a HEALTHCHECK to probe
 # checkov:skip=CKV_DOCKER_3: GitHub requires a Docker action to run as root to reach GITHUB_WORKSPACE
-# Stage 1 - Build binary and get CA certs
-FROM golang:1.26-alpine AS builder
+# Stage 1 - Build binary and get CA certs. It runs on the build machine's own
+# platform and cross-compiles for each target, so no emulation is needed.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -16,7 +19,7 @@ RUN go mod download
 COPY . .
 
 # Make sure rules and suggester are copied BEFORE build (or included in build context)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o zanadir .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o zanadir .
 
 # Stage 2 - Create tiny final image
 FROM scratch

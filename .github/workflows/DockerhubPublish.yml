@@ -26,15 +26,17 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract tag name
-        id: get_tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Build Docker image
-        run: |
-          docker build -t mustachecase/zanadir:${TAG} -t mustachecase/zanadir:latest .
-
-      - name: Push Docker image
-        run: |
-          docker push mustachecase/zanadir:${TAG}
-          docker push mustachecase/zanadir:latest
+      # One tag for both architectures, so Apple Silicon and ARM runners pull a
+      # native image instead of emulating amd64.
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            mustachecase/zanadir:${{ github.ref_name }}
+            mustachecase/zanadir:latest

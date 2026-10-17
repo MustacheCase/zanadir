@@ -57,6 +57,20 @@ Scan a repository for CI/CD improvement suggestions:
 zanadir scan --dir /path/to/your/repo
 ```
 
+Or scan a GitHub repository without cloning it:
+
+```sh
+zanadir scan --repo github.com/owner/name
+zanadir scan --repo owner/name@v2.0.0     # a branch, tag or commit
+zanadir fix --repo owner/name
+```
+
+`--repo` downloads the repository's archive into a temporary directory, scans
+it exactly as a checkout, and removes it. Only the files zanadir reads keep
+their contents. Public repositories need no token; set `GITHUB_TOKEN` (or
+`GH_TOKEN`) to reach private ones or raise GitHub's rate limit. GitLab and
+Bitbucket repositories still need a clone.
+
 ### Output Formats
 
 Zanadir supports three output formats: table (default), JSON and SARIF.

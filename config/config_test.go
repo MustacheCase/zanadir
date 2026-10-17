@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	"github.com/MustacheCase/zanadir/baseline"
+	"github.com/MustacheCase/zanadir/remote"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateConfig(t *testing.T) {
@@ -281,4 +283,36 @@ func TestCreateConfigDefaultsToNotFailingOnWeakened(t *testing.T) {
 func TestCreateConfigRejectsAMissingDirectory(t *testing.T) {
 	_, err := CreateConfig(newScanCmd(filepath.Join(t.TempDir(), "missing"), nil))
 	assert.Error(t, err)
+}
+
+func newRepoCmd(dir, repo string) *cobra.Command {
+	cmd := newScanCmd(dir, nil)
+	cmd.Flags().String("repo", repo, "repo")
+	return cmd
+}
+
+func TestCreateConfigReadsARemoteRepository(t *testing.T) {
+	cfg, err := CreateConfig(newRepoCmd("", "github.com/cli/cli@v2"))
+	require.NoError(t, err)
+	assert.Empty(t, cfg.Dir)
+	assert.Equal(t, &remote.Repository{Owner: "cli", Name: "cli", Ref: "v2"}, cfg.Repo)
+}
+
+func TestCreateConfigTakesOneRepository(t *testing.T) {
+	_, err := CreateConfig(newRepoCmd(t.TempDir(), "cli/cli"))
+	assert.ErrorContains(t, err, "give one")
+
+	_, err = CreateConfig(newRepoCmd("", "gitlab.com/a/b"))
+	assert.ErrorContains(t, err, "only github.com")
+
+	_, err = CreateConfig(newRepoCmd("", ""))
+	assert.ErrorContains(t, err, "--dir (-d) or --repo is required")
+}
+
+func TestCreateFixConfigWillNotWriteIntoAFetchedRepository(t *testing.T) {
+	cmd := newFixCmd("")
+	cmd.Flags().String("repo", "cli/cli", "repo")
+	cmd.Flags().Bool("write", true, "write")
+	_, err := CreateFixConfig(cmd)
+	assert.ErrorContains(t, err, "--write adds a workflow to a checkout")
 }

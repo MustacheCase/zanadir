@@ -9,6 +9,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/remote"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/spf13/cobra"
 )
@@ -45,6 +46,9 @@ type Config struct {
 	Write bool
 	// Rules are custom rules from the config file, added to the catalogue.
 	Rules []rules.FileRule
+	// Repo is a repository to fetch and scan instead of Dir; nil for a local
+	// checkout.
+	Repo *remote.Repository
 }
 
 // normalizeCategories canonicalises category names and rejects unknown ones.
@@ -64,7 +68,7 @@ func resolveDir(cmd *cobra.Command) (string, error) {
 	dir, _ := cmd.Flags().GetString("dir")
 	if dir == "" {
 		_ = cmd.Help()
-		return "", fmt.Errorf("error: --dir (-d) flag is required")
+		return "", fmt.Errorf("error: --dir (-d) or --repo is required")
 	}
 
 	dir = filepath.Clean(dir)
@@ -90,7 +94,7 @@ func categoriesFlag(cmd *cobra.Command, name string) ([]string, error) {
 // newConfig reads what scan and fix share: the directory, the config file
 // with any custom rules, the exclusions and debug.
 func newConfig(cmd *cobra.Command) (*Config, error) {
-	dir, err := resolveDir(cmd)
+	cfg, err := target(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +106,27 @@ func newConfig(cmd *cobra.Command) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	debug, _ := cmd.Flags().GetBool("debug")
-	return &Config{Dir: dir, ExcludedCategories: excluded, Debug: debug, Rules: file.Rules}, nil
+	cfg.ExcludedCategories, cfg.Rules = excluded, file.Rules
+	cfg.Debug, _ = cmd.Flags().GetBool("debug")
+	return cfg, nil
+}
+
+// target reads what to scan: a local checkout with --dir, or a repository to
+// fetch with --repo, never both.
+func target(cmd *cobra.Command) (*Config, error) {
+	repo, _ := cmd.Flags().GetString("repo")
+	if repo == "" {
+		dir, err := resolveDir(cmd)
+		return &Config{Dir: dir}, err
+	}
+	if dir, _ := cmd.Flags().GetString("dir"); dir != "" {
+		return nil, fmt.Errorf("--dir and --repo name two repositories; give one")
+	}
+	parsed, err := remote.Parse(repo)
+	if err != nil {
+		return nil, err
+	}
+	return &Config{Repo: &parsed}, nil
 }
 
 func CreateConfig(cmd *cobra.Command) (*Config, error) {
@@ -142,5 +165,8 @@ func CreateFixConfig(cmd *cobra.Command) (*Config, error) {
 		return nil, err
 	}
 	cfg.Write, _ = cmd.Flags().GetBool("write")
+	if cfg.Write && cfg.Repo != nil {
+		return nil, fmt.Errorf("--write adds a workflow to a checkout; use --dir, or drop --write to print the snippets")
+	}
 	return cfg, nil
 }

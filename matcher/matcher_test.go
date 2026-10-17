@@ -222,3 +222,13 @@ func TestRunMatchesOnlyCommandsThatRunTheTool(t *testing.T) {
 		assert.Equal(t, want, len(found) == 1, run)
 	}
 }
+
+func TestMatchOnJobName(t *testing.T) {
+	rule := &rules.Rule{ID: "unit", Regex: regexp.MustCompile(`(?i)\btests?\b`),
+		ApplyOn: []string{rules.FieldJobName, "Job.Unknown"}, Categories: []string{"Unit Tests"}}
+	artifacts := []*models.Artifact{{Jobs: []*models.Job{{Name: "unit tests"}, {Name: "lint"}}}}
+
+	found := matcher.NewMatchService().Match(artifacts, []*rules.Rule{rule})
+	assert.Len(t, found, 1)
+	assert.Equal(t, "unit tests", found[0].Job.Name)
+}

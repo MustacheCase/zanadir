@@ -1,8 +1,13 @@
 package parser
 
 import (
+	"bytes"
+	"errors"
+	"io"
+	"os"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/models"
 	"gopkg.in/yaml.v3"
 )
 
@@ -113,4 +118,88 @@ func scriptLines(node *yaml.Node) []string {
 		return lines
 	}
 	return nil
+}
+
+// invalidYAML is a configuration file that was read but does not parse. The
+// platform refuses to run such a file too, so it protects nothing.
+type invalidYAML struct{ err error }
+
+func (e invalidYAML) Error() string { return e.err.Error() }
+
+// readYAML decodes the first document of a configuration file into target.
+func readYAML(path string, target any) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := decodeNext(yaml.NewDecoder(bytes.NewReader(data)), target); !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
+}
+
+// decodeNext decodes the decoder's next document into target, returning
+// io.EOF once there are none left.
+func decodeNext(decoder *yaml.Decoder, target any) error {
+	var doc yaml.Node
+	err := decoder.Decode(&doc)
+	if err == nil {
+		foldMergeKeys(&doc)
+		err = doc.Decode(target)
+	}
+	if err != nil && !errors.Is(err, io.EOF) {
+		return invalidYAML{err}
+	}
+	return err
+}
+
+// foldMergeKeys turns repeated "<<" keys in a mapping into one merge of a
+// list. CircleCI accepts the repeats, which are common there, but yaml.v3
+// rejects them as duplicate keys.
+func foldMergeKeys(node *yaml.Node) {
+	if node.Kind == yaml.MappingNode {
+		var first *yaml.Node
+		kept := node.Content[:0]
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key, value := node.Content[i], node.Content[i+1]
+			if key.Kind != yaml.ScalarNode || key.ShortTag() != "!!merge" {
+				kept = append(kept, key, value)
+				continue
+			}
+			if first == nil {
+				first = &yaml.Node{Kind: yaml.SequenceNode}
+				kept = append(kept, key, first)
+			}
+			if value.Kind == yaml.SequenceNode {
+				first.Content = append(first.Content, value.Content...)
+			} else {
+				first.Content = append(first.Content, value)
+			}
+		}
+		node.Content = kept
+	}
+	for _, child := range node.Content {
+		foldMergeKeys(child)
+	}
+}
+
+// unreadable answers a configuration file readYAML failed on. Invalid YAML
+// becomes an artifact with no jobs that says why it was skipped, so one broken
+// file does not fail the scan of a whole repository; any other error, such as
+// a file that cannot be opened, still does.
+func unreadable(path string, err error) (*models.Artifact, error) {
+	var invalid invalidYAML
+	if errors.As(err, &invalid) {
+		return &models.Artifact{Location: path, Skipped: strings.Join(strings.Fields(invalid.Error()), " ")}, nil
+	}
+	return nil, err
+}
+
+// skippedFile is unreadable for a platform with a single configuration file.
+func skippedFile(path string, err error) ([]*models.Artifact, error) {
+	artifact, err := unreadable(path, err)
+	if err != nil {
+		return nil, err
+	}
+	return []*models.Artifact{artifact}, nil
 }

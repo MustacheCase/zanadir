@@ -8,6 +8,8 @@ type Artifact struct {
 	Location string
 	// Declared in configuration rather than a CI job, such as Dependabot.
 	OutsidePipeline bool
+	// Skipped says why the file was not read; it then has no jobs.
+	Skipped string
 }
 
 type Trigger struct {

@@ -9,6 +9,7 @@ import (
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testGitlabConfig = `
@@ -70,8 +71,10 @@ func TestGitlabMalformedFile(t *testing.T) {
       invalid_field: [`
 
 	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, malformedContent))
-	assert.Error(t, err, "Expected an error for a malformed file")
-	assert.Nil(t, artifacts, "Expected no artifacts for a malformed file")
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.NotEmpty(t, artifacts[0].Skipped)
+	assert.Empty(t, artifacts[0].Jobs)
 }
 
 func TestGitlabParserHandlesNoStages(t *testing.T) {
@@ -340,9 +343,10 @@ func TestGitlabIncludeAsASingleString(t *testing.T) {
 	assert.Equal(t, "go test ./...", jobs["unit"].Run)
 }
 
-func TestGitlabFailsOnUnparseableYAML(t *testing.T) {
-	_, err := parser.NewGitlabParser().Parse(gitlabDir(t, "test:\n  script: [oops\n"))
-	assert.Error(t, err)
+func TestGitlabFailsOnlyWhenTheFileCannotBeRead(t *testing.T) {
+	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, "test:\n  script: [oops\n"))
+	require.NoError(t, err)
+	assert.NotEmpty(t, artifacts[0].Skipped)
 	_, err = parser.NewGitlabParser().Parse(t.TempDir())
 	assert.Error(t, err)
 }

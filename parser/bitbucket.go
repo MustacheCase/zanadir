@@ -60,8 +60,8 @@ func (b *BitbucketParser) Exists(root string) bool {
 func (b *BitbucketParser) Parse(root string) ([]*models.Artifact, error) {
 	path := filepath.Join(root, bitbucketFile)
 	var config bitbucketConfig
-	if err := utils.ReadYAML(path, &config); err != nil {
-		return nil, err
+	if err := readYAML(path, &config); err != nil {
+		return skippedFile(path, err)
 	}
 
 	defaultImage := imageName(&config.Image)

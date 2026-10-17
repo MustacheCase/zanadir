@@ -60,7 +60,7 @@ func (g *GitlabParser) Parse(root string) ([]*models.Artifact, error) {
 	path := filepath.Join(root, gitlabFile)
 	config, err := readGitlabConfig(path)
 	if err != nil {
-		return nil, err
+		return skippedFile(path, err)
 	}
 	r := &gitlabReader{root: root}
 	return []*models.Artifact{{
@@ -81,7 +81,7 @@ func readGitlabConfig(path string) (map[string]yaml.Node, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	for {
 		var doc map[string]yaml.Node
-		if err := decoder.Decode(&doc); errors.Is(err, io.EOF) {
+		if err := decodeNext(decoder, &doc); errors.Is(err, io.EOF) {
 			return config, nil
 		} else if err != nil {
 			return nil, err

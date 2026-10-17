@@ -8,6 +8,7 @@ import (
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const testWorkflow = `
@@ -374,11 +375,25 @@ func TestParseSkipsSubdirectories(t *testing.T) {
 	assert.Len(t, artifacts, 1)
 }
 
-// Current behaviour, recorded rather than endorsed: one unparseable file fails
-// the whole scan. That sits oddly beside the tolerance above, where a field
-// zanadir cannot read degrades to empty. Changing it would turn a loud error
-// into a silent partial scan, which is a call for the maintainer.
-func TestParseFailsOnUnparseableYAML(t *testing.T) {
-	_, err := parser.NewGithubParser().Parse(workflows(t, map[string]string{"broken.yml": "name: w\n  jobs: [oops\n"}))
-	assert.Error(t, err)
+// GitHub refuses to run a workflow that is not valid YAML, so it is skipped
+// with the reason and the other workflows are still read.
+func TestParseSkipsUnparseableYAML(t *testing.T) {
+	artifacts, err := parser.NewGithubParser().Parse(workflows(t, map[string]string{
+		"broken.yml":    "name: w\n  jobs: [oops\n",
+		"duplicate.yml": "jobs:\n  build:\n    if: false\n    if: true\n",
+		"empty.yml":     "",
+		"lint.yml":      "jobs:\n  lint:\n    steps:\n      - uses: golangci/golangci-lint-action@v6\n",
+	}))
+	require.NoError(t, err)
+	skipped := map[string]string{}
+	jobs := 0
+	for _, a := range artifacts {
+		skipped[filepath.Base(a.Location)] = a.Skipped
+		jobs += len(a.Jobs)
+	}
+	assert.Contains(t, skipped["broken.yml"], "line 2")
+	assert.Equal(t, `yaml: unmarshal errors: line 4: mapping key "if" already defined at line 3`, skipped["duplicate.yml"])
+	assert.Empty(t, skipped["empty.yml"], "an empty file is valid, if pointless")
+	assert.Empty(t, skipped["lint.yml"])
+	assert.Equal(t, 1, jobs)
 }

@@ -930,3 +930,29 @@ func TestExecuteReportsThePlatformsFound(t *testing.T) {
 	assert.NoError(t, h.Execute(&config.Config{Dir: dir, Output: "json"}))
 	assert.Equal(t, []string{"gitlab", "jenkins"}, reported.Platforms)
 }
+
+func TestExecuteWarnsAboutASkippedFile(t *testing.T) {
+	var warnings bytes.Buffer
+	stderr = &warnings
+	t.Cleanup(func() { stderr = os.Stderr })
+
+	dir := t.TempDir()
+	broken := &models.Artifact{Location: filepath.Join(dir, ".github", "workflows", "broken.yml"),
+		Skipped: "yaml: line 2: did not find expected key"}
+	mockRules := new(MockRuleService)
+	mockRules.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockScan := new(MockScanner)
+	mockScan.On("Scan", mock.Anything).Return([]*models.Artifact{broken, {Location: filepath.Join(dir, "ok.yml")}}, nil)
+	mockMatch := new(MockMatcher)
+	mockMatch.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{})
+	mockSuggest := new(MockSuggester)
+	mockSuggest.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{})
+	mockOut := new(MockOutput)
+	mockOut.On("Response", mock.Anything).Return(nil)
+
+	h := &Handler{RulesService: mockRules, ScanService: mockScan, MatchService: mockMatch,
+		SuggestionService: mockSuggest, OutputService: mockOut}
+	assert.NoError(t, h.Execute(&config.Config{Dir: dir, Output: "json"}))
+	assert.Equal(t, "Warning: skipped .github/workflows/broken.yml, which is not valid YAML "+
+		"(yaml: line 2: did not find expected key); the CI platform cannot run it either\n", warnings.String())
+}

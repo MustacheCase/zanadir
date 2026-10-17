@@ -211,6 +211,9 @@ func TestAzureExistsAndErrors(t *testing.T) {
 
 	dir = testrepo.Write(t, map[string]string{"azure-pipelines.yml": "steps: [\n"})
 	assert.True(t, p.Exists(dir))
-	_, err := p.Parse(dir)
-	assert.Error(t, err)
+	artifacts, err := p.Parse(dir)
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.NotEmpty(t, artifacts[0].Skipped)
+	assert.Empty(t, artifacts[0].Jobs)
 }

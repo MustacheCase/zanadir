@@ -183,6 +183,37 @@ jobs:
 	assert.False(t, neither.Jobs[0].ContinueOnError)
 }
 
+// A matrix build lets some cells fail with an expression. Decoding the field
+// as a bool aborted the whole scan; 3 of the 54 most-starred repositories
+// tried did this. The expression is kept as a condition grading cannot read.
+func TestParseContinueOnErrorExpressions(t *testing.T) {
+	artifact := parseOne(t, `
+name: w
+on: pull_request
+jobs:
+  a:
+    continue-on-error: ${{ matrix.experimental }}
+    if: github.event_name == 'pull_request'
+    steps:
+      - run: gitleaks detect
+        continue-on-error: ${{ github.ref != 'refs/heads/main' }}
+      - run: trivy fs .
+        continue-on-error: "true"
+      - run: semgrep ci
+        continue-on-error: "False"
+`)
+	gitleaks, trivy, semgrep := artifact.Jobs[0], artifact.Jobs[1], artifact.Jobs[2]
+
+	assert.False(t, gitleaks.ContinueOnError)
+	assert.Equal(t, "continue-on-error: ${{ github.ref != 'refs/heads/main' }}", gitleaks.If)
+	assert.Equal(t, "github.event_name == 'pull_request' && continue-on-error: ${{ matrix.experimental }}", gitleaks.JobIf)
+
+	assert.True(t, trivy.ContinueOnError, "a quoted true is still true")
+	assert.Empty(t, trivy.If)
+	assert.False(t, semgrep.ContinueOnError)
+	assert.Empty(t, semgrep.If)
+}
+
 // Both conditions gate the step and they are separate expressions, so merging
 // them would lose which one is responsible.
 func TestParseConditionsStaySeparate(t *testing.T) {

@@ -141,6 +141,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"renovatebot/github-action", "renovate-config", "auto-renovate"},
 		},
 		{
+			ruleID:         "bouncer-rule",
+			shouldMatch:    []string{"bouncer check ./...", ".tool/bouncer list", "github.com/wagoodman/go-bouncer"},
+			shouldNotMatch: []string{"bouncer", "deploy-bouncer-service", "bouncercheck"},
+		},
+		{
 			ruleID:         "ruff-rule",
 			shouldMatch:    []string{"uv run ruff check .", "astral-sh/ruff-action", "ruff format --check"},
 			shouldNotMatch: []string{"ruffle", "gruff"},
@@ -165,9 +170,12 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
-			ruleID:         "grype-rule",
-			shouldMatch:    []string{"grype dir:.", "anchore/grype"},
-			shouldNotMatch: []string{"grypeless"},
+			ruleID: "grype-rule",
+			shouldMatch: []string{"grype dir:.", "anchore/grype", "./bin/grype sbom:sbom.json --fail-on high",
+				"docker run anchore/grype:latest alpine", "set -e\ngrype .", "anchore/grype@v0.80.0",
+				"$CI_SERVER_HOST/proton/devops/cicd-components/devsecops/grype/scan-code@~latest"},
+			shouldNotMatch: []string{"grypeless", "go run cmd/syft/main.go anchore/test_images:grype-quality-dotnet-69f15d2",
+				"grype-db build", "cat .grype.yaml"},
 		},
 		{
 			ruleID:         "zizmor-rule",

@@ -11,6 +11,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
@@ -903,4 +904,29 @@ func TestWriteBaselineRecordsWeakenedVerdicts(t *testing.T) {
 	verdict, ok := loaded.AcceptedVerdict("Secrets Detection")
 	assert.True(t, ok)
 	assert.Equal(t, "advisory", verdict)
+}
+
+// The report says which CI systems were read, so a repository whose CI was
+// found but matched no tool is told apart from one with no CI at all.
+func TestExecuteReportsThePlatformsFound(t *testing.T) {
+	mockRules := new(MockRuleService)
+	mockRules.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockScan := new(MockScanner)
+	mockScan.On("Scan", mock.Anything).Return([]*models.Artifact{}, nil)
+	mockMatch := new(MockMatcher)
+	mockMatch.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{})
+	mockSuggest := new(MockSuggester)
+	mockSuggest.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{})
+	var reported output.Report
+	mockOut := new(MockOutput)
+	mockOut.On("Response", mock.Anything).Run(func(args mock.Arguments) {
+		reported = args.Get(0).(output.Report)
+	}).Return(nil)
+
+	dir := testrepo.Write(t, map[string]string{".gitlab-ci.yml": "test:\n  script: [make]\n", "Jenkinsfile": "sh 'make'\n"})
+	h := &Handler{RulesService: mockRules, ScanService: mockScan, MatchService: mockMatch,
+		SuggestionService: mockSuggest, OutputService: mockOut}
+
+	assert.NoError(t, h.Execute(&config.Config{Dir: dir, Output: "json"}))
+	assert.Equal(t, []string{"gitlab", "jenkins"}, reported.Platforms)
 }

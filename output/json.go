@@ -9,6 +9,7 @@ import (
 // has types of its own rather than the internal ones marshalled as they are.
 type jsonReport struct {
 	Score         jsonScore      `json:"score"`
+	Platforms     []string       `json:"platforms"`
 	Uncovered     []jsonCategory `json:"uncovered"`
 	Weakened      []jsonWeakness `json:"weakened"`
 	NotApplicable []string       `json:"notApplicable"`
@@ -42,6 +43,7 @@ type jsonWeakness struct {
 func renderJSON(w io.Writer, report Report) error {
 	out := jsonReport{
 		Score:         jsonScore{Covered: report.Score.Covered, Total: report.Score.Total},
+		Platforms:     append([]string{}, report.Platforms...),
 		Uncovered:     []jsonCategory{},
 		Weakened:      []jsonWeakness{},
 		NotApplicable: append([]string{}, report.NotApplicable...),

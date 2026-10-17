@@ -224,6 +224,7 @@ func (h *Handler) Execute(cfg *config.Config) error {
 		Score:         coverage,
 		Weakened:      result.weaknesses,
 		NotApplicable: result.notApplicable,
+		Platforms:     parser.Found(cfg.Dir),
 	})
 	if err != nil {
 		debugf("Output error: %v", err)

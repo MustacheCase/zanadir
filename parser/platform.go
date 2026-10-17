@@ -56,3 +56,15 @@ func Uses(root, id string) bool {
 	p, ok := Lookup(id)
 	return ok && p.Parser.Exists(root)
 }
+
+// Found lists the IDs of every platform a repository has configuration for,
+// in detection order.
+func Found(root string) []string {
+	found := []string{}
+	for _, p := range Platforms {
+		if p.Parser.Exists(root) {
+			found = append(found, p.ID)
+		}
+	}
+	return found
+}

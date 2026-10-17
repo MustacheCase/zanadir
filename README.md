@@ -110,14 +110,15 @@ output is piped or written with `--output-file`, and when `NO_COLOR` is set.
 zanadir scan --dir . --output json
 ```
 
-One object with the score, the uncovered categories and the tools that cover
-them, the covered categories whose tooling cannot fully protect the
+One object with the score, the CI systems whose configuration was found, the
+uncovered categories and the tools that cover them, the covered categories whose tooling cannot fully protect the
 repository, and the categories left out of the score. Every list is an array,
 empty rather than `null` when there is nothing in it.
 
 ```json
 {
   "score": { "covered": 4, "total": 11 },
+  "platforms": ["github"],
   "uncovered": [
     {
       "id": "Secrets Detection",

@@ -59,6 +59,8 @@ func corpusRepos(t *testing.T) []string {
 			continue
 		}
 		require.Len(t, fields, 3, "manifest line %q", lines.Text())
+		// A branch or tag would move, and the snapshot with it.
+		require.Regexp(t, `^[0-9a-f]{40}$`, fields[2], "%s must be pinned to a full commit hash", fields[1])
 		dirs = append(dirs, fields[0]+"_"+strings.ReplaceAll(fields[1], "/", "_"))
 	}
 	require.NoError(t, lines.Err())

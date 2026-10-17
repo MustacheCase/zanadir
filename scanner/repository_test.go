@@ -118,3 +118,13 @@ func TestRepositoryScannerFindsEveryPlatform(t *testing.T) {
 		})
 	}
 }
+
+func TestRepositoryScannerFollowsWrappers(t *testing.T) {
+	root := testrepo.Write(t, map[string]string{"Makefile": "lint:\n\tgolangci-lint run\n"})
+	ci := &fakeParser{exists: true, artifacts: []*models.Artifact{{Jobs: []*models.Job{{Run: "make lint"}, {Package: "actions/checkout"}}}}}
+	artifacts, err := (&RepositoryScanner{parsers: []parser.Parser{ci}}).Scan(root)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "make lint\ngolangci-lint run", artifacts[0].Jobs[0].Run)
+	assert.Empty(t, artifacts[0].Jobs[1].Run)
+}

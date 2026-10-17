@@ -2,7 +2,10 @@ rules:
   - id: "grype-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)\\bgrype\\b"
+    # A command or an image, not a name that contains it: syft's tests scan
+    # the image anchore/test_images:grype-quality-dotnet, and grype-db only
+    # builds the database.
+    regex: "(?i)(?:^|[\\s/])grype(?:[\\s:@/]|$)"
 
   - id: "trivy-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

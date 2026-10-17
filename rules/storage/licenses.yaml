@@ -19,3 +19,8 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["License Compliance"]
     regex: "(?i)^(?:jobs|security)/license-scanning(?:\\.latest)?\\.gitlab-ci\\.yml$"
+
+  - id: "bouncer-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["License Compliance"]
+    regex: "(?i)\\bbouncer\\s+(?:check|list)\\b|wagoodman/go-bouncer"

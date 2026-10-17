@@ -9,6 +9,16 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bpylint\\b"
 
+  - id: "ruff-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bruff\\b"
+
+  - id: "python-type-checker-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:mypy|pyright)\\b"
+
   - id: "golangci-lint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]

@@ -202,3 +202,23 @@ func TestMatchIgnoresEmptyFields(t *testing.T) {
 	assert.Len(t, findings, 1)
 	assert.Same(t, artifact.Jobs[1], findings[0].Job)
 }
+
+func TestRunMatchesOnlyCommandsThatRunTheTool(t *testing.T) {
+	grype := &rules.Rule{ID: "grype-rule", Regex: regexp.MustCompile(`(?i)\bgrype\b`),
+		ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SCA"}}
+
+	for run, want := range map[string]bool{
+		"chmod -R +x snapshot/**/grype":           false,
+		"sudo cp ./grype /usr/local/bin/":         false,
+		"echo 'scanning with grype'":              false,
+		"mv \\\n  dist/grype bin/":                false,
+		"chmod +x grype && ./grype dir:.":         true,
+		"cat sbom.json | grype --fail-on high":    true,
+		"GRYPE_DB_AUTO_UPDATE=false grype dir:.":  true,
+		"set -e\nls bin; bin/grype --fail-on low": true,
+	} {
+		artifacts := []*models.Artifact{{Jobs: []*models.Job{{Run: run}}}}
+		found := matcher.NewMatchService().Match(artifacts, []*rules.Rule{grype})
+		assert.Equal(t, want, len(found) == 1, run)
+	}
+}

@@ -1,6 +1,9 @@
 package matcher
 
 import (
+	"regexp"
+	"strings"
+
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
 )
@@ -65,7 +68,7 @@ func matchingJobs(artifact *models.Artifact, rule *rules.Rule, field string) []*
 		case rules.FieldJobPackage:
 			text = job.Package
 		case rules.FieldJobRun:
-			text = job.Run
+			text = invocations(job.Run)
 		default:
 			continue
 		}
@@ -76,6 +79,32 @@ func matchingJobs(artifact *models.Artifact, rule *rules.Rule, field string) []*
 		}
 	}
 	return matched
+}
+
+// passiveCommands handle a tool's files without running it: making a freshly
+// built grype executable does not scan anything.
+var passiveCommands = map[string]bool{
+	"cat": true, "chmod": true, "chown": true, "cp": true, "echo": true, "file": true,
+	"install": true, "ln": true, "ls": true, "mkdir": true, "mv": true, "printf": true,
+	"rm": true, "stat": true, "tar": true, "touch": true, "unzip": true, "which": true,
+}
+
+var commandSeparator = regexp.MustCompile(`\|\||&&|[;|\n]`)
+
+// invocations keeps the commands of a run script that are not passive, one
+// per line.
+func invocations(run string) string {
+	var kept []string
+	for _, command := range commandSeparator.Split(strings.ReplaceAll(run, "\\\n", " "), -1) {
+		words := strings.Fields(command)
+		for len(words) > 0 && (words[0] == "sudo" || strings.Contains(words[0], "=")) {
+			words = words[1:]
+		}
+		if len(words) > 0 && !passiveCommands[words[0]] {
+			kept = append(kept, strings.TrimSpace(command))
+		}
+	}
+	return strings.Join(kept, "\n")
 }
 
 func NewMatchService() Matcher {

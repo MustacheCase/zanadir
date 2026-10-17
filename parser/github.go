@@ -21,20 +21,48 @@ type workflowDef struct {
 }
 
 type workflowJobDef struct {
-	Uses            string     `yaml:"uses"`
-	If              string     `yaml:"if"`
-	ContinueOnError bool       `yaml:"continue-on-error"`
-	Needs           stringList `yaml:"needs"`
-	Steps           []stepDef  `yaml:"steps"`
+	Uses            string          `yaml:"uses"`
+	If              string          `yaml:"if"`
+	ContinueOnError continueOnError `yaml:"continue-on-error"`
+	Needs           stringList      `yaml:"needs"`
+	Steps           []stepDef       `yaml:"steps"`
 }
 
 type stepDef struct {
-	Name            string         `yaml:"name"`
-	Uses            string         `yaml:"uses"`
-	Run             string         `yaml:"run"`
-	If              string         `yaml:"if"`
-	ContinueOnError bool           `yaml:"continue-on-error"`
-	With            map[string]any `yaml:"with"`
+	Name            string          `yaml:"name"`
+	Uses            string          `yaml:"uses"`
+	Run             string          `yaml:"run"`
+	If              string          `yaml:"if"`
+	ContinueOnError continueOnError `yaml:"continue-on-error"`
+	With            map[string]any  `yaml:"with"`
+}
+
+// continueOnError is true, false, or an expression such as
+// ${{ matrix.experimental }} that decides at run time. Decoding it as a bool
+// aborted the scan of every repository that used an expression.
+type continueOnError struct {
+	always     bool
+	expression string
+}
+
+func (c *continueOnError) UnmarshalYAML(node *yaml.Node) error {
+	switch {
+	case scalarIs(node, "true"):
+		c.always = true
+	case scalarIs(node, "false"):
+	default:
+		c.expression = node.Value
+	}
+	return nil
+}
+
+// condition is the expression as a condition grading cannot read, so the
+// control grades unknown rather than either way.
+func (c continueOnError) condition() string {
+	if c.expression == "" {
+		return ""
+	}
+	return "continue-on-error: " + c.expression
 }
 
 // triggerFilter is the map form of one event, e.g. "push: {branches: [main]}".
@@ -128,9 +156,9 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 			record := &models.Job{
 				Name: jobName,
 				// Either level means a failure here cannot fail the build.
-				ContinueOnError: step.ContinueOnError || job.ContinueOnError,
-				If:              step.If,
-				JobIf:           job.If,
+				ContinueOnError: step.ContinueOnError.always || job.ContinueOnError.always,
+				If:              joinConditions(step.If, step.ContinueOnError.condition()),
+				JobIf:           joinConditions(job.If, job.ContinueOnError.condition()),
 				Needs:           job.Needs,
 				With:            stepInputs(step.With),
 			}

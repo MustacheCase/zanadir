@@ -110,30 +110,39 @@ output is piped or written with `--output-file`, and when `NO_COLOR` is set.
 zanadir scan --dir . --output json
 ```
 
-**Sample Output:**
+One object with the score, the uncovered categories and the tools that cover
+them, the covered categories whose tooling cannot fully protect the
+repository, and the categories left out of the score. Every list is an array,
+empty rather than `null` when there is nothing in it.
+
 ```json
-[
-  {
-    "ID": "Performance Testing",
-    "Name": "Performance and Reliability Testing Tools",
-    "Description": "Tools for measuring code coverage to ensure testing completeness and software quality.",
-    "Suggestions": [
-      {
-        "Name": "k6",
-        "Repository": "https://github.com/grafana/k6",
-        "Description": "Grafana k6 is an open-source, developer-friendly, and extensible load testing tool. k6 allows you to prevent performance issues and proactively improve reliability.",
-        "Language": ""
-      },
-      {
-        "Name": "JMeter",
-        "Repository": "https://github.com/apache/jmeter",
-        "Description": "An Apache project designed to load test functional behavior and measure performance, with support for various protocols and servers.",
-        "Language": ""
-      }
-    ]
-  }
-]
+{
+  "score": { "covered": 4, "total": 11 },
+  "uncovered": [
+    {
+      "id": "Secrets Detection",
+      "name": "Data Leakage & Secrets Detection",
+      "description": "Tools that help detect sensitive information ...",
+      "suggestions": [
+        {
+          "name": "Gitleaks",
+          "repository": "https://github.com/gitleaks/gitleaks",
+          "description": "..."
+        }
+      ]
+    }
+  ],
+  "weakened": [
+    { "category": "SCA", "verdict": "advisory", "location": ".github/dependabot.yml" }
+  ],
+  "notApplicable": ["IaC Security"]
+}
 ```
+
+`language` appears on a suggested tool only when it is specific to one
+language, and `location` on a weakened category only when it points inside
+the repository. Before 0.10.0, `--output json` printed only the bare array that
+is now `uncovered`, with capitalised keys.
 
 #### SARIF Output
 

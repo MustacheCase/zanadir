@@ -1,6 +1,7 @@
 package output
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -86,8 +87,9 @@ func TestSarifMessageMentionsTools(t *testing.T) {
 }
 
 func TestRenderSarifIsValidJSON(t *testing.T) {
-	report, err := renderSarif(testSuggestions(), "", nil)
-	assert.NoError(t, err)
+	var buf bytes.Buffer
+	assert.NoError(t, renderSarif(&buf, testSuggestions(), "", nil))
+	report := buf.String()
 
 	var decoded map[string]interface{}
 	assert.NoError(t, json.Unmarshal([]byte(report), &decoded))
@@ -97,8 +99,9 @@ func TestRenderSarifIsValidJSON(t *testing.T) {
 
 // SARIF requires runs[].results, so it must serialise as [] rather than null.
 func TestRenderSarifWithNoSuggestions(t *testing.T) {
-	report, err := renderSarif(nil, "", nil)
-	assert.NoError(t, err)
+	var buf bytes.Buffer
+	assert.NoError(t, renderSarif(&buf, nil, "", nil))
+	report := buf.String()
 	assert.Contains(t, report, `"results": []`)
 	assert.Contains(t, report, `"rules": []`)
 
@@ -127,8 +130,9 @@ func TestSarifOmitsLocationWithoutAnAnchor(t *testing.T) {
 }
 
 func TestRenderSarifSerialisesLocations(t *testing.T) {
-	report, err := renderSarif(testSuggestions(), ".github/workflows/ci.yml", nil)
-	assert.NoError(t, err)
+	var buf bytes.Buffer
+	assert.NoError(t, renderSarif(&buf, testSuggestions(), ".github/workflows/ci.yml", nil))
+	report := buf.String()
 
 	var decoded struct {
 		Runs []struct {

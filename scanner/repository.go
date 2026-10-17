@@ -3,6 +3,7 @@ package scanner
 import (
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
+	"github.com/MustacheCase/zanadir/wrapper"
 )
 
 type RepositoryScanner struct {
@@ -22,6 +23,16 @@ func (r *RepositoryScanner) Scan(root string) ([]*models.Artifact, error) {
 			return nil, err
 		}
 		artifacts = append(artifacts, parsed...)
+	}
+
+	// A step that runs "make lint" runs whatever the lint target does.
+	wrappers := wrapper.New(root)
+	for _, a := range artifacts {
+		for _, job := range a.Jobs {
+			if wrapped := wrappers.Expand(job.Run); wrapped != "" {
+				job.Run += "\n" + wrapped
+			}
+		}
 	}
 	return artifacts, nil
 }

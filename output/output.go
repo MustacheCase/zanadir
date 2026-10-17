@@ -2,7 +2,6 @@ package output
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -207,59 +206,24 @@ func (s *service) Response(report Report) error {
 }
 
 func render(w io.Writer, report Report) error {
-	suggestions, responseType := report.Suggestions, report.Format
-	if responseType == config.OutputSARIF {
-		sarifReport, err := renderSarif(suggestions, report.Anchor, report.Weakened)
-		if err != nil {
-			return err
-		}
-		_, err = fmt.Fprintln(w, sarifReport)
-		return err
+	switch report.Format {
+	case config.OutputSARIF:
+		return renderSarif(w, report.Suggestions, report.Anchor, report.Weakened)
+	case config.OutputMarkdown:
+		return renderMarkdown(w, report.Suggestions, report.Score, report.Weakened, report.NotApplicable)
+	case config.OutputTable:
+		return renderTable(w, report)
+	default:
+		return renderJSON(w, report)
 	}
+}
 
-	if responseType == config.OutputMarkdown {
-		return renderMarkdown(w, suggestions, report.Score, report.Weakened, report.NotApplicable)
-	}
+func renderTable(w io.Writer, report Report) error {
+	suggestions := report.Suggestions
+	colour := useColour(w)
 
-	if responseType == config.OutputTable {
-		colour := useColour(w)
-
-		if len(suggestions) == 0 {
-			if _, err := fmt.Fprintln(w, paint(colour, ansiGreen, headline(report.Score, 0))); err != nil {
-				return err
-			}
-			if err := renderWeakened(w, report.Weakened, colour); err != nil {
-				return err
-			}
-			return renderNotApplicable(w, report.NotApplicable, colour)
-		}
-
-		if _, err := fmt.Fprintf(w, "%s\n\n", paint(colour, ansiBold, headline(report.Score, len(suggestions)))); err != nil {
-			return err
-		}
-
-		rows := make([][]string, 0, len(suggestions))
-		for _, suggestion := range suggestions {
-			toolNames := []string{}
-			for _, tool := range suggestion.Suggestions {
-				toolNames = append(toolNames, tool.Name)
-			}
-			rows = append(rows, []string{suggestion.Name, suggestion.Description, strings.Join(toolNames, ", ")})
-		}
-
-		// tablewriter drops write errors, so the table is built in memory and
-		// written in one call whose error is checked.
-		var buf bytes.Buffer
-		table := newTable(&buf)
-		table.Header("Category", "Description", "Suggested Tools")
-		err := table.Bulk(rows)
-		if err == nil {
-			err = table.Render()
-		}
-		if err == nil {
-			_, err = w.Write(buf.Bytes())
-		}
-		if err != nil {
+	if len(suggestions) == 0 {
+		if _, err := fmt.Fprintln(w, paint(colour, ansiGreen, headline(report.Score, 0))); err != nil {
 			return err
 		}
 		if err := renderWeakened(w, report.Weakened, colour); err != nil {
@@ -268,12 +232,38 @@ func render(w io.Writer, report Report) error {
 		return renderNotApplicable(w, report.NotApplicable, colour)
 	}
 
-	data, err := json.MarshalIndent(suggestions, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal suggestions: %w", err)
+	if _, err := fmt.Fprintf(w, "%s\n\n", paint(colour, ansiBold, headline(report.Score, len(suggestions)))); err != nil {
+		return err
 	}
-	_, err = fmt.Fprintln(w, string(data))
-	return err
+
+	rows := make([][]string, 0, len(suggestions))
+	for _, suggestion := range suggestions {
+		toolNames := []string{}
+		for _, tool := range suggestion.Suggestions {
+			toolNames = append(toolNames, tool.Name)
+		}
+		rows = append(rows, []string{suggestion.Name, suggestion.Description, strings.Join(toolNames, ", ")})
+	}
+
+	// tablewriter drops write errors, so the table is built in memory and
+	// written in one call whose error is checked.
+	var buf bytes.Buffer
+	table := newTable(&buf)
+	table.Header("Category", "Description", "Suggested Tools")
+	err := table.Bulk(rows)
+	if err == nil {
+		err = table.Render()
+	}
+	if err == nil {
+		_, err = w.Write(buf.Bytes())
+	}
+	if err != nil {
+		return err
+	}
+	if err := renderWeakened(w, report.Weakened, colour); err != nil {
+		return err
+	}
+	return renderNotApplicable(w, report.NotApplicable, colour)
 }
 
 func NewOutputService() Output {

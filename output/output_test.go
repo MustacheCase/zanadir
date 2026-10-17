@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -52,23 +53,68 @@ func captureStdout(f func()) string {
 func TestResponse_JSONOutput(t *testing.T) {
 	service := NewOutputService()
 	suggestions := getSampleSuggestions()
+	suggestions[0].ID = "Secrets Detection"
+	suggestions[0].Suggestions[0].Repository = "https://github.com/gitleaks/gitleaks"
+	suggestions[0].Suggestions[0].Language = "Go"
 
 	out := captureStdout(func() {
-		err := service.Response(Report{Suggestions: suggestions, Format: "json"})
+		err := service.Response(Report{
+			Suggestions:   suggestions,
+			Format:        "json",
+			Score:         score.Score{Covered: 8, Total: 11},
+			Weakened:      []Weakness{{Category: "SCA", Verdict: "advisory", Location: ".github/workflows/nightly.yml"}, {Category: "Linter", Verdict: "partial"}},
+			NotApplicable: []string{"IaC Security"},
+		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
-	// Validate that it's valid JSON
-	var result []*suggester.CategorySuggestion
-	err := json.Unmarshal([]byte(out), &result)
-	if err != nil {
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
+	want := map[string]any{
+		"score": map[string]any{"covered": 8.0, "total": 11.0},
+		"uncovered": []any{
+			map[string]any{
+				"id": "Secrets Detection", "name": "Secrets",
+				"description": "Detect hardcoded secrets in source code repositories using specialized tools.",
+				"suggestions": []any{
+					map[string]any{"name": "Gitleaks", "repository": "https://github.com/gitleaks/gitleaks", "description": "", "language": "Go"},
+					map[string]any{"name": "TruffleHog", "repository": "", "description": ""},
+				},
+			},
+			map[string]any{
+				"id": "", "name": "Licenses", "description": "Analyze open source license usage and compliance.",
+				"suggestions": []any{map[string]any{"name": "FOSSA", "repository": "", "description": ""}},
+			},
+		},
+		"weakened": []any{
+			map[string]any{"category": "SCA", "verdict": "advisory", "location": ".github/workflows/nightly.yml"},
+			map[string]any{"category": "Linter", "verdict": "partial"},
+		},
+		"notApplicable": []any{"IaC Security"},
+	}
+	if !reflect.DeepEqual(want, got) {
+		t.Errorf("unexpected JSON:\n%s", out)
+	}
+}
 
-	if len(result) != len(suggestions) {
-		t.Errorf("expected %d suggestions, got %d", len(suggestions), len(result))
+// A fully covered repository used to print null; every list is an array.
+func TestResponse_JSONOutputWithNothingToReport(t *testing.T) {
+	out := captureStdout(func() {
+		if err := NewOutputService().Response(Report{Format: "json", Score: score.Score{Covered: 11, Total: 11}}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+	for _, key := range []string{`"uncovered": []`, `"weakened": []`, `"notApplicable": []`} {
+		if !strings.Contains(out, key) {
+			t.Errorf("expected %s in:\n%s", key, out)
+		}
+	}
+	if strings.Contains(out, "null") {
+		t.Errorf("no list should be null:\n%s", out)
 	}
 }
 

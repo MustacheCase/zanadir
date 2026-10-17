@@ -3,6 +3,7 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/suggester"
@@ -209,10 +210,8 @@ func weakenedHelp(verdict string) string {
 	}
 }
 
-func renderSarif(suggestions []*suggester.CategorySuggestion, anchor string, weaknesses []Weakness) (string, error) {
-	data, err := json.MarshalIndent(buildSarif(suggestions, anchor, weaknesses), "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal SARIF report: %w", err)
-	}
-	return string(data), nil
+func renderSarif(w io.Writer, suggestions []*suggester.CategorySuggestion, anchor string, weaknesses []Weakness) error {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(buildSarif(suggestions, anchor, weaknesses))
 }

@@ -203,13 +203,14 @@ func extract(r io.Reader, dir string) error {
 	}
 }
 
-// within joins name onto dir, refusing a name that escapes it.
+// within joins name onto dir, refusing a name that is absolute or resolves
+// outside it.
 func within(dir, name string) (string, error) {
-	clean := filepath.Clean(filepath.FromSlash(name))
-	if filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+	target := filepath.Join(dir, filepath.FromSlash(name))
+	if filepath.IsAbs(filepath.FromSlash(name)) || !strings.HasPrefix(target, filepath.Clean(dir)+string(filepath.Separator)) {
 		return "", fmt.Errorf("the archive has an entry outside the repository: %q", name)
 	}
-	return filepath.Join(dir, clean), nil
+	return target, nil
 }
 
 func writeFile(path string, r io.Reader, size int64) error {

@@ -8,8 +8,9 @@ ARG TARGETARCH
 
 WORKDIR /app
 
-# Install CA certs (needed in final image)
-RUN apk add --no-cache ca-certificates
+# Install CA certs (needed in final image), and an empty /tmp: scratch has
+# none, and --repo unpacks the repository it fetches into a temporary directory.
+RUN apk add --no-cache ca-certificates && mkdir -m 1777 /scratch-tmp
 
 # Copy Go files and download modules
 COPY go.mod go.sum ./
@@ -27,6 +28,7 @@ FROM scratch
 # Copy binary and CA certs
 COPY --from=builder /app/zanadir /zanadir
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /scratch-tmp /tmp
 COPY --from=builder /app/rules /rules
 COPY --from=builder /app/suggester /suggester
 

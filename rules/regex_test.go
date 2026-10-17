@@ -141,6 +141,16 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"renovatebot/github-action", "renovate-config", "auto-renovate"},
 		},
 		{
+			ruleID:         "ruff-rule",
+			shouldMatch:    []string{"uv run ruff check .", "astral-sh/ruff-action", "ruff format --check"},
+			shouldNotMatch: []string{"ruffle", "gruff"},
+		},
+		{
+			ruleID:         "python-type-checker-rule",
+			shouldMatch:    []string{"uv run mypy --config-file ./pyproject.toml src", "pyright", "jakebailey/pyright-action"},
+			shouldNotMatch: []string{"mypyc-build", "pyrightish"},
+		},
+		{
 			ruleID: "coverage-command-rule",
 			shouldMatch: []string{
 				"uv run pytest --cov vunnel -v tests/unit/", "pytest tests --cov=src --cov-report=xml",

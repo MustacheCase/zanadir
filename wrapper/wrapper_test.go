@@ -133,6 +133,7 @@ tasks:
       - "bouncer check ./..."
       - for: [a, b]
         cmd: echo {{.ITEM}}
+      - [not, a, command]
   tools: binny install
   generate:
     - go generate ./...
@@ -149,7 +150,7 @@ tasks:
 		"echo {{.ITEM}}",
 		"go test -cover ./...",
 	}, expand(t, files, "task"))
-	assert.Equal(t, []string{"eslint ."}, expand(t, files, "task -d web lint -- --fix"))
+	assert.Equal(t, []string{"eslint ."}, expand(t, files, "task --silent -d web lint CI=true -- --fix"))
 	assert.Equal(t, []string{"eslint ."}, expand(t, files, "task --taskfile web/Taskfile.yml lint"))
 	assert.Equal(t, []string{"binny install", "go generate ./..."}, expand(t, files, "task tools; task generate"))
 	assert.Nil(t, expand(t, files, "task broken missing"))

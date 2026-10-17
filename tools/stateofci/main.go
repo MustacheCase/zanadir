@@ -9,8 +9,11 @@ import (
 	"path/filepath"
 )
 
+// exit is os.Exit, replaced in tests.
+var exit = os.Exit
+
 func main() {
-	os.Exit(cli(os.Args[1:], os.Getenv("GITHUB_TOKEN")))
+	exit(cli(os.Args[1:], os.Getenv("GITHUB_TOKEN")))
 }
 
 func cli(args []string, token string) int {

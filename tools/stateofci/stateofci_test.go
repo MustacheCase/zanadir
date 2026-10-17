@@ -301,3 +301,14 @@ func TestCLI(t *testing.T) {
 
 	assert.Equal(t, 1, cli([]string{"-out", "/dev/null/x"}, ""))
 }
+
+func TestMainExitsWithTheCLIStatus(t *testing.T) {
+	code := -1
+	exit = func(c int) { code = c }
+	args := os.Args
+	defer func() { exit, os.Args = os.Exit, args }()
+
+	os.Args = []string{"stateofci", "-no-such-flag"}
+	main()
+	assert.Equal(t, 2, code)
+}

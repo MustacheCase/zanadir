@@ -1,9 +1,9 @@
 package matcher
 
 import (
-	"regexp"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/internal/shell"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
 )
@@ -89,19 +89,13 @@ var passiveCommands = map[string]bool{
 	"rm": true, "stat": true, "tar": true, "touch": true, "unzip": true, "which": true,
 }
 
-var commandSeparator = regexp.MustCompile(`\|\||&&|[;|\n]`)
-
 // invocations keeps the commands of a run script that are not passive, one
 // per line.
 func invocations(run string) string {
 	var kept []string
-	for _, command := range commandSeparator.Split(strings.ReplaceAll(run, "\\\n", " "), -1) {
-		words := strings.Fields(command)
-		for len(words) > 0 && (words[0] == "sudo" || strings.Contains(words[0], "=")) {
-			words = words[1:]
-		}
-		if len(words) > 0 && !passiveCommands[words[0]] {
-			kept = append(kept, strings.TrimSpace(command))
+	for _, command := range shell.Commands(run) {
+		if words := shell.Words(command); len(words) > 0 && !passiveCommands[words[0]] {
+			kept = append(kept, command)
 		}
 	}
 	return strings.Join(kept, "\n")

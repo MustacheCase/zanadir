@@ -139,15 +139,19 @@ func download(repo Repository, token, dir string) error {
 }
 
 // keepContent reports whether zanadir reads a file's contents: CI
-// configuration and the templates it includes, Jenkinsfiles, and the
-// dependency bots' configuration.
+// configuration and the templates it includes, Jenkinsfiles, the dependency
+// bots' configuration, and the makefiles and tox.ini that steps call into.
 func keepContent(name string) bool {
 	base := strings.ToLower(filepath.Base(name))
 	switch filepath.Ext(base) {
-	case ".yml", ".yaml", ".json", ".json5":
+	case ".yml", ".yaml", ".json", ".json5", ".mk":
 		return true
 	}
-	return strings.HasPrefix(base, "jenkinsfile") || base == ".renovaterc"
+	switch base {
+	case ".renovaterc", "makefile", "gnumakefile", "tox.ini":
+		return true
+	}
+	return strings.HasPrefix(base, "jenkinsfile")
 }
 
 // extract unpacks a GitHub tarball, whose entries sit under one top-level

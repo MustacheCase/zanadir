@@ -64,6 +64,7 @@ func TestResponse_JSONOutput(t *testing.T) {
 			Score:         score.Score{Covered: 8, Total: 11},
 			Weakened:      []Weakness{{Category: "SCA", Verdict: "advisory", Location: ".github/workflows/nightly.yml"}, {Category: "Linter", Verdict: "partial"}},
 			NotApplicable: []string{"IaC Security"},
+			Platforms:     []string{"github", "gitlab"},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -75,7 +76,8 @@ func TestResponse_JSONOutput(t *testing.T) {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
 	want := map[string]any{
-		"score": map[string]any{"covered": 8.0, "total": 11.0},
+		"score":     map[string]any{"covered": 8.0, "total": 11.0},
+		"platforms": []any{"github", "gitlab"},
 		"uncovered": []any{
 			map[string]any{
 				"id": "Secrets Detection", "name": "Secrets",
@@ -108,7 +110,7 @@ func TestResponse_JSONOutputWithNothingToReport(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
-	for _, key := range []string{`"uncovered": []`, `"weakened": []`, `"notApplicable": []`} {
+	for _, key := range []string{`"platforms": []`, `"uncovered": []`, `"weakened": []`, `"notApplicable": []`} {
 		if !strings.Contains(out, key) {
 			t.Errorf("expected %s in:\n%s", key, out)
 		}

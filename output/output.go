@@ -30,6 +30,8 @@ type Report struct {
 	// NotApplicable lists categories the repository has nothing for. They are
 	// out of the score, so the report has to say which.
 	NotApplicable []string
+	// Platforms are the CI systems whose configuration was found.
+	Platforms []string
 }
 
 // Weakness is a category whose tooling is present but cannot fully protect the

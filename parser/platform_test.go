@@ -43,3 +43,12 @@ func TestLookupAndUses(t *testing.T) {
 	assert.False(t, ok)
 	assert.False(t, Uses(t.TempDir(), "tekton"))
 }
+
+func TestFound(t *testing.T) {
+	assert.Equal(t, []string{}, Found(t.TempDir()), "no CI is an empty list, not nil")
+	dir := testrepo.Write(t, map[string]string{
+		".github/workflows/ci.yml": "on: push\n",
+		"azure-pipelines.yml":      "steps: []\n",
+	})
+	assert.Equal(t, []string{GitHub, Azure}, Found(dir))
+}

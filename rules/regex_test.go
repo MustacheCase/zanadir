@@ -269,8 +269,15 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"semgreppy", "mysemgrep"},
 		},
 		{
-			ruleID:         "codeql-rule",
-			shouldMatch:    []string{"github/codeql-action/analyze@v3", "codeql database analyze"},
+			ruleID: "codeql-rule",
+			shouldMatch: []string{"github/codeql-action/analyze@v3", "github/codeql-action/init", "github/codeql-action/autobuild",
+				"codeql database analyze db --format=sarif-latest", "AdvancedSecurity-Codeql-Init@1"},
+			shouldNotMatch: []string{"codeqlish", "github/codeql-action/upload-sarif@v3", "github/codeql-action/upload-sarif",
+				"echo codeql"},
+		},
+		{
+			ruleID:         "codeql-name-rule",
+			shouldMatch:    []string{"CodeQL", "CodeQL Advanced", "Run CodeQL Analysis"},
 			shouldNotMatch: []string{"codeqlish"},
 		},
 		{

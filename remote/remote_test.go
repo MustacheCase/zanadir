@@ -4,10 +4,13 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,20 +95,50 @@ func tarball(t *testing.T, entries ...entry) []byte {
 	return buf.Bytes()
 }
 
-// serve stands a fake GitHub up for one test and returns what it was asked.
+// serve stands a fake GitHub up for one test and returns what the API was
+// asked. Its raw host has no files, so nothing is restored.
 func serve(t *testing.T, status int, body []byte) *http.Request {
 	t.Helper()
 	got := &http.Request{}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	github(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/raw/") {
+			http.NotFound(w, r)
+			return
+		}
 		*got = *r.Clone(r.Context())
 		w.WriteHeader(status)
 		_, _ = w.Write(body)
-	}))
-	t.Cleanup(server.Close)
-	old := apiBase
-	apiBase = server.URL
-	t.Cleanup(func() { apiBase = old })
+	})
 	return got
+}
+
+// github points the API and the raw host at handler for one test.
+func github(t *testing.T, handler http.HandlerFunc) {
+	t.Helper()
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	oldAPI, oldRaw := apiBase, rawBase
+	apiBase, rawBase = server.URL, server.URL+"/raw"
+	t.Cleanup(func() { apiBase, rawBase = oldAPI, oldRaw })
+}
+
+// routes answers each path with a status and body, and 404 for any other.
+func routes(t *testing.T, answers map[string]string) *[]string {
+	t.Helper()
+	var asked []string
+	github(t, func(w http.ResponseWriter, r *http.Request) {
+		asked = append(asked, r.URL.Path)
+		answer, ok := answers[r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		status, body, _ := strings.Cut(answer, " ")
+		code, _ := strconv.Atoi(status)
+		w.WriteHeader(code)
+		_, _ = w.Write([]byte(body))
+	})
+	return &asked
 }
 
 func TestFetchKeepsWhatZanadirReads(t *testing.T) {
@@ -271,4 +304,137 @@ func TestToken(t *testing.T) {
 	assert.Equal(t, "gh", Token())
 	t.Setenv("GITHUB_TOKEN", "github")
 	assert.Equal(t, "github", Token(), "GITHUB_TOKEN wins, as it does in Actions")
+}
+
+func tree(paths ...string) string {
+	entries := make([]string, 0, len(paths))
+	for _, p := range paths {
+		kind, size := "blob", "8"
+		if strings.HasSuffix(p, "/") {
+			kind, p = "tree", strings.TrimSuffix(p, "/")
+		}
+		if name, n, ok := strings.Cut(p, "#"); ok {
+			p, size = name, n
+		}
+		entries = append(entries, fmt.Sprintf(`{"path":%q,"type":%q,"size":%s}`, p, kind, size))
+	}
+	return "200 " + `{"tree":[` + strings.Join(entries, ",") + "]}"
+}
+
+// git archive leaves out what .gitattributes marks export-ignore, so a
+// project that marks .github that way looked like one with no CI.
+func TestFetchRestoresWhatTheArchiveLeavesOut(t *testing.T) {
+	archive := tarball(t,
+		entry{name: "o-r-1/.gitattributes", body: "/.github export-ignore\n/tests export-ignore\n"},
+		entry{name: "o-r-1/keep.yml", body: "kept: true"},
+	)
+	asked := routes(t, map[string]string{
+		"/repos/o/r/tarball":                     "200 " + string(archive),
+		"/repos/o/r/git/trees/HEAD":              tree(".github/", ".github/workflows/ci.yml", "tests/fixtures/Dockerfile", "keep.yml", "big.yml#99999999"),
+		"/raw/o/r/HEAD/.github/workflows/ci.yml": "200 on: push",
+	})
+
+	dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	require.NoError(t, err)
+	defer cleanup()
+	read := func(rel string) string {
+		data, err := os.ReadFile(filepath.Join(dir, rel))
+		require.NoError(t, err, rel)
+		return string(data)
+	}
+	assert.Equal(t, "on: push", read(".github/workflows/ci.yml"))
+	assert.Empty(t, read("tests/fixtures/Dockerfile"), "a file zanadir only looks at the name of is a placeholder")
+	assert.Empty(t, read("big.yml"), "a file over the size limit is a placeholder")
+	assert.Equal(t, "kept: true", read("keep.yml"), "a file the archive has is left alone")
+	assert.NotContains(t, *asked, "/raw/o/r/HEAD/keep.yml")
+}
+
+// .gitattributes often leaves itself out, so it is fetched when missing.
+func TestFetchReadsAGitattributesTheArchiveLeavesOut(t *testing.T) {
+	routes(t, map[string]string{
+		"/repos/o/r/tarball":                        "200 " + string(tarball(t, entry{name: "o-r-1/go.mod", body: "module x"})),
+		"/raw/o/r/release/1.0/.gitattributes":       "200 .* export-ignore",
+		"/repos/o/r/tarball/release/1.0":            "200 " + string(tarball(t, entry{name: "o-r-1/go.mod", body: "module x"})),
+		"/repos/o/r/git/trees/release/1.0":          tree(".circleci/config.yml#12"),
+		"/raw/o/r/release/1.0/.circleci/config.yml": "200 version: 2.1",
+	})
+	dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r", Ref: "release/1.0"}, "")
+	require.NoError(t, err)
+	defer cleanup()
+	data, err := os.ReadFile(filepath.Join(dir, ".circleci", "config.yml"))
+	require.NoError(t, err)
+	assert.Equal(t, "version: 2.1", string(data))
+}
+
+func TestFetchWithNothingLeftOut(t *testing.T) {
+	asked := routes(t, map[string]string{
+		"/repos/o/r/tarball": "200 " + string(tarball(t, entry{name: "o-r-1/.gitattributes", body: "* text=auto"})),
+	})
+	_, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	require.NoError(t, err)
+	cleanup()
+	assert.Equal(t, []string{"/repos/o/r/tarball"}, *asked, "no export-ignore, nothing more to fetch")
+}
+
+func TestFetchReportsFilesItCannotRestore(t *testing.T) {
+	marked := "200 " + string(tarball(t, entry{name: "o-r-1/.gitattributes", body: "/.github export-ignore"}))
+	for name, tt := range map[string]struct {
+		answers map[string]string
+		want    string
+	}{
+		"attributes unavailable": {map[string]string{
+			"/repos/o/r/tarball":           "200 " + string(tarball(t, entry{name: "o-r-1/x", body: "y"})),
+			"/raw/o/r/HEAD/.gitattributes": "500 "}, "checking for files the archive leaves out: GitHub answered 500"},
+		"tree refused": {map[string]string{"/repos/o/r/tarball": marked,
+			"/repos/o/r/git/trees/HEAD": "403 "}, "leaves files out of its archive (export-ignore), and fetching them failed: GitHub answered 403"},
+		"tree unreadable": {map[string]string{"/repos/o/r/tarball": marked,
+			"/repos/o/r/git/trees/HEAD": "200 not json"}, "fetching them failed"},
+		"file missing": {map[string]string{"/repos/o/r/tarball": marked,
+			"/repos/o/r/git/trees/HEAD": tree(".github/workflows/ci.yml")}, "GitHub answered 404"},
+		"entry outside": {map[string]string{"/repos/o/r/tarball": marked,
+			"/repos/o/r/git/trees/HEAD": tree("../escape.yml")}, "outside the repository"},
+	} {
+		routes(t, tt.answers)
+		_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+		assert.ErrorContains(t, err, tt.want, name)
+		if strings.Contains(tt.want, "export-ignore") {
+			assert.ErrorContains(t, err, "scan a checkout with --dir", name)
+		}
+	}
+}
+
+func TestFetchRestoresWithinLimits(t *testing.T) {
+	marked := "200 " + string(tarball(t, entry{name: "o-r-1/.gitattributes", body: "/.github export-ignore"}))
+	files, kept := maxFiles, maxKeptBytes
+	t.Cleanup(func() { maxFiles, maxKeptBytes = files, kept })
+
+	routes(t, map[string]string{"/repos/o/r/tarball": marked, "/repos/o/r/git/trees/HEAD": tree("a", "b", "c")})
+	maxFiles = 2
+	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	assert.ErrorContains(t, err, "more than 2 files")
+
+	maxFiles = files
+	routes(t, map[string]string{"/repos/o/r/tarball": marked, "/repos/o/r/git/trees/HEAD": tree("a.yml#600", "b.yml#600"),
+		"/raw/o/r/HEAD/a.yml": "200 " + strings.Repeat("a", 600)})
+	maxKeptBytes = 1000
+	_, _, err = Fetch(Repository{Owner: "o", Name: "r"}, "")
+	assert.ErrorContains(t, err, "exceed 1000 bytes")
+}
+
+func TestFetchReportsAnUnreachableRawHost(t *testing.T) {
+	routes(t, map[string]string{"/repos/o/r/tarball": "200 " + string(tarball(t, entry{name: "o-r-1/x", body: "y"}))})
+	rawBase = "http://127.0.0.1:1"
+	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	assert.ErrorContains(t, err, "checking for files the archive leaves out")
+
+	marked := "200 " + string(tarball(t, entry{name: "o-r-1/.gitattributes", body: "/.github export-ignore"}))
+	routes(t, map[string]string{"/repos/o/r/tarball": marked, "/repos/o/r/git/trees/HEAD": tree(".github/ci.yml")})
+	rawBase = "http://127.0.0.1:1"
+	_, _, err = Fetch(Repository{Owner: "o", Name: "r"}, "")
+	assert.ErrorContains(t, err, "fetching them failed")
+}
+
+func TestGetJSONReportsAnUnreachableHost(t *testing.T) {
+	var out struct{}
+	assert.Error(t, getJSON("http://127.0.0.1:1/x", "", &out))
 }

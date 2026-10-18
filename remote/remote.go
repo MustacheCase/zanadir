@@ -4,7 +4,10 @@ package remote
 
 import (
 	"archive/tar"
+	"bytes"
+	"cmp"
 	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -79,9 +82,10 @@ func Token() string {
 	return os.Getenv("GH_TOKEN")
 }
 
-// apiBase and client are replaced in tests.
+// apiBase, rawBase and client are replaced in tests.
 var (
 	apiBase = "https://api.github.com"
+	rawBase = "https://raw.githubusercontent.com"
 	client  = &http.Client{Timeout: 5 * time.Minute}
 )
 
@@ -109,6 +113,9 @@ func Fetch(repo Repository, token string) (string, func(), error) {
 	if err == nil {
 		err = download(repo, token, dir)
 	}
+	if err == nil {
+		err = restoreExportIgnored(repo, token, dir)
+	}
 	if err != nil {
 		cleanup()
 		return "", nil, err
@@ -121,17 +128,7 @@ func download(repo Repository, token, dir string) error {
 	if repo.Ref != "" {
 		endpoint += "/" + (&url.URL{Path: repo.Ref}).EscapedPath()
 	}
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "zanadir")
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
-
-	resp, err := client.Do(req)
+	resp, err := get(endpoint, token)
 	if err != nil {
 		return fmt.Errorf("downloading %s: %w", repo, err)
 	}
@@ -148,6 +145,125 @@ func download(repo Repository, token, dir string) error {
 	return extract(resp.Body, dir)
 }
 
+func get(endpoint, token string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "zanadir")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	return client.Do(req)
+}
+
+// restoreExportIgnored puts back what the archive left out. GitHub builds it
+// with git archive, which drops every path .gitattributes marks
+// export-ignore; projects often mark .github that way, and the archive alone
+// then reads as a repository with no CI. .gitattributes often leaves itself
+// out too, so it is fetched when the archive lacks it. The tree lists every
+// file, so each missing one is written: with its contents if zanadir reads
+// them, as a placeholder otherwise.
+func restoreExportIgnored(repo Repository, token, dir string) error {
+	ref := (&url.URL{Path: cmp.Or(repo.Ref, "HEAD")}).EscapedPath()
+	raw := func(path string) string {
+		return fmt.Sprintf("%s/%s/%s/%s/%s", rawBase, repo.Owner, repo.Name, ref, (&url.URL{Path: path}).EscapedPath())
+	}
+	attributes, err := os.ReadFile(filepath.Join(dir, ".gitattributes"))
+	if err != nil {
+		attributes, err = fetchAttributes(raw(".gitattributes"), token)
+	}
+	if err != nil || !bytes.Contains(attributes, []byte("export-ignore")) {
+		return err
+	}
+	failed := func(err error) error {
+		return fmt.Errorf("%s leaves files out of its archive (export-ignore), and fetching them failed: %w; "+
+			"set GITHUB_TOKEN, or scan a checkout with --dir", repo, err)
+	}
+
+	var tree struct {
+		Tree []struct {
+			Path string `json:"path"`
+			Type string `json:"type"`
+			Size int64  `json:"size"`
+		} `json:"tree"`
+	}
+	if err := getJSON(fmt.Sprintf("%s/repos/%s/%s/git/trees/%s?recursive=1", apiBase, repo.Owner, repo.Name, ref), token, &tree); err != nil {
+		return failed(err)
+	}
+	files, kept := 0, int64(0)
+	for _, entry := range tree.Tree {
+		target, err := within(dir, entry.Path)
+		if err != nil {
+			return err
+		}
+		if entry.Type != "blob" || exists(target) {
+			continue
+		}
+		if files++; files > maxFiles {
+			return fmt.Errorf("the repository has more than %d files", maxFiles)
+		}
+		if !keepContent(entry.Path) || entry.Size > maxFileBytes {
+			err = writeFile(target, nil, 0)
+		} else if kept += entry.Size; kept > maxKeptBytes {
+			return fmt.Errorf("the repository's configuration files exceed %d bytes", maxKeptBytes)
+		} else {
+			err = fetchFile(raw(entry.Path), token, target, entry.Size)
+		}
+		if err != nil {
+			return failed(err)
+		}
+	}
+	return nil
+}
+
+func getJSON(endpoint, token string, out any) error {
+	resp, err := get(endpoint, token)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("GitHub answered %s", resp.Status)
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+func fetchFile(endpoint, token, target string, size int64) error {
+	resp, err := get(endpoint, token)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("GitHub answered %s for %s", resp.Status, endpoint)
+	}
+	return writeFile(target, resp.Body, size)
+}
+
+// fetchAttributes reads a .gitattributes the archive left out; a repository
+// without one has nothing to restore.
+func fetchAttributes(endpoint, token string) ([]byte, error) {
+	resp, err := get(endpoint, token)
+	if err != nil {
+		return nil, fmt.Errorf("checking for files the archive leaves out: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return io.ReadAll(io.LimitReader(resp.Body, maxFileBytes))
+	case http.StatusNotFound:
+		return nil, nil
+	}
+	return nil, fmt.Errorf("checking for files the archive leaves out: GitHub answered %s", resp.Status)
+}
+
+func exists(path string) bool {
+	_, err := os.Lstat(path)
+	return err == nil
+}
+
 // keepContent reports whether zanadir reads a file's contents: CI
 // configuration and the templates it includes, Jenkinsfiles, the dependency
 // bots' configuration, the makefiles and tox.ini that steps call into, and a
@@ -161,7 +277,7 @@ func keepContent(name string) bool {
 	case ".yml", ".yaml", ".json", ".json5", ".mk":
 		return true
 	}
-	if base == ".renovaterc" || base == "tox.ini" {
+	if base == ".renovaterc" || base == "tox.ini" || base == ".gitattributes" {
 		return true
 	}
 	// Makefile.common and the like are included by the Makefile.

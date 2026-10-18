@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
@@ -143,7 +144,58 @@ func (g *GithubParser) Parse(root string) ([]*models.Artifact, error) {
 		}
 		artifacts = append(artifacts, artifact)
 	}
+	inheritCallers(artifacts)
 	return artifacts, nil
+}
+
+const localWorkflows = "./.github/workflows/"
+
+// inheritCallers grades a local reusable workflow by what calls it: on:
+// workflow_call says nothing about when it runs, its callers' triggers do.
+// A chain of calls settles within as many passes as there are workflows.
+// The callers' conditions carry over too, and with a single caller the
+// called jobs report their checks as "caller / job", as GitHub names them.
+func inheritCallers(artifacts []*models.Artifact) {
+	byFile := map[string]*models.Artifact{}
+	for _, a := range artifacts {
+		byFile[localWorkflows+filepath.Base(a.Location)] = a
+	}
+	callers := map[*models.Artifact][]*models.Job{}
+	for range artifacts {
+		changed := false
+		for _, caller := range artifacts {
+			for _, job := range caller.Jobs {
+				called := byFile[job.Package]
+				if called == nil || called == caller || !called.HasTrigger("workflow_call") {
+					continue
+				}
+				if !slices.Contains(callers[called], job) {
+					callers[called] = append(callers[called], job)
+				}
+				for _, trigger := range caller.Triggers {
+					if !called.HasTrigger(trigger.Event) {
+						called.Triggers = append(called.Triggers, trigger)
+						changed = true
+					}
+				}
+			}
+		}
+		if !changed {
+			break
+		}
+	}
+	for called, jobs := range callers {
+		allMayFail := !slices.ContainsFunc(jobs, func(j *models.Job) bool { return !j.ContinueOnError })
+		for _, job := range called.Jobs {
+			job.ContinueOnError = job.ContinueOnError || allMayFail
+			for _, caller := range jobs {
+				job.JobIf = joinConditions(job.JobIf, caller.JobIf)
+			}
+			if len(jobs) == 1 {
+				job.Check = jobs[0].Check + " / " + job.Check
+			}
+		}
+	}
 }
 
 func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, error) {
@@ -157,7 +209,9 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 		// A job calling a reusable workflow has no steps but still reports a
 		// check, as "name / called job".
 		if job.Uses != "" {
+			pkg, version := parseStepUsageStatement(job.Uses)
 			jobs = append(jobs, &models.Job{Name: jobName, Check: cmp.Or(job.Name, jobName), Needs: job.Needs,
+				Package: pkg, Version: version,
 				ContinueOnError: job.ContinueOnError.always, JobIf: joinConditions(job.If, job.ContinueOnError.condition())})
 		}
 		for _, step := range job.Steps {

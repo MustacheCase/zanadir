@@ -512,3 +512,11 @@ func TestGithubParserReadsGoreleaserActionArgs(t *testing.T) {
 	}
 	assert.ElementsMatch(t, []string{"goreleaser release --clean", "goreleaser"}, runs)
 }
+
+func TestGithubParserReadsPullRequestFilters(t *testing.T) {
+	artifact := parseOne(t, "on:\n  pull_request:\n    types: [opened, closed]\n    branches-ignore: [docs/**]\n  push:\n    branches: [main]\njobs:\n  a:\n    runs-on: x\n    steps:\n      - run: echo\n")
+	assert.Equal(t, []models.Trigger{
+		{Event: "pull_request", IgnoredBranches: []string{"docs/**"}, Types: []string{"opened", "closed"}},
+		{Event: "push", Branches: []string{"main"}},
+	}, artifact.Triggers)
+}

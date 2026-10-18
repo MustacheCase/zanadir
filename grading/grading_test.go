@@ -1,6 +1,7 @@
 package grading
 
 import (
+	"cmp"
 	"regexp"
 	"testing"
 
@@ -516,6 +517,45 @@ func TestGradeOfAWorkflowNameMatch(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := Grade(tt.finding); got != tt.want {
+				t.Errorf("Grade = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// A pull request trigger gates only if it runs on the changes themselves and
+// on pull requests to the default branch.
+func TestPullRequestFilters(t *testing.T) {
+	pr := func(trigger models.Trigger) []models.Trigger {
+		trigger.Event = cmp.Or(trigger.Event, "pull_request")
+		return []models.Trigger{trigger}
+	}
+	tests := []struct {
+		name     string
+		triggers []models.Trigger
+		want     Verdict
+	}{
+		{"no filters", pr(models.Trigger{}), Enforcing},
+		{"review types", pr(models.Trigger{Types: []string{"opened", "labeled"}}), Enforcing},
+		{"closed only runs after the merge", pr(models.Trigger{Types: []string{"closed"}}), Partial},
+		{"pull_request_target closed only", pr(models.Trigger{Event: "pull_request_target", Types: []string{"closed", "labeled"}}), Partial},
+		{"merge_group types are its own", pr(models.Trigger{Event: "merge_group", Types: []string{"checks_requested"}}), Enforcing},
+		{"to main", pr(models.Trigger{Branches: []string{"main"}}), Enforcing},
+		{"to trunk", pr(models.Trigger{Branches: []string{"trunk"}}), Enforcing},
+		{"a glob admitting main", pr(models.Trigger{Branches: []string{"ma*"}}), Enforcing},
+		{"** admits anything", pr(models.Trigger{Branches: []string{"**"}}), Enforcing},
+		{"* stops at a slash", pr(models.Trigger{Branches: []string{"release/*"}}), Unknown},
+		{"another branch only", pr(models.Trigger{Branches: []string{"legacy-v1"}}), Unknown},
+		{"negated after including", pr(models.Trigger{Branches: []string{"**", "!main"}}), Unknown},
+		{"ignoring main", pr(models.Trigger{IgnoredBranches: []string{"main"}}), Unknown},
+		{"ignoring something else", pr(models.Trigger{IgnoredBranches: []string{"docs/**"}}), Enforcing},
+		{"a bad pattern matches nothing", pr(models.Trigger{Branches: []string{"[main"}}), Unknown},
+		{"one gating trigger wins", []models.Trigger{{Event: "pull_request", Types: []string{"closed"}}, {Event: "pull_request", Branches: []string{"main"}}}, Enforcing},
+		{"unclear outranks push", []models.Trigger{{Event: "push"}, {Event: "pull_request", Branches: []string{"legacy-v1"}}}, Unknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Grade(finding(tt.triggers, &models.Job{})); got != tt.want {
 				t.Errorf("Grade = %q, want %q", got, tt.want)
 			}
 		})

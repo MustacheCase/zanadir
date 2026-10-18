@@ -3,6 +3,7 @@
 package grading
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 
@@ -119,24 +120,84 @@ func gradeTriggers(artifact *models.Artifact) Verdict {
 		return Unknown
 	}
 
-	gates, runs := false, false
+	gates, unclear, runs := false, false, false
 	for _, trigger := range artifact.Triggers {
 		switch {
-		case gatingEvents[trigger.Event]:
-			gates = true
-		case trigger.Event == "push":
+		case !gatingEvents[trigger.Event] && trigger.Event == "push":
 			runs = true
+		case !gatingEvents[trigger.Event]:
+		case closedOnly(trigger):
+			runs = true
+		case !coversDefaultBranch(trigger):
+			unclear = true
+		default:
+			gates = true
 		}
 	}
 
 	switch {
 	case gates:
 		return Enforcing
+	case unclear:
+		return Unknown
 	case runs:
 		return Partial
 	default:
 		return Advisory
 	}
+}
+
+// reviewTypes are the pull request activity types that run on the changes
+// themselves; GitHub's default is all three. A trigger on closed alone runs
+// once the change has merged, like a push.
+var reviewTypes = []string{"opened", "synchronize", "reopened"}
+
+func closedOnly(trigger models.Trigger) bool {
+	return trigger.Event != "merge_group" && len(trigger.Types) > 0 &&
+		!slices.ContainsFunc(trigger.Types, func(t string) bool { return slices.Contains(reviewTypes, t) })
+}
+
+// defaultBranches stand for the default branch, which lives outside the
+// repository: the names it takes in practice (cli/cli and kafka use trunk).
+var defaultBranches = []string{"main", "master", "trunk", "develop"}
+
+// coversDefaultBranch reports whether a pull request trigger's branch filters
+// admit the default branch: one of defaultBranches, or only those the
+// filters name, if they name any. A filter that leaves them all out may
+// cover the default branch or may not.
+func coversDefaultBranch(trigger models.Trigger) bool {
+	candidates := defaultBranches
+	named := slices.DeleteFunc(slices.Clone(candidates), func(branch string) bool {
+		return !slices.ContainsFunc(append(slices.Clone(trigger.Branches), trigger.IgnoredBranches...), func(p string) bool {
+			return strings.TrimPrefix(p, "!") == branch
+		})
+	})
+	if len(named) > 0 {
+		candidates = named
+	}
+	for _, branch := range candidates {
+		if (len(trigger.Branches) == 0 || branchFilter(trigger.Branches, branch)) &&
+			!branchFilter(trigger.IgnoredBranches, branch) {
+			return true
+		}
+	}
+	return false
+}
+
+// branchFilter applies GitHub's branch patterns in order: * stops at a
+// slash, ** does not, and a pattern starting with ! excludes what the ones
+// before it included.
+func branchFilter(patterns []string, branch string) bool {
+	matched := false
+	for _, pattern := range patterns {
+		negated := strings.HasPrefix(pattern, "!")
+		glob := strings.TrimPrefix(pattern, "!")
+		expr := strings.NewReplacer(".", `\.`, "**", ".*", "*", "[^/]*").Replace(glob)
+		if re, err := regexp.Compile("^" + expr + "$"); err == nil && re.MatchString(branch) {
+			matched = !negated
+		}
+	}
+	return matched
 }
 
 // Supply chain tools record and sign what ships rather than look for

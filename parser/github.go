@@ -70,7 +70,9 @@ func (c continueOnError) condition() string {
 
 // triggerFilter is the map form of one event, e.g. "push: {branches: [main]}".
 type triggerFilter struct {
-	Branches stringList `yaml:"branches"`
+	Branches       stringList `yaml:"branches"`
+	BranchesIgnore stringList `yaml:"branches-ignore"`
+	Types          stringList `yaml:"types"`
 }
 
 // parseTriggers reads the three shapes "on" can take: a single event, a list
@@ -103,7 +105,8 @@ func parseTriggers(node *yaml.Node) []models.Trigger {
 			if node.Content[i+1].Kind == yaml.MappingNode {
 				_ = node.Content[i+1].Decode(&filter)
 			}
-			triggers = append(triggers, models.Trigger{Event: event, Branches: filter.Branches})
+			triggers = append(triggers, models.Trigger{Event: event, Branches: filter.Branches,
+				IgnoredBranches: filter.BranchesIgnore, Types: filter.Types})
 		}
 		if len(triggers) == 0 {
 			return nil

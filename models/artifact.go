@@ -15,6 +15,10 @@ type Artifact struct {
 type Trigger struct {
 	Event    string
 	Branches []string
+	// IgnoredBranches and Types narrow a GitHub event: branches-ignore and,
+	// for pull requests, which activity types it runs on.
+	IgnoredBranches []string
+	Types           []string
 }
 
 type Job struct {

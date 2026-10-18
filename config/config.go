@@ -33,6 +33,9 @@ type Config struct {
 	FailOn []string
 	// FailOnWeakened makes a control that cannot fail a build fail the scan.
 	FailOnWeakened bool
+	// RequiredChecks reads the default branch's required checks from GitHub,
+	// so a control counts as enforcing only when its check must pass.
+	RequiredChecks bool
 	// Baseline is the path to a file of already-accepted gaps.
 	Baseline      string
 	WriteBaseline bool
@@ -141,6 +144,7 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	flags := cmd.Flags()
 	cfg.Enforce, _ = flags.GetBool("enforce")
 	cfg.FailOnWeakened, _ = flags.GetBool("fail-on-weakened")
+	cfg.RequiredChecks, _ = flags.GetBool("required-checks")
 	cfg.Baseline, _ = flags.GetString("baseline")
 	cfg.WriteBaseline, _ = flags.GetBool("write-baseline")
 	cfg.Badge, _ = flags.GetString("badge")

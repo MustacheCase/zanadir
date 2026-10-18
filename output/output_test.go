@@ -748,3 +748,75 @@ func TestRenderPropagatesErrorsFromTheBlocksBelowTheTable(t *testing.T) {
 		}
 	})
 }
+
+func gatedReport(format string) Report {
+	return Report{
+		Format:   format,
+		Score:    score.Score{Covered: 11, Total: 11},
+		Weakened: []Weakness{{Category: "SAST", Verdict: "partial", Location: ".github/workflows/codeql.yml", Reason: "its check is not required to merge"}},
+		Gate:     &Gate{Branch: "main", Problems: []string{`ruleset "checks" requires "Run tests" but applies to no branch`}},
+	}
+}
+
+func TestResponse_ReportsTheMergeSettings(t *testing.T) {
+	markdown := gatedReport(config.OutputMarkdown)
+	markdown.Gate.Required = []string{"Unit tests", "lint"}
+	for _, tt := range []struct {
+		report Report
+		want   []string
+	}{
+		{gatedReport(config.OutputTable), []string{
+			"SAST is partial (.github/workflows/codeql.yml): its check is not required to merge",
+			"Merge settings for main:\n  No check is required to merge into main.\n  Problem: ruleset \"checks\" requires \"Run tests\" but applies to no branch.",
+		}},
+		{markdown, []string{
+			"- `SAST` is **partial** in `.github/workflows/codeql.yml`: its check is not required to merge",
+			"**Merge settings for main:**\n\n- Required to merge: Unit tests, lint.\n- Problem: ruleset",
+		}},
+		{gatedReport(config.OutputJSON), []string{
+			`"reason": "its check is not required to merge"`,
+			"\"requiredChecks\": {\n    \"branch\": \"main\",\n    \"required\": [],",
+		}},
+		{gatedReport(config.OutputSARIF), []string{
+			"SAST tooling is present but partial: its check is not required to merge, so a failing run does not block a pull request.",
+		}},
+	} {
+		out, err := renderString(tt.report)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", tt.report.Format, err)
+		}
+		for _, want := range tt.want {
+			if !strings.Contains(out, want) {
+				t.Errorf("%s output lacks %q:\n%s", tt.report.Format, want, out)
+			}
+		}
+	}
+
+	out, _ := renderString(Report{Format: config.OutputJSON})
+	if strings.Contains(out, "requiredChecks") {
+		t.Error("requiredChecks is absent unless --required-checks read them")
+	}
+}
+
+func TestRenderGatePropagatesWriteErrors(t *testing.T) {
+	boom := errors.New("disk full")
+	merge := &Gate{Branch: "main"}
+	for name, err := range map[string]error{
+		"title":           renderGate(failingWriter{err: boom}, merge, false),
+		"line":            renderGate(&failAfterWriter{ok: 1, err: boom}, merge, false),
+		"from the footer": render(&failAfterWriter{ok: 3, err: boom}, gatedReport(config.OutputTable)),
+	} {
+		if !errors.Is(err, boom) {
+			t.Errorf("%s: expected the write error to propagate, got %v", name, err)
+		}
+	}
+	if err := renderGate(failingWriter{err: boom}, nil, false); err != nil {
+		t.Errorf("no gate should not touch the writer, got %v", err)
+	}
+}
+
+func renderString(report Report) (string, error) {
+	var b strings.Builder
+	err := render(&b, report)
+	return b.String(), err
+}

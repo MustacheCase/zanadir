@@ -21,6 +21,7 @@ type File struct {
 	Enforce            *bool    `yaml:"enforce"`
 	FailOn             []string `yaml:"fail-on"`
 	FailOnWeakened     *bool    `yaml:"fail-on-weakened"`
+	RequiredChecks     *bool    `yaml:"required-checks"`
 	Baseline           string   `yaml:"baseline"`
 	Debug              *bool    `yaml:"debug"`
 	Output             string   `yaml:"output"`
@@ -53,7 +54,7 @@ func (f *File) values(base string) map[string][]string {
 	if f.FailOn != nil {
 		v["fail-on"] = f.FailOn
 	}
-	for name, b := range map[string]*bool{"enforce": f.Enforce, "fail-on-weakened": f.FailOnWeakened, "debug": f.Debug} {
+	for name, b := range map[string]*bool{"enforce": f.Enforce, "fail-on-weakened": f.FailOnWeakened, "required-checks": f.RequiredChecks, "debug": f.Debug} {
 		if b != nil {
 			v[name] = []string{strconv.FormatBool(*b)}
 		}

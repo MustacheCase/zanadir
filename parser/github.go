@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"cmp"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,7 @@ type workflowDef struct {
 }
 
 type workflowJobDef struct {
+	Name            string          `yaml:"name"`
 	Uses            string          `yaml:"uses"`
 	If              string          `yaml:"if"`
 	ContinueOnError continueOnError `yaml:"continue-on-error"`
@@ -152,6 +154,12 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 
 	var jobs []*models.Job
 	for jobName, job := range wf.Jobs {
+		// A job calling a reusable workflow has no steps but still reports a
+		// check, as "name / called job".
+		if job.Uses != "" {
+			jobs = append(jobs, &models.Job{Name: jobName, Check: cmp.Or(job.Name, jobName), Needs: job.Needs,
+				ContinueOnError: job.ContinueOnError.always, JobIf: joinConditions(job.If, job.ContinueOnError.condition())})
+		}
 		for _, step := range job.Steps {
 			record := &models.Job{
 				Name: jobName,
@@ -161,6 +169,7 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 				JobIf:           joinConditions(job.If, job.ContinueOnError.condition()),
 				Needs:           job.Needs,
 				With:            stepInputs(step.With),
+				Check:           cmp.Or(job.Name, jobName),
 			}
 
 			// Tools invoked directly, e.g. "trivy fs .", only appear in Run.

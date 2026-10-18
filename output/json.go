@@ -13,6 +13,14 @@ type jsonReport struct {
 	Uncovered     []jsonCategory `json:"uncovered"`
 	Weakened      []jsonWeakness `json:"weakened"`
 	NotApplicable []string       `json:"notApplicable"`
+	// RequiredChecks is present only when --required-checks read them.
+	RequiredChecks *jsonGate `json:"requiredChecks,omitempty"`
+}
+
+type jsonGate struct {
+	Branch   string   `json:"branch"`
+	Required []string `json:"required"`
+	Problems []string `json:"problems"`
 }
 
 type jsonScore struct {
@@ -38,6 +46,7 @@ type jsonWeakness struct {
 	Category string `json:"category"`
 	Verdict  string `json:"verdict"`
 	Location string `json:"location,omitempty"`
+	Reason   string `json:"reason,omitempty"`
 }
 
 func renderJSON(w io.Writer, report Report) error {
@@ -57,6 +66,10 @@ func renderJSON(w io.Writer, report Report) error {
 	}
 	for _, weakness := range report.Weakened {
 		out.Weakened = append(out.Weakened, jsonWeakness(weakness))
+	}
+
+	if g := report.Gate; g != nil {
+		out.RequiredChecks = &jsonGate{Branch: g.Branch, Required: append([]string{}, g.Required...), Problems: append([]string{}, g.Problems...)}
 	}
 
 	encoder := json.NewEncoder(w)

@@ -164,13 +164,3 @@ func TestRunExitsWhenTheFetchFails(t *testing.T) {
 	assert.Equal(t, 1, *code)
 	assert.False(t, did)
 }
-
-func TestGithubToken(t *testing.T) {
-	t.Setenv("GITHUB_TOKEN", "")
-	t.Setenv("GH_TOKEN", "")
-	assert.Empty(t, githubToken())
-	t.Setenv("GH_TOKEN", "gh")
-	assert.Equal(t, "gh", githubToken())
-	t.Setenv("GITHUB_TOKEN", "github")
-	assert.Equal(t, "github", githubToken(), "GITHUB_TOKEN wins, as it does in Actions")
-}

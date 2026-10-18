@@ -27,6 +27,7 @@ excluded-categories: [performance testing]
 enforce: true
 fail-on: [sca, secrets detection]
 fail-on-weakened: true
+required-checks: true
 output: markdown
 badge: badge.json
 baseline: /abs/baseline.yaml
@@ -40,6 +41,7 @@ baseline: /abs/baseline.yaml
 	assert.True(t, cfg.Enforce)
 	assert.Equal(t, []string{"SCA", "Secrets Detection"}, cfg.FailOn)
 	assert.True(t, cfg.FailOnWeakened)
+	assert.True(t, cfg.RequiredChecks)
 	assert.Equal(t, OutputMarkdown, cfg.Output)
 	assert.Equal(t, filepath.Join(filepath.Dir(path), "badge.json"), cfg.Badge)
 	assert.Equal(t, "/abs/baseline.yaml", cfg.Baseline)

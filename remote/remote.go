@@ -69,6 +69,15 @@ func Parse(s string) (Repository, error) {
 	return repo, nil
 }
 
+// Token is the GitHub token from the environment, if any: GITHUB_TOKEN, as
+// in Actions, or GH_TOKEN, as the gh CLI sets it.
+func Token() string {
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		return token
+	}
+	return os.Getenv("GH_TOKEN")
+}
+
 // apiBase and client are replaced in tests.
 var (
 	apiBase = "https://api.github.com"

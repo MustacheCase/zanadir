@@ -254,3 +254,13 @@ func TestFetchReportsSetupFailures(t *testing.T) {
 	_, _, err = Fetch(Repository{Owner: "o", Name: "r"}, "")
 	assert.Error(t, err)
 }
+
+func TestToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	assert.Empty(t, Token())
+	t.Setenv("GH_TOKEN", "gh")
+	assert.Equal(t, "gh", Token())
+	t.Setenv("GITHUB_TOKEN", "github")
+	assert.Equal(t, "github", Token(), "GITHUB_TOKEN wins, as it does in Actions")
+}

@@ -40,13 +40,6 @@ var (
 )
 
 // githubToken is the token a remote scan sends, if the environment has one.
-func githubToken() string {
-	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
-		return token
-	}
-	return os.Getenv("GH_TOKEN")
-}
-
 // run builds a command's configuration and does its work, exiting non-zero
 // on any failure.
 func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Config) error) func(*cobra.Command, []string) {
@@ -59,7 +52,7 @@ func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Con
 		}
 		cleanup := func() {}
 		if cfg.Repo != nil {
-			if cfg.Dir, cleanup, err = fetchRepository(*cfg.Repo, githubToken()); err != nil {
+			if cfg.Dir, cleanup, err = fetchRepository(*cfg.Repo, remote.Token()); err != nil {
 				fmt.Printf("Error: %v\n", err)
 				exit(1)
 				return
@@ -93,6 +86,7 @@ func NewApp() *cobra.Command {
 	scanCmd.Flags().Bool("enforce", false, "Fails the CI process when any category is uncovered (optional)")
 	scanCmd.Flags().StringSlice("fail-on", []string{}, "Fail only when these specific categories are uncovered (optional)")
 	scanCmd.Flags().Bool("fail-on-weakened", false, "Also fail when a category has tooling that cannot fail a build (optional)")
+	scanCmd.Flags().Bool("required-checks", false, "Read the default branch's required checks from GitHub: a control enforces only if its check must pass to merge; uses GITHUB_TOKEN if set (optional)")
 	scanCmd.Flags().String("baseline", "", "Path to a baseline file of already-accepted gaps (optional)")
 	scanCmd.Flags().Bool("write-baseline", false, "Write the current uncovered categories to the baseline file and exit successfully (optional)")
 	scanCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif, markdown) (optional)")

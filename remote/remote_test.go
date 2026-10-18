@@ -117,7 +117,11 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 		entry{name: "owner-repo-abc/.renovaterc", body: "{}"},
 		entry{name: "owner-repo-abc/Makefile", body: "lint:\n"},
 		entry{name: "owner-repo-abc/mk/ci.mk", body: "ci:\n"},
+		entry{name: "owner-repo-abc/Makefile.common", body: "common:\n"},
 		entry{name: "owner-repo-abc/tox.ini", body: "[tox]\n"},
+		entry{name: "owner-repo-abc/.make/main.go", body: "package main\n"},
+		entry{name: "owner-repo-abc/tools/.make/go.mod", body: "module make\n"},
+		entry{name: "owner-repo-abc/cmd/main.go", body: "package main\n"},
 		entry{name: "owner-repo-abc/go.mod", body: "module x\n"},
 		entry{name: "owner-repo-abc/infra/main.tf", body: "resource {}\n"},
 		entry{name: "owner-repo-abc/link", typeflag: tar.TypeSymlink},
@@ -138,7 +142,11 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 	assert.Equal(t, "{}", read(".renovaterc"))
 	assert.Equal(t, "lint:\n", read("Makefile"))
 	assert.Equal(t, "ci:\n", read("mk/ci.mk"))
+	assert.Equal(t, "common:\n", read("Makefile.common"))
 	assert.Equal(t, "[tox]\n", read("tox.ini"))
+	assert.Equal(t, "package main\n", read(".make/main.go"))
+	assert.Equal(t, "module make\n", read("tools/.make/go.mod"))
+	assert.Empty(t, read("cmd/main.go"), "Go source outside .make is not read")
 	assert.Empty(t, read("go.mod"), "only the name matters, so the content is not kept")
 	assert.Empty(t, read("infra/main.tf"))
 	assert.DirExists(t, filepath.Join(dir, ".git"))

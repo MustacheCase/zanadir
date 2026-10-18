@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 )
@@ -149,18 +150,22 @@ func download(repo Repository, token, dir string) error {
 
 // keepContent reports whether zanadir reads a file's contents: CI
 // configuration and the templates it includes, Jenkinsfiles, the dependency
-// bots' configuration, and the makefiles and tox.ini that steps call into.
+// bots' configuration, the makefiles and tox.ini that steps call into, and a
+// go-make build, which lives in .make.
 func keepContent(name string) bool {
+	if slices.Contains(strings.Split(filepath.ToSlash(name), "/"), ".make") {
+		return true
+	}
 	base := strings.ToLower(filepath.Base(name))
 	switch filepath.Ext(base) {
 	case ".yml", ".yaml", ".json", ".json5", ".mk":
 		return true
 	}
-	switch base {
-	case ".renovaterc", "makefile", "gnumakefile", "tox.ini":
+	if base == ".renovaterc" || base == "tox.ini" {
 		return true
 	}
-	return strings.HasPrefix(base, "jenkinsfile")
+	// Makefile.common and the like are included by the Makefile.
+	return strings.HasPrefix(base, "jenkinsfile") || strings.HasPrefix(base, "makefile") || strings.HasPrefix(base, "gnumakefile")
 }
 
 // extract unpacks a GitHub tarball, whose entries sit under one top-level

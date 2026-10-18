@@ -1,6 +1,9 @@
 package matcher
 
 import (
+	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/internal/shell"
@@ -75,7 +78,9 @@ func matchingSteps(artifact *models.Artifact, rule *rules.Rule, field string) []
 		case rules.FieldJobName:
 			text = job.Name
 		case rules.FieldJobPackage:
-			text = job.Package
+			if !setupAction.MatchString(job.Package) {
+				text = job.Package
+			}
 		case rules.FieldJobRun:
 			text = invocations(job.Run)
 		default:
@@ -90,20 +95,57 @@ func matchingSteps(artifact *models.Artifact, rule *rules.Rule, field string) []
 	return matched
 }
 
-// passiveCommands handle a tool's files without running it: making a freshly
-// built grype executable does not scan anything.
-var passiveCommands = map[string]bool{
-	"cat": true, "chmod": true, "chown": true, "cp": true, "echo": true, "file": true,
-	"install": true, "ln": true, "ls": true, "mkdir": true, "mv": true, "printf": true,
-	"rm": true, "stat": true, "tar": true, "touch": true, "unzip": true, "which": true,
+// passiveCommands handle or fetch a tool's files without running it: making
+// a freshly built grype executable, or downloading its installer, scans
+// nothing.
+var passiveCommands = set("cat", "chmod", "chown", "cp", "curl", "echo", "file", "install", "ln", "ls",
+	"mkdir", "mv", "printf", "rm", "stat", "tar", "touch", "unzip", "wget", "which")
+
+// A package manager installs a tool when one of its first two words says so:
+// "pip install bandit", "uv tool install ruff", "go install …/gosec".
+var (
+	packageManagers = set("apk", "apt", "apt-get", "brew", "bun", "cargo", "choco", "composer", "conda", "dnf",
+		"dotnet", "gem", "go", "mamba", "npm", "pip", "pip3", "pipx", "pnpm", "poetry", "scoop", "uv", "yarn", "yum")
+	installing = set("add", "binstall", "ci", "download", "get", "i", "inject", "install", "require")
+	// Asking a tool for its version or help runs no scan.
+	selfDescribing = set("--help", "--version", "-V", "-h", "-version", "help", "version")
+)
+
+// setupAction names an action that installs a tool for later steps.
+var setupAction = regexp.MustCompile(`(?i)(?:^|/)(?:setup|install|download)(?:-[^/]*)?$|-(?:installer|setup)$`)
+
+func set(words ...string) map[string]bool {
+	m := make(map[string]bool, len(words))
+	for _, w := range words {
+		m[w] = true
+	}
+	return m
 }
 
-// invocations keeps the commands of a run script that are not passive, one
-// per line.
+// passive reports whether a command handles, installs or describes a tool
+// rather than running it.
+func passive(words []string) bool {
+	if len(words) > 2 && strings.HasPrefix(filepath.Base(words[0]), "python") && words[1] == "-m" {
+		words = words[2:]
+	}
+	program := filepath.Base(words[0])
+	switch {
+	case passiveCommands[program]:
+		return true
+	case len(words) == 2 && selfDescribing[words[1]]:
+		return true
+	case packageManagers[program]:
+		return slices.ContainsFunc(words[1:min(3, len(words))], func(w string) bool { return installing[w] })
+	}
+	return false
+}
+
+// invocations keeps the commands of a run script that run something, one per
+// line.
 func invocations(run string) string {
 	var kept []string
 	for _, command := range shell.Commands(run) {
-		if words := shell.Words(command); len(words) > 0 && !passiveCommands[words[0]] {
+		if words := shell.Words(command); len(words) > 0 && !passive(words) {
 			kept = append(kept, command)
 		}
 	}

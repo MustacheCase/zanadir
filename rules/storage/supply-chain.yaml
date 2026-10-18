@@ -19,7 +19,7 @@ rules:
   - id: "cosign-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]
-    regex: "(?i)\\bcosign\\b|sigstore/cosign-installer"
+    regex: "(?i)\\bcosign\\b"
 
   - id: "slsa-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

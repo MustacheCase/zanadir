@@ -363,7 +363,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 		},
 		{
 			ruleID:         "cosign-rule",
-			shouldMatch:    []string{"cosign sign --yes $IMAGE", "sigstore/cosign-installer@v3"},
+			shouldMatch:    []string{"cosign sign --yes $IMAGE"},
 			shouldNotMatch: []string{"cosigning the release", "cosigner"},
 		},
 		{

@@ -476,3 +476,30 @@ func TestReusableWorkflowsInheritTheirCallers(t *testing.T) {
 	assert.Equal(t, "org/sec/.github/workflows/gitleaks.yml", remote.Package, "a remote reusable workflow can be matched by its path")
 	assert.Equal(t, "v1", remote.Version)
 }
+
+// django runs flake8 through liskin/gh-problem-matcher-wrap's run: input.
+func TestGithubParserReadsACommandPassedToAnAction(t *testing.T) {
+	artifact := parseOne(t, `on: pull_request
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: liskin/gh-problem-matcher-wrap@v3
+        with:
+          linters: flake8
+          run: flake8
+      - uses: nick-fields/retry@v3
+        with:
+          command: go test ./...
+      - uses: actions/github-script@v7
+        with:
+          script: console.log("not a shell command")
+`)
+	runs := map[string]string{}
+	for _, job := range artifact.Jobs {
+		runs[job.Package] = job.Run
+	}
+	assert.Equal(t, "flake8", runs["liskin/gh-problem-matcher-wrap"])
+	assert.Equal(t, "go test ./...", runs["nick-fields/retry"])
+	assert.Empty(t, runs["actions/github-script"])
+}

@@ -238,6 +238,9 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 			pkgName, version := parseStepUsageStatement(step.Uses)
 			if pkgName != "" {
 				record.Package, record.Version = pkgName, version
+				// Wrapper actions such as a retry or a problem matcher take the
+				// command they run as an input.
+				record.Run = cmp.Or(record.With["run"], record.With["command"])
 				jobs = append(jobs, record)
 			}
 		}

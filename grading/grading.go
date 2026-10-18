@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/internal/shell"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
@@ -62,7 +63,8 @@ func Grade(finding *matcher.Finding) Verdict {
 
 	shipping := finding.Category == string(models.SupplyChain)
 	if job := finding.Job; job != nil {
-		if job.ContinueOnError {
+		// The shell's way of saying continue-on-error: "|| true", "if ! …".
+		if job.ContinueOnError || finding.Rule != nil && finding.Rule.Regex != nil && shell.Swallowed(job.Run, finding.Rule.Regex.MatchString) {
 			return Advisory
 		}
 		// A manual step may be the release itself; the file cannot say.

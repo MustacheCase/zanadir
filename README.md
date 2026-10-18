@@ -450,9 +450,11 @@ So accepting `partial` does not also accept it becoming `advisory` later. If
 the control gets worse than its recorded verdict, the scan fails again.
 `--write-baseline` records the verdicts for you.
 
-Some of this is generic - `continue-on-error` defeats any control, and so does
-a workflow that only runs on a schedule. The rest is specific to one tool, and
-a rule can say so:
+Some of this is generic. `continue-on-error` defeats any control, and so do
+its shell spellings: `gitleaks detect || true`, `|| echo failed`, and running
+the tool as the condition of an `if` or a `!`. A `|| exit 1` that fails again
+is fine. So does a workflow that only runs on a schedule. The rest is specific
+to one tool, and a rule can say so:
 
 ```yaml
   - id: "tfsec-rule"

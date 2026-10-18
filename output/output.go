@@ -41,6 +41,8 @@ type Report struct {
 type Gate struct {
 	Branch   string
 	Required []string
+	// Scanning names the code scanning tools whose alerts block a merge.
+	Scanning []string
 	Problems []string
 }
 
@@ -68,6 +70,9 @@ func gateLines(g *Gate) (string, []string) {
 	lines := []string{fmt.Sprintf("No check is required to merge into %s.", g.Branch)}
 	if len(g.Required) > 0 {
 		lines = []string{fmt.Sprintf("Required to merge: %s.", strings.Join(g.Required, ", "))}
+	}
+	if len(g.Scanning) > 0 {
+		lines = append(lines, fmt.Sprintf("Code scanning alerts block a merge from: %s.", strings.Join(g.Scanning, ", ")))
 	}
 	for _, problem := range g.Problems {
 		lines = append(lines, "Problem: "+problem+".")

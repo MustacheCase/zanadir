@@ -1009,8 +1009,8 @@ func TestMergeGate(t *testing.T) {
 
 func TestReportGate(t *testing.T) {
 	assert.Nil(t, reportGate(nil))
-	assert.Equal(t, &output.Gate{Branch: "main", Required: []string{"DCO", "lint"}, Problems: []string{"p"}},
-		reportGate(&gate.Gate{Branch: "main", Checks: []gate.Check{{Context: "DCO"}, {Context: "lint"}, {Context: "DCO", AppID: 1}}, Problems: []string{"p"}}))
+	assert.Equal(t, &output.Gate{Branch: "main", Required: []string{"DCO", "lint"}, Scanning: []string{"zizmor"}, Problems: []string{"p"}},
+		reportGate(&gate.Gate{Branch: "main", Checks: []gate.Check{{Context: "DCO"}, {Context: "lint"}, {Context: "DCO", AppID: 1}}, Scanning: []string{"zizmor"}, Problems: []string{"p"}}))
 }
 
 func TestExecuteGradesAgainstTheMergeSettings(t *testing.T) {

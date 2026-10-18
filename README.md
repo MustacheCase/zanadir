@@ -67,9 +67,12 @@ zanadir fix --repo owner/name
 
 `--repo` downloads the repository's archive into a temporary directory, scans
 it exactly as a checkout, and removes it. Only the files zanadir reads keep
-their contents. Public repositories need no token; set `GITHUB_TOKEN` (or
-`GH_TOKEN`) to reach private ones or raise GitHub's rate limit. GitLab and
-Bitbucket repositories still need a clone.
+their contents. GitHub's archive leaves out whatever `.gitattributes` marks
+`export-ignore`, which often includes `.github`, so zanadir fetches those
+files separately rather than report a repository with no CI. Public
+repositories need no token; set `GITHUB_TOKEN` (or `GH_TOKEN`) to reach
+private ones or raise GitHub's rate limit. GitLab and Bitbucket repositories
+still need a clone.
 
 ### Output Formats
 

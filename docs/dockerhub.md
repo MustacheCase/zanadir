@@ -35,6 +35,9 @@ The image is published for `linux/amd64` and `linux/arm64`, so it runs natively 
 # A private repository, a branch, tag or commit, or more than GitHub's anonymous rate limit
 docker run --rm -e GITHUB_TOKEN mustachecase/zanadir scan --repo owner/name@v2.0.0
 
+# Grade controls against the checks the default branch requires to merge
+docker run --rm -e GITHUB_TOKEN mustachecase/zanadir scan --repo owner/name --required-checks
+
 # Fail (exit 1) when a category has no tooling, or tooling that cannot fail a build
 docker run --rm -v "$PWD:/repo" mustachecase/zanadir scan --dir /repo --enforce --fail-on-weakened
 
@@ -62,7 +65,7 @@ docker run --rm -v "$PWD:/repo" mustachecase/zanadir scan --dir /repo -c /repo/.
 Use the action rather than the image directly:
 
 ```yaml
-- uses: mustachecase/zanadir-action@v1.15
+- uses: mustachecase/zanadir-action@v1.17
   with:
     dir: .
 ```
@@ -72,7 +75,7 @@ See https://github.com/MustacheCase/zanadir-action.
 ## Tags
 
 - `latest` - the newest release
-- `0.9.0`, `0.8.0`, ... - one tag per [release](https://github.com/MustacheCase/zanadir/releases); pin one in CI
+- `0.12.0`, `0.11.0`, ... - one tag per [release](https://github.com/MustacheCase/zanadir/releases); pin one in CI
 
 Every release has an SPDX SBOM attached on GitHub. The image is built `FROM scratch`: the static binary, CA certificates and the rule catalogue, nothing else.
 

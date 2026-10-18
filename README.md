@@ -647,6 +647,11 @@ The category that failed the build is printed to stderr:
 Enforcement failed: uncovered categories: SCA, Secrets Detection
 ```
 
+Exit codes: `0` when the scan passes, `1` when enforcement fails or the scan
+cannot run (an unreadable directory or configuration), and `2` for a command
+line zanadir does not understand, such as a mistyped flag. A typo therefore
+fails the build instead of passing it with nothing enforced.
+
 #### Failing on Specific Categories
 
 `--enforce` is all-or-nothing, which makes it hard to adopt on an existing

@@ -1,37 +1,26 @@
 package main
 
 import (
-	"errors"
 	"os"
 
 	"github.com/MustacheCase/zanadir/app"
-	"github.com/MustacheCase/zanadir/logger"
-	"github.com/MustacheCase/zanadir/types"
+	"github.com/spf13/cobra"
 )
 
-var l = logger.GetLogger()
+// exit is os.Exit, replaced in tests.
+var exit = os.Exit
 
-// main function
 func main() {
-	if err := run(); err != nil {
-		var exitError *types.ExitError
-		if errors.As(err, &exitError) {
-			os.Exit(exitError.Code)
-		}
-
-		var userErr *types.UserError
-		if errors.As(err, &userErr) {
-			l.Error("User error: %v", err)
-		}
-
-		l.Error("Scanner error: %v", err)
-	}
+	exit(run(app.NewApp(), os.Args[1:]))
 }
 
-func run() error {
-	newApp := app.NewApp()
-	if err := newApp.Execute(); err != nil {
-		return err
+// run executes the command line. A scan or fix that fails exits 1 from within
+// the command, so an error reaching here is one cobra raised while parsing -
+// an unknown flag or command - and has already been printed with the usage.
+func run(cmd *cobra.Command, args []string) int {
+	cmd.SetArgs(args)
+	if cmd.Execute() != nil {
+		return 2
 	}
-	return nil
+	return 0
 }

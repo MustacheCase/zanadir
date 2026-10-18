@@ -248,3 +248,40 @@ func TestAStepWinsOverTheWorkflowName(t *testing.T) {
 	assert.Len(t, found, 1)
 	assert.Nil(t, found[0].Job, "with no step to go on, the name is the evidence")
 }
+
+// Installing a tool, fetching it or asking its version is not running it,
+// and such a step outranked a real run that was weakened.
+func TestInstallingIsNotRunning(t *testing.T) {
+	tool := regexp.MustCompile(`(?i)\b(?:bandit|gosec|eslint|grype|trivy|osv-scanner|ruff|cosign|snyk|syft)\b`)
+	rule := &rules.Rule{ID: "tool", Regex: tool, ApplyOn: []string{rules.FieldJobRun, rules.FieldJobPackage}, Categories: []string{"X"}}
+	for _, tt := range []struct {
+		step models.Job
+		runs bool
+	}{
+		{models.Job{Run: "pip install bandit"}, false},
+		{models.Job{Run: "python3 -m pip install --upgrade bandit"}, false},
+		{models.Job{Run: "uv tool install ruff"}, false},
+		{models.Job{Run: "go install github.com/securego/gosec/v2/cmd/gosec@latest"}, false},
+		{models.Job{Run: "npm install --save-dev eslint"}, false},
+		{models.Job{Run: "sudo apt-get install -y trivy"}, false},
+		{models.Job{Run: "curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin"}, false},
+		{models.Job{Run: "trivy --version"}, false},
+		{models.Job{Run: "osv-scanner version"}, false},
+		{models.Job{Package: "aquasecurity/setup-trivy"}, false},
+		{models.Job{Package: "sigstore/cosign-installer"}, false},
+		{models.Job{Package: "snyk/actions/setup"}, false},
+		{models.Job{Package: "anchore/sbom-action/download-syft"}, false},
+		{models.Job{Run: "bandit -r src"}, true},
+		{models.Job{Run: "pipx run bandit -r src"}, true},
+		{models.Job{Run: "uv run ruff check ."}, true},
+		{models.Job{Run: "npx eslint ."}, true},
+		{models.Job{Run: "go run github.com/securego/gosec/v2/cmd/gosec ./..."}, true},
+		{models.Job{Run: "trivy fs --version-check=false ."}, true},
+		{models.Job{Package: "snyk/actions/node"}, true},
+		{models.Job{Package: "aquasecurity/trivy-action"}, true},
+	} {
+		step := tt.step
+		found := matcher.NewMatchService().Match([]*models.Artifact{{Jobs: []*models.Job{&step}}}, []*rules.Rule{rule})
+		assert.Equal(t, tt.runs, len(found) == 1, "%+v", step)
+	}
+}

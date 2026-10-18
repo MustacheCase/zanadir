@@ -74,6 +74,8 @@ func (e *Expander) script(dir, script string) {
 			e.tox(dir, words[1:])
 		case "go":
 			e.goRun(dir, words[1:])
+		case "goreleaser":
+			e.goreleaser(dir, words[1:])
 		}
 	}
 }

@@ -329,7 +329,7 @@ badge:
   permissions:
     contents: write
   steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Run zanadir
       run: zanadir scan --dir . --badge zanadir-badge.json
@@ -778,14 +778,14 @@ zanadir fix --dir .
 ```
 
 ```
-Data Leakage & Secrets Detection is not covered. Add to .github/workflows/security.yml:
+Infrastructure as Code Security is not covered. Add to .github/workflows/security.yml:
 
-  - name: Detect secrets
-    uses: gitleaks/gitleaks-action@v2
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  - name: Scan infrastructure as code
+    uses: bridgecrewio/checkov-action@v12
+    with:
+      directory: .
 
-  https://github.com/gitleaks/gitleaks
+  https://github.com/bridgecrewio/checkov
 ```
 
 It prints only; no file is touched. The CI platform is detected from the
@@ -795,7 +795,8 @@ accordingly.
 Not every suggested tool has a template. A category whose tools are all
 untemplated is skipped rather than emitting something half-right, so `fix`
 covers fewer categories than `scan` reports. Templates live in
-`fixer/templates.yaml` and pin actions to major tags; adding one is a
+`fixer/templates.yaml` and pin actions to a major tag, or to a release
+where the action publishes no major tag, never to a branch; adding one is a
 self-contained contribution.
 
 ### Generating a workflow

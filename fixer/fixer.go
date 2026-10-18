@@ -200,7 +200,9 @@ func Workflow(snippets []Snippet) string {
 	b.WriteString("\nname: zanadir-suggested\n\non:\n  push:\n    branches: [main]\n  pull_request:\n")
 	b.WriteString("\npermissions:\n  contents: read\n")
 	b.WriteString("\njobs:\n  suggested:\n    runs-on: ubuntu-latest\n    steps:\n")
-	b.WriteString("      - uses: actions/checkout@v4\n")
+	// Without persist-credentials: false, zizmor reports the checkout as
+	// leaving the token on disk.
+	b.WriteString("      - uses: actions/checkout@v7\n        with:\n          persist-credentials: false\n")
 
 	for _, s := range snippets {
 		fmt.Fprintf(&b, "\n      # %s\n", s.Category)

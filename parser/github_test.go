@@ -503,3 +503,12 @@ jobs:
 	assert.Equal(t, "go test ./...", runs["nick-fields/retry"])
 	assert.Empty(t, runs["actions/github-script"])
 }
+
+func TestGithubParserReadsGoreleaserActionArgs(t *testing.T) {
+	artifact := parseOne(t, "on: {push: {tags: ['v*']}}\njobs:\n  release:\n    runs-on: x\n    steps:\n      - uses: goreleaser/goreleaser-action@v6\n        with:\n          args: release --clean\n      - uses: goreleaser/goreleaser-action@v6\n")
+	var runs []string
+	for _, job := range artifact.Jobs {
+		runs = append(runs, job.Run)
+	}
+	assert.ElementsMatch(t, []string{"goreleaser release --clean", "goreleaser"}, runs)
+}

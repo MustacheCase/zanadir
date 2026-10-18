@@ -42,6 +42,8 @@ var gomakeLibrary = map[string][]*gomakeTask{
 	"golint.StaticAnalysisTask": {{name: "static-analysis", runsOn: []string{"default"},
 		commands: []string{"go mod tidy -diff", "golangci-lint run", "bouncer check ./..."}}},
 	"golint.LintTask":          {{name: "lint", commands: []string{"golangci-lint run"}}},
+	"goreleaser.Tasks":         {{name: "ci:release", aliases: []string{"ci-release"}, commands: []string{"goreleaser release --clean"}}},
+	"goreleaser.ReleaseTask":   {{name: "ci:release", aliases: []string{"ci-release"}, commands: []string{"goreleaser release --clean"}}},
 	"golint.CheckLicensesTask": {{name: "check-licenses", commands: []string{"bouncer check ./..."}}},
 }
 

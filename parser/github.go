@@ -241,6 +241,9 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 				// Wrapper actions such as a retry or a problem matcher take the
 				// command they run as an input.
 				record.Run = cmp.Or(record.With["run"], record.With["command"])
+				if pkgName == "goreleaser/goreleaser-action" {
+					record.Run = strings.TrimSpace("goreleaser " + record.With["args"])
+				}
 				jobs = append(jobs, record)
 			}
 		}

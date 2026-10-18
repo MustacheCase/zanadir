@@ -404,6 +404,13 @@ than their presence suggests:
 | `advisory` | it runs, and cannot block anything |
 | `unknown` | the configuration cannot be read well enough to say |
 
+A `pull_request` trigger gates only if it runs on the change itself and on
+pull requests to the default branch. `types: [closed]` runs after the merge,
+so it grades like a push. A `branches:` or `branches-ignore:` filter that
+leaves out the default branch makes the control `unknown`. The default branch
+is set outside the repository, so `main`, `master`, `trunk` and `develop`
+stand in for it, or whichever of them the filter names.
+
 Supply Chain is graded against a different path. An SBOM, a signature or a
 provenance attestation describes what ships rather than looking for something
 to block, so it belongs where the artifact is published: running on a release,

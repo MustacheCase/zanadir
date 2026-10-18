@@ -84,16 +84,19 @@ func (e *Expander) runTask(t *taskfile, dir, name string) {
 		e.taskItems(t, dir, node.Content, false)
 	case yaml.MappingNode:
 		var def struct {
-			Deps yaml.Node `yaml:"deps"`
-			Cmd  string    `yaml:"cmd"`
-			Cmds yaml.Node `yaml:"cmds"`
+			Deps        yaml.Node `yaml:"deps"`
+			Cmd         string    `yaml:"cmd"`
+			Cmds        yaml.Node `yaml:"cmds"`
+			IgnoreError bool      `yaml:"ignore_error"`
 		}
 		if node.Decode(&def) != nil {
 			return
 		}
 		e.taskItems(t, dir, def.Deps.Content, true)
-		e.emit(dir, def.Cmd)
-		e.taskItems(t, dir, def.Cmds.Content, false)
+		e.ignored(def.IgnoreError, func() {
+			e.emit(dir, def.Cmd)
+			e.taskItems(t, dir, def.Cmds.Content, false)
+		})
 	}
 }
 
@@ -101,7 +104,10 @@ func (e *Expander) runTask(t *taskfile, dir, name string) {
 // a plain string is a task name among deps and a command among cmds.
 func (e *Expander) taskItems(t *taskfile, dir string, items []*yaml.Node, plainIsTask bool) {
 	for _, item := range items {
-		var ref struct{ Task, Cmd string }
+		var ref struct {
+			Task, Cmd   string
+			IgnoreError bool `yaml:"ignore_error"`
+		}
 		switch {
 		case item.Kind == yaml.ScalarNode && plainIsTask:
 			e.runTask(t, dir, item.Value)
@@ -111,7 +117,7 @@ func (e *Expander) taskItems(t *taskfile, dir string, items []*yaml.Node, plainI
 		case ref.Task != "":
 			e.runTask(t, dir, ref.Task)
 		default:
-			e.emit(dir, ref.Cmd)
+			e.ignored(ref.IgnoreError, func() { e.emit(dir, ref.Cmd) })
 		}
 	}
 }

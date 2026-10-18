@@ -55,12 +55,12 @@ include mk/*.mk
 	assert.Equal(t, []string{
 		"go mod tidy -diff",
 		".tool/golangci-lint run --timeout 5m -v",
-		`echo "$HOME"`,
+		`echo "$HOME" || true`,
 	}, expand(t, files, "make -j4 V=1 lint"))
 	assert.Equal(t, []string{"go test ./..."}, expand(t, files, "make test"))
 	assert.Equal(t, []string{"govulncheck ./..."}, expand(t, files, "make extra"))
 	assert.Contains(t, expand(t, files, "make ci"), ".tool/golangci-lint run --timeout 5m -v")
-	assert.Equal(t, []string{"go mod tidy -diff", ".tool/golangci-lint run --timeout 5m -v", `echo "$HOME"`},
+	assert.Equal(t, []string{"go mod tidy -diff", ".tool/golangci-lint run --timeout 5m -v", `echo "$HOME" || true`},
 		expand(t, files, "make"), "the first target is the default goal")
 	assert.Nil(t, expand(t, files, "make check"), "a target-specific variable is not a rule")
 	assert.Nil(t, expand(t, files, "make unknown"))
@@ -174,8 +174,8 @@ commands = - ruff check .
 not a key
 `}
 	assert.Equal(t, []string{"uv sync", "pytest --cov src {posargs}"}, expand(t, files, `uv run --frozen tox -e "$TOXENV"`))
-	assert.Equal(t, []string{"ruff check ."}, expand(t, files, "python -m tox -e lint,lint -- -x && tox -e lint"))
-	assert.Equal(t, []string{"uv sync", "pytest --cov src {posargs}", "ruff check ."}, expand(t, files, "tox"))
+	assert.Equal(t, []string{"ruff check . || true"}, expand(t, files, "python -m tox -e lint,lint -- -x && tox -e lint"))
+	assert.Equal(t, []string{"uv sync", "pytest --cov src {posargs}", "ruff check . || true"}, expand(t, files, "tox"))
 	assert.Equal(t, []string{"uv sync", "pytest --cov src {posargs}"},
 		expand(t, map[string]string{"tox.ini": "[testenv]\ncommands =\n    uv sync\n    pytest --cov src {posargs}\n"}, "poetry run tox"))
 	assert.Nil(t, expand(t, map[string]string{}, "tox"))
@@ -183,4 +183,31 @@ not a key
 
 func TestNothingToFollow(t *testing.T) {
 	assert.Nil(t, expand(t, map[string]string{"Makefile": "lint:\n\techo\n"}, "golangci-lint run\n\nsudo FOO=1"))
+}
+
+// A wrapper's own way of ignoring a failure is kept as "|| true", which
+// grading reads as it reads the shell's.
+func TestWrappersKeepTheirIgnoreMarkers(t *testing.T) {
+	makefile := map[string]string{"Makefile": "lint:\n\t-golangci-lint run\n\tgo vet ./...\nall:\n\t-$(MAKE) lint\ntest:\n\tgo test ./...\n"}
+	assert.Equal(t, []string{"golangci-lint run || true", "go vet ./..."}, expand(t, makefile, "make lint"))
+	assert.Equal(t, []string{"make lint || true", "golangci-lint run || true", "go vet ./... || true"}, expand(t, makefile, "make all"), "ignoring reaches through a nested make")
+	for _, flags := range []string{"-i", "-ik", "--ignore-errors"} {
+		assert.Equal(t, []string{"go test ./... || true"}, expand(t, makefile, "make "+flags+" test"), flags)
+	}
+	assert.Equal(t, []string{"go test ./..."}, expand(t, makefile, "make -k test"), "-k keeps going but still fails")
+
+	ignoring := map[string]string{"Makefile": ".IGNORE: lint\nlint:\n\tgolangci-lint run\ntest:\n\tgo test ./...\n"}
+	assert.Equal(t, []string{"golangci-lint run || true"}, expand(t, ignoring, "make lint"))
+	assert.Equal(t, []string{"go test ./..."}, expand(t, ignoring, "make test"))
+	assert.Equal(t, []string{"go test ./... || true"}, expand(t, map[string]string{"Makefile": ".IGNORE:\ntest:\n\tgo test ./...\n"}, "make test"))
+
+	tox := map[string]string{"tox.ini": "[testenv]\nignore_outcome = True\ncommands = pytest\n[testenv:lint]\nignore_errors = true\ncommands = ruff check .\n"}
+	assert.Equal(t, []string{"pytest || true"}, expand(t, tox, "tox -e py"))
+	assert.Equal(t, []string{"ruff check . || true"}, expand(t, tox, "tox -e lint"), "an env inherits [testenv]'s ignore_outcome")
+	assert.Equal(t, []string{"ruff check ."}, expand(t, map[string]string{"tox.ini": "[testenv:lint]\nignore_errors = true\ncommands = ruff check .\n"}, "tox -e lint"),
+		"ignore_errors still fails the environment")
+
+	task := map[string]string{"Taskfile.yml": "tasks:\n  secrets:\n    cmds:\n      - cmd: gitleaks detect\n        ignore_error: true\n      - trufflehog git .\n  all:\n    ignore_error: true\n    cmds: [semgrep scan, {task: secrets}]\n"}
+	assert.Equal(t, []string{"gitleaks detect || true", "trufflehog git ."}, expand(t, task, "task secrets"))
+	assert.Equal(t, []string{"semgrep scan || true", "gitleaks detect || true", "trufflehog git . || true"}, expand(t, task, "task all"))
 }

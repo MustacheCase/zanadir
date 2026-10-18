@@ -1,6 +1,7 @@
 package wrapper
 
 import (
+	"cmp"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,8 +35,14 @@ func (e *Expander) tox(dir string, args []string) {
 		if !e.once("tox " + path + " " + section) {
 			continue
 		}
+		// ignore_outcome reports a failing environment as a warning, and a
+		// command starting with - has its exit code ignored.
+		outcome := strings.EqualFold(cmp.Or(ini[section]["ignore_outcome"], ini["testenv"]["ignore_outcome"]), "true")
 		for _, command := range strings.Split(ini[section]["commands"], "\n") {
-			e.emit(dir, strings.TrimPrefix(strings.TrimSpace(command), "- "))
+			command = strings.TrimSpace(command)
+			e.ignored(outcome || strings.HasPrefix(command, "-"), func() {
+				e.emit(dir, strings.TrimSpace(strings.TrimPrefix(command, "-")))
+			})
 		}
 	}
 }

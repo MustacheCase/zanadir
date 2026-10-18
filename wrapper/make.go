@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -27,7 +28,7 @@ type makefile struct {
 }
 
 func (e *Expander) make(dir string, args []string) {
-	file := ""
+	file, ignore := "", false
 	var goals []string
 	for i := 0; i < len(args); i++ {
 		switch arg := args[i]; {
@@ -39,6 +40,8 @@ func (e *Expander) make(dir string, args []string) {
 		case (arg == "-f" || arg == "--file") && i+1 < len(args):
 			i++
 			file = args[i]
+		case arg == "--ignore-errors" || strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") && strings.ContainsRune(arg, 'i'):
+			ignore = true
 		case strings.HasPrefix(arg, "-") || strings.Contains(arg, "="):
 		default:
 			goals = append(goals, arg)
@@ -56,9 +59,11 @@ func (e *Expander) make(dir string, args []string) {
 	if len(goals) == 0 {
 		goals = []string{m.defaultGoal()}
 	}
-	for _, goal := range goals {
-		e.makeTarget(m, dir, goal)
-	}
+	e.ignored(ignore, func() {
+		for _, goal := range goals {
+			e.makeTarget(m, dir, goal)
+		}
+	})
 }
 
 func (e *Expander) makefile(path string) *makefile {
@@ -93,8 +98,14 @@ func (e *Expander) makeTarget(m *makefile, dir, target string) {
 		e.makeTarget(m, dir, prereq)
 	}
 	automatic := strings.NewReplacer("$@", target, "$*", target, "$(MAKE)", "make", "${MAKE}", "make")
+	ignoring := m.rules[".IGNORE"]
+	ignoreAll := ignoring != nil && (len(ignoring.prereqs) == 0 || slices.Contains(ignoring.prereqs, target))
 	for _, line := range rule.recipe {
-		e.emit(dir, m.expand(automatic.Replace(strings.TrimLeft(line, "@-+ \t"))))
+		command := strings.TrimLeft(line, "@-+ \t")
+		// A recipe line starting with - has its failure ignored.
+		e.ignored(ignoreAll || strings.Contains(line[:len(line)-len(command)], "-"), func() {
+			e.emit(dir, m.expand(automatic.Replace(command)))
+		})
 	}
 }
 

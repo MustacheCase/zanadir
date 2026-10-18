@@ -4,8 +4,15 @@ rules:
     categories: ["SAST"]
     regex: "(?i)\\bsemgrep\\b"
 
+  # The analysis steps and the CLI, not upload-sarif: that action uploads
+  # any tool's SARIF, zanadir's own included.
   - id: "codeql-rule"
-    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)github/codeql-action/(?:init|analyze|autobuild)\\b|\\bcodeql\\s+(?:database|query|github|resolve|pack)\\b|advancedsecurity-codeql-"
+
+  - id: "codeql-name-rule"
+    applyOn: ["Artifact.Name"]
     categories: ["SAST"]
     regex: "(?i)\\bcodeql\\b"
 

@@ -241,7 +241,7 @@ func gated(a Assessment, finding *matcher.Finding, required Required) Assessment
 	if finding.Job != nil {
 		jobs = []*models.Job{finding.Job}
 	}
-	checked := false
+	checked, unclear := false, false
 	for _, job := range jobs {
 		if job.Check == "" {
 			continue
@@ -249,9 +249,16 @@ func gated(a Assessment, finding *matcher.Finding, required Required) Assessment
 		if blocks(job, finding.Artifact.Jobs, required, map[string]bool{}) {
 			return a
 		}
-		checked = true
+		if job.UnnamedCheck() {
+			unclear = true
+		} else {
+			checked = true
+		}
 	}
-	if checked {
+	switch {
+	case unclear:
+		a.Verdict = Unknown
+	case checked:
 		a.Verdict, a.Reason = Partial, NotRequired
 	}
 	return a

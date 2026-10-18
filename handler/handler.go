@@ -205,15 +205,15 @@ func mergeGate(cfg *config.Config, artifacts []*models.Artifact) *gate.Gate {
 		_, _ = fmt.Fprintf(stderr, "Warning: --required-checks could not read the merge settings (%v); grading without them\n", err)
 		return nil
 	}
-	var checks []string
+	var jobs []*models.Job
 	for _, a := range artifacts {
 		for _, job := range a.Jobs {
 			if job.Check != "" {
-				checks = append(checks, job.Check)
+				jobs = append(jobs, job)
 			}
 		}
 	}
-	merge.Unproduced(checks)
+	merge.Unproduced(jobs)
 	return merge
 }
 

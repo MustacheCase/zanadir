@@ -1,10 +1,12 @@
 package gate
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/models"
@@ -19,7 +21,10 @@ func github(t *testing.T, bodies map[string]string) *[]string {
 	var auth []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth = append(auth, r.Header.Get("Authorization"))
-		body, ok := bodies[r.URL.Path]
+		body, ok := bodies[r.URL.Path+"?"+r.URL.RawQuery]
+		if !ok {
+			body, ok = bodies[r.URL.Path]
+		}
 		switch {
 		case !ok:
 			http.NotFound(w, r)
@@ -43,7 +48,9 @@ func TestReadCollectsRequiredChecks(t *testing.T) {
 		"/repos/o/r": `{"default_branch": "release/v1"}`,
 		"/repos/o/r/rules/branches/release/v1": `[
 			{"type": "pull_request"},
-			{"type": "code_scanning", "parameters": {"code_scanning_tools": [{"tool": "zizmor"}, {"tool": "Snyk Open Source"}]}},
+			{"type": "code_scanning", "parameters": {"code_scanning_tools": [{"tool": "zizmor"}, {"tool": "Snyk Open Source"},
+				{"tool": "CodeQL", "alerts_threshold": "none", "security_alerts_threshold": "none"},
+				{"tool": "Trivy", "alerts_threshold": "none", "security_alerts_threshold": "high_or_higher"}]}},
 			{"type": "required_status_checks", "parameters": {"required_status_checks": [
 				{"context": "Unit tests", "integration_id": 15368}, {"context": "DCO"}]}}]`,
 		"/repos/o/r/branches/release/v1": `{"protection": {"required_status_checks": {
@@ -67,7 +74,7 @@ func TestReadCollectsRequiredChecks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "release/v1", g.Branch)
 	assert.Equal(t, []Check{{"Unit tests", 15368}, {"DCO", 0}, {"lint", 15368}, {"ci/prow", 0}}, g.Checks)
-	assert.Equal(t, []string{"zizmor", "Snyk Open Source"}, g.Scanning)
+	assert.Equal(t, []string{"zizmor", "Snyk Open Source", "Trivy"}, g.Scanning, "both thresholds at none block nothing")
 	assert.Equal(t, []string{
 		`ruleset "nowhere" requires "Run tests" but applies to no branch`,
 		`ruleset "trial" requires "e2e" but is evaluate, so it blocks nothing`,
@@ -118,27 +125,43 @@ func TestReadFailures(t *testing.T) {
 
 func TestRequires(t *testing.T) {
 	g := &Gate{Checks: []Check{{Context: "Unit tests"}, {Context: "build (ubuntu-latest)"},
-		{Context: "codeql / Analyze (go)"}, {Context: "Analyze (ruby)"}, {Context: "a.b+c"}}}
-	for name, want := range map[string]bool{
-		"Unit tests":                       true,
-		"build":                            true,
-		"codeql":                           true,
-		"Analyze (${{ matrix.language }})": true,
-		"${{ matrix.os }} tests":           true,
-		"${{ matrix.os }} e2e":             false,
-		"Unit":                             false,
-		"Unit tests extra":                 false,
-		"a.b+c":                            true,
-		"axb+c":                            false,
+		{Context: "codeql / Analyze (go)"}, {Context: "Analyze (ruby)"}, {Context: "a.b+c"},
+		{Context: "DCO", AppID: 1861}, {Context: "lint", AppID: actionsApp}, {Context: "scan / gitleaks"}}}
+	caller := func(check string) *models.Job {
+		return &models.Job{Check: check, Package: "./.github/workflows/codeql.yml"}
+	}
+	for _, tt := range []struct {
+		job  *models.Job
+		want bool
+	}{
+		{&models.Job{Check: "Unit tests"}, true},
+		{&models.Job{Check: "build"}, true},
+		{caller("codeql"), true},
+		{&models.Job{Check: "codeql"}, false},
+		{&models.Job{Check: "scan"}, false},
+		{&models.Job{Check: "Analyze (${{ matrix.language }})"}, true},
+		{&models.Job{Check: "${{ matrix.os }} tests"}, true},
+		{&models.Job{Check: "${{ matrix.os }} e2e"}, false},
+		{&models.Job{Check: "${{ matrix.tool }}"}, false},
+		{&models.Job{Check: "Unit"}, false},
+		{&models.Job{Check: "Unit tests extra"}, false},
+		{&models.Job{Check: "a.b+c"}, true},
+		{&models.Job{Check: "axb+c"}, false},
+		{&models.Job{Check: "DCO"}, false},
+		{&models.Job{Check: "lint"}, true},
 	} {
-		assert.Equal(t, want, g.Requires(name), name)
+		assert.Equal(t, tt.want, g.Requires(tt.job), "%+v", tt.job)
 	}
 }
 
 func TestUnproduced(t *testing.T) {
 	g := &Gate{Checks: []Check{{"Unit tests", actionsApp}, {"Gone", actionsApp}, {"DCO", 1861}, {"Any app", 0}}}
-	g.Unproduced([]string{"Unit tests"})
+	g.Unproduced([]*models.Job{{Check: "Unit tests"}})
 	assert.Equal(t, []string{`required check "Gone" is reported by no workflow job, so pull requests wait for it`}, g.Problems)
+
+	g = &Gate{Checks: []Check{{"Gone", actionsApp}}}
+	g.Unproduced([]*models.Job{{Check: "${{ matrix.name }}"}})
+	assert.Empty(t, g.Problems, "a job named by expressions may report it")
 }
 
 func TestOrigin(t *testing.T) {
@@ -179,4 +202,22 @@ func TestBlocks(t *testing.T) {
 	} {
 		assert.Equal(t, want, g.Blocks(job), job.Check)
 	}
+}
+
+// GitHub lists 30 items a page by default; a repository with more rules
+// lost the ones past the first page.
+func TestReadFollowsPages(t *testing.T) {
+	var page1 []string
+	for i := range 100 {
+		page1 = append(page1, fmt.Sprintf(`{"type": "deletion", "ruleset_id": %d}`, i))
+	}
+	github(t, map[string]string{
+		"/repos/o/r": `{"default_branch": "main"}`,
+		"/repos/o/r/rules/branches/main?per_page=100&page=1": "[" + strings.Join(page1, ",") + "]",
+		"/repos/o/r/rules/branches/main?per_page=100&page=2": `[{"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "Unit tests"}]}}]`,
+		"/repos/o/r/branches/main":                           `{}`,
+	})
+	g, err := Read(repo, "")
+	require.NoError(t, err)
+	assert.Equal(t, []Check{{Context: "Unit tests"}}, g.Checks)
 }

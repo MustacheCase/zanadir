@@ -27,3 +27,15 @@ func TestHasTriggerWithNoneCaptured(t *testing.T) {
 		t.Error("an artifact with no triggers should not report one")
 	}
 }
+func TestJobCheckHelpers(t *testing.T) {
+	for check, want := range map[string]bool{"${{ matrix.tool }}": true, " ${{ a }} ${{ b }} ": true, "Analyze (${{ matrix.language }})": false, "lint": false, "": false} {
+		if got := (&Job{Check: check}).UnnamedCheck(); got != want {
+			t.Errorf("UnnamedCheck(%q) = %v, want %v", check, got, want)
+		}
+	}
+	for pkg, want := range map[string]bool{"./.github/workflows/scan.yml": true, "org/sec/.github/workflows/gitleaks.yml": true, "actions/checkout": false} {
+		if got := (&Job{Package: pkg}).CallsWorkflow(); got != want {
+			t.Errorf("CallsWorkflow(%q) = %v, want %v", pkg, got, want)
+		}
+	}
+}

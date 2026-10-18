@@ -232,3 +232,19 @@ func TestMatchOnJobName(t *testing.T) {
 	assert.Len(t, found, 1)
 	assert.Equal(t, "unit tests", found[0].Job.Name)
 }
+
+// A workflow named after its tool used to yield a finding with no step, which
+// grading could not weaken and which outranked the step that runs the tool.
+func TestAStepWinsOverTheWorkflowName(t *testing.T) {
+	trivy := &rules.Rule{ID: "trivy-rule", Regex: regexp.MustCompile(`(?i)\btrivy\b`),
+		ApplyOn: []string{rules.FieldArtifactName, rules.FieldJobRun}, Categories: []string{"SCA"}}
+	step := &models.Job{Run: "trivy fs --exit-code 0 ."}
+
+	found := matcher.NewMatchService().Match([]*models.Artifact{{Name: "Trivy scan", Jobs: []*models.Job{step, {Run: "make"}}}}, []*rules.Rule{trivy})
+	assert.Len(t, found, 1)
+	assert.Same(t, step, found[0].Job)
+
+	found = matcher.NewMatchService().Match([]*models.Artifact{{Name: "Trivy scan", Jobs: []*models.Job{{Run: "./scripts/scan.sh"}}}}, []*rules.Rule{trivy})
+	assert.Len(t, found, 1)
+	assert.Nil(t, found[0].Job, "with no step to go on, the name is the evidence")
+}

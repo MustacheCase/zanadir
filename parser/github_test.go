@@ -419,3 +419,60 @@ jobs:
 	}
 	assert.Equal(t, map[string]string{"lint": "Static analysis", "unit": "unit", "codeql": "codeql"}, checks)
 }
+
+func byFile(t *testing.T, files map[string]string) map[string]*models.Artifact {
+	t.Helper()
+	artifacts, err := parser.NewGithubParser().Parse(workflows(t, files))
+	require.NoError(t, err)
+	out := map[string]*models.Artifact{}
+	for _, a := range artifacts {
+		out[filepath.Base(a.Location)] = a
+	}
+	return out
+}
+
+func events(a *models.Artifact) []string {
+	var names []string
+	for _, trigger := range a.Triggers {
+		names = append(names, trigger.Event)
+	}
+	return names
+}
+
+// on: workflow_call says nothing about when a workflow runs; its callers do.
+func TestReusableWorkflowsInheritTheirCallers(t *testing.T) {
+	got := byFile(t, map[string]string{
+		"ci.yml":      "on: pull_request\njobs:\n  security:\n    uses: ./.github/workflows/scan.yml\n  remote:\n    uses: org/sec/.github/workflows/gitleaks.yml@v1\n",
+		"scan.yml":    "on:\n  workflow_call:\n  schedule: [{cron: '0 3 * * *'}]\njobs:\n  leaks:\n    name: Leaks\n    runs-on: x\n    steps:\n      - run: gitleaks detect\n  deeper:\n    uses: ./.github/workflows/deep.yml\n",
+		"deep.yml":    "on: workflow_call\njobs:\n  sast:\n    runs-on: x\n    steps:\n      - run: semgrep scan\n",
+		"release.yml": "on: {push: {tags: ['v*']}}\njobs:\n  a:\n    uses: ./.github/workflows/sign.yml\n  b:\n    if: github.repository == 'o/r'\n    continue-on-error: true\n    uses: ./.github/workflows/sign.yml\n",
+		"sign.yml":    "on: workflow_call\njobs:\n  cosign:\n    runs-on: x\n    steps:\n      - run: cosign sign\n",
+		"soft.yml":    "on: pull_request\njobs:\n  a:\n    continue-on-error: true\n    uses: ./.github/workflows/lint.yml\n",
+		"lint.yml":    "on: workflow_call\njobs:\n  lint:\n    runs-on: x\n    steps:\n      - run: golangci-lint run\n",
+		"self.yml":    "on: workflow_call\njobs:\n  again:\n    uses: ./.github/workflows/self.yml\n",
+	})
+
+	assert.ElementsMatch(t, []string{"workflow_call", "schedule", "pull_request"}, events(got["scan.yml"]))
+	assert.ElementsMatch(t, []string{"workflow_call", "schedule", "pull_request"}, events(got["deep.yml"]), "through a chain of calls")
+	assert.Equal(t, []string{"workflow_call"}, events(got["self.yml"]))
+
+	job := func(file, name string) *models.Job {
+		for _, j := range got[file].Jobs {
+			if j.Name == name {
+				return j
+			}
+		}
+		t.Fatalf("%s has no job %s", file, name)
+		return nil
+	}
+	assert.Equal(t, "security / Leaks", job("scan.yml", "leaks").Check, "one caller: checks report as caller / job")
+	assert.Equal(t, "security / deeper", job("scan.yml", "deeper").Check)
+	assert.Equal(t, "cosign", job("sign.yml", "cosign").Check, "two callers: no single prefix")
+	assert.Equal(t, "github.repository == 'o/r'", job("sign.yml", "cosign").JobIf, "a caller's condition carries over")
+	assert.False(t, job("sign.yml", "cosign").ContinueOnError, "one caller can still fail the build")
+	assert.True(t, job("lint.yml", "lint").ContinueOnError, "every caller may fail")
+
+	remote := job("ci.yml", "remote")
+	assert.Equal(t, "org/sec/.github/workflows/gitleaks.yml", remote.Package, "a remote reusable workflow can be matched by its path")
+	assert.Equal(t, "v1", remote.Version)
+}

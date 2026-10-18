@@ -32,6 +32,9 @@ type Job struct {
 	JobIf string
 	Needs []string
 	With  map[string]string
+	// Check is the name a GitHub Actions job reports its result under: its
+	// name:, or its id. It may hold an unevaluated ${{ }} expression.
+	Check string
 }
 
 func (a *Artifact) HasTrigger(event string) bool {

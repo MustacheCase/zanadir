@@ -173,7 +173,7 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weak
 		results = append(results, sarifResult{
 			RuleID:  ruleID,
 			Level:   "note",
-			Message: sarifMessage{Text: fmt.Sprintf("%s tooling is present but %s: %s", weakness.Category, weakness.Verdict, weakenedHelp(weakness.Verdict))},
+			Message: sarifMessage{Text: weakenedMessage(weakness)},
 			PartialFingerprints: map[string]string{
 				"categoryId": weakness.Category,
 				"verdict":    weakness.Verdict,
@@ -208,6 +208,13 @@ func weakenedHelp(verdict string) string {
 	default:
 		return "it provides less protection than its presence suggests."
 	}
+}
+
+func weakenedMessage(w Weakness) string {
+	if w.Reason != "" {
+		return fmt.Sprintf("%s tooling is present but %s: %s, so a failing run does not block a pull request.", w.Category, w.Verdict, w.Reason)
+	}
+	return fmt.Sprintf("%s tooling is present but %s: %s", w.Category, w.Verdict, weakenedHelp(w.Verdict))
 }
 
 func renderSarif(w io.Writer, suggestions []*suggester.CategorySuggestion, anchor string, weaknesses []Weakness) error {

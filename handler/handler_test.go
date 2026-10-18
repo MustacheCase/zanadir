@@ -11,10 +11,13 @@ import (
 
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/gate"
+	"github.com/MustacheCase/zanadir/grading"
 	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
+	"github.com/MustacheCase/zanadir/remote"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
@@ -666,7 +669,7 @@ func TestWeakenedReportsOnlyWhatItShould(t *testing.T) {
 		weakFinding("SCA", "/repo/.github/workflows/sca.yml", &models.Job{If: "always()"}),
 	}
 
-	weaknesses := weakened(nil, "/repo", findings, silent)
+	weaknesses := weakened(nil, "/repo", findings, nil, silent)
 
 	assert.Len(t, weaknesses, 1)
 	assert.Equal(t, "Secrets Detection", weaknesses[0].Category)
@@ -682,7 +685,7 @@ func TestWeakenedSkipsExcludedCategories(t *testing.T) {
 	weaknesses := weakened([]string{"Secrets Detection"}, "/repo", []*matcher.Finding{
 		weakFinding("Secrets Detection", "/repo/a.yml", coe),
 		weakFinding("Linter", "/repo/b.yml", coe),
-	}, func(string, ...interface{}) {})
+	}, nil, func(string, ...interface{}) {})
 
 	assert.Len(t, weaknesses, 1)
 	assert.Equal(t, "Linter", weaknesses[0].Category)
@@ -696,7 +699,7 @@ func TestWeakenedIsSorted(t *testing.T) {
 		weakFinding("Unit Tests", "/repo/c.yml", coe),
 		weakFinding("Coverage", "/repo/a.yml", coe),
 		weakFinding("Linter", "/repo/b.yml", coe),
-	}, func(string, ...interface{}) {})
+	}, nil, func(string, ...interface{}) {})
 
 	names := make([]string, 0, len(weaknesses))
 	for _, weakness := range weaknesses {
@@ -709,7 +712,7 @@ func TestWeakenedIsSorted(t *testing.T) {
 func TestWeakenedDropsLocationsOutsideTheScanDirectory(t *testing.T) {
 	weaknesses := weakened(nil, "/repo", []*matcher.Finding{
 		weakFinding("Linter", "/elsewhere/ci.yml", &models.Job{ContinueOnError: true}),
-	}, func(string, ...interface{}) {})
+	}, nil, func(string, ...interface{}) {})
 
 	assert.Len(t, weaknesses, 1)
 	assert.Empty(t, weaknesses[0].Location)
@@ -955,4 +958,83 @@ func TestExecuteWarnsAboutASkippedFile(t *testing.T) {
 	assert.NoError(t, h.Execute(&config.Config{Dir: dir, Output: "json"}))
 	assert.Equal(t, "Warning: skipped .github/workflows/broken.yml, which is not valid YAML "+
 		"(yaml: line 2: did not find expected key); the CI platform cannot run it either\n", warnings.String())
+}
+
+func fakeGate(t *testing.T, merge *gate.Gate, err error) *[]remote.Repository {
+	t.Helper()
+	var asked []remote.Repository
+	old := readGate
+	readGate = func(repo remote.Repository, _ string) (*gate.Gate, error) {
+		asked = append(asked, repo)
+		return merge, err
+	}
+	t.Cleanup(func() { readGate = old })
+	return &asked
+}
+
+func captureStderr(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var warnings bytes.Buffer
+	stderr = &warnings
+	t.Cleanup(func() { stderr = os.Stderr })
+	return &warnings
+}
+
+func TestMergeGate(t *testing.T) {
+	artifacts := []*models.Artifact{{Jobs: []*models.Job{{Check: "Unit tests"}, {}}}}
+	repo := &remote.Repository{Owner: "o", Name: "r"}
+
+	asked := fakeGate(t, nil, nil)
+	assert.Nil(t, mergeGate(&config.Config{Repo: repo}, artifacts), "off unless asked for")
+	assert.Empty(t, *asked)
+
+	merge := &gate.Gate{Branch: "main", Checks: []gate.Check{{Context: "Unit tests", AppID: 15368}, {Context: "e2e", AppID: 15368}}}
+	asked = fakeGate(t, merge, nil)
+	assert.Same(t, merge, mergeGate(&config.Config{Repo: repo, RequiredChecks: true}, artifacts))
+	assert.Equal(t, []remote.Repository{*repo}, *asked)
+	assert.Equal(t, []string{`required check "e2e" is reported by no workflow job, so pull requests wait for it`}, merge.Problems)
+
+	checkout := testrepo.Write(t, map[string]string{".git/config": "[remote \"origin\"]\n\turl = git@github.com:acme/app.git\n"})
+	asked = fakeGate(t, &gate.Gate{}, nil)
+	assert.NotNil(t, mergeGate(&config.Config{Dir: checkout, RequiredChecks: true}, nil))
+	assert.Equal(t, "github.com/acme/app", (*asked)[0].String(), "a checkout is read through its origin")
+
+	warnings := captureStderr(t)
+	fakeGate(t, nil, errors.New("rate limited"))
+	assert.Nil(t, mergeGate(&config.Config{Repo: repo, RequiredChecks: true}, nil))
+	assert.Nil(t, mergeGate(&config.Config{Dir: t.TempDir(), RequiredChecks: true}, nil))
+	assert.Contains(t, warnings.String(), "Warning: --required-checks could not read the merge settings (rate limited); grading without them\n")
+	assert.Contains(t, warnings.String(), ".git/config")
+}
+
+func TestReportGate(t *testing.T) {
+	assert.Nil(t, reportGate(nil))
+	assert.Equal(t, &output.Gate{Branch: "main", Required: []string{"DCO", "lint"}, Problems: []string{"p"}},
+		reportGate(&gate.Gate{Branch: "main", Checks: []gate.Check{{Context: "DCO"}, {Context: "lint"}, {Context: "DCO", AppID: 1}}, Problems: []string{"p"}}))
+}
+
+func TestExecuteGradesAgainstTheMergeSettings(t *testing.T) {
+	fakeGate(t, &gate.Gate{Branch: "main"}, nil)
+	dir := t.TempDir()
+	lint := &models.Artifact{Location: filepath.Join(dir, "ci.yml"), Triggers: []models.Trigger{{Event: "pull_request"}},
+		Jobs: []*models.Job{{Check: "lint", Run: "golangci-lint run"}}}
+
+	mockRules := new(MockRuleService)
+	mockRules.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
+	mockScan := new(MockScanner)
+	mockScan.On("Scan", mock.Anything).Return([]*models.Artifact{lint}, nil)
+	mockMatch := new(MockMatcher)
+	mockMatch.On("Match", mock.Anything, mock.Anything).Return([]*matcher.Finding{
+		{Category: "Linter", Location: lint.Location, Artifact: lint, Job: lint.Jobs[0]}})
+	mockSuggest := new(MockSuggester)
+	mockSuggest.On("FindSuggestions", mock.Anything).Return([]*suggester.CategorySuggestion{})
+	var got output.Report
+	mockOut := new(MockOutput)
+	mockOut.On("Response", mock.Anything).Run(func(args mock.Arguments) { got = args.Get(0).(output.Report) }).Return(nil)
+
+	h := &Handler{RulesService: mockRules, ScanService: mockScan, MatchService: mockMatch,
+		SuggestionService: mockSuggest, OutputService: mockOut}
+	assert.NoError(t, h.Execute(&config.Config{Dir: dir, Output: "json", RequiredChecks: true, Repo: &remote.Repository{Owner: "o", Name: "r"}}))
+	assert.Equal(t, &output.Gate{Branch: "main", Required: []string{}}, got.Gate)
+	assert.Contains(t, got.Weakened, output.Weakness{Category: "Linter", Verdict: "partial", Location: "ci.yml", Reason: grading.NotRequired})
 }

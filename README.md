@@ -467,6 +467,40 @@ it cannot be read - the control is reported `unknown` instead. And a category
 is judged by its strongest control, so one properly wired scanner keeps the
 category quiet however many weak ones sit beside it.
 
+### Required checks
+
+A scanner can run on every pull request and still block nothing, because its
+check is not required to merge. That lives in the repository's rulesets and
+branch protection, not its files, so it is opt-in:
+
+```sh
+zanadir scan --dir . --required-checks
+zanadir scan --repo owner/name --required-checks
+```
+
+zanadir reads the default branch's required checks from GitHub (public
+repositories need no token; `GITHUB_TOKEN` or `GH_TOKEN` is used if set). A
+GitHub Actions control that would be `enforcing` stays so only when its job's
+check is required, matrix (`build (ubuntu-latest)`) and reusable-workflow
+(`codeql / Analyze`) names included; otherwise it is `partial`:
+
+```
+2 covered categories are weakened:
+  SAST is partial (.github/workflows/codeql.yml): its check is not required to merge
+  Secrets Detection is partial (.github/workflows/secrets.yml): its check is not required to merge
+
+Merge settings for main:
+  Required to merge: build (ubuntu-latest), build (macos-latest).
+  Problem: ruleset "checks must pass" requires "Run tests" but applies to no branch.
+```
+
+It also names settings that look like protection and are not: a ruleset that
+requires checks but targets no branch or only evaluates, and a required
+GitHub Actions check that no workflow job reports. Checks other apps report,
+such as DCO, are never judged. If the settings cannot be read, the scan warns
+and grades without them. Only GitHub is read; on other platforms the merge
+settings are still outside what zanadir can see.
+
 ### Controls declared outside the pipeline
 
 Dependabot and Renovate are detected from their configuration -
@@ -679,6 +713,7 @@ repeating them on every invocation. Each key is the name of the flag it sets:
 excluded-categories: [Performance Testing]
 enforce: true
 fail-on-weakened: true
+required-checks: true
 baseline: .zanadir-baseline.yaml
 badge: zanadir-badge.json
 output: markdown

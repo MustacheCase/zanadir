@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/MustacheCase/zanadir/baseline"
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/fixer"
+	"github.com/MustacheCase/zanadir/gate"
 	"github.com/MustacheCase/zanadir/grading"
 	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/logger"
@@ -19,6 +21,7 @@ import (
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
 	"github.com/MustacheCase/zanadir/parser"
+	"github.com/MustacheCase/zanadir/remote"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/scanner"
 	"github.com/MustacheCase/zanadir/score"
@@ -77,13 +80,13 @@ func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 // weakened lists the covered categories whose tooling cannot fully protect the
 // repository. An excluded category is left out: the operator has said it does
 // not apply, and grading it anyway would argue with them.
-func weakened(excluded []string, dir string, findings []*matcher.Finding, debugf debugFunc) []output.Weakness {
+func weakened(excluded []string, dir string, findings []*matcher.Finding, required grading.Required, debugf debugFunc) []output.Weakness {
 	skip := make(map[string]bool, len(excluded))
 	for _, category := range excluded {
 		skip[category] = true
 	}
 
-	assessments := grading.ByCategory(findings)
+	assessments := grading.ByCategory(findings, required)
 	list := make([]output.Weakness, 0, len(assessments))
 	for category, assessment := range assessments {
 		debugf("Category %s is %s", category, assessment.Verdict)
@@ -94,6 +97,7 @@ func weakened(excluded []string, dir string, findings []*matcher.Finding, debugf
 			Category: category,
 			Verdict:  string(assessment.Verdict),
 			Location: repoRelative(dir, assessment.Location),
+			Reason:   assessment.Reason,
 		})
 	}
 
@@ -108,6 +112,7 @@ type scanResult struct {
 	artifacts     []*models.Artifact
 	weaknesses    []output.Weakness
 	notApplicable []string
+	gate          *gate.Gate
 	// skipped is every category left out of the score: excluded by the
 	// operator or not applicable to the repository.
 	skipped []string
@@ -161,7 +166,12 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	suggestions := h.SuggestionService.FindSuggestions(findings, skipped, languages)
 	debugf("Total suggestions: %d", len(suggestions))
 
-	weaknesses := weakened(skipped, cfg.Dir, findings, debugf)
+	merge := mergeGate(cfg, artifacts)
+	var required grading.Required
+	if merge != nil {
+		required = merge.Requires
+	}
+	weaknesses := weakened(skipped, cfg.Dir, findings, required, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
 
 	return &scanResult{
@@ -169,8 +179,42 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 		artifacts:     artifacts,
 		weaknesses:    weaknesses,
 		notApplicable: notApplicable,
+		gate:          merge,
 		skipped:       skipped,
 	}, nil
+}
+
+// readGate is gate.Read, replaced in tests.
+var readGate = gate.Read
+
+// mergeGate reads what a merge into the default branch waits for when asked
+// to. A scan goes on without it rather than fail on a network error.
+func mergeGate(cfg *config.Config, artifacts []*models.Artifact) *gate.Gate {
+	if !cfg.RequiredChecks {
+		return nil
+	}
+	repo, err := gate.Origin(cfg.Dir)
+	if cfg.Repo != nil {
+		repo, err = *cfg.Repo, nil
+	}
+	var merge *gate.Gate
+	if err == nil {
+		merge, err = readGate(repo, remote.Token())
+	}
+	if err != nil {
+		_, _ = fmt.Fprintf(stderr, "Warning: --required-checks could not read the merge settings (%v); grading without them\n", err)
+		return nil
+	}
+	var checks []string
+	for _, a := range artifacts {
+		for _, job := range a.Jobs {
+			if job.Check != "" {
+				checks = append(checks, job.Check)
+			}
+		}
+	}
+	merge.Unproduced(checks)
+	return merge
 }
 
 // Fix prints ready-to-paste CI configuration for the uncovered categories.
@@ -235,6 +279,7 @@ func (h *Handler) Execute(cfg *config.Config) error {
 		Weakened:      result.weaknesses,
 		NotApplicable: result.notApplicable,
 		Platforms:     parser.Found(cfg.Dir),
+		Gate:          reportGate(result.gate),
 	})
 	if err != nil {
 		debugf("Output error: %v", err)
@@ -390,4 +435,17 @@ func NewHandler(rulesService rules.RuleService, scanService scanner.Scanner,
 		MatchService:      matchService,
 		OutputService:     outputService,
 	}
+}
+
+func reportGate(merge *gate.Gate) *output.Gate {
+	if merge == nil {
+		return nil
+	}
+	required := make([]string, 0, len(merge.Checks))
+	for _, check := range merge.Checks {
+		if !slices.Contains(required, check.Context) {
+			required = append(required, check.Context)
+		}
+	}
+	return &output.Gate{Branch: merge.Branch, Required: required, Problems: merge.Problems}
 }

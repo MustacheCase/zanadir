@@ -24,7 +24,7 @@ func gradeFile(t *testing.T, p parser.Parser, name, content string) map[string]V
 		findings = append(findings, matcher.NewMatchService().Match(artifacts, rs.GetCategoryRules(c))...)
 	}
 	verdicts := map[string]Verdict{}
-	for category, assessment := range ByCategory(findings) {
+	for category, assessment := range ByCategory(findings, nil) {
 		verdicts[category] = assessment.Verdict
 	}
 	return verdicts

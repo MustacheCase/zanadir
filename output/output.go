@@ -32,6 +32,16 @@ type Report struct {
 	NotApplicable []string
 	// Platforms are the CI systems whose configuration was found.
 	Platforms []string
+	// Gate is what a merge into the default branch waits for; nil unless
+	// --required-checks read it.
+	Gate *Gate
+}
+
+// Gate is the default branch's required checks and anything wrong with them.
+type Gate struct {
+	Branch   string
+	Required []string
+	Problems []string
 }
 
 // Weakness is a category whose tooling is present but cannot fully protect the
@@ -40,6 +50,29 @@ type Weakness struct {
 	Category string
 	Verdict  string
 	Location string
+	// Reason explains a verdict the workflow alone does not show.
+	Reason string
+}
+
+// because is a weakness's reason as a clause, or nothing.
+func (w Weakness) because() string {
+	if w.Reason == "" {
+		return ""
+	}
+	return ": " + w.Reason
+}
+
+// gateLines describe what a merge into the default branch waits for.
+func gateLines(g *Gate) (string, []string) {
+	title := fmt.Sprintf("Merge settings for %s:", g.Branch)
+	lines := []string{fmt.Sprintf("No check is required to merge into %s.", g.Branch)}
+	if len(g.Required) > 0 {
+		lines = []string{fmt.Sprintf("Required to merge: %s.", strings.Join(g.Required, ", "))}
+	}
+	for _, problem := range g.Problems {
+		lines = append(lines, "Problem: "+problem+".")
+	}
+	return title, lines
 }
 
 // weakenedHeadline introduces the weakened block.
@@ -112,7 +145,7 @@ func markdownCell(text string) string {
 	return strings.ReplaceAll(strings.Join(strings.Fields(text), " "), "|", "\\|")
 }
 
-func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score, weaknesses []Weakness, notApplicable []string) error {
+func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score, weaknesses []Weakness, notApplicable []string, merge *Gate) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n### zanadir\n\n%s\n", MarkdownMarker, headline(coverage, len(suggestions)))
 
@@ -139,8 +172,16 @@ func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, co
 	if len(weaknesses) > 0 {
 		fmt.Fprintf(&b, "\n**%s**\n\n", weakenedHeadline(len(weaknesses)))
 		for _, weakness := range weaknesses {
-			fmt.Fprintf(&b, "- `%s` is **%s** in `%s`\n",
-				markdownCell(weakness.Category), markdownCell(weakness.Verdict), markdownCell(weakness.Location))
+			fmt.Fprintf(&b, "- `%s` is **%s** in `%s`%s\n",
+				markdownCell(weakness.Category), markdownCell(weakness.Verdict), markdownCell(weakness.Location), markdownCell(weakness.because()))
+		}
+	}
+
+	if merge != nil {
+		title, lines := gateLines(merge)
+		fmt.Fprintf(&b, "\n**%s**\n\n", markdownCell(title))
+		for _, line := range lines {
+			fmt.Fprintf(&b, "- %s\n", markdownCell(line))
 		}
 	}
 
@@ -176,7 +217,23 @@ func renderWeakened(w io.Writer, weaknesses []Weakness, colour bool) error {
 		return err
 	}
 	for _, weakness := range weaknesses {
-		if _, err := fmt.Fprintf(w, "  %s is %s (%s)\n", weakness.Category, weakness.Verdict, weakness.Location); err != nil {
+		if _, err := fmt.Fprintf(w, "  %s is %s (%s)%s\n", weakness.Category, weakness.Verdict, weakness.Location, weakness.because()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func renderGate(w io.Writer, merge *Gate, colour bool) error {
+	if merge == nil {
+		return nil
+	}
+	title, lines := gateLines(merge)
+	if _, err := fmt.Fprintf(w, "\n%s\n", paint(colour, ansiBold, title)); err != nil {
+		return err
+	}
+	for _, line := range lines {
+		if _, err := fmt.Fprintf(w, "  %s\n", line); err != nil {
 			return err
 		}
 	}
@@ -212,7 +269,7 @@ func render(w io.Writer, report Report) error {
 	case config.OutputSARIF:
 		return renderSarif(w, report.Suggestions, report.Anchor, report.Weakened)
 	case config.OutputMarkdown:
-		return renderMarkdown(w, report.Suggestions, report.Score, report.Weakened, report.NotApplicable)
+		return renderMarkdown(w, report.Suggestions, report.Score, report.Weakened, report.NotApplicable, report.Gate)
 	case config.OutputTable:
 		return renderTable(w, report)
 	default:
@@ -228,10 +285,7 @@ func renderTable(w io.Writer, report Report) error {
 		if _, err := fmt.Fprintln(w, paint(colour, ansiGreen, headline(report.Score, 0))); err != nil {
 			return err
 		}
-		if err := renderWeakened(w, report.Weakened, colour); err != nil {
-			return err
-		}
-		return renderNotApplicable(w, report.NotApplicable, colour)
+		return renderFooter(w, report, colour)
 	}
 
 	if _, err := fmt.Fprintf(w, "%s\n\n", paint(colour, ansiBold, headline(report.Score, len(suggestions)))); err != nil {
@@ -262,7 +316,16 @@ func renderTable(w io.Writer, report Report) error {
 	if err != nil {
 		return err
 	}
+	return renderFooter(w, report, colour)
+}
+
+// renderFooter writes what follows the table: weakened controls, the merge
+// settings they were judged against, and the categories left out.
+func renderFooter(w io.Writer, report Report, colour bool) error {
 	if err := renderWeakened(w, report.Weakened, colour); err != nil {
+		return err
+	}
+	if err := renderGate(w, report.Gate, colour); err != nil {
 		return err
 	}
 	return renderNotApplicable(w, report.NotApplicable, colour)

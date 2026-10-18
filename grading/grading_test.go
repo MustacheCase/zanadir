@@ -180,7 +180,7 @@ func TestByCategoryKeepsTheStrongestVerdict(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ByCategory(tt.findings)["Secrets Detection"]
+			got := ByCategory(tt.findings, nil)["Secrets Detection"]
 			if got.Verdict != tt.expectedVerdict {
 				t.Errorf("verdict = %q, want %q", got.Verdict, tt.expectedVerdict)
 			}
@@ -192,7 +192,7 @@ func TestByCategoryKeepsTheStrongestVerdict(t *testing.T) {
 }
 
 func TestByCategorySkipsNilFindings(t *testing.T) {
-	verdicts := ByCategory([]*matcher.Finding{nil, nil})
+	verdicts := ByCategory([]*matcher.Finding{nil, nil}, nil)
 	if len(verdicts) != 0 {
 		t.Errorf("expected no categories, got %d", len(verdicts))
 	}
@@ -205,7 +205,7 @@ func TestByCategorySeparatesCategories(t *testing.T) {
 	sca.Category = "SCA"
 	secrets := finding(pullRequest, &models.Job{ContinueOnError: true})
 
-	verdicts := ByCategory([]*matcher.Finding{sca, secrets})
+	verdicts := ByCategory([]*matcher.Finding{sca, secrets}, nil)
 
 	if verdicts["SCA"].Verdict != Enforcing {
 		t.Errorf("SCA = %q, want enforcing", verdicts["SCA"].Verdict)
@@ -436,6 +436,46 @@ func TestGradeSupplyChainOnTheShippingPath(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := grade(tt.category, tt.triggers, tt.job); got != tt.expected {
 				t.Errorf("Grade() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestByCategoryHoldsPullRequestControlsToRequiredChecks(t *testing.T) {
+	pr := []models.Trigger{{Event: "pull_request"}}
+	push := []models.Trigger{{Event: "push"}}
+	required := func(check string) bool { return check == "Static analysis" }
+	job := func(check string) *models.Job { return &models.Job{Check: check} }
+	byName := func(jobs ...*models.Job) *matcher.Finding {
+		f := finding(pr, nil)
+		f.Artifact.Jobs = jobs
+		return f
+	}
+	shipping := finding([]models.Trigger{{Event: "release"}}, job("release"))
+	shipping.Category = string(models.SupplyChain)
+
+	tests := []struct {
+		name     string
+		finding  *matcher.Finding
+		required Required
+		want     Verdict
+		reason   string
+	}{
+		{"a required check enforces", finding(pr, job("Static analysis")), required, Enforcing, ""},
+		{"a check that is not required is partial", finding(pr, job("lint")), required, Partial, NotRequired},
+		{"without the merge settings nothing changes", finding(pr, job("lint")), nil, Enforcing, ""},
+		{"a job of another platform has no check", finding(pr, &models.Job{}), required, Enforcing, ""},
+		{"only an enforcing verdict is held back", finding(push, job("lint")), required, Partial, ""},
+		{"supply chain is judged on the path that ships", shipping, required, Enforcing, ""},
+		{"a workflow name match counts any of its jobs", byName(&models.Job{}, job("lint"), job("Static analysis")), required, Enforcing, ""},
+		{"a workflow name match with no required job", byName(job("lint")), required, Partial, NotRequired},
+		{"a workflow name match with no jobs", byName(), required, Enforcing, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ByCategory([]*matcher.Finding{tt.finding}, tt.required)[tt.finding.Category]
+			if got.Verdict != tt.want || got.Reason != tt.reason {
+				t.Errorf("got %q (%q), want %q (%q)", got.Verdict, got.Reason, tt.want, tt.reason)
 			}
 		})
 	}

@@ -397,3 +397,25 @@ func TestParseSkipsUnparseableYAML(t *testing.T) {
 	assert.Empty(t, skipped["lint.yml"])
 	assert.Equal(t, 1, jobs)
 }
+
+// Grading against required checks needs the name each job reports under.
+func TestGithubParserRecordsCheckNames(t *testing.T) {
+	artifact := parseOne(t, `on: pull_request
+jobs:
+  lint:
+    name: Static analysis
+    steps:
+      - run: golangci-lint run
+  unit:
+    steps:
+      - run: go test ./...
+  codeql:
+    uses: ./.github/workflows/codeql.yml
+    if: github.event_name == 'pull_request'
+`)
+	checks := map[string]string{}
+	for _, job := range artifact.Jobs {
+		checks[job.Name] = job.Check
+	}
+	assert.Equal(t, map[string]string{"lint": "Static analysis", "unit": "unit", "codeql": "codeql"}, checks)
+}

@@ -1,0 +1,166 @@
+package gate
+
+import (
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/MustacheCase/zanadir/remote"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// github serves canned bodies by path, answering 404 for anything else.
+func github(t *testing.T, bodies map[string]string) *[]string {
+	t.Helper()
+	var auth []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		auth = append(auth, r.Header.Get("Authorization"))
+		body, ok := bodies[r.URL.Path]
+		switch {
+		case !ok:
+			http.NotFound(w, r)
+		case body == "500":
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			_, _ = w.Write([]byte(body))
+		}
+	}))
+	t.Cleanup(server.Close)
+	old := apiBase
+	apiBase = server.URL
+	t.Cleanup(func() { apiBase = old })
+	return &auth
+}
+
+var repo = remote.Repository{Owner: "o", Name: "r"}
+
+func TestReadCollectsRequiredChecks(t *testing.T) {
+	auth := github(t, map[string]string{
+		"/repos/o/r": `{"default_branch": "release/v1"}`,
+		"/repos/o/r/rules/branches/release/v1": `[
+			{"type": "pull_request"},
+			{"type": "required_status_checks", "parameters": {"required_status_checks": [
+				{"context": "Unit tests", "integration_id": 15368}, {"context": "DCO"}]}}]`,
+		"/repos/o/r/branches/release/v1": `{"protection": {"required_status_checks": {
+			"enforcement_level": "non_admins", "checks": [{"context": "lint", "app_id": 15368}, {"context": "ci/prow", "app_id": null}]}}}`,
+		"/repos/o/r/rulesets": `[{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}]`,
+		"/repos/o/r/rulesets/1": `{"name": "nowhere", "target": "branch", "enforcement": "active",
+			"conditions": {"ref_name": {"include": []}},
+			"rules": [{"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "Run tests"}]}}]}`,
+		"/repos/o/r/rulesets/2": `{"name": "trial", "target": "branch", "enforcement": "evaluate",
+			"conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"]}},
+			"rules": [{"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "e2e"}]}}]}`,
+		"/repos/o/r/rulesets/3": `{"name": "fine", "target": "branch", "enforcement": "active",
+			"conditions": {"ref_name": {"include": ["~DEFAULT_BRANCH"]}},
+			"rules": [{"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "Unit tests"}]}}]}`,
+		"/repos/o/r/rulesets/4": `{"name": "tags", "target": "tag", "enforcement": "active", "rules": [
+			{"type": "required_status_checks", "parameters": {"required_status_checks": [{"context": "x"}]}}]}`,
+		"/repos/o/r/rulesets/5": `{"name": "reviews only", "target": "branch", "enforcement": "active", "rules": [{"type": "pull_request"}]}`,
+	})
+
+	g, err := Read(repo, "secret")
+	require.NoError(t, err)
+	assert.Equal(t, "release/v1", g.Branch)
+	assert.Equal(t, []Check{{"Unit tests", 15368}, {"DCO", 0}, {"lint", 15368}, {"ci/prow", 0}}, g.Checks)
+	assert.Equal(t, []string{
+		`ruleset "nowhere" requires "Run tests" but applies to no branch`,
+		`ruleset "trial" requires "e2e" but is evaluate, so it blocks nothing`,
+	}, g.Problems)
+	assert.Equal(t, "Bearer secret", (*auth)[0])
+}
+
+func TestReadWithoutProtection(t *testing.T) {
+	auth := github(t, map[string]string{
+		"/repos/o/r":                     `{"default_branch": "main"}`,
+		"/repos/o/r/rules/branches/main": `[]`,
+		"/repos/o/r/branches/main":       `{"protection": {"required_status_checks": {"enforcement_level": "off", "checks": [{"context": "stale"}]}}}`,
+	})
+	g, err := Read(repo, "")
+	require.NoError(t, err)
+	assert.Empty(t, g.Checks, "checks protection does not enforce are not required")
+	assert.Empty(t, g.Problems, "unreadable rulesets are skipped")
+	assert.Empty(t, (*auth)[0], "a public repository needs no token")
+}
+
+func TestReadFailures(t *testing.T) {
+	github(t, map[string]string{})
+	_, err := Read(repo, "")
+	assert.ErrorContains(t, err, "github.com/o/r: not found")
+
+	github(t, map[string]string{"/repos/o/r": `{"default_branch": "main"}`, "/repos/o/r/rules/branches/main": "500"})
+	_, err = Read(repo, "")
+	assert.ErrorContains(t, err, "rules on main: GitHub answered 500")
+
+	github(t, map[string]string{"/repos/o/r": `{"default_branch": "main"}`, "/repos/o/r/rules/branches/main": `[]`})
+	_, err = Read(repo, "")
+	assert.ErrorContains(t, err, "protection of main")
+
+	github(t, map[string]string{"/repos/o/r": `not json`})
+	_, err = Read(repo, "")
+	assert.Error(t, err)
+
+	old := apiBase
+	apiBase = "http://127.0.0.1:0"
+	t.Cleanup(func() { apiBase = old })
+	_, err = Read(repo, "")
+	assert.Error(t, err)
+
+	apiBase = "://bad"
+	_, err = Read(repo, "")
+	assert.Error(t, err)
+}
+
+func TestRequires(t *testing.T) {
+	g := &Gate{Checks: []Check{{Context: "Unit tests"}, {Context: "build (ubuntu-latest)"},
+		{Context: "codeql / Analyze (go)"}, {Context: "Analyze (ruby)"}, {Context: "a.b+c"}}}
+	for name, want := range map[string]bool{
+		"Unit tests":                       true,
+		"build":                            true,
+		"codeql":                           true,
+		"Analyze (${{ matrix.language }})": true,
+		"${{ matrix.os }} tests":           true,
+		"${{ matrix.os }} e2e":             false,
+		"Unit":                             false,
+		"Unit tests extra":                 false,
+		"a.b+c":                            true,
+		"axb+c":                            false,
+	} {
+		assert.Equal(t, want, g.Requires(name), name)
+	}
+}
+
+func TestUnproduced(t *testing.T) {
+	g := &Gate{Checks: []Check{{"Unit tests", actionsApp}, {"Gone", actionsApp}, {"DCO", 1861}, {"Any app", 0}}}
+	g.Unproduced([]string{"Unit tests"})
+	assert.Equal(t, []string{`required check "Gone" is reported by no workflow job, so pull requests wait for it`}, g.Problems)
+}
+
+func TestOrigin(t *testing.T) {
+	checkout := func(config string) string {
+		dir := t.TempDir()
+		require.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".git", "config"), []byte(config), 0o600))
+		return dir
+	}
+	for config, want := range map[string]string{
+		"[core]\n\tbare = false\n[remote \"origin\"]\n\turl = https://github.com/o/r.git\n\tfetch = +refs/heads/*\n": "github.com/o/r",
+		"[remote \"origin\"]\n\turl = git@github.com:o/r.git\n[branch \"main\"]\n\tremote = origin\n":                "github.com/o/r",
+		"[remote \"origin\"]\n\turl = ssh://git@github.com/o/r\n":                                                    "github.com/o/r",
+	} {
+		got, err := Origin(checkout(config))
+		require.NoError(t, err, config)
+		assert.Equal(t, want, got.String())
+	}
+
+	_, err := Origin(checkout("[remote \"upstream\"]\n\turl = https://github.com/o/r\n"))
+	assert.ErrorContains(t, err, "no origin remote")
+	_, err = Origin(checkout("[remote \"origin\"]\n\tfetch = x\n[core]\n\turl = https://github.com/o/r\n"))
+	assert.ErrorContains(t, err, "no url")
+	_, err = Origin(checkout("[remote \"origin\"]\n\turl = https://gitlab.com/o/r\n"))
+	assert.Error(t, err)
+	_, err = Origin(t.TempDir())
+	assert.Error(t, err)
+}

@@ -23,7 +23,16 @@ const (
 type Assessment struct {
 	Verdict  Verdict
 	Location string
+	// Reason explains a verdict the workflow alone does not show.
+	Reason string
 }
+
+// Required reports whether a job's check must pass to merge; nil when the
+// repository's merge settings were not read.
+type Required func(check string) bool
+
+// NotRequired is the reason a control that runs on pull requests is partial.
+const NotRequired = "its check is not required to merge"
 
 var gatingEvents = map[string]bool{
 	"pull_request":        true,
@@ -151,6 +160,33 @@ func gradeShipping(artifact *models.Artifact) Verdict {
 	return verdict
 }
 
+// gated holds a control that runs on pull requests to the merge settings: it
+// blocks a merge only if a check of its job is required. A match on the
+// workflow's name stands for every job in it.
+func gated(a Assessment, finding *matcher.Finding, required Required) Assessment {
+	if required == nil || a.Verdict != Enforcing || finding.Category == string(models.SupplyChain) {
+		return a
+	}
+	jobs := finding.Artifact.Jobs
+	if finding.Job != nil {
+		jobs = []*models.Job{finding.Job}
+	}
+	checked := false
+	for _, job := range jobs {
+		if job.Check == "" {
+			continue
+		}
+		if required(job.Check) {
+			return a
+		}
+		checked = true
+	}
+	if checked {
+		a.Verdict, a.Reason = Partial, NotRequired
+	}
+	return a
+}
+
 func stronger(a, b Verdict) bool {
 	return strength[a] > strength[b]
 }
@@ -167,13 +203,13 @@ func Weakened(verdict Verdict) bool {
 }
 
 // ByCategory keeps the strongest verdict for each category.
-func ByCategory(findings []*matcher.Finding) map[string]Assessment {
+func ByCategory(findings []*matcher.Finding, required Required) map[string]Assessment {
 	best := make(map[string]Assessment)
 	for _, finding := range findings {
 		if finding == nil {
 			continue
 		}
-		candidate := Assessment{Verdict: Grade(finding), Location: finding.Location}
+		candidate := gated(Assessment{Verdict: Grade(finding), Location: finding.Location}, finding, required)
 		if current, seen := best[finding.Category]; seen && !stronger(candidate.Verdict, current.Verdict) {
 			continue
 		}

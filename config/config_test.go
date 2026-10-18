@@ -105,6 +105,7 @@ func newScanCmd(dir string, excluded []string) *cobra.Command {
 	cmd.Flags().Bool("write-baseline", false, "write baseline")
 	cmd.Flags().String("badge", "", "badge")
 	cmd.Flags().Bool("fail-on-weakened", false, "fail on weakened")
+	cmd.Flags().Bool("required-checks", false, "required checks")
 	return cmd
 }
 
@@ -271,6 +272,12 @@ func TestCreateConfigReadsFailOnWeakened(t *testing.T) {
 	cfg, err := CreateConfig(cmd)
 	assert.NoError(t, err)
 	assert.True(t, cfg.FailOnWeakened)
+	assert.False(t, cfg.RequiredChecks, "reading merge settings calls GitHub, so it is opt-in")
+
+	assert.NoError(t, cmd.Flags().Set("required-checks", "true"))
+	cfg, err = CreateConfig(cmd)
+	assert.NoError(t, err)
+	assert.True(t, cfg.RequiredChecks)
 }
 
 // Off by default: a weakened control must not start failing builds on upgrade.

@@ -29,18 +29,16 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 
 	for _, rule := range ruleSet {
 		for _, artifact := range artifacts {
-			for _, applyField := range rule.ApplyOn {
-				for _, job := range matchingJobs(artifact, rule, applyField) {
-					for _, c := range rule.Categories {
-						findings = append(findings, &Finding{
-							Category: c,
-							RuleID:   rule.ID,
-							Location: artifact.Location,
-							Artifact: artifact,
-							Job:      job,
-							Rule:     rule,
-						})
-					}
+			for _, job := range matchingJobs(artifact, rule) {
+				for _, c := range rule.Categories {
+					findings = append(findings, &Finding{
+						Category: c,
+						RuleID:   rule.ID,
+						Location: artifact.Location,
+						Artifact: artifact,
+						Job:      job,
+						Rule:     rule,
+					})
 				}
 			}
 		}
@@ -49,16 +47,27 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 	return findings
 }
 
-// matchingJobs returns every step a rule matches. A match on the workflow name
-// belongs to no step and yields a single nil.
-func matchingJobs(artifact *models.Artifact, rule *rules.Rule, field string) []*models.Job {
-	if field == rules.FieldArtifactName {
-		if rule.Regex.MatchString(artifact.Name) {
-			return []*models.Job{nil}
+// matchingJobs returns every step a rule matches. A match on the workflow's
+// name belongs to no step and yields a single nil, but only when no step
+// matches: a step says how the tool is wired, which grading needs, while a
+// name match would outrank it ungraded.
+func matchingJobs(artifact *models.Artifact, rule *rules.Rule) []*models.Job {
+	var matched []*models.Job
+	named := false
+	for _, field := range rule.ApplyOn {
+		if field == rules.FieldArtifactName {
+			named = named || rule.Regex.MatchString(artifact.Name)
+			continue
 		}
-		return nil
+		matched = append(matched, matchingSteps(artifact, rule, field)...)
 	}
+	if named && len(matched) == 0 {
+		return []*models.Job{nil}
+	}
+	return matched
+}
 
+func matchingSteps(artifact *models.Artifact, rule *rules.Rule, field string) []*models.Job {
 	var matched []*models.Job
 	for _, job := range artifact.Jobs {
 		var text string

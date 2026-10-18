@@ -80,6 +80,12 @@ func Grade(finding *matcher.Finding) Verdict {
 		}
 	}
 
+	// A match on the workflow's name cannot say which step runs the tool, but
+	// a workflow whose every step may fail cannot fail at all.
+	if finding.Job == nil && len(finding.Artifact.Jobs) > 0 &&
+		!slices.ContainsFunc(finding.Artifact.Jobs, func(job *models.Job) bool { return !job.ContinueOnError }) {
+		return Advisory
+	}
 	if shipping {
 		return gradeShipping(finding.Artifact)
 	}

@@ -494,3 +494,30 @@ func TestByCategoryHoldsPullRequestControlsToRequiredChecks(t *testing.T) {
 		})
 	}
 }
+
+// A name match cannot say which step runs the tool, so it is graded from the
+// triggers - unless no step of the workflow can fail.
+func TestGradeOfAWorkflowNameMatch(t *testing.T) {
+	pr := []models.Trigger{{Event: "pull_request"}}
+	named := func(jobs ...*models.Job) *matcher.Finding {
+		f := finding(pr, nil)
+		f.Artifact.Jobs = jobs
+		return f
+	}
+	tests := []struct {
+		name    string
+		finding *matcher.Finding
+		want    Verdict
+	}{
+		{"every step may fail", named(&models.Job{ContinueOnError: true}, &models.Job{ContinueOnError: true}), Advisory},
+		{"one step can fail", named(&models.Job{ContinueOnError: true}, &models.Job{}), Enforcing},
+		{"no steps captured", named(), Enforcing},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Grade(tt.finding); got != tt.want {
+				t.Errorf("Grade = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

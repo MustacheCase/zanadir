@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
@@ -111,9 +113,10 @@ func TestSnippetsArePlatformSpecific(t *testing.T) {
 	gh := testFixer(t).Snippets(suggestions, parser.GitHub)
 	gl := testFixer(t).Snippets(suggestions, parser.GitLab)
 
-	assert.Contains(t, gh[0].Step, "uses: gitleaks/gitleaks-action")
+	assert.Contains(t, gh[0].Step, "- name: Detect secrets")
+	assert.NotContains(t, gh[0].Step, "secret_detection:")
 	assert.Contains(t, gl[0].Step, "secret_detection:")
-	assert.NotContains(t, gl[0].Step, "uses:")
+	assert.NotContains(t, gl[0].Step, "- name:")
 }
 
 func TestSnippetsEmptyForCircleCI(t *testing.T) {
@@ -503,3 +506,14 @@ func TestTemplatesAreReadByTheParser(t *testing.T) {
 
 // github is the platform most Render tests write for.
 var github, _ = parser.Lookup(parser.GitHub)
+
+// A snippet that names an action follows a release, never a branch: a branch
+// changes under the user, and zizmor reports it.
+func TestTemplatesPinActionsToReleases(t *testing.T) {
+	data, err := os.ReadFile("templates.yaml")
+	require.NoError(t, err)
+	for _, ref := range regexp.MustCompile(`uses: ([^\s@]+)@(\S+)`).FindAllStringSubmatch(string(data), -1) {
+		assert.Regexp(t, `^v\d+(\.\d+)*$`, ref[2], ref[1])
+	}
+	assert.Contains(t, Workflow(nil), "actions/checkout@v7\n        with:\n          persist-credentials: false\n")
+}

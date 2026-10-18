@@ -2,16 +2,19 @@
 # platform. Tool names must match suggestions.yaml exactly; NewFixService
 # rejects any that do not.
 #
-# Action versions are pinned to major tags, which stay current without a SHA
-# refresh burden. Revisit them when a tool cuts a new major.
+# Actions are pinned to a major tag where the action publishes one, and to a
+# release where it does not; never to a branch. Revisit them when a tool cuts
+# a new major, or archives the action.
 templates:
   - tool: "Gitleaks"
     platform: "github"
     step: |
+      # The CLI rather than gitleaks-action, which needs a licence key on
+      # organisation accounts.
       - name: Detect secrets
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks detect --source . --verbose
 
   - tool: "Gitleaks"
     platform: "gitlab"
@@ -56,7 +59,7 @@ templates:
     platform: "github"
     step: |
       - name: Detect secrets
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@v3.99.2
         with:
           extra_args: --results=verified,unknown
 
@@ -64,7 +67,7 @@ templates:
     platform: "github"
     step: |
       - name: Scan dependencies
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scanners: vuln
@@ -108,7 +111,7 @@ templates:
     platform: "github"
     step: |
       - name: Scan dependencies
-        uses: anchore/scan-action@v6
+        uses: anchore/scan-action@v7
         with:
           path: .
           fail-build: true
@@ -116,10 +119,9 @@ templates:
   - tool: "Semgrep"
     platform: "github"
     step: |
+      # semgrep-action is archived; the CLI is what Semgrep documents now.
       - name: Static analysis
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: auto
+        run: pipx run semgrep scan --config auto --error
 
   - tool: "CodeQL"
     platform: "github"
@@ -127,17 +129,17 @@ templates:
       # CodeQL needs its own job; see
       # https://github.com/github/codeql-action for the full workflow.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: go
       - name: Analyze
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
 
   - tool: "gosec"
     platform: "github"
     step: |
       - name: Static analysis
-        uses: securego/gosec@master
+        uses: securego/gosec@v2.29.0
         with:
           args: ./...
 
@@ -153,7 +155,7 @@ templates:
     platform: "github"
     step: |
       - name: Scan infrastructure as code
-        uses: bridgecrewio/checkov-action@master
+        uses: bridgecrewio/checkov-action@v12
         with:
           directory: .
 
@@ -161,7 +163,7 @@ templates:
     platform: "github"
     step: |
       - name: Scan Terraform
-        uses: aquasecurity/tfsec-action@v1.0.0
+        uses: aquasecurity/tfsec-action@v1.0.3
 
   # End-of-life detection is OS-level, so it needs an image, not the repo.
   - tool: "Trivy"
@@ -178,14 +180,17 @@ templates:
   - tool: "Grant"
     platform: "github"
     step: |
+      # Grant has no action of its own.
       - name: Check licences
-        uses: anchore/grant-action@main
+        run: |
+          curl -sSfL https://get.anchore.io/grant | sh -s -- -b .
+          ./grant check dir:.
 
   - tool: "Codecov"
     platform: "github"
     step: |
       - name: Upload coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -193,7 +198,7 @@ templates:
     platform: "github"
     step: |
       - name: Lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           args: --timeout=5m
 
@@ -208,10 +213,12 @@ templates:
   - tool: "k6"
     platform: "github"
     step: |
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
       - name: Load test
-        uses: grafana/k6-action@v0.3.1
+        uses: grafana/run-k6-action@v1
         with:
-          filename: load-test.js
+          path: load-test.js
 
   # Cosign and the attestation actions need id-token and attestations
   # permissions, which the generated standalone workflow does not grant, so
@@ -228,5 +235,9 @@ templates:
   - tool: "zizmor"
     platform: "github"
     step: |
+      # advanced-security: false fails the job on findings instead of
+      # uploading them, which would need security-events: write.
       - name: Check workflows for security problems
-        uses: zizmorcore/zizmor-action@v0.6.4
+        uses: zizmorcore/zizmor-action@v0.7.1
+        with:
+          advanced-security: false

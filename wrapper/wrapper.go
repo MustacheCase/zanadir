@@ -28,6 +28,9 @@ type Expander struct {
 	seen  map[string]bool
 	lines []string
 	depth int
+	// ignoring counts the wrappers, around what is being followed, that
+	// discard a failure.
+	ignoring int
 }
 
 func New(root string) *Expander {
@@ -85,8 +88,22 @@ func (e *Expander) emit(dir, command string) {
 	if command = strings.TrimSpace(command); command == "" || len(e.lines) >= maxLines {
 		return
 	}
-	e.lines = append(e.lines, command)
+	line := command
+	if e.ignoring > 0 {
+		line += " || true"
+	}
+	e.lines = append(e.lines, line)
 	e.script(dir, command)
+}
+
+// ignored follows what do emits as a wrapper that discards its failure, so
+// grading reads it as it reads "|| true".
+func (e *Expander) ignored(ignore bool, do func()) {
+	if ignore {
+		e.ignoring++
+		defer func() { e.ignoring-- }()
+	}
+	do()
 }
 
 // once reports whether key is new, so a target in a cycle is followed once.

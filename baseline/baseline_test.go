@@ -157,3 +157,20 @@ func TestWriteOmitsAnEmptyWeakenedSection(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"SCA"}, loaded.Categories)
 }
+
+// A verdict nothing ranks below accepted any regression, so a typo or a
+// capital letter in the baseline silently turned enforcement off.
+func TestLoadNormalisesAndChecksVerdicts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "b.yaml")
+	assert.NoError(t, os.WriteFile(path, []byte("version: 1\nweakened:\n  Secrets Detection: Partial\n  SCA: ' advisory '\n"), 0o600))
+	b, err := baseline.Load(path)
+	assert.NoError(t, err)
+	verdict, _ := b.AcceptedVerdict("Secrets Detection")
+	assert.Equal(t, "partial", verdict)
+	verdict, _ = b.AcceptedVerdict("SCA")
+	assert.Equal(t, "advisory", verdict)
+
+	assert.NoError(t, os.WriteFile(path, []byte("version: 1\nweakened:\n  Linter: bogus\n  SAST: partial\n"), 0o600))
+	_, err = baseline.Load(path)
+	assert.EqualError(t, err, `baseline `+path+` accepts Linter at "bogus", which is not a verdict (enforcing, partial, advisory, unknown)`)
+}

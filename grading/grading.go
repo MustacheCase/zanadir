@@ -3,6 +3,7 @@
 package grading
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/matcher"
@@ -27,9 +28,9 @@ type Assessment struct {
 	Reason string
 }
 
-// Required reports whether a job's check must pass to merge; nil when the
-// repository's merge settings were not read.
-type Required func(check string) bool
+// Required reports whether a job must succeed for a change to merge; nil when
+// the repository's merge settings were not read.
+type Required func(job *models.Job) bool
 
 // NotRequired is the reason a control that runs on pull requests is partial.
 const NotRequired = "its check is not required to merge"
@@ -176,7 +177,7 @@ func gated(a Assessment, finding *matcher.Finding, required Required) Assessment
 		if job.Check == "" {
 			continue
 		}
-		if required(job.Check) {
+		if blocks(job, finding.Artifact.Jobs, required, map[string]bool{}) {
 			return a
 		}
 		checked = true
@@ -185,6 +186,22 @@ func gated(a Assessment, finding *matcher.Finding, required Required) Assessment
 		a.Verdict, a.Reason = Partial, NotRequired
 	}
 	return a
+}
+
+// blocks reports whether a job holds back a merge itself or through a job
+// that needs it: a required gate job that waits on the real ones and fails
+// unless they all succeeded.
+func blocks(job *models.Job, jobs []*models.Job, required Required, seen map[string]bool) bool {
+	if required(job) {
+		return true
+	}
+	seen[job.Name] = true
+	for _, other := range jobs {
+		if !seen[other.Name] && slices.Contains(other.Needs, job.Name) && blocks(other, jobs, required, seen) {
+			return true
+		}
+	}
+	return false
 }
 
 func stronger(a, b Verdict) bool {

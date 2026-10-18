@@ -20,6 +20,7 @@ type jsonReport struct {
 type jsonGate struct {
 	Branch   string   `json:"branch"`
 	Required []string `json:"required"`
+	Scanning []string `json:"codeScanning"`
 	Problems []string `json:"problems"`
 }
 
@@ -69,7 +70,7 @@ func renderJSON(w io.Writer, report Report) error {
 	}
 
 	if g := report.Gate; g != nil {
-		out.RequiredChecks = &jsonGate{Branch: g.Branch, Required: append([]string{}, g.Required...), Problems: append([]string{}, g.Problems...)}
+		out.RequiredChecks = &jsonGate{Branch: g.Branch, Required: append([]string{}, g.Required...), Scanning: append([]string{}, g.Scanning...), Problems: append([]string{}, g.Problems...)}
 	}
 
 	encoder := json.NewEncoder(w)

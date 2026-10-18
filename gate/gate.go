@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
 )
 
@@ -29,11 +30,26 @@ type Check struct {
 	AppID   int
 }
 
-// Gate is what a merge into Branch waits for.
+// Gate is what a merge into Branch waits for: required checks, and code
+// scanning tools whose alerts block it.
 type Gate struct {
 	Branch   string
 	Checks   []Check
+	Scanning []string
 	Problems []string
+}
+
+// Blocks reports whether a job holds back a merge: its check is required, or
+// it runs a tool whose code scanning alerts are.
+func (g *Gate) Blocks(job *models.Job) bool {
+	if g.Requires(job.Check) {
+		return true
+	}
+	text := strings.ToLower(job.Package + " " + job.Run)
+	return slices.ContainsFunc(g.Scanning, func(tool string) bool {
+		name, _, _ := strings.Cut(strings.ToLower(tool), " ")
+		return name != "" && strings.Contains(text, name)
+	})
 }
 
 // Requires reports whether a job reporting as name must pass to merge.
@@ -96,6 +112,9 @@ func Read(repo remote.Repository, token string) (*Gate, error) {
 	}
 	for _, r := range rules {
 		g.Checks = append(g.Checks, r.checks()...)
+		for _, tool := range r.Parameters.CodeScanningTools {
+			g.Scanning = append(g.Scanning, tool.Tool)
+		}
 	}
 
 	var protected struct {
@@ -129,6 +148,9 @@ type rule struct {
 			Context       string `json:"context"`
 			IntegrationID *int   `json:"integration_id"`
 		} `json:"required_status_checks"`
+		CodeScanningTools []struct {
+			Tool string `json:"tool"`
+		} `json:"code_scanning_tools"`
 	} `json:"parameters"`
 }
 

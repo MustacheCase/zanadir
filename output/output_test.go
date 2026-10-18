@@ -754,7 +754,8 @@ func gatedReport(format string) Report {
 		Format:   format,
 		Score:    score.Score{Covered: 11, Total: 11},
 		Weakened: []Weakness{{Category: "SAST", Verdict: "partial", Location: ".github/workflows/codeql.yml", Reason: "its check is not required to merge"}},
-		Gate:     &Gate{Branch: "main", Problems: []string{`ruleset "checks" requires "Run tests" but applies to no branch`}},
+		Gate: &Gate{Branch: "main", Scanning: []string{"zizmor"},
+			Problems: []string{`ruleset "checks" requires "Run tests" but applies to no branch`}},
 	}
 }
 
@@ -767,15 +768,15 @@ func TestResponse_ReportsTheMergeSettings(t *testing.T) {
 	}{
 		{gatedReport(config.OutputTable), []string{
 			"SAST is partial (.github/workflows/codeql.yml): its check is not required to merge",
-			"Merge settings for main:\n  No check is required to merge into main.\n  Problem: ruleset \"checks\" requires \"Run tests\" but applies to no branch.",
+			"Merge settings for main:\n  No check is required to merge into main.\n  Code scanning alerts block a merge from: zizmor.\n  Problem: ruleset \"checks\" requires \"Run tests\" but applies to no branch.",
 		}},
 		{markdown, []string{
 			"- `SAST` is **partial** in `.github/workflows/codeql.yml`: its check is not required to merge",
-			"**Merge settings for main:**\n\n- Required to merge: Unit tests, lint.\n- Problem: ruleset",
+			"**Merge settings for main:**\n\n- Required to merge: Unit tests, lint.\n- Code scanning alerts block a merge from: zizmor.\n- Problem: ruleset",
 		}},
 		{gatedReport(config.OutputJSON), []string{
 			`"reason": "its check is not required to merge"`,
-			"\"requiredChecks\": {\n    \"branch\": \"main\",\n    \"required\": [],",
+			"\"requiredChecks\": {\n    \"branch\": \"main\",\n    \"required\": [],\n    \"codeScanning\": [\n      \"zizmor\"\n    ],",
 		}},
 		{gatedReport(config.OutputSARIF), []string{
 			"SAST tooling is present but partial: its check is not required to merge, so a failing run does not block a pull request.",

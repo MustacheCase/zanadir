@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,7 @@ func TestReadCollectsRequiredChecks(t *testing.T) {
 		"/repos/o/r": `{"default_branch": "release/v1"}`,
 		"/repos/o/r/rules/branches/release/v1": `[
 			{"type": "pull_request"},
+			{"type": "code_scanning", "parameters": {"code_scanning_tools": [{"tool": "zizmor"}, {"tool": "Snyk Open Source"}]}},
 			{"type": "required_status_checks", "parameters": {"required_status_checks": [
 				{"context": "Unit tests", "integration_id": 15368}, {"context": "DCO"}]}}]`,
 		"/repos/o/r/branches/release/v1": `{"protection": {"required_status_checks": {
@@ -65,6 +67,7 @@ func TestReadCollectsRequiredChecks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "release/v1", g.Branch)
 	assert.Equal(t, []Check{{"Unit tests", 15368}, {"DCO", 0}, {"lint", 15368}, {"ci/prow", 0}}, g.Checks)
+	assert.Equal(t, []string{"zizmor", "Snyk Open Source"}, g.Scanning)
 	assert.Equal(t, []string{
 		`ruleset "nowhere" requires "Run tests" but applies to no branch`,
 		`ruleset "trial" requires "e2e" but is evaluate, so it blocks nothing`,
@@ -163,4 +166,17 @@ func TestOrigin(t *testing.T) {
 	assert.Error(t, err)
 	_, err = Origin(t.TempDir())
 	assert.Error(t, err)
+}
+
+func TestBlocks(t *testing.T) {
+	g := &Gate{Checks: []Check{{Context: "Unit tests"}}, Scanning: []string{"zizmor", "Snyk Open Source", ""}}
+	for job, want := range map[*models.Job]bool{
+		{Check: "Unit tests"}: true,
+		{Check: "audit", Package: "zizmorcore/zizmor-action"}:         true,
+		{Check: "deps", Run: "snyk test --sarif-file-output=s.sarif"}: true,
+		{Check: "lint", Run: "golangci-lint run"}:                     false,
+		{Check: "lint"}: false,
+	} {
+		assert.Equal(t, want, g.Blocks(job), job.Check)
+	}
 }

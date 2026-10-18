@@ -444,11 +444,23 @@ func TestGradeSupplyChainOnTheShippingPath(t *testing.T) {
 func TestByCategoryHoldsPullRequestControlsToRequiredChecks(t *testing.T) {
 	pr := []models.Trigger{{Event: "pull_request"}}
 	push := []models.Trigger{{Event: "push"}}
-	required := func(check string) bool { return check == "Static analysis" }
+	required := func(job *models.Job) bool { return job.Check == "Static analysis" }
 	job := func(check string) *models.Job { return &models.Job{Check: check} }
 	byName := func(jobs ...*models.Job) *matcher.Finding {
 		f := finding(pr, nil)
 		f.Artifact.Jobs = jobs
+		return f
+	}
+	gateJob := func(triggers []models.Trigger, twoLevels bool) *matcher.Finding {
+		unit := &models.Job{Name: "unit-linux", Check: "Unit tests (Linux)"}
+		f := finding(triggers, unit)
+		gate := &models.Job{Name: "gate", Check: "Static analysis", Needs: []string{"unit-linux"}}
+		f.Artifact.Jobs = []*models.Job{unit, {Name: "other", Check: "other", Needs: []string{"unit-linux"}}, gate}
+		if twoLevels {
+			middle := &models.Job{Name: "middle", Check: "middle", Needs: []string{"unit-linux"}}
+			gate.Needs = []string{"middle"}
+			f.Artifact.Jobs = []*models.Job{unit, middle, middle, gate}
+		}
 		return f
 	}
 	shipping := finding([]models.Trigger{{Event: "release"}}, job("release"))
@@ -470,6 +482,8 @@ func TestByCategoryHoldsPullRequestControlsToRequiredChecks(t *testing.T) {
 		{"a workflow name match counts any of its jobs", byName(&models.Job{}, job("lint"), job("Static analysis")), required, Enforcing, ""},
 		{"a workflow name match with no required job", byName(job("lint")), required, Partial, NotRequired},
 		{"a workflow name match with no jobs", byName(), required, Enforcing, ""},
+		{"a required gate job holds its needs to it", gateJob(pr, false), required, Enforcing, ""},
+		{"through more than one level", gateJob(pr, true), required, Enforcing, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -169,7 +169,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	merge := mergeGate(cfg, artifacts)
 	var required grading.Required
 	if merge != nil {
-		required = merge.Requires
+		required = merge.Blocks
 	}
 	weaknesses := weakened(skipped, cfg.Dir, findings, required, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
@@ -447,5 +447,5 @@ func reportGate(merge *gate.Gate) *output.Gate {
 			required = append(required, check.Context)
 		}
 	}
-	return &output.Gate{Branch: merge.Branch, Required: required, Problems: merge.Problems}
+	return &output.Gate{Branch: merge.Branch, Required: required, Scanning: merge.Scanning, Problems: merge.Problems}
 }

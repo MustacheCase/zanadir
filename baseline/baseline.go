@@ -2,10 +2,13 @@ package baseline
 
 import (
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/grading"
 	"gopkg.in/yaml.v3"
 )
 
@@ -42,7 +45,27 @@ func Load(path string) (*Baseline, error) {
 	if b.Version != Version {
 		return nil, fmt.Errorf("baseline %s has unsupported version %d, expected %d", path, b.Version, Version)
 	}
+	// A verdict nothing ranks below would accept any regression, so one
+	// that is not a verdict is refused rather than compared.
+	for _, category := range slices.Sorted(maps.Keys(b.Weakened)) {
+		verdict := grading.Verdict(strings.ToLower(strings.TrimSpace(b.Weakened[category])))
+		if !slices.Contains(verdicts, verdict) {
+			return nil, fmt.Errorf("baseline %s accepts %s at %q, which is not a verdict (%s)",
+				path, category, b.Weakened[category], strings.Join(names(verdicts), ", "))
+		}
+		b.Weakened[category] = string(verdict)
+	}
 	return &b, nil
+}
+
+var verdicts = []grading.Verdict{grading.Enforcing, grading.Partial, grading.Advisory, grading.Unknown}
+
+func names(vs []grading.Verdict) []string {
+	out := make([]string, len(vs))
+	for i, v := range vs {
+		out[i] = string(v)
+	}
+	return out
 }
 
 // Write saves the given categories, and the verdicts of any accepted

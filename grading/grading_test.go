@@ -483,6 +483,8 @@ func TestByCategoryHoldsPullRequestControlsToRequiredChecks(t *testing.T) {
 		{"a workflow name match counts any of its jobs", byName(&models.Job{}, job("lint"), job("Static analysis")), required, Enforcing, ""},
 		{"a workflow name match with no required job", byName(job("lint")), required, Partial, NotRequired},
 		{"a workflow name match with no jobs", byName(), required, Enforcing, ""},
+		{"a job named only by an expression cannot be matched", finding(pr, job("${{ matrix.tool }}")), required, Unknown, ""},
+		{"an unmatched name outranks a known one", byName(job("${{ matrix.tool }}"), job("lint")), required, Unknown, ""},
 		{"a required gate job holds its needs to it", gateJob(pr, false), required, Enforcing, ""},
 		{"through more than one level", gateJob(pr, true), required, Enforcing, ""},
 	}

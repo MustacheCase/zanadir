@@ -42,7 +42,7 @@ type Gate struct {
 // Blocks reports whether a job holds back a merge: its check is required, or
 // it runs a tool whose code scanning alerts are.
 func (g *Gate) Blocks(job *models.Job) bool {
-	if g.Requires(job.Check) {
+	if g.Requires(job) {
 		return true
 	}
 	text := strings.ToLower(job.Package + " " + job.Run)
@@ -52,34 +52,46 @@ func (g *Gate) Blocks(job *models.Job) bool {
 	})
 }
 
-// Requires reports whether a job reporting as name must pass to merge.
-func (g *Gate) Requires(name string) bool {
-	return slices.ContainsFunc(g.Checks, func(c Check) bool { return produces(name, c.Context) })
+// Requires reports whether a job's check must pass to merge.
+func (g *Gate) Requires(job *models.Job) bool {
+	return slices.ContainsFunc(g.Checks, func(c Check) bool { return produces(job, c) })
 }
 
 var expression = regexp.MustCompile(`\$\{\{.*?\}\}`)
 
-// produces reports whether a job named name reports the check context. A
-// matrix job reports as "name (values)", a job calling a reusable workflow as
-// "name / called job", and an expression in the name may evaluate to anything.
-func produces(name, context string) bool {
-	parts := expression.Split(name, -1)
+// produces reports whether a GitHub Actions job reports a required check: one
+// bound to no app or to Actions. A matrix job reports as "name (values)", a
+// job calling a reusable workflow as "name / called job", and an expression
+// in the name may evaluate to anything - though a name that is nothing but
+// expressions says nothing about which check it is.
+func produces(job *models.Job, check Check) bool {
+	if check.AppID != 0 && check.AppID != actionsApp || job.UnnamedCheck() {
+		return false
+	}
+	parts := expression.Split(job.Check, -1)
 	for i, part := range parts {
 		parts[i] = regexp.QuoteMeta(part)
 	}
-	pattern := "^" + strings.Join(parts, ".*") + `(?: \(.*\)| / .*)?$`
-	return regexp.MustCompile(pattern).MatchString(context)
+	suffix := `(?: \(.*\))?`
+	if job.CallsWorkflow() {
+		suffix = `(?: \(.*\)| / .*)?`
+	}
+	return regexp.MustCompile("^" + strings.Join(parts, ".*") + suffix + "$").MatchString(check.Context)
 }
 
 // Unproduced adds a problem for each required check that GitHub Actions is
 // expected to report but no job does: a pull request then waits for it
-// forever. Checks other apps report, such as DCO, are not judged.
-func (g *Gate) Unproduced(names []string) {
+// forever. Checks other apps report, such as DCO, are not judged, and a job
+// named only by expressions may be the one that reports it.
+func (g *Gate) Unproduced(jobs []*models.Job) {
+	if slices.ContainsFunc(jobs, (*models.Job).UnnamedCheck) {
+		return
+	}
 	for _, check := range g.Checks {
 		if check.AppID != actionsApp {
 			continue
 		}
-		if !slices.ContainsFunc(names, func(name string) bool { return produces(name, check.Context) }) {
+		if !slices.ContainsFunc(jobs, func(job *models.Job) bool { return produces(job, check) }) {
 			g.Problems = append(g.Problems, fmt.Sprintf("required check %q is reported by no workflow job, so pull requests wait for it", check.Context))
 		}
 	}
@@ -106,14 +118,17 @@ func Read(repo remote.Repository, token string) (*Gate, error) {
 	g := &Gate{Branch: info.DefaultBranch}
 	branch := url.PathEscape(info.DefaultBranch)
 
-	var rules []rule
-	if err := get(base+"/rules/branches/"+branch, token, &rules); err != nil {
+	rules, err := getAll[rule](base+"/rules/branches/"+branch, token)
+	if err != nil {
 		return nil, fmt.Errorf("reading the rules on %s: %w", g.Branch, err)
 	}
 	for _, r := range rules {
 		g.Checks = append(g.Checks, r.checks()...)
 		for _, tool := range r.Parameters.CodeScanningTools {
-			g.Scanning = append(g.Scanning, tool.Tool)
+			// Both thresholds at none: the tool's alerts block nothing.
+			if tool.AlertsThreshold != "none" || tool.SecurityAlertsThreshold != "none" {
+				g.Scanning = append(g.Scanning, tool.Tool)
+			}
 		}
 	}
 
@@ -149,7 +164,9 @@ type rule struct {
 			IntegrationID *int   `json:"integration_id"`
 		} `json:"required_status_checks"`
 		CodeScanningTools []struct {
-			Tool string `json:"tool"`
+			Tool                    string `json:"tool"`
+			AlertsThreshold         string `json:"alerts_threshold"`
+			SecurityAlertsThreshold string `json:"security_alerts_threshold"`
 		} `json:"code_scanning_tools"`
 	} `json:"parameters"`
 }
@@ -169,10 +186,10 @@ func (r rule) checks() []Check {
 // one only evaluating, or one targeting no branch. Reading a ruleset's
 // details can be refused, so this is best effort.
 func idleRulesets(base, token string) []string {
-	var listed []struct {
+	listed, err := getAll[struct {
 		ID int `json:"id"`
-	}
-	if get(base+"/rulesets", token, &listed) != nil {
+	}](base+"/rulesets", token)
+	if err != nil {
 		return nil
 	}
 	var problems []string
@@ -206,6 +223,22 @@ func idleRulesets(base, token string) []string {
 		}
 	}
 	return problems
+}
+
+// getAll reads every page of a list, a hundred at a time: a repository with
+// more than the default thirty rules would otherwise lose some.
+func getAll[T any](path, token string) ([]T, error) {
+	var all []T
+	for page := 1; ; page++ {
+		var items []T
+		if err := get(fmt.Sprintf("%s?per_page=100&page=%d", path, page), token, &items); err != nil {
+			return nil, err
+		}
+		all = append(all, items...)
+		if len(items) < 100 {
+			return all, nil
+		}
+	}
 }
 
 func get(path, token string, out any) error {

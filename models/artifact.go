@@ -1,5 +1,10 @@
 package models
 
+import (
+	"regexp"
+	"strings"
+)
+
 type Artifact struct {
 	Name string
 	// Empty means none were captured, not that it runs on everything.
@@ -48,4 +53,19 @@ func (a *Artifact) HasTrigger(event string) bool {
 		}
 	}
 	return false
+}
+
+var checkExpression = regexp.MustCompile(`\$\{\{.*?\}\}`)
+
+// UnnamedCheck reports whether a job's check name is set entirely by
+// expressions, such as ${{ matrix.tool }}, so which check it reports cannot
+// be known.
+func (j *Job) UnnamedCheck() bool {
+	return j.Check != "" && strings.TrimSpace(checkExpression.ReplaceAllString(j.Check, "")) == ""
+}
+
+// CallsWorkflow reports whether a job runs a reusable workflow, whose jobs
+// report their checks as "job / called job".
+func (j *Job) CallsWorkflow() bool {
+	return strings.Contains(j.Package, ".github/workflows/")
 }

@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// ReadFile reads path, which is relative to the working directory like root.
+// ReadFile reads path.
 func ReadFile(root, path string) ([]byte, error) {
 	r, rel, err := open(root, path)
 	if err != nil {
@@ -33,15 +33,9 @@ func WriteFile(root, path string, data []byte, perm fs.FileMode) error {
 	return r.WriteFile(rel, data, perm)
 }
 
+// open takes path as built from root, so both are relative to the working
+// directory or both absolute; anything else is refused.
 func open(root, path string) (*os.Root, string, error) {
-	root, err := filepath.Abs(root)
-	if err != nil {
-		return nil, "", err
-	}
-	path, err = filepath.Abs(path)
-	if err != nil {
-		return nil, "", err
-	}
 	rel, err := filepath.Rel(root, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return nil, "", fmt.Errorf("%s is outside the repository", path)

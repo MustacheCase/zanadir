@@ -40,6 +40,8 @@ func TestPathsAreRelativeToTheWorkingDirectory(t *testing.T) {
 
 	_, err := ReadFile("mk", filepath.Join("mk", "..", "outside.mk"))
 	assert.ErrorContains(t, err, "outside the repository")
+	_, err = ReadFile("mk", filepath.Join(base, "mk", "x"))
+	assert.ErrorContains(t, err, "outside the repository", "a path not built from the root is refused")
 }
 
 func TestWriteFileStaysInTheRepository(t *testing.T) {

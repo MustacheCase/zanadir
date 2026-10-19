@@ -1,8 +1,12 @@
 package wrapper_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/internal/testrepo"
+	"github.com/MustacheCase/zanadir/wrapper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -89,6 +93,17 @@ func TestGoMakeFollowsTasks(t *testing.T) {
 	assert.Equal(t, []string{"go run -C .make . docs", "mkdocs build"}, expand(t, files, "make docs"), "gotask hands other names to the Taskfile")
 	assert.Equal(t, []string{"golangci-lint run"}, expand(t, files, "go run -race -C .make . lint"))
 	assert.Contains(t, expand(t, files, "go run -C .make . default"), "go test ./...")
+}
+
+func TestGoMakeDoesNotReadTasksFromOutsideTheRepository(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "main.go")
+	assert.NoError(t, os.WriteFile(outside, []byte(gomakeMain), 0o600))
+	files := gomakeRepo()
+	delete(files, ".make/main.go")
+	root := testrepo.Write(t, files)
+	assert.NoError(t, os.Symlink(outside, filepath.Join(root, ".make", "main.go")))
+
+	assert.Equal(t, "go run -C .make . static-analysis", wrapper.New(root).Expand("make static-analysis"))
 }
 
 func TestGoMakeNeedsAGoMakeModule(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/models"
 	"gopkg.in/yaml.v3"
 )
@@ -128,8 +128,8 @@ type invalidYAML struct{ err error }
 func (e invalidYAML) Error() string { return e.err.Error() }
 
 // readYAML decodes the first document of a configuration file into target.
-func readYAML(path string, target any) error {
-	data, err := os.ReadFile(path)
+func readYAML(root, path string, target any) error {
+	data, err := repofs.ReadFile(root, path)
 	if err != nil {
 		return err
 	}

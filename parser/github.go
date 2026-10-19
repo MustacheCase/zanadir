@@ -141,7 +141,7 @@ func (g *GithubParser) Exists(root string) bool {
 func (g *GithubParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	for _, path := range githubWorkflows(root) {
-		artifact, err := g.parseGithubWorkflow(path)
+		artifact, err := g.parseGithubWorkflow(root, path)
 		if err != nil {
 			return nil, err
 		}
@@ -201,9 +201,9 @@ func inheritCallers(artifacts []*models.Artifact) {
 	}
 }
 
-func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, error) {
+func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artifact, error) {
 	var wf workflowDef
-	if err := readYAML(filePath, &wf); err != nil {
+	if err := readYAML(root, filePath, &wf); err != nil {
 		return unreadable(filePath, err), nil
 	}
 

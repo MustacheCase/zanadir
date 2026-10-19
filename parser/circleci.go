@@ -34,7 +34,7 @@ func (c *CircleCIParser) Exists(root string) bool {
 func (c *CircleCIParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	for _, path := range circleCIConfigs(root) {
-		artifact, err := c.parseCircleCIWorkflow(path)
+		artifact, err := c.parseCircleCIWorkflow(root, path)
 		if err != nil {
 			return nil, err
 		}
@@ -43,9 +43,9 @@ func (c *CircleCIParser) Parse(root string) ([]*models.Artifact, error) {
 	return artifacts, nil
 }
 
-func (c *CircleCIParser) parseCircleCIWorkflow(filePath string) (*models.Artifact, error) {
+func (c *CircleCIParser) parseCircleCIWorkflow(root, filePath string) (*models.Artifact, error) {
 	var wf circleCIDef
-	if err := readYAML(filePath, &wf); err != nil {
+	if err := readYAML(root, filePath, &wf); err != nil {
 		return unreadable(filePath, err), nil
 	}
 

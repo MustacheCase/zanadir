@@ -4,11 +4,12 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/MustacheCase/zanadir/internal/repofs"
 )
 
 // A go-make build (github.com/anchore/go-make) hands each make target to
@@ -110,7 +111,7 @@ func (e *Expander) gomake(module string) *gomakeBuild {
 		return b
 	}
 	e.gomakes[module] = nil
-	mod, err := os.ReadFile(filepath.Join(module, "go.mod"))
+	mod, err := repofs.ReadFile(e.root, filepath.Join(module, "go.mod"))
 	if err != nil || !strings.Contains(string(mod), "github.com/anchore/go-make") {
 		return nil
 	}
@@ -120,8 +121,15 @@ func (e *Expander) gomake(module string) *gomakeBuild {
 	var parsed []*ast.File
 	funcs := map[string]*ast.FuncDecl{}
 	for _, path := range files {
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-		if err != nil || strings.HasSuffix(path, "_test.go") {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		src, err := repofs.ReadFile(e.root, path)
+		if err != nil {
+			continue
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, src, 0)
+		if err != nil {
 			continue
 		}
 		parsed = append(parsed, f)

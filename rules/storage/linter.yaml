@@ -51,3 +51,24 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["Linter"]
     regex: "(?i)^recordissues$"
+
+  # Static analysers for PHP.
+  - id: "php-static-analysis-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:phpstan|psalm)\\b"
+
+  - id: "clang-tidy-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bclang-tidy\\b"
+
+  - id: "shellcheck-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bshellcheck\\b"
+
+  - id: "clippy-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bcargo\\s+clippy\\b|clippy-check"

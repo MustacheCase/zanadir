@@ -7,7 +7,8 @@ rules:
   - id: "cobertura-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
-    regex: "(?i)\\bcobertura\\b"
+    # Prefix only: cobertura_splitter and coberturaXML are its tools too.
+    regex: "(?i)\\bcobertura"
 
   - id: "codecov-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
@@ -23,10 +24,10 @@ rules:
   - id: "coverage-results-step-rule"
     applyOn: ["Job.Package"]
     categories: ["Coverage"]
-    regex: "(?i)^(?:publishcodecoverageresults|recordcoverage|publishcoverage)$"
+    regex: "(?i)^(?:publishcodecoverageresults|recordcoverage|publishcoverage|coverage_report)$"
 
   # Coverage the test runner measures itself, which needs no upload service.
   - id: "coverage-command-rule"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Coverage"]
-    regex: "(?i)\\bpytest\\b[^\\n]*\\s--cov\\b|\\bcoverage\\s+run\\b|\\bgo\\s+test\\b[^\\n]*\\s-cover(?:profile|pkg|mode)?\\b|\\b(?:jest|vitest)\\b[^\\n]*\\s--coverage\\b|\\bnyc\\b|\\bcargo\\s+(?:tarpaulin|llvm-cov)\\b|\\bphpunit\\b[^\\n]*\\s--coverage-|\\bcoverlet\\b|XPlat Code Coverage|\\bgo-test-coverage\\b"
+    regex: "(?i)\\bpytest\\b[^\\n]*\\s--cov\\b|\\bcoverage\\s+(?:run|report|xml|combine)\\b|\\bdiff-cover\\b|\\bgo\\s+test\\b[^\\n]*\\s-cover(?:profile|pkg|mode)?\\b|\\b(?:jest|vitest)\\b[^\\n]*\\s--coverage\\b|\\bnyc\\b|\\bcargo\\s+(?:tarpaulin|llvm-cov)\\b|\\bphpunit\\b[^\\n]*\\s--coverage-|\\bcoverlet\\b|XPlat Code Coverage|\\bgo-test-coverage\\b"

@@ -57,8 +57,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 		},
 		{
 			ruleID:         "coverage-results-step-rule",
-			shouldMatch:    []string{"PublishCodeCoverageResults", "recordCoverage", "publishCoverage"},
-			shouldNotMatch: []string{"PublishTestResults", "PublishCodeCoverageResultsV2Wrapper"},
+			shouldMatch:    []string{"PublishCodeCoverageResults", "recordCoverage", "publishCoverage", "coverage_report"},
+			shouldNotMatch: []string{"PublishTestResults", "PublishCodeCoverageResultsV2Wrapper", "coverage_report_upload"},
 		},
 		{
 			ruleID:         "test-results-step-rule",
@@ -165,6 +165,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"npx jest --coverage", "vitest run --coverage", "nyc mocha", "cargo llvm-cov --lcov",
 				"cargo tarpaulin --out Xml", "vendor/bin/phpunit --coverage-clover clover.xml",
 				`dotnet test --collect:"XPlat Code Coverage"`, "vladopajic/go-test-coverage",
+				"python -m coverage xml", "coverage combine", "diff-cover coverage.xml --compare-branch=main",
 			},
 			shouldNotMatch: []string{
 				"pytest tests/", "go test ./...", "go test -run TestCoverage ./...", "jest", "npm run coverage-badge",
@@ -353,6 +354,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"./gradlew test", "./mvnw -B test", "gradle test -x integrationTest", "tox -e lint,py312", "tox",
 				"mvn -Dmaven.test.skip=false test",
 				"meson test -C _build", ".gitlab-ci/run-tests.sh _build x11", "./scripts/run_tests.sh",
+				"mvn -B verify", "./mvnw verify -Pci", "./gradlew check", "python -m unittest discover", "python3.12 -m unittest",
+				"bun test", "deno test -A", "swift test --parallel",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
@@ -400,6 +403,56 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"trivy fs .", "trivy image alpine", "trivy config .", "trivy sbom sbom.json", "trivy fs --format sarif ."},
 		},
 		{
+			ruleID:         "cobertura-rule",
+			shouldMatch:    []string{"cobertura_splitter --in coverage.xml", "coberturaXML report"},
+			shouldNotMatch: []string{"tcobertura"},
+		},
+		{
+			ruleID:         "php-static-analysis-rule",
+			shouldMatch:    []string{"vendor/bin/phpstan analyse", "vendor/bin/psalm --shepherd"},
+			shouldNotMatch: []string{"psalms.txt"},
+		},
+		{
+			ruleID:         "clang-tidy-rule",
+			shouldMatch:    []string{"run-clang-tidy -p build", "clang-tidy src/*.c"},
+			shouldNotMatch: []string{"clang -Wall"},
+		},
+		{
+			ruleID:         "shellcheck-rule",
+			shouldMatch:    []string{"shellcheck scripts/*.sh", "ludeeus/action-shellcheck"},
+			shouldNotMatch: []string{"shellchecker-config"},
+		},
+		{
+			ruleID:         "clippy-rule",
+			shouldMatch:    []string{"cargo clippy --all-targets -- -D warnings", "actions-rs/clippy-check"},
+			shouldNotMatch: []string{"cargo build", "clippy.toml"},
+		},
+		{
+			ruleID:         "scan-build-rule",
+			shouldMatch:    []string{"scan-build -o report ninja", "scan-build --status-bugs make"},
+			shouldNotMatch: []string{"build-scan"},
+		},
+		{
+			ruleID:         "reuse-rule",
+			shouldMatch:    []string{"reuse lint", "fsfe/reuse-action"},
+			shouldNotMatch: []string{"reuse download --all"},
+		},
+		{
+			ruleID:         "cargo-deny-licenses-rule",
+			shouldMatch:    []string{"cargo deny check", "cargo deny --all-features check licenses", "cargo-deny check licenses bans", "EmbarkStudios/cargo-deny-action"},
+			shouldNotMatch: []string{"cargo deny init"},
+		},
+		{
+			ruleID:         "cargo-deny-advisories-rule",
+			shouldMatch:    []string{"cargo deny check", "cargo deny check advisories", "EmbarkStudios/cargo-deny-action"},
+			shouldNotMatch: []string{"cargo deny fetch"},
+		},
+		{
+			ruleID:         "dependency-review-rule",
+			shouldMatch:    []string{"actions/dependency-review-action"},
+			shouldNotMatch: []string{"actions/dependency-review-action-fork", "my/actions/dependency-review-action"},
+		},
+		{
 			ruleID:         "trivy-secret-rule",
 			shouldMatch:    []string{"trivy fs --scanners secret .", "trivy repo --scanners vuln,secret ."},
 			shouldNotMatch: []string{"trivy fs .", "trivy fs --scanners vuln ."},
@@ -432,7 +485,9 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
-		"trivy-rule": {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
+		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
+		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
+		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"unit-test-command-rule": {
 			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test",
 			"./gradlew check --exclude-task test", "cargo test --no-run", "cargo test --all --no-run --locked",

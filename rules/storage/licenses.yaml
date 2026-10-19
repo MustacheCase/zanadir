@@ -24,3 +24,16 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["License Compliance"]
     regex: "(?i)\\bbouncer\\s+(?:check|list)\\b|wagoodman/go-bouncer"
+
+  - id: "reuse-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["License Compliance"]
+    regex: "(?i)\\breuse\\s+lint\\b|fsfe/reuse-action"
+
+  # cargo deny check runs every check unless it is given some; licenses is
+  # one of them. Its action runs check by default too.
+  - id: "cargo-deny-licenses-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["License Compliance"]
+    regex: "(?i)\\bcargo[\\s-]deny\\b[^\\n]*\\bcheck\\b|embarkstudios/cargo-deny-action"
+    unless: "(?i)\\bcheck\\s+(?:(?:advisories|bans|sources)\\s*)+$"

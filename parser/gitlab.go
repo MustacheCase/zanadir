@@ -40,6 +40,8 @@ type gitlabJob struct {
 	AllowFailure yaml.Node `yaml:"allow_failure"`
 	When         yaml.Node `yaml:"when"`
 	Extends      yaml.Node `yaml:"extends"`
+	Coverage     yaml.Node `yaml:"coverage"`
+	Artifacts    yaml.Node `yaml:"artifacts"`
 }
 
 const gitlabExtendsDepth = 11
@@ -117,7 +119,7 @@ func (r *gitlabReader) jobs() []*models.Job {
 			continue
 		}
 		if job, ok := r.resolve(name, 0); ok {
-			jobs = append(jobs, gitlabJobFrom(name, job))
+			jobs = append(jobs, gitlabJobsFrom(name, job)...)
 		}
 	}
 	return jobs
@@ -162,12 +164,31 @@ func overlay(base, job gitlabJob) gitlabJob {
 	for _, field := range []struct{ to, from *yaml.Node }{
 		{&base.BeforeScript, &job.BeforeScript}, {&base.Script, &job.Script}, {&base.AfterScript, &job.AfterScript},
 		{&base.Image, &job.Image}, {&base.AllowFailure, &job.AllowFailure}, {&base.When, &job.When},
+		{&base.Coverage, &job.Coverage}, {&base.Artifacts, &job.Artifacts},
 	} {
 		if field.from.Kind != 0 {
 			*field.to = *field.from
 		}
 	}
 	return base
+}
+
+// gitlabJobsFrom also records a job that reports coverage, through the
+// coverage: keyword or a coverage_report artifact, as a coverage step.
+func gitlabJobsFrom(name string, job gitlabJob) []*models.Job {
+	record := gitlabJobFrom(name, job)
+	var artifacts struct {
+		Reports struct {
+			CoverageReport yaml.Node `yaml:"coverage_report"`
+		} `yaml:"reports"`
+	}
+	_ = resolve(&job.Artifacts).Decode(&artifacts)
+	if job.Coverage.Kind == 0 && artifacts.Reports.CoverageReport.Kind == 0 {
+		return []*models.Job{record}
+	}
+	coverage := *record
+	coverage.Package, coverage.Run = "coverage_report", ""
+	return []*models.Job{record, &coverage}
 }
 
 func gitlabJobFrom(name string, job gitlabJob) *models.Job {

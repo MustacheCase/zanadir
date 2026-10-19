@@ -103,3 +103,20 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bdependency-check(?:\\.sh|\\.bat)?\\b|^dependencycheck(?:publisher)?$"
+
+  # Fails a pull request that adds a dependency with a known vulnerability.
+  - id: "dependency-review-rule"
+    applyOn: ["Job.Package"]
+    categories: ["SCA"]
+    regex: "(?i)^actions/dependency-review-action$"
+    weakenedWhen:
+      - input: "warn-only"
+        equals: "true"
+        verdict: "advisory"
+
+  # The advisories check of cargo deny; see cargo-deny-licenses-rule.
+  - id: "cargo-deny-advisories-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\bcargo[\\s-]deny\\b[^\\n]*\\bcheck\\b|embarkstudios/cargo-deny-action"
+    unless: "(?i)\\bcheck\\s+(?:(?:licenses|bans|sources)\\s*)+$"

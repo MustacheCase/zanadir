@@ -43,6 +43,19 @@ func TestScan_ValidRepository(t *testing.T) {
 	mockScanner.AssertExpectations(t)
 }
 
+// A worktree or a submodule has a .git file, not a directory.
+func TestScan_WorktreeOrSubmodule(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, ".git"), []byte("gitdir: ../.git/modules/sub\n"), 0o600))
+
+	mockScanner = new(MockScanner)
+	mockScanner.On("Scan", dir).Return([]*models.Artifact{}, nil)
+	_, err := NewScanService(mockScanner).Scan(dir)
+
+	assert.NoError(t, err)
+	mockScanner.AssertExpectations(t)
+}
+
 func TestScan_NotARepository(t *testing.T) {
 	dir := t.TempDir()
 

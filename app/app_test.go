@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -45,29 +46,11 @@ func TestScanRepo(t *testing.T) {
 	assert.NotNil(t, err, "scanRepo should return an error when handler setup fails")
 }
 
-func TestScanErrorReportRoutesEnforcementToStderr(t *testing.T) {
-	w, msg := scanErrorReport(models.NewEnforceError("uncovered categories: SCA"))
-
-	assert.Equal(t, os.Stderr, w)
-	assert.Contains(t, msg, "Enforcement failed")
-	assert.Contains(t, msg, "SCA")
-}
-
-func TestScanErrorReportRoutesOperationalErrorToStdout(t *testing.T) {
-	w, msg := scanErrorReport(errors.New("handler setup failed"))
-
-	assert.Equal(t, os.Stdout, w)
-	assert.Contains(t, msg, "scan repo failed")
-	assert.Contains(t, msg, "handler setup failed")
-}
-
-func TestScanErrorReportUnwrapsEnforceError(t *testing.T) {
-	wrapped := fmt.Errorf("execute: %w", models.NewEnforceError("uncovered categories: Coverage"))
-
-	w, msg := scanErrorReport(wrapped)
-
-	assert.Equal(t, os.Stderr, w)
-	assert.Contains(t, msg, "Enforcement failed")
+func TestScanErrorReport(t *testing.T) {
+	assert.Equal(t, "Enforcement failed: uncovered categories: SCA\n", scanErrorReport(models.NewEnforceError("uncovered categories: SCA")))
+	assert.Equal(t, "Enforcement failed: execute: uncovered categories: Coverage\n",
+		scanErrorReport(fmt.Errorf("execute: %w", models.NewEnforceError("uncovered categories: Coverage"))))
+	assert.Equal(t, "Error: scan repo failed: handler setup failed\n", scanErrorReport(errors.New("handler setup failed")))
 }
 
 func TestFixRepo(t *testing.T) {
@@ -75,12 +58,18 @@ func TestFixRepo(t *testing.T) {
 	assert.NotNil(t, err, "fixRepo should return an error when the directory is not a repository")
 }
 
-// exitCode records what run would have exited with, -1 for not at all.
+// diagnostics holds what the last run wrote to stderr.
+var diagnostics bytes.Buffer
+
+// exitCode records what run would have exited with, -1 for not at all, and
+// captures its stderr in diagnostics.
 func exitCode(t *testing.T) *int {
 	t.Helper()
 	code := -1
 	exit = func(c int) { code = c }
-	t.Cleanup(func() { exit = os.Exit })
+	diagnostics.Reset()
+	stderr = &diagnostics
+	t.Cleanup(func() { exit, stderr = os.Exit, os.Stderr })
 	return &code
 }
 
@@ -92,6 +81,7 @@ func TestRunExitsWhenTheConfigurationIsBad(t *testing.T) {
 
 	assert.Equal(t, 1, *code)
 	assert.False(t, did, "nothing runs without a configuration")
+	assert.Equal(t, "Error: no --dir\n", diagnostics.String(), "on stderr, so a report on stdout stays parseable")
 }
 
 func TestRunExitsWhenTheWorkFails(t *testing.T) {
@@ -100,6 +90,7 @@ func TestRunExitsWhenTheWorkFails(t *testing.T) {
 		func(*config.Config) error { return models.NewEnforceError("uncovered categories: SCA") })(&cobra.Command{}, nil)
 
 	assert.Equal(t, 1, *code)
+	assert.Equal(t, "Enforcement failed: uncovered categories: SCA\n", diagnostics.String())
 }
 
 func TestRunDoesNotExitOnSuccess(t *testing.T) {
@@ -163,4 +154,5 @@ func TestRunExitsWhenTheFetchFails(t *testing.T) {
 
 	assert.Equal(t, 1, *code)
 	assert.False(t, did)
+	assert.Equal(t, "Error: github.com/o/r was not found\n", diagnostics.String())
 }

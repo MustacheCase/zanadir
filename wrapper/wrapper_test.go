@@ -124,6 +124,17 @@ func TestMakeDoesNotReadOutsideTheRepository(t *testing.T) {
 	}
 }
 
+// Each := line multiplies the value tenfold; make itself would need gigabytes.
+func TestMakeBoundsExpansion(t *testing.T) {
+	lines := []string{"A0 := xxxxxxxxxx"}
+	for i := 1; i <= 7; i++ {
+		lines = append(lines, fmt.Sprintf("A%d := %s", i, strings.TrimSpace(strings.Repeat(fmt.Sprintf("$(A%d) ", i-1), 10))))
+	}
+	lines = append(lines, "lint:\n\tgitleaks detect $(A7)\n")
+	assert.Equal(t, []string{"gitleaks detect"}, expand(t, map[string]string{"Makefile": strings.Join(lines, "\n")}, "make lint"),
+		"a value past the bound expands to nothing")
+}
+
 func TestMakeStopsOnCyclesAndSelfIncludes(t *testing.T) {
 	files := map[string]string{"Makefile": "include Makefile\na: b\n\techo a\nb: a\n\techo b\n"}
 	assert.Equal(t, []string{"echo b", "echo a"}, expand(t, files, "make a"))

@@ -76,15 +76,13 @@ rules:
     regex: "(?i)\\bpip-audit\\b|pypa/gh-action-pip-audit"
 
   # The audit subcommand, not the word: "audit" alone is in half the workflow
-  # names on GitHub. A trailing "|| true" on the same line is the usual way
-  # this one gets defanged.
+  # names on GitHub. A trailing "|| true", the usual way this one gets
+  # defanged, is graded advisory for every tool.
   - id: "npm-audit-rule"
     applyOn: ["Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\b(npm|yarn|pnpm)\\s+audit\\b"
     weakenedWhen:
-      - runMatches: "(?i)\\b(npm|yarn|pnpm)\\s+audit\\b[^\\n]*\\|\\|\\s*true"
-        verdict: "advisory"
       - runMatches: "(?i)--audit-level[= ]+none\\b"
         verdict: "advisory"
 

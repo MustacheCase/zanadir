@@ -104,15 +104,33 @@ var setupAction = regexp.MustCompile(`(?i)(?:^|/)(?:setup|install|download)(?:-[
 // line, less those a rule excepts.
 func invocations(run string, unless *regexp.Regexp) string {
 	var kept []string
+	eachInvocation(run, func(_, invoked string) {
+		if unless == nil || !unless.MatchString(invoked) {
+			kept = append(kept, invoked)
+		}
+	})
+	return strings.Join(kept, "\n")
+}
+
+// Commands returns the commands of a run script that the rule matches, as
+// written, so a flag is read off the command that runs the tool rather than
+// off a neighbour.
+func Commands(run string, rule *rules.Rule) []string {
+	var matched []string
+	eachInvocation(run, func(command, invoked string) {
+		if matches(rule, invoked) {
+			matched = append(matched, command)
+		}
+	})
+	return matched
+}
+
+func eachInvocation(run string, visit func(command, invoked string)) {
 	for _, command := range shell.Commands(run) {
 		if words := shell.Words(command); len(words) > 0 && !shell.Passive(words) {
-			invoked := strings.Join(shell.Invoked(words), " ")
-			if unless == nil || !unless.MatchString(invoked) {
-				kept = append(kept, invoked)
-			}
+			visit(command, strings.Join(shell.Invoked(words), " "))
 		}
 	}
-	return strings.Join(kept, "\n")
 }
 
 func NewMatchService() Matcher {

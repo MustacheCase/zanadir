@@ -250,6 +250,14 @@ func TestMatchOnJobName(t *testing.T) {
 	assert.Equal(t, "unit tests", found[0].Job.Name)
 }
 
+func TestCommandsAreTheOnesTheRuleMatches(t *testing.T) {
+	gitleaks := &rules.Rule{ID: "gitleaks", Regex: regexp.MustCompile(`\bgitleaks\b`), Unless: regexp.MustCompile(`--version`)}
+
+	assert.Equal(t, []string{"gitleaks detect --exit-code 1", "gitleaks protect"},
+		matcher.Commands("trivy fs --exit-code 0 . && gitleaks detect --exit-code 1\necho gitleaks\ngitleaks --version\ngitleaks protect", gitleaks))
+	assert.Empty(t, matcher.Commands("make lint", gitleaks))
+}
+
 func TestUnlessExceptsANameOrWorkflow(t *testing.T) {
 	rule := &rules.Rule{ID: "unit", Regex: regexp.MustCompile(`(?i)\btests?\b`), Unless: regexp.MustCompile(`(?i)\bdeploy\b`),
 		ApplyOn: []string{rules.FieldArtifactName, rules.FieldJobName}, Categories: []string{"Unit Tests"}}

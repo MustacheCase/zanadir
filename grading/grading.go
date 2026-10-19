@@ -101,9 +101,17 @@ func toolSpecific(rule *rules.Rule, job *models.Job) (Verdict, bool) {
 		return "", false
 	}
 
+	// A step matched by its name or action, with no command of the tool's
+	// own, is read whole.
+	commands := []string{job.Run}
+	if rule.Regex != nil {
+		if matched := matcher.Commands(job.Run, rule); len(matched) > 0 {
+			commands = matched
+		}
+	}
 	for _, check := range rule.Weakened {
 		if check.RunMatches != nil {
-			if job.Run != "" && check.RunMatches.MatchString(job.Run) {
+			if job.Run != "" && slices.ContainsFunc(commands, check.RunMatches.MatchString) {
 				return Verdict(check.Verdict), true
 			}
 			continue

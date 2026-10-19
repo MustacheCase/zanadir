@@ -254,7 +254,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 		{
 			// "latest" contains "test", which ".*test.*" matched.
 			ruleID:         "unit-test-rule",
-			shouldMatch:    []string{"test", "unit-tests", "run-tests", "go test ./..."},
+			shouldMatch:    []string{"test", "unit-tests", "run-tests", "go test ./...", "build-and-test", "go-test-race", "release-test"},
 			shouldNotMatch: []string{"latest", "deploy-latest", "protest-build", "contest"},
 		},
 		{
@@ -348,6 +348,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"yarn test", "pnpm run test", "pytest -q", "cargo test --all",
 				"dotnet test", "mvn -B verify test", "gradle clean test",
 				"bundle exec rspec", "npx jest --ci", "mocha spec/", "vitest run", "tox -e py311",
+				"./gradlew test", "./mvnw -B test", "gradle test -x integrationTest", "tox -e lint,py312", "tox",
+				"mvn -Dmaven.test.skip=false test",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
@@ -423,6 +425,12 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 
 	for id, excepted := range map[string][]string{
 		"trivy-rule": {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
+		"unit-test-command-rule": {
+			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test",
+			"./gradlew check --exclude-task test", "cargo test --no-run", "cargo test --all --no-run --locked",
+			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",
+		},
+		"unit-test-rule": {"deploy-test", "publish-test-pypi", "report-test-failure", "tests-result", "set-test-package-matrix", "Snyk Test", "Test GitHub OIDC"},
 	} {
 		rule := findRule(t, rs, id)
 		for _, command := range excepted {

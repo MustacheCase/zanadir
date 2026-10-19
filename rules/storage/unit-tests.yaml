@@ -3,6 +3,9 @@ rules:
     applyOn: ["Artifact.Name", "Job.Name"]
     categories: ["Unit Tests"]
     regex: "(?i)\\btests?\\b"
+    # Names about tests rather than running them: deploy-test, publish-test-pypi,
+    # report-test-failure, set-test-package-matrix, and "Snyk Test", which is SCA.
+    unless: "(?i)\\b(?:deploy|deployment|publish|report|results?|matrix|discover|deps|snyk|oidc|attest|notify|upload)\\b"
 
   # The rule above matches a job or workflow *named* "test". A job that simply
   # runs the suite from a shell step was missed entirely, so a repository whose
@@ -14,7 +17,11 @@ rules:
   - id: "unit-test-command-rule"
     applyOn: ["Job.Run"]
     categories: ["Unit Tests"]
-    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\b(?:pytest|rspec|phpunit|jest|mocha|vitest|ctest|tox)\\b|\\bmvn\\s[^\\n]*\\btest\\b|\\bgradle\\s[^\\n]*\\btest\\b|\\bbundle\\s+exec\\s+rspec\\b"
+    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\b(?:pytest|rspec|phpunit|jest|mocha|vitest|ctest|tox)\\b|\\bmvnw?\\s[^\\n]*\\btest\\b|\\bgradlew?\\s[^\\n]*\\btest\\b|\\bbundle\\s+exec\\s+rspec\\b"
+    # Commands that build or check without running the tests: Maven's skip
+    # properties, Gradle excluding the test task, cargo's --no-run, and tox
+    # environments that only lint, type-check, document or package.
+    unless: "(?i)\\bmvnw?\\s[^\\n]*-D(?:skipTests|maven\\.test\\.skip)(?:=true)?(?:\\s|$)|\\bgradlew?\\s[^\\n]*(?:-x|--exclude-task)[= ]?\\s*test(?:\\s|$)|\\bcargo\\s+test\\b[^\\n]*\\s--no-run\\b|\\btox\\b[^\\n]*(?:\\s-e\\s*|\\s--envlist[= ]?)(?:lint|flake8|pylint|mypy|typing|types?|docs?|pre-commit|precommit|format|fmt|black|isort|ruff|style|pep8|build|package|packaging|release|publish|spell|codespell|bandit|security|safety|audit|manifest|readme|linkcheck|clean)(?:,(?:lint|flake8|pylint|mypy|typing|types?|docs?|pre-commit|precommit|format|fmt|black|isort|ruff|style|pep8|build|package|packaging|release|publish|spell|codespell|bandit|security|safety|audit|manifest|readme|linkcheck|clean))*(?:\\s|$)"
 
   # Steps that run or publish test results stand in for a test command zanadir
   # cannot see, such as Azure's DotNetCoreCLI test input or a Jenkins junit step.

@@ -4,7 +4,6 @@ import (
 	"embed"
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
@@ -30,8 +29,8 @@ type FileRule struct {
 	ApplyOn    []string `yaml:"applyOn"`
 	Categories []string `yaml:"categories"`
 	Regex      string   `yaml:"regex"`
-	// Unless excludes a command the regex matches, such as a test runner
-	// told to skip the tests. It applies to Job.Run only.
+	// Unless excludes a match: on Job.Run a command, such as a test runner
+	// told to skip the tests, and on the other fields their whole text.
 	Unless   string             `yaml:"unless"`
 	Weakened []FileWeakenedWhen `yaml:"weakenedWhen"`
 }
@@ -160,9 +159,6 @@ func validateRules(fileRules []FileRule) error {
 func validateUnless(r FileRule) error {
 	if r.Unless == "" {
 		return nil
-	}
-	if !slices.Contains(r.ApplyOn, FieldJobRun) {
-		return fmt.Errorf("rule %q: unless applies to %s, which the rule does not", r.ID, FieldJobRun)
 	}
 	if _, err := regexp.Compile(r.Unless); err != nil {
 		return fmt.Errorf("rule %q: unless %q: %w", r.ID, r.Unless, err)

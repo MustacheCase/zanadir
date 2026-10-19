@@ -621,3 +621,28 @@ func TestPullRequestFilters(t *testing.T) {
 		})
 	}
 }
+
+// Where the default branch was read, it is the only candidate, which settles
+// what the stand-in names could only guess.
+func TestGradeWithTheRealDefaultBranch(t *testing.T) {
+	for _, tt := range []struct {
+		name, branch string
+		trigger      models.Trigger
+		want         Verdict
+	}{
+		{"develop, but the filter names master", "develop", models.Trigger{Branches: []string{"master"}}, Unknown},
+		{"an unusual default the filter names", "stable", models.Trigger{Branches: []string{"stable"}}, Enforcing},
+		{"a glob admitting it", "release/2.x", models.Trigger{Branches: []string{"release/**"}}, Enforcing},
+		{"ignoring it", "stable", models.Trigger{IgnoredBranches: []string{"stable"}}, Unknown},
+		{"no filter", "stable", models.Trigger{}, Enforcing},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.trigger.Event = "pull_request"
+			f := finding([]models.Trigger{tt.trigger}, &models.Job{})
+			f.Artifact.DefaultBranch = tt.branch
+			if got := Grade(f); got != tt.want {
+				t.Errorf("Grade = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

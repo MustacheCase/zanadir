@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
 )
@@ -270,6 +271,20 @@ func deref(id *int) int {
 		return 0
 	}
 	return *id
+}
+
+// DefaultBranch reads the branch a checkout's origin/HEAD names, which git
+// clone sets; "" when it is not set, as in most CI checkouts.
+func DefaultBranch(dir string) string {
+	head, err := repofs.ReadFile(dir, filepath.Join(dir, ".git", "refs", "remotes", "origin", "HEAD"))
+	if err != nil {
+		return ""
+	}
+	branch, found := strings.CutPrefix(strings.TrimSpace(string(head)), "ref: refs/remotes/origin/")
+	if !found {
+		return ""
+	}
+	return branch
 }
 
 var originURL = regexp.MustCompile(`(?m)^\s*url\s*=\s*(\S+)\s*$`)

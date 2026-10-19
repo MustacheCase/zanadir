@@ -473,8 +473,11 @@ A `pull_request` trigger gates only if it runs on the change itself and on
 pull requests to the default branch. `types: [closed]` runs after the merge,
 so it grades like a push. A `branches:` or `branches-ignore:` filter that
 leaves out the default branch makes the control `unknown`. The default branch
-is set outside the repository, so `main`, `master`, `trunk` and `develop`
-stand in for it, or whichever of them the filter names.
+is set outside the repository: zanadir reads it from the checkout's
+`origin/HEAD`, which `git clone` sets, from GitHub with `--repo` or
+`--required-checks`. Where none of those has it, as in most CI checkouts,
+`main`, `master`, `trunk` and `develop` stand in for it, or whichever of them
+the filter names.
 
 Supply Chain is graded against a different path. An SBOM, a signature or a
 provenance attestation describes what ships rather than looking for something

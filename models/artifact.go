@@ -15,6 +15,8 @@ type Artifact struct {
 	OutsidePipeline bool
 	// Skipped says why the file was not read; it then has no jobs.
 	Skipped string
+	// DefaultBranch is the repository's, when it could be read.
+	DefaultBranch string
 }
 
 type Trigger struct {

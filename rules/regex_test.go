@@ -350,11 +350,13 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"bundle exec rspec", "npx jest --ci", "mocha spec/", "vitest run", "tox -e py311",
 				"./gradlew test", "./mvnw -B test", "gradle test -x integrationTest", "tox -e lint,py312", "tox",
 				"mvn -Dmaven.test.skip=false test",
+				"meson test -C _build", ".gitlab-ci/run-tests.sh _build x11", "./scripts/run_tests.sh",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
 				"curl https://test.example.com", `echo "testing the build"`,
 				"go build ./...", "go vet ./...", "npm run build", "docker build -t app:test .",
+				"meson setup _build", "./rerun-tests.shx",
 				"latest", "deploy-latest",
 			},
 		},

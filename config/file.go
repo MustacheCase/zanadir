@@ -43,6 +43,16 @@ func loadFile(path string) (*File, error) {
 	if err := dec.Decode(&f); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("parsing config %s: %w", path, err)
 	}
+	// yaml.v3 drops an empty list entry without a word.
+	var raw struct {
+		Rules yaml.Node `yaml:"rules"`
+	}
+	_ = yaml.Unmarshal(data, &raw)
+	for i, item := range raw.Rules.Content {
+		if item.Tag == "!!null" {
+			return nil, fmt.Errorf("parsing config %s: line %d: rules entry %d is empty", path, item.Line, i+1)
+		}
+	}
 	return &f, nil
 }
 

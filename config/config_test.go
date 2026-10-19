@@ -176,13 +176,14 @@ func TestCreateConfigNormalizesExcludedCategories(t *testing.T) {
 }
 
 func TestCreateConfigDefaultsBaselinePathForWrite(t *testing.T) {
-	cmd := newScanCmd(t.TempDir(), nil)
+	dir := t.TempDir()
+	cmd := newScanCmd(dir, nil)
 	assert.NoError(t, cmd.Flags().Set("write-baseline", "true"))
 
 	cfg, err := CreateConfig(cmd)
 	assert.NoError(t, err)
 	assert.True(t, cfg.WriteBaseline)
-	assert.Equal(t, baseline.DefaultPath, cfg.Baseline)
+	assert.Equal(t, filepath.Join(dir, baseline.DefaultPath), cfg.Baseline, "in the scanned directory, not the current one")
 }
 
 func newFixCmd(dir string) *cobra.Command {
@@ -322,4 +323,27 @@ func TestCreateFixConfigWillNotWriteIntoAFetchedRepository(t *testing.T) {
 	cmd.Flags().Bool("write", true, "write")
 	_, err := CreateFixConfig(cmd)
 	assert.ErrorContains(t, err, "--write adds a workflow to a checkout")
+}
+
+func TestCreateConfigReadsTheOutputFormatInAnyCase(t *testing.T) {
+	cmd := newScanCmd(t.TempDir(), nil)
+	assert.NoError(t, cmd.Flags().Set("output", "JSON"))
+	cfg, err := CreateConfig(cmd)
+	assert.NoError(t, err)
+	assert.Equal(t, "json", cfg.Output)
+}
+
+// A symlink the operator names is followed; repofs keeps reads inside it.
+func TestCreateConfigFollowsASymlinkedDir(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	assert.NoError(t, os.Symlink(dir, link))
+	cfg, err := CreateConfig(newScanCmd(link, nil))
+	assert.NoError(t, err)
+	assert.Equal(t, link, cfg.Dir)
+
+	file := filepath.Join(dir, "file")
+	assert.NoError(t, os.WriteFile(file, nil, 0o600))
+	_, err = CreateConfig(newScanCmd(file, nil))
+	assert.ErrorContains(t, err, "is not a directory")
 }

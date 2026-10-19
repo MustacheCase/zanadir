@@ -383,6 +383,7 @@ func TestParseSkipsUnparseableYAML(t *testing.T) {
 		"broken.yml":    "name: w\n  jobs: [oops\n",
 		"duplicate.yml": "jobs:\n  build:\n    if: false\n    if: true\n",
 		"empty.yml":     "",
+		"shaped.yml":    "on: pull_request\njobs: [1, 2]\n",
 		"lint.yml":      "jobs:\n  lint:\n    steps:\n      - uses: golangci/golangci-lint-action@v6\n",
 	}))
 	require.NoError(t, err)
@@ -395,6 +396,7 @@ func TestParseSkipsUnparseableYAML(t *testing.T) {
 	assert.Contains(t, skipped["broken.yml"], "line 2")
 	assert.Equal(t, `it is not valid YAML (yaml: unmarshal errors: line 4: mapping key "if" already defined at line 3), so the CI platform cannot run it either`, skipped["duplicate.yml"])
 	assert.Empty(t, skipped["empty.yml"], "an empty file is valid, if pointless")
+	assert.Contains(t, skipped["shaped.yml"], "it is valid YAML but not shaped as the CI platform expects (yaml: unmarshal errors: line 2: cannot unmarshal")
 	assert.Empty(t, skipped["lint.yml"])
 	assert.Equal(t, 1, jobs)
 }

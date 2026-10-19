@@ -778,6 +778,26 @@ func TestFixWriteIsIdempotent(t *testing.T) {
 	assert.NotContains(t, written[0], "zizmor", "Workflow Security applies once the repository has workflows of its own")
 }
 
+// A category both in --fail-on and excluded can never fail, which the
+// operator is told; an excluded category is not also called not applicable.
+func TestExecuteWarnsOfFailOnExcludedAndLeavesExclusionsOutOfNotApplicable(t *testing.T) {
+	warnings := captureStderr(t)
+	h, err := Setup()
+	require.NoError(t, err)
+	dir := testrepo.Write(t, map[string]string{"go.mod": "module x\n", ".git/HEAD": "ref: refs/heads/main\n"})
+	report := filepath.Join(t.TempDir(), "report.json")
+
+	err = h.Execute(&config.Config{Dir: dir, Output: config.OutputJSON, OutputFile: report,
+		ExcludedCategories: []string{"SAST", "IaC Security"}, FailOn: []string{"SAST"}})
+	require.NoError(t, err)
+
+	assert.Contains(t, warnings.String(), "Warning: SAST is both in --fail-on and excluded, so it can never fail the scan")
+	data, err := os.ReadFile(report)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), "IaC Security")
+	assert.Contains(t, string(data), "Workflow Security", "a category that is not applicable, and not excluded, is still named")
+}
+
 func TestSetupRejectsABadCustomRule(t *testing.T) {
 	_, err := Setup(rules.FileRule{ID: "acme"})
 	assert.ErrorContains(t, err, "acme")

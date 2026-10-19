@@ -53,10 +53,22 @@ var (
 // the owner/name shorthand, each optionally followed by @ref.
 func Parse(s string) (Repository, error) {
 	raw := s
-	s = strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(s), "https://"), "http://")
+	s = strings.TrimSpace(s)
+	for _, prefix := range []string{"https://", "http://", "git@github.com:", "ssh://git@"} {
+		if len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix) {
+			s = s[len(prefix):]
+			if prefix == "git@github.com:" {
+				s = "github.com/" + s
+			}
+			break
+		}
+	}
 	var repo Repository
 	if i := strings.LastIndex(s, "@"); i >= 0 {
 		s, repo.Ref = s[:i], s[i+1:]
+		if repo.Ref == "" {
+			return Repository{}, fmt.Errorf("%q names no ref after @: give a branch, tag or commit, or leave out @ for the default branch", raw)
+		}
 	}
 	s = strings.TrimSuffix(strings.TrimSuffix(s, "/"), ".git")
 
@@ -67,7 +79,7 @@ func Parse(s string) (Repository, error) {
 		}
 		parts = parts[1:]
 	}
-	if len(parts) != 2 || !ownerPart.MatchString(parts[0]) || !namePart.MatchString(parts[1]) {
+	if len(parts) != 2 || !ownerPart.MatchString(parts[0]) || !namePart.MatchString(parts[1]) || strings.Trim(parts[1], ".") == "" {
 		return Repository{}, fmt.Errorf("%q is not a repository: expected github.com/owner/name", raw)
 	}
 	if repo.Ref != "" && (!refPart.MatchString(repo.Ref) || strings.Contains(repo.Ref, "..")) {

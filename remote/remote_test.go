@@ -29,6 +29,9 @@ func TestParse(t *testing.T) {
 		"expressjs/express@feature/x-1":       {Owner: "expressjs", Name: "express", Ref: "feature/x-1"},
 		" github.com/a-b/c_d.e@0123abc ":      {Owner: "a-b", Name: "c_d.e", Ref: "0123abc"},
 		"github.com/MustacheCase/zanadir.git": {Owner: "MustacheCase", Name: "zanadir"},
+		"HTTPS://github.com/cli/cli":          {Owner: "cli", Name: "cli"},
+		"git@github.com:cli/cli.git":          {Owner: "cli", Name: "cli"},
+		"ssh://git@github.com/cli/cli":        {Owner: "cli", Name: "cli"},
 	} {
 		got, err := Parse(in)
 		if assert.NoError(t, err, in) {
@@ -45,6 +48,9 @@ func TestParse(t *testing.T) {
 		"github.com/cli/cli@../../x": "not a branch",
 		"github.com/cli/cli@a b":     "not a branch",
 		"github.com/cli/cli@x?y=z":   "not a branch",
+		"a/..":                       "not a repository",
+		"a/.":                        "not a repository",
+		"a/b@":                       "names no ref after @",
 	} {
 		_, err := Parse(in)
 		assert.ErrorContains(t, err, msg, in)

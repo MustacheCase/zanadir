@@ -168,7 +168,10 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	languages := language.Detect(cfg.Dir)
 	debugf("Detected languages: %v", languages)
 
-	notApplicable := applicability.NotApplicable(cfg.Dir, ignore)
+	// A category the operator excluded is out of the report already.
+	notApplicable := slices.DeleteFunc(applicability.NotApplicable(cfg.Dir, ignore), func(category string) bool {
+		return slices.Contains(cfg.ExcludedCategories, category)
+	})
 	debugf("Not applicable: %v", notApplicable)
 
 	// A category with nothing to scan is skipped exactly as an operator-
@@ -276,6 +279,11 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 // Execute scans the repository, reports the result, and fails when
 // enforcement asks it to.
 func (h *Handler) Execute(cfg *config.Config) error {
+	for _, category := range cfg.FailOn {
+		if slices.Contains(cfg.ExcludedCategories, category) {
+			_, _ = fmt.Fprintf(stderr, "Warning: %s is both in --fail-on and excluded, so it can never fail the scan\n", category)
+		}
+	}
 	debugf := newDebug(cfg)
 	debugf("Starting scan for directory: %s", cfg.Dir)
 	result, err := h.analyse(cfg, debugf, nil)

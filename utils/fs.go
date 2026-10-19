@@ -3,6 +3,7 @@ package utils
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // IsFile reports whether path exists and is a regular file or a link to one.
@@ -62,4 +63,11 @@ var dependencyDirs = map[string]bool{
 // else's code.
 func IsDependencyDir(name string) bool {
 	return dependencyDirs[name]
+}
+
+var testDirs = map[string]bool{"test": true, "tests": true, "testdata": true, "fixtures": true, "__fixtures__": true, "spec": true, "benches": true}
+
+// IsTestDir reports whether a directory of this name holds tests or their data.
+func IsTestDir(name string) bool {
+	return testDirs[strings.ToLower(name)]
 }

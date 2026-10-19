@@ -35,3 +35,10 @@ func TestIsDependencyDir(t *testing.T) {
 	}
 	assert.False(t, IsDependencyDir("src"))
 }
+
+func TestIsTestDir(t *testing.T) {
+	for _, name := range []string{"test", "Tests", "fixtures", "__fixtures__", "spec", "benches", "testdata"} {
+		assert.True(t, IsTestDir(name), name)
+	}
+	assert.False(t, IsTestDir("testing-tools"))
+}

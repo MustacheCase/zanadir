@@ -20,7 +20,8 @@ type service struct {
 }
 
 func (s *service) Scan(dir string) ([]*models.Artifact, error) {
-	if !utils.IsDir(filepath.Join(dir, ".git")) {
+	// A worktree or a submodule has a .git file pointing at its git directory.
+	if git := filepath.Join(dir, ".git"); !utils.IsDir(git) && !utils.IsFile(git) {
 		return nil, errors.New("not a git repository")
 	}
 	return s.repository.Scan(dir)

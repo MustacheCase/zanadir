@@ -232,3 +232,35 @@ func TestDefaultBranch(t *testing.T) {
 	require.NoError(t, os.WriteFile(head, []byte("0123456789abcdef\n"), 0o600))
 	assert.Empty(t, DefaultBranch(dir), "a detached origin/HEAD names no branch")
 }
+
+// A worktree's .git file names its git directory, whose commondir names the
+// one holding the remotes; a submodule's names its git directory directly.
+func TestRemotesAreReadThroughGitLinks(t *testing.T) {
+	base := t.TempDir()
+	write := func(path, content string) {
+		t.Helper()
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	}
+	main := filepath.Join(base, "main", ".git")
+	write(filepath.Join(main, "config"), "[remote \"origin\"]\n\turl = https://github.com/o/r.git\n")
+	write(filepath.Join(main, "refs", "remotes", "origin", "HEAD"), "ref: refs/remotes/origin/develop\n")
+	write(filepath.Join(main, "worktrees", "wt", "commondir"), "../..\n")
+	write(filepath.Join(base, "wt", ".git"), "gitdir: "+filepath.Join(main, "worktrees", "wt")+"\n")
+
+	modules := filepath.Join(base, "super", ".git", "modules", "sub")
+	write(filepath.Join(modules, "config"), "[remote \"origin\"]\n\turl = git@github.com:o/sub.git\n")
+	write(filepath.Join(base, "super", "sub", ".git"), "gitdir: ../.git/modules/sub\n")
+
+	for dir, want := range map[string]string{"main": "github.com/o/r", "wt": "github.com/o/r", "super/sub": "github.com/o/sub"} {
+		got, err := Origin(filepath.Join(base, dir))
+		require.NoError(t, err, dir)
+		assert.Equal(t, want, got.String(), dir)
+	}
+	assert.Equal(t, "develop", DefaultBranch(filepath.Join(base, "wt")), "a worktree shares the main checkout's refs")
+	assert.Empty(t, DefaultBranch(filepath.Join(base, "super", "sub")))
+
+	write(filepath.Join(base, "odd", ".git"), "not a link\n")
+	_, err := Origin(filepath.Join(base, "odd"))
+	assert.Error(t, err)
+}

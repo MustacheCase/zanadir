@@ -16,7 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
 )
@@ -276,7 +275,7 @@ func deref(id *int) int {
 // DefaultBranch reads the branch a checkout's origin/HEAD names, which git
 // clone sets; "" when it is not set, as in most CI checkouts.
 func DefaultBranch(dir string) string {
-	head, err := repofs.ReadFile(dir, filepath.Join(dir, ".git", "refs", "remotes", "origin", "HEAD"))
+	head, err := os.ReadFile(filepath.Join(commonDir(dir), "refs", "remotes", "origin", "HEAD"))
 	if err != nil {
 		return ""
 	}
@@ -289,9 +288,33 @@ func DefaultBranch(dir string) string {
 
 var originURL = regexp.MustCompile(`(?m)^\s*url\s*=\s*(\S+)\s*$`)
 
+// commonDir is the git directory holding a checkout's remotes. A worktree or
+// a submodule has a .git file naming its git directory, and a worktree's
+// names, in commondir, the one it shares. git writes these, never a
+// repository's content, so they may lead outside the checkout.
+func commonDir(dir string) string {
+	git := filepath.Join(dir, ".git")
+	if link, err := os.ReadFile(git); err == nil {
+		if target, ok := strings.CutPrefix(strings.TrimSpace(string(link)), "gitdir:"); ok {
+			git = relativeTo(dir, strings.TrimSpace(target))
+		}
+	}
+	if common, err := os.ReadFile(filepath.Join(git, "commondir")); err == nil {
+		return relativeTo(git, strings.TrimSpace(string(common)))
+	}
+	return git
+}
+
+func relativeTo(base, path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(base, path)
+}
+
 // Origin reads the GitHub repository a checkout's origin remote points at.
 func Origin(dir string) (remote.Repository, error) {
-	config, err := os.ReadFile(filepath.Join(dir, ".git", "config"))
+	config, err := os.ReadFile(filepath.Join(commonDir(dir), "config"))
 	if err != nil {
 		return remote.Repository{}, err
 	}

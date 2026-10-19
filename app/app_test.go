@@ -224,6 +224,9 @@ func TestSignalNumber(t *testing.T) {
 func TestScanAndFixRejectArguments(t *testing.T) {
 	for _, cmd := range []*cobra.Command{scanCmd, fixCmd} {
 		assert.Error(t, cmd.Args(cmd, []string{"false"}), cmd.Use)
+		assert.Error(t, cmd.Args(cmd, []string{"", "false"}), cmd.Use)
 		assert.NoError(t, cmd.Args(cmd, nil), cmd.Use)
+		// The zanadir action passes each unset optional input as "".
+		assert.NoError(t, cmd.Args(cmd, []string{"", ""}), cmd.Use)
 	}
 }

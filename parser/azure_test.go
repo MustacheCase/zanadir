@@ -329,3 +329,125 @@ func TestAzureReadsATemplateAsWrittenWhenSubstitutionBreaksIt(t *testing.T) {
 	require.Len(t, artifact.Jobs, 1)
 	assert.Equal(t, "echo ${{ parameters.message }} && gitleaks detect", artifact.Jobs[0].Run)
 }
+
+// Large projects keep their pipelines outside the root; a file there counts
+// when it has a key only a pipeline may have.
+func TestAzureFindsPipelinesOutsideTheRoot(t *testing.T) {
+	root := testrepo.Write(t, map[string]string{
+		"eng/pipelines/runtime.yml":               "trigger: [main]\npr: [main]\nextends:\n  template: /eng/pipelines/common/templates/base.yml\n",
+		"eng/pipelines/common/templates/base.yml": "parameters:\n  - name: x\n    default: y\nsteps:\n  - script: gitleaks detect\n",
+		"build/azure-pipelines/product/build.yml": "pr:\n  branches: {include: [main]}\njobs:\n  - job: lint\n    steps:\n      - script: eslint .\n",
+		"build/azure-pipelines/steps.yml":         "steps:\n  - script: semgrep ci\n",
+		"ci/gitlab-include.yml":                   "stages: [test]\ntrigger: x\n",
+		"ci/broken.yml":                           "trigger: [\n",
+		"ci/notes.md":                             "trigger: main",
+		"docs/pipelines/sample.yml":               "pr: [main]\nsteps:\n  - script: trivy fs .\n",
+	})
+	assert.True(t, NewAzureParser().Exists(root))
+	artifacts, err := NewAzureParser().Parse(root)
+	require.NoError(t, err)
+	var locations []string
+	runs := map[string]string{}
+	for _, a := range artifacts {
+		rel, _ := filepath.Rel(root, a.Location)
+		locations = append(locations, filepath.ToSlash(rel))
+		for _, job := range a.Jobs {
+			runs[filepath.ToSlash(rel)] += job.Run
+		}
+	}
+	assert.ElementsMatch(t, []string{"eng/pipelines/runtime.yml", "build/azure-pipelines/product/build.yml"}, locations,
+		"templates, other YAML and directories that are not pipeline homes are left out")
+	assert.Equal(t, "gitleaks detect", runs["eng/pipelines/runtime.yml"], "an extends: template is followed from the root")
+	assert.Equal(t, "eslint .", runs["build/azure-pipelines/product/build.yml"])
+}
+
+func TestAzureBoundsTheFilesItReadsToFindPipelines(t *testing.T) {
+	defer func(n int) { maxAzureCandidates = n }(maxAzureCandidates)
+	maxAzureCandidates = 1
+	root := testrepo.Write(t, map[string]string{
+		".pipelines/a.yml": "steps:\n  - script: x\n",
+		".pipelines/b.yml": "pr: [main]\nsteps:\n  - script: gitleaks detect\n",
+	})
+	assert.False(t, NewAzureParser().Exists(root), "the second file is past the bound")
+}
+
+// A pipeline that extends a template in another repository, as 1ES and
+// MicroBuild pipelines do, hands it its own work as parameters.
+func TestAzureReadsWorkHandedToAnExtendedTemplate(t *testing.T) {
+	artifact := parseAzure(t, map[string]string{"azure-pipelines.yml": `pr: [main]
+resources:
+  repositories:
+    - repository: 1ESPipelineTemplates
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1ESPipelineTemplates
+  parameters:
+    sdl:
+      codeql: {compiled: {enabled: true}}
+    stages:
+      - stage: Build
+        jobs:
+          - job: Scan
+            steps:
+              - script: gitleaks detect
+`})
+	require.Len(t, artifact.Jobs, 1)
+	assert.Equal(t, "gitleaks detect", artifact.Jobs[0].Run)
+	assert.Equal(t, "Scan", artifact.Jobs[0].Name)
+}
+
+// ${{ if }}, ${{ else }} and ${{ each }} entries insert items; whether they
+// are inserted is decided from values zanadir cannot read.
+func TestAzureReadsInsertedItemsAsConditional(t *testing.T) {
+	artifact := parseAzure(t, map[string]string{"azure-pipelines.yml": `pr: [main]
+stages:
+  - stage: Build
+    jobs:
+      - job: Always
+        steps:
+          - script: semgrep ci
+      - ${{ if eq(parameters.scan, true) }}:
+        - job: Scan
+          steps:
+            - script: gitleaks detect
+            - ${{ each tool in parameters.tools }}:
+              - script: trivy fs .
+      - ${{ else }}:
+        - job: Skip
+          steps:
+            - script: echo skipped
+      - ${{ if true }}: not-a-list
+`})
+	conditions := map[string]string{}
+	for _, job := range artifact.Jobs {
+		conditions[job.Run] = job.JobIf
+	}
+	assert.Equal(t, map[string]string{
+		"semgrep ci":      "",
+		"gitleaks detect": "${{ if eq(parameters.scan, true) }}",
+		"trivy fs .":      "${{ if eq(parameters.scan, true) }} && ${{ each tool in parameters.tools }}",
+		"echo skipped":    "${{ else }}",
+	}, conditions)
+}
+
+func TestAzureDoesNotCountTemplatesAsPipelines(t *testing.T) {
+	root := testrepo.Write(t, map[string]string{
+		"eng/pipelines/common/templates/base.yml": "extends:\n  template: v1/x.yml@other\n  parameters:\n    steps:\n      - script: gitleaks detect\n",
+		"eng/pipelines/build-template.yml":        "pr: [main]\nsteps:\n  - script: gitleaks detect\n",
+	})
+	assert.False(t, NewAzureParser().Exists(root))
+}
+
+func TestAzureBoundsTheStepsItReads(t *testing.T) {
+	defer func(n int) { maxAzureSteps = n }(maxAzureSteps)
+	maxAzureSteps = 2
+	artifact := parseAzure(t, map[string]string{"azure-pipelines.yml": "pr: [main]\nsteps:\n  - script: a\n  - script: b\n  - script: c\n"})
+	assert.Len(t, artifact.Jobs, 2)
+}
+
+func TestAzureIgnoresExtendsParametersItCannotRead(t *testing.T) {
+	artifact := parseAzure(t, map[string]string{"azure-pipelines.yml": "pr: [main]\nextends:\n  template: x.yml@other\n  parameters:\n    stages: ${{ parameters.stages }}\nsteps:\n  - script: gitleaks detect\n"})
+	require.Len(t, artifact.Jobs, 1)
+	assert.Equal(t, "gitleaks detect", artifact.Jobs[0].Run)
+}

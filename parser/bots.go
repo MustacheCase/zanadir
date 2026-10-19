@@ -2,10 +2,10 @@ package parser
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"slices"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/utils"
 )
@@ -54,7 +54,7 @@ func (b *DependencyBotParser) Parse(root string) ([]*models.Artifact, error) {
 
 	for _, bot := range botConfigs {
 		rel := utils.FirstFile(root, bot.paths...)
-		if rel == "" || onlyTooling(bot.tool, filepath.Join(root, rel)) {
+		if rel == "" || onlyTooling(bot.tool, root, filepath.Join(root, rel)) {
 			continue
 		}
 		artifacts = append(artifacts, &models.Artifact{
@@ -76,7 +76,7 @@ var toolingEcosystems = []string{"github-actions", "devcontainers"}
 // onlyTooling reports whether a bot's configuration updates nothing but
 // tooling: Dependabot's package-ecosystem entries, or Renovate's
 // enabledManagers in a plain-JSON file.
-func onlyTooling(tool, path string) bool {
+func onlyTooling(tool, root, path string) bool {
 	var updated []string
 	switch tool {
 	case "dependabot":
@@ -85,7 +85,7 @@ func onlyTooling(tool, path string) bool {
 				Ecosystem string `yaml:"package-ecosystem"`
 			} `yaml:"updates"`
 		}
-		if readYAML(path, &config) != nil {
+		if readYAML(root, path, &config) != nil {
 			return false
 		}
 		for _, update := range config.Updates {
@@ -95,7 +95,7 @@ func onlyTooling(tool, path string) bool {
 		var config struct {
 			EnabledManagers []string `json:"enabledManagers"`
 		}
-		data, err := os.ReadFile(path)
+		data, err := repofs.ReadFile(root, path)
 		if err != nil || json.Unmarshal(data, &config) != nil {
 			return false
 		}

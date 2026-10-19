@@ -2,6 +2,8 @@ package wrapper_test
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -98,6 +100,28 @@ func TestMakeFindsTheMakefile(t *testing.T) {
 	assert.Nil(t, expand(t, files, "make lint"), "no makefile in the root")
 	assert.Nil(t, expand(t, files, "make -C ../elsewhere lint"))
 	assert.Nil(t, expand(t, files, "cd /etc && make lint"))
+}
+
+// Containment used to be checked on a re-joined path while the original was
+// read, so a relative root or a symlink let a Makefile include escape.
+func TestMakeDoesNotReadOutsideTheRepository(t *testing.T) {
+	base := t.TempDir()
+	repo := filepath.Join(base, "repo")
+	assert.NoError(t, os.MkdirAll(filepath.Join(base, "out"), 0o755))
+	assert.NoError(t, os.WriteFile(filepath.Join(base, "out", "rules.mk"), []byte("lint:\n\tgitleaks detect\n"), 0o600))
+	assert.NoError(t, os.WriteFile(filepath.Join(base, "outside.mk"), []byte("lint:\n\tgitleaks detect\n"), 0o600))
+	assert.NoError(t, os.MkdirAll(repo, 0o755))
+	assert.NoError(t, os.Symlink("../out", filepath.Join(repo, "linked")))
+	t.Chdir(base)
+
+	for makefile, script := range map[string]string{
+		"include ../outside.mk\n":   "make lint",
+		"include linked/rules.mk\n": "make lint",
+		"":                          "make -f linked/rules.mk lint",
+	} {
+		assert.NoError(t, os.WriteFile(filepath.Join(repo, "Makefile"), []byte(makefile), 0o600))
+		assert.Empty(t, wrapper.New("repo").Expand(script), "%q with %q", makefile, script)
+	}
 }
 
 func TestMakeStopsOnCyclesAndSelfIncludes(t *testing.T) {

@@ -1,11 +1,12 @@
 package wrapper
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/MustacheCase/zanadir/internal/repofs"
 )
 
 var makefileNames = []string{"GNUmakefile", "makefile", "Makefile"}
@@ -116,7 +117,7 @@ var (
 
 // parse reads a makefile and the files it includes, each once, adding to m.
 func (m *makefile) parse(e *Expander, path string) {
-	data, err := os.ReadFile(path)
+	data, err := repofs.ReadFile(e.root, path)
 	if err != nil || m.parsed[path] {
 		return
 	}

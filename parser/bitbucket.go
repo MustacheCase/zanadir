@@ -59,7 +59,7 @@ func (b *BitbucketParser) Exists(root string) bool {
 func (b *BitbucketParser) Parse(root string) ([]*models.Artifact, error) {
 	path := filepath.Join(root, bitbucketFile)
 	var config bitbucketConfig
-	if err := readYAML(path, &config); err != nil {
+	if err := readYAML(root, path, &config); err != nil {
 		return skippedFile(path, err)
 	}
 

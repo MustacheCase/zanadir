@@ -2,11 +2,11 @@ package wrapper
 
 import (
 	"cmp"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"gopkg.in/yaml.v3"
 )
 
@@ -51,7 +51,7 @@ func (e *Expander) goreleaser(dir string, args []string) {
 		BinarySigns []goreleaserSigning `yaml:"binary_signs"`
 		DockerSigns []goreleaserSigning `yaml:"docker_signs"`
 	}
-	data, err := os.ReadFile(path)
+	data, err := repofs.ReadFile(e.root, path)
 	if err != nil || yaml.Unmarshal(data, &config) != nil {
 		return
 	}

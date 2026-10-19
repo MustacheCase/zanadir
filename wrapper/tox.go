@@ -2,9 +2,10 @@ package wrapper
 
 import (
 	"cmp"
-	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/MustacheCase/zanadir/internal/repofs"
 )
 
 // tox runs each environment's commands: those of [testenv:name], or of
@@ -55,7 +56,7 @@ func (e *Expander) toxfile(path string) map[string]map[string]string {
 	}
 	ini := map[string]map[string]string{}
 	e.toxfiles[path] = ini
-	data, err := os.ReadFile(path)
+	data, err := repofs.ReadFile(e.root, path)
 	if err != nil {
 		return ini
 	}

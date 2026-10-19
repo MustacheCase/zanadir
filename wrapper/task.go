@@ -1,10 +1,10 @@
 package wrapper
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"gopkg.in/yaml.v3"
 )
 
@@ -63,7 +63,7 @@ func (e *Expander) taskfile(path string) *taskfile {
 	var doc struct {
 		Tasks map[string]yaml.Node `yaml:"tasks"`
 	}
-	if data, err := os.ReadFile(path); err == nil && yaml.Unmarshal(data, &doc) == nil {
+	if data, err := repofs.ReadFile(e.root, path); err == nil && yaml.Unmarshal(data, &doc) == nil {
 		t.tasks = doc.Tasks
 	}
 	e.taskfiles[path] = t

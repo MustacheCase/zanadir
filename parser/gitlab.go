@@ -5,11 +5,11 @@ import (
 	"errors"
 	"io"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/utils"
 	"gopkg.in/yaml.v3"
@@ -58,7 +58,7 @@ func (g *GitlabParser) Exists(root string) bool {
 
 func (g *GitlabParser) Parse(root string) ([]*models.Artifact, error) {
 	path := filepath.Join(root, gitlabFile)
-	config, err := readGitlabConfig(path)
+	config, err := readGitlabConfig(root, path)
 	if err != nil {
 		return skippedFile(path, err)
 	}
@@ -72,8 +72,8 @@ func (g *GitlabParser) Parse(root string) ([]*models.Artifact, error) {
 
 // readGitlabConfig returns a file's top-level keys. A file may open with a
 // spec: header as its own YAML document, so every document is read.
-func readGitlabConfig(path string) (map[string]yaml.Node, error) {
-	data, err := os.ReadFile(path)
+func readGitlabConfig(root, path string) (map[string]yaml.Node, error) {
+	data, err := repofs.ReadFile(root, path)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (r *gitlabReader) local(pattern string) []*models.Job {
 		if rel, err := filepath.Rel(r.root, path); err != nil || strings.HasPrefix(rel, "..") {
 			continue
 		}
-		if config, err := readGitlabConfig(path); err == nil {
+		if config, err := readGitlabConfig(r.root, path); err == nil {
 			jobs = append(jobs, r.jobs(config)...)
 		}
 	}

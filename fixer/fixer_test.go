@@ -3,6 +3,7 @@ package fixer
 import (
 	"bytes"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -404,8 +405,21 @@ func TestWriteWorkflowReportsAnUncreatableDirectory(t *testing.T) {
 
 	_, err := WriteWorkflow(dir, sampleSnippets())
 
+	assert.ErrorIs(t, err, fs.ErrPermission)
+}
+
+// A symlinked .github/workflows would have had the workflow written wherever
+// it points.
+func TestWriteWorkflowStaysInTheRepository(t *testing.T) {
+	dir, outside := t.TempDir(), t.TempDir()
+	assert.NoError(t, os.MkdirAll(filepath.Join(dir, ".github"), 0o755))
+	assert.NoError(t, os.Symlink(outside, filepath.Join(dir, ".github", "workflows")))
+
+	_, err := WriteWorkflow(dir, sampleSnippets())
+
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "workflow directory")
+	entries, _ := os.ReadDir(outside)
+	assert.Empty(t, entries)
 }
 
 func TestWriteWorkflowReportsAnUnwritableFile(t *testing.T) {

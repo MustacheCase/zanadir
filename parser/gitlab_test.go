@@ -361,3 +361,28 @@ func TestGitlabDoesNotIncludeFilesOutsideTheRepository(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, artifacts[0].Jobs)
 }
+
+func TestGitlabDoesNotFollowASymlinkOutOfTheRepository(t *testing.T) {
+	outside := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(outside, "ci.yml"), []byte("escaped:\n  script: semgrep ci\n"), 0o600))
+	root := testrepo.Write(t, map[string]string{".gitlab-ci.yml": "include:\n  - local: linked/*.yml\n"})
+	assert.NoError(t, os.Symlink(outside, filepath.Join(root, "linked")))
+
+	artifacts, err := parser.NewGitlabParser().Parse(root)
+	assert.NoError(t, err)
+	assert.Empty(t, artifacts[0].Jobs)
+}
+
+func TestGithubDoesNotReadASymlinkedWorkflowsDirectory(t *testing.T) {
+	outside := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(outside, "ci.yml"), []byte("on: pull_request\njobs:\n  a:\n    runs-on: x\n    steps:\n      - run: gitleaks detect\n"), 0o600))
+	root := testrepo.Write(t, map[string]string{"README.md": ""})
+	assert.NoError(t, os.MkdirAll(filepath.Join(root, ".github"), 0o755))
+	assert.NoError(t, os.Symlink(outside, filepath.Join(root, ".github", "workflows")))
+
+	artifacts, err := parser.NewGithubParser().Parse(root)
+	assert.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.Empty(t, artifacts[0].Jobs)
+	assert.Contains(t, artifacts[0].Skipped, "cannot be read", "a skipped file says why")
+}

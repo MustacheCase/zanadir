@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/models"
 )
 
@@ -47,7 +48,7 @@ func jenkinsFiles(root string) []string {
 func (j *JenkinsParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	for _, path := range jenkinsFiles(root) {
-		data, err := os.ReadFile(path)
+		data, err := repofs.ReadFile(root, path)
 		if err != nil {
 			artifacts = append(artifacts, unreadable(path, err))
 			continue

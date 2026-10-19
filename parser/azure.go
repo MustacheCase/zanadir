@@ -83,7 +83,7 @@ func azurePipelineFile(root string) string {
 func (a *AzureParser) Parse(root string) ([]*models.Artifact, error) {
 	path := azurePipelineFile(root)
 	var doc azureDoc
-	if err := readYAML(path, &doc); err != nil {
+	if err := readYAML(root, path, &doc); err != nil {
 		return skippedFile(path, err)
 	}
 
@@ -155,7 +155,7 @@ func (r *azureReader) template(ref, dir string, ctx azureContext) []*models.Job 
 	}
 
 	var doc azureDoc
-	if readYAML(path, &doc) != nil {
+	if readYAML(r.root, path, &doc) != nil {
 		return nil
 	}
 	r.depth++

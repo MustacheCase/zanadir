@@ -735,6 +735,17 @@ func TestSarifAnchorWithNothingUsable(t *testing.T) {
 	assert.Empty(t, sarifAnchor("/repo", []*models.Artifact{nil, {Location: "/elsewhere/ci.yml"}, {}}))
 }
 
+// Code scanning rejects a result without a location, so a repository with no
+// CI file zanadir could read still gets one: the README, else the first file.
+func TestSarifAnchorFallsBackToAFileThatExists(t *testing.T) {
+	dir := testrepo.Write(t, map[string]string{"go.mod": "module x\n", "README.md": "# x\n", ".github/workflows/bad.yml": "on: ["})
+	skipped := &models.Artifact{Location: filepath.Join(dir, ".github", "workflows", "bad.yml"), Skipped: "not valid YAML"}
+	assert.Equal(t, "README.md", sarifAnchor(dir, []*models.Artifact{skipped}), "a file that was skipped is not an anchor")
+
+	dir = testrepo.Write(t, map[string]string{"go.mod": "module x\n", "main.go": "package main\n"})
+	assert.Equal(t, "go.mod", sarifAnchor(dir, nil))
+}
+
 // Setup builds the handler the CLI actually runs with, from the embedded rules
 // and suggestions. Nothing exercised it, so a bad embed would have surfaced
 // only at runtime.

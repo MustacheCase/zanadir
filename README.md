@@ -6,11 +6,74 @@
   <a href="#coverage-score"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/MustacheCase/zanadir/badges/zanadir-badge.json" alt="zanadir coverage"></a>
 </p>
 
+zanadir reads a repository's CI configuration and reports which security and
+quality controls are missing, or wired so they cannot fail a build.
+
+## What it answers
+
+- **What is my pipeline missing?** Twelve categories, from dependency
+  scanning and secrets detection to SBOMs and workflow hardening, each
+  checked against the tools that cover it, with suggestions that fit the
+  repository's languages.
+- **Does my CI actually block on security findings?** A scanner with
+  `continue-on-error`, `--exit-code 0`, `|| true`, a push-only trigger or
+  `allow_failure` is present but cannot stop a merge. zanadir grades each
+  control *enforcing*, *partial*, *advisory* or *unknown* rather than just
+  covered; see [Effectiveness](#effectiveness).
+- **Is that check required to merge?** With `--required-checks`, a control
+  only counts as enforcing when branch protection or a ruleset requires it.
+- **What do I add?** `zanadir fix` prints ready-to-paste CI configuration for
+  the gaps, or writes a workflow with `--write`.
+
+It reads GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure
+Pipelines and Jenkins, from a checkout (`--dir`) or straight from GitHub
+(`--repo`), and reports as a table, JSON, SARIF or Markdown.
+
+```sh
+zanadir scan --dir .
+zanadir scan --repo github.com/owner/name --output json
+zanadir fix --dir .
+```
+
+## zanadir and OpenSSF Scorecard
+
+[OpenSSF Scorecard](https://github.com/ossf/scorecard) and zanadir answer
+different questions, and work well together.
+
+| | OpenSSF Scorecard | zanadir |
+| --- | --- | --- |
+| Question | How healthy are this project's security practices? | Which CI controls are missing, and can the ones present fail a build? |
+| Scope | 20 checks across the project: branch protection, code review, maintenance, pinned dependencies, token permissions, signed releases, known vulnerabilities, fuzzing and more | 12 categories of CI controls, each matched against the many tools that provide it |
+| Reads | The forge's API: GitHub and GitLab repositories, recent pull requests and check runs | The CI configuration: six CI platforms, the Makefiles, Taskfiles, tox, composite actions and templates its jobs call |
+| SAST, for example | Looks for CodeQL or SonarCloud; its docs note other tools may score low | Recognises Semgrep, CodeQL, gosec, Bandit, Brakeman, SonarQube and others, and grades whether each can fail the build |
+| Result | A 0-10 score per check and overall | Covered or not per category, graded enforcing, partial, advisory or unknown, with fixes |
+
+Use Scorecard for a project-wide security posture, and zanadir to find out
+whether the CI you have would actually stop a bad change, and what to add.
+
+## Using zanadir with AI coding agents
+
+To have a coding agent check CI with zanadir before changing it, add this to
+the repository's `AGENTS.md`, `CLAUDE.md` or equivalent:
+
+```markdown
+## CI changes
+
+Before adding or changing CI configuration, run `zanadir scan --dir . --output json`
+(install: https://github.com/MustacheCase/zanadir#installation). It lists the
+missing CI controls and grades each present one: `enforcing` can fail a merge,
+`partial`, `advisory` and `unknown` cannot or may not. Fix advisory controls before
+adding tools, and use `zanadir fix --dir .` for configuration that fits this
+repository. Re-run the scan to confirm the change.
+```
+
+[`llms.txt`](llms.txt) summarises zanadir for agents that read the repository.
+
 ## Features
 
 - 📂 **Scan**: Analyze the repository for CI/CD enhancement suggestions, including security services and best practices.
-- ❓ **Help**: Get details on available commands and usage.
-- 🔍 **CI Analysis**: Examines the repository's Continuous Integration (CI) setup and suggests improvements for security and best practices.
+- 🔍 **CI Analysis**: Grades whether each control can actually fail a build, not only whether it is present.
+- 🛠️ **Fix**: Prints, or writes as a workflow, CI configuration for the categories a scan reports as missing.
 - 🚀 **Open Source**: Contributions are welcome to enhance Zanadir's capabilities!
 
 ## Supported CI Actions

@@ -3,10 +3,13 @@ package parser
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/utils"
 	"gopkg.in/yaml.v3"
@@ -239,6 +242,9 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 			if step.Uses == "" {
 				continue
 			}
+			if strings.HasPrefix(step.Uses, "./") {
+				jobs = append(jobs, compositeSteps(root, step.Uses, record, 0)...)
+			}
 			pkgName, version := parseStepUsageStatement(step.Uses)
 			if pkgName != "" {
 				record.Package, record.Version = pkgName, version
@@ -263,6 +269,72 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 		Jobs:     jobs,
 		Location: filePath,
 	}, nil
+}
+
+// Local composite actions nest; this bounds a chain that uses itself.
+const compositeDepth = 8
+
+var inputRef = regexp.MustCompile(`\binputs\.([A-Za-z_][\w-]*)`)
+
+// compositeSteps reads a local composite action and returns its steps, run as
+// part of the calling step: its job, triggers, condition and
+// continue-on-error carry over. Its inputs come from the caller's with:, or
+// their defaults. A Docker or JavaScript action has no steps to read.
+func compositeSteps(root, uses string, caller *models.Job, depth int) []*models.Job {
+	if depth >= compositeDepth {
+		return nil
+	}
+	dir := filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(uses, "./")))
+	data, err := repofs.ReadFile(root, filepath.Join(dir, "action.yml"))
+	if err != nil {
+		if data, err = repofs.ReadFile(root, filepath.Join(dir, "action.yaml")); err != nil {
+			return nil
+		}
+	}
+	var declared struct {
+		Inputs map[string]struct {
+			Default yaml.Node `yaml:"default"`
+		} `yaml:"inputs"`
+	}
+	_ = decodeYAML(data, &declared)
+	values := map[string]string{}
+	for name, input := range declared.Inputs {
+		if input.Default.Kind == yaml.ScalarNode {
+			values[name] = input.Default.Value
+		}
+	}
+	maps.Copy(values, caller.With)
+	var action struct {
+		Runs struct {
+			Using string    `yaml:"using"`
+			Steps []stepDef `yaml:"steps"`
+		} `yaml:"runs"`
+	}
+	if decodeYAML([]byte(substitute(string(data), inputRef, values)), &action) != nil || action.Runs.Using != "composite" {
+		return nil
+	}
+
+	var jobs []*models.Job
+	for _, step := range action.Runs.Steps {
+		record := *caller
+		record.ContinueOnError = caller.ContinueOnError || step.ContinueOnError.always
+		record.If = joinConditions(caller.If, joinConditions(step.If, step.ContinueOnError.condition()))
+		record.With = stepInputs(step.With)
+		record.Package, record.Version, record.Run = "", "", step.Run
+		switch {
+		case step.Run != "":
+		case strings.HasPrefix(step.Uses, "./"):
+			jobs = append(jobs, compositeSteps(root, step.Uses, &record, depth+1)...)
+			fallthrough
+		case step.Uses != "":
+			record.Package, record.Version = parseStepUsageStatement(step.Uses)
+			record.Run = cmp.Or(record.With["run"], record.With["command"])
+		default:
+			continue
+		}
+		jobs = append(jobs, &record)
+	}
+	return jobs
 }
 
 func parseStepUsageStatement(use string) (string, string) {

@@ -92,3 +92,29 @@ func TestDependencyBotParserReportsOneArtifactPerBot(t *testing.T) {
 	assert.Len(t, artifacts, 1)
 	assert.Equal(t, filepath.Join(dir, "renovate.json"), artifacts[0].Location)
 }
+
+// A bot that only bumps actions or the dev container watches none of the
+// code's dependencies, so it is no dependency scanning.
+func TestDependencyBotsThatOnlyUpdateTooling(t *testing.T) {
+	bots := func(files map[string]string) []string {
+		artifacts, err := parser.NewDependencyBotParser().Parse(testrepo.Write(t, files))
+		assert.NoError(t, err)
+		var names []string
+		for _, a := range artifacts {
+			names = append(names, a.Name)
+		}
+		return names
+	}
+	actions := "version: 2\nupdates:\n  - package-ecosystem: github-actions\n    directory: /\n  - package-ecosystem: devcontainers\n    directory: /\n"
+	gomod := actions + "  - package-ecosystem: gomod\n    directory: /\n"
+
+	assert.Empty(t, bots(map[string]string{".github/dependabot.yml": actions}))
+	assert.Equal(t, []string{"dependabot"}, bots(map[string]string{".github/dependabot.yml": gomod}))
+	assert.Equal(t, []string{"dependabot"}, bots(map[string]string{".github/dependabot.yml": "version: 2\n"}), "no updates listed: cannot tell")
+	assert.Equal(t, []string{"dependabot"}, bots(map[string]string{".github/dependabot.yml": "updates: [oops"}), "unreadable: cannot tell")
+
+	assert.Empty(t, bots(map[string]string{"renovate.json": `{"enabledManagers": ["github-actions"]}`}))
+	assert.Equal(t, []string{"renovate"}, bots(map[string]string{"renovate.json": `{"enabledManagers": ["github-actions", "npm"]}`}))
+	assert.Equal(t, []string{"renovate"}, bots(map[string]string{"renovate.json": `{"extends": ["config:recommended"]}`}))
+	assert.Equal(t, []string{"renovate"}, bots(map[string]string{"renovate.json5": "{enabledManagers: ['github-actions']}"}), "JSON5 is not read")
+}

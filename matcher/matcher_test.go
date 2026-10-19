@@ -250,6 +250,19 @@ func TestMatchOnJobName(t *testing.T) {
 	assert.Equal(t, "unit tests", found[0].Job.Name)
 }
 
+// A rule is not run on text holding none of the literals its matches need,
+// so a literal it does not list is never matched, which shows it is skipped.
+func TestRulesSkipTextWithoutTheirLiterals(t *testing.T) {
+	rule := &rules.Rule{ID: "x", Regex: regexp.MustCompile(`(?i)\bscan\b`), Literals: []string{"gitleaks"},
+		ApplyOn: []string{rules.FieldJobRun, rules.FieldJobName}, Categories: []string{"SAST"}}
+	artifacts := []*models.Artifact{{Jobs: []*models.Job{{Name: "scan", Run: "scan ."}, {Name: "GitLeaks scan", Run: "./GitLeaks/scan ."}}}}
+
+	found := matcher.NewMatchService().Match(artifacts, []*rules.Rule{rule})
+	require.Len(t, found, 2)
+	assert.Equal(t, "GitLeaks scan", found[0].Job.Name)
+	assert.Equal(t, "GitLeaks scan", found[1].Job.Name, "literals are compared case-insensitively")
+}
+
 func TestCommandsAreTheOnesTheRuleMatches(t *testing.T) {
 	gitleaks := &rules.Rule{ID: "gitleaks", Regex: regexp.MustCompile(`\bgitleaks\b`), Unless: regexp.MustCompile(`--version`)}
 

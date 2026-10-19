@@ -1,6 +1,8 @@
 package rules_test
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/models"
@@ -409,6 +411,10 @@ func TestRuleRegexPrecision(t *testing.T) {
 			rule := findRule(t, rs, tt.ruleID)
 			for _, s := range tt.shouldMatch {
 				assert.True(t, rule.Regex.MatchString(s), "%s should match %q", tt.ruleID, s)
+				if rule.Literals != nil {
+					assert.True(t, slices.ContainsFunc(rule.Literals, func(literal string) bool { return strings.Contains(strings.ToLower(s), literal) }),
+						"%s's literals %q would skip %q, which it matches", tt.ruleID, rule.Literals, s)
+				}
 				if rule.Unless != nil {
 					assert.False(t, rule.Unless.MatchString(s), "%s should not except %q", tt.ruleID, s)
 				}

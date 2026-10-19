@@ -68,9 +68,11 @@ type Rule struct {
 	ApplyOn    []string
 	Categories []string
 	Regex      *regexp.Regexp
-	Unless     *regexp.Regexp
-	IsChecked  bool
-	Weakened   []WeakenedWhen
+	// Literals are strings one of which a match contains, lowercased.
+	Literals  []string
+	Unless    *regexp.Regexp
+	IsChecked bool
+	Weakened  []WeakenedWhen
 }
 
 // WeakenedWhen is a compiled FileWeakenedWhen.
@@ -114,6 +116,7 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 			ApplyOn:    r.ApplyOn,
 			Categories: r.Categories,
 			Regex:      regexp.MustCompile(r.Regex),
+			Literals:   requiredLiterals(r.Regex),
 			Unless:     unless,
 			IsChecked:  false,
 			Weakened:   weakened,

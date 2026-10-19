@@ -227,12 +227,24 @@ func (m *makefile) rule(line string) []*makeRule {
 
 // expand substitutes variable references. A function call such as
 // $(shell ...) cannot be evaluated and expands to nothing.
+// maxExpanded bounds an expanded value: chained := assignments grow it
+// exponentially, and a repository is untrusted. Past it, nothing is expanded.
+const maxExpanded = 1 << 20
+
 func (m *makefile) expand(s string) string {
 	s = strings.ReplaceAll(s, "$$", "\x00")
 	for range maxDepth {
+		size := len(s)
 		next := makeReference.ReplaceAllStringFunc(s, func(ref string) string {
-			return m.vars[ref[2:len(ref)-1]]
+			value := m.vars[ref[2:len(ref)-1]]
+			if size += len(value); size > maxExpanded {
+				return ""
+			}
+			return value
 		})
+		if size > maxExpanded {
+			return ""
+		}
 		if next == s {
 			break
 		}

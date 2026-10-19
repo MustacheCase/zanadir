@@ -1,0 +1,37 @@
+# zanadir
+
+> zanadir is an open-source CLI that reads a repository's CI configuration and reports which security and quality controls are missing, or wired so they cannot fail a build. It answers "what is my pipeline missing?" and "does my CI actually block on security findings?", and prints the CI configuration to add.
+
+- Categories: SCA, Secrets Detection, SAST, Linter, Unit Tests, Coverage, License Compliance, End Of Life, IaC Security, Supply Chain (SBOM, signing, provenance), Workflow Security, Performance Testing.
+- Each control found is graded: `enforcing` (can fail a merge), `partial` (runs, but not on every change, e.g. push-only), `advisory` (cannot fail: continue-on-error, `--exit-code 0`, `|| true`, allow_failure, soft-fail flags) or `unknown` (behind a condition the file cannot settle).
+- CI platforms: GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure Pipelines, Jenkins. It follows Makefiles, Taskfiles, tox, goreleaser, go-make, reusable workflows, local composite actions and CI templates into the commands they run.
+- Input: a checkout (`--dir`) or a GitHub repository without cloning (`--repo github.com/owner/name`). Output: table, JSON, SARIF, Markdown.
+- `--required-checks` counts a control as enforcing only when branch protection or a ruleset requires its check. `--enforce`, `--fail-on` and `--fail-on-weakened` fail a CI run on gaps.
+- It complements OpenSSF Scorecard, which rates project-wide practices through the forge's API; zanadir reads the CI configuration and grades whether each control can fail a build.
+
+## Usage
+
+```sh
+zanadir scan --dir .
+zanadir scan --dir . --output json
+zanadir scan --repo github.com/owner/name
+zanadir scan --dir . --required-checks --fail-on-weakened
+zanadir fix --dir .
+zanadir fix --dir . --write   # writes .github/workflows/zanadir-suggested.yml
+```
+
+Install: `go install github.com/MustacheCase/zanadir@latest`, Homebrew (`brew tap --custom-remote MustacheCase/zanadir https://github.com/MustacheCase/zanadir.git && brew install mustachecase/zanadir/zanadir`), or the Docker image `mustachecase/zanadir`. In GitHub Actions, use `MustacheCase/zanadir-action`.
+
+## Docs
+
+- [README](https://github.com/MustacheCase/zanadir/blob/main/README.md): usage, output formats, configuration
+- [Effectiveness](https://github.com/MustacheCase/zanadir/blob/main/README.md#effectiveness): how controls are graded enforcing, partial, advisory or unknown
+- [zanadir fix](https://github.com/MustacheCase/zanadir/blob/main/README.md#zanadir-fix): CI configuration for the gaps
+- [Custom rules](https://github.com/MustacheCase/zanadir/blob/main/README.md#custom-rules): teaching zanadir an in-house tool
+- [zanadir-action](https://github.com/MustacheCase/zanadir-action): running zanadir in GitHub Actions
+
+## Optional
+
+- [Rules](https://github.com/MustacheCase/zanadir/tree/main/rules/storage): how each tool is recognised
+- [Suggestions catalogue](https://github.com/MustacheCase/zanadir/blob/main/suggester/suggestions.yaml): the tools suggested per category
+- [Releases](https://github.com/MustacheCase/zanadir/releases)

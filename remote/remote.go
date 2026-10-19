@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"cmp"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -119,6 +120,12 @@ const (
 // every other file is an empty placeholder, since category gating and
 // language detection look at names alone.
 func Fetch(repo Repository, token string) (string, func(), error) {
+	return FetchContext(context.Background(), repo, token)
+}
+
+// FetchContext is Fetch, abandoned when ctx is done; the directory is then
+// removed like on any other failure.
+func FetchContext(ctx context.Context, repo Repository, token string) (string, func(), error) {
 	dir, err := os.MkdirTemp("", "zanadir-")
 	if err != nil {
 		return "", nil, err
@@ -128,11 +135,11 @@ func Fetch(repo Repository, token string) (string, func(), error) {
 	// The scanner accepts git repositories only; the history is never read.
 	err = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
 	if err == nil {
-		recordDefaultBranch(repo, token, dir)
-		err = download(repo, token, dir)
+		recordDefaultBranch(ctx, repo, token, dir)
+		err = download(ctx, repo, token, dir)
 	}
 	if err == nil {
-		err = restoreExportIgnored(repo, token, dir)
+		err = restoreExportIgnored(ctx, repo, token, dir)
 	}
 	if err != nil {
 		cleanup()
@@ -144,23 +151,23 @@ func Fetch(repo Repository, token string) (string, func(), error) {
 // recordDefaultBranch writes origin/HEAD as git clone would, so grading reads
 // the default branch of a fetched repository as it does a checkout's. A
 // failure leaves it unset, and grading falls back to common names.
-func recordDefaultBranch(repo Repository, token, dir string) {
+func recordDefaultBranch(ctx context.Context, repo Repository, token, dir string) {
 	var info struct {
 		DefaultBranch string `json:"default_branch"`
 	}
-	if getJSON(fmt.Sprintf("%s/repos/%s/%s", apiBase, repo.Owner, repo.Name), token, &info) != nil || info.DefaultBranch == "" {
+	if getJSON(ctx, fmt.Sprintf("%s/repos/%s/%s", apiBase, repo.Owner, repo.Name), token, &info) != nil || info.DefaultBranch == "" {
 		return
 	}
 	head := "ref: refs/remotes/origin/" + info.DefaultBranch + "\n"
 	_ = writeFile(filepath.Join(dir, ".git", "refs", "remotes", "origin", "HEAD"), strings.NewReader(head), int64(len(head)))
 }
 
-func download(repo Repository, token, dir string) error {
+func download(ctx context.Context, repo Repository, token, dir string) error {
 	endpoint := fmt.Sprintf("%s/repos/%s/%s/tarball", apiBase, repo.Owner, repo.Name)
 	if repo.Ref != "" {
 		endpoint += "/" + (&url.URL{Path: repo.Ref}).EscapedPath()
 	}
-	resp, err := get(endpoint, token)
+	resp, err := get(ctx, endpoint, token)
 	if err != nil {
 		return downloadFailed(repo, err)
 	}
@@ -190,8 +197,8 @@ func downloadFailed(repo Repository, err error) error {
 	return fmt.Errorf("downloading %s: %w", repo, err)
 }
 
-func get(endpoint, token string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+func get(ctx context.Context, endpoint, token string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -210,14 +217,14 @@ func get(endpoint, token string) (*http.Response, error) {
 // out too, so it is fetched when the archive lacks it. The tree lists every
 // file, so each missing one is written: with its contents if zanadir reads
 // them, as a placeholder otherwise.
-func restoreExportIgnored(repo Repository, token, dir string) error {
+func restoreExportIgnored(ctx context.Context, repo Repository, token, dir string) error {
 	ref := (&url.URL{Path: cmp.Or(repo.Ref, "HEAD")}).EscapedPath()
 	raw := func(path string) string {
 		return fmt.Sprintf("%s/%s/%s/%s/%s", rawBase, repo.Owner, repo.Name, ref, (&url.URL{Path: path}).EscapedPath())
 	}
 	attributes, err := os.ReadFile(filepath.Join(dir, ".gitattributes"))
 	if err != nil {
-		attributes, err = fetchAttributes(raw(".gitattributes"), token)
+		attributes, err = fetchAttributes(ctx, raw(".gitattributes"), token)
 	}
 	if err != nil || !bytes.Contains(attributes, []byte("export-ignore")) {
 		return err
@@ -234,7 +241,7 @@ func restoreExportIgnored(repo Repository, token, dir string) error {
 			Size int64  `json:"size"`
 		} `json:"tree"`
 	}
-	if err := getJSON(fmt.Sprintf("%s/repos/%s/%s/git/trees/%s?recursive=1", apiBase, repo.Owner, repo.Name, ref), token, &tree); err != nil {
+	if err := getJSON(ctx, fmt.Sprintf("%s/repos/%s/%s/git/trees/%s?recursive=1", apiBase, repo.Owner, repo.Name, ref), token, &tree); err != nil {
 		return failed(err)
 	}
 	files, kept := 0, int64(0)
@@ -256,7 +263,7 @@ func restoreExportIgnored(repo Repository, token, dir string) error {
 		} else if kept += entry.Size; kept > maxKeptBytes {
 			return fmt.Errorf("the repository's configuration files exceed %d bytes; %s", maxKeptBytes, tooLarge)
 		} else {
-			err = fetchFile(raw(entry.Path), token, target, entry.Size)
+			err = fetchFile(ctx, raw(entry.Path), token, target, entry.Size)
 		}
 		if err != nil {
 			return failed(err)
@@ -265,8 +272,8 @@ func restoreExportIgnored(repo Repository, token, dir string) error {
 	return nil
 }
 
-func getJSON(endpoint, token string, out any) error {
-	resp, err := get(endpoint, token)
+func getJSON(ctx context.Context, endpoint, token string, out any) error {
+	resp, err := get(ctx, endpoint, token)
 	if err != nil {
 		return err
 	}
@@ -277,8 +284,8 @@ func getJSON(endpoint, token string, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-func fetchFile(endpoint, token, target string, size int64) error {
-	resp, err := get(endpoint, token)
+func fetchFile(ctx context.Context, endpoint, token, target string, size int64) error {
+	resp, err := get(ctx, endpoint, token)
 	if err != nil {
 		return err
 	}
@@ -291,8 +298,8 @@ func fetchFile(endpoint, token, target string, size int64) error {
 
 // fetchAttributes reads a .gitattributes the archive left out; a repository
 // without one has nothing to restore.
-func fetchAttributes(endpoint, token string) ([]byte, error) {
-	resp, err := get(endpoint, token)
+func fetchAttributes(ctx context.Context, endpoint, token string) ([]byte, error) {
+	resp, err := get(ctx, endpoint, token)
 	if err != nil {
 		return nil, fmt.Errorf("checking for files the archive leaves out: %w", err)
 	}

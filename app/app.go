@@ -1,10 +1,14 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/handler"
@@ -33,12 +37,19 @@ var fixCmd = &cobra.Command{
 	Run:   run(config.CreateFixConfig, fixRepo),
 }
 
-// exit, stderr and fetchRepository are replaced in tests.
+// exit, stderr, fetchRepository and interrupts are replaced in tests.
 var (
 	exit                      = os.Exit
 	stderr          io.Writer = os.Stderr
-	fetchRepository           = remote.Fetch
+	fetchRepository           = remote.FetchContext
+	interrupts                = defaultInterrupts
 )
+
+func defaultInterrupts() (<-chan os.Signal, func()) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	return signals, func() { signal.Stop(signals) }
+}
 
 // githubToken is the token a remote scan sends, if the environment has one.
 // run builds a command's configuration and does its work, exiting non-zero
@@ -46,9 +57,56 @@ var (
 func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Config) error) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, _ []string) {
 		cfg, err := build(cmd)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "Error: %v\n", err)
+			exit(1)
+			return
+		}
+
+		// A cancelled CI job sends SIGTERM. The download is abandoned, and the
+		// fetched copy removed, before exiting as the signal would have.
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		signals, stop := interrupts()
+		defer stop()
+		var mu sync.Mutex
 		cleanup := func() {}
-		if err == nil && cfg.Repo != nil {
-			cfg.Dir, cleanup, err = fetchRepository(*cfg.Repo, remote.Token())
+		fetched, finished, exited := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		defer close(finished)
+		go func() {
+			select {
+			case sig := <-signals:
+				cancel()
+				<-fetched
+				mu.Lock()
+				cleanup()
+				mu.Unlock()
+				exit(128 + signalNumber(sig))
+				close(exited)
+			case <-finished:
+			}
+		}()
+		// Once interrupted, the exit is the signal's: exit returns only in tests.
+		interrupted := func() bool {
+			if ctx.Err() != nil {
+				<-exited
+				return true
+			}
+			return false
+		}
+
+		if cfg.Repo != nil {
+			var remove func()
+			cfg.Dir, remove, err = fetchRepository(ctx, *cfg.Repo, remote.Token())
+			if err == nil {
+				mu.Lock()
+				cleanup = remove
+				mu.Unlock()
+			}
+		}
+		close(fetched)
+		if interrupted() {
+			return
 		}
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "Error: %v\n", err)
@@ -57,12 +115,24 @@ func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Con
 		}
 		// exit does not run deferred calls, so the fetched copy goes first.
 		err = do(cfg)
+		if interrupted() {
+			return
+		}
+		mu.Lock()
 		cleanup()
+		mu.Unlock()
 		if err != nil {
 			_, _ = fmt.Fprint(stderr, scanErrorReport(err))
 			exit(1)
 		}
 	}
+}
+
+func signalNumber(sig os.Signal) int {
+	if number, ok := sig.(syscall.Signal); ok {
+		return int(number)
+	}
+	return 1
 }
 
 // addSharedFlags defines the flags scan and fix both take.

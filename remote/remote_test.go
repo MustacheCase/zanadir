@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -495,5 +496,5 @@ func TestFetchReportsAnUnreachableRawHost(t *testing.T) {
 
 func TestGetJSONReportsAnUnreachableHost(t *testing.T) {
 	var out struct{}
-	assert.Error(t, getJSON("http://127.0.0.1:1/x", "", &out))
+	assert.Error(t, getJSON(context.Background(), "http://127.0.0.1:1/x", "", &out))
 }

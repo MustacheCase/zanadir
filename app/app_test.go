@@ -2,9 +2,11 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
+	"syscall"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/config"
@@ -112,13 +114,13 @@ func TestABadCustomRuleStopsBothCommands(t *testing.T) {
 func fakeFetch(t *testing.T, err error) *bool {
 	t.Helper()
 	removed := false
-	fetchRepository = func(remote.Repository, string) (string, func(), error) {
+	fetchRepository = func(context.Context, remote.Repository, string) (string, func(), error) {
 		if err != nil {
 			return "", nil, err
 		}
 		return "/tmp/fetched", func() { removed = true }, nil
 	}
-	t.Cleanup(func() { fetchRepository = remote.Fetch })
+	t.Cleanup(func() { fetchRepository = remote.FetchContext })
 	return &removed
 }
 
@@ -155,4 +157,64 @@ func TestRunExitsWhenTheFetchFails(t *testing.T) {
 	assert.Equal(t, 1, *code)
 	assert.False(t, did)
 	assert.Equal(t, "Error: github.com/o/r was not found\n", diagnostics.String())
+}
+
+// fakeSignals stands in for the process's signals for one test.
+func fakeSignals(t *testing.T) chan os.Signal {
+	t.Helper()
+	signals := make(chan os.Signal, 1)
+	interrupts = func() (<-chan os.Signal, func()) { return signals, func() {} }
+	t.Cleanup(func() { interrupts = defaultInterrupts })
+	return signals
+}
+
+// A cancelled CI job sends SIGTERM while the repository downloads: the
+// download is abandoned, and zanadir exits as the signal would have.
+func TestRunAbandonsTheDownloadOnASignal(t *testing.T) {
+	code := exitCode(t)
+	signals := fakeSignals(t)
+	abandoned := false
+	fetchRepository = func(ctx context.Context, _ remote.Repository, _ string) (string, func(), error) {
+		signals <- syscall.SIGTERM
+		<-ctx.Done()
+		abandoned = true
+		return "", nil, ctx.Err()
+	}
+	t.Cleanup(func() { fetchRepository = remote.FetchContext })
+	scanned := false
+	run(repoConfig, func(*config.Config) error { scanned = true; return nil })(&cobra.Command{}, nil)
+
+	assert.True(t, abandoned)
+	assert.False(t, scanned)
+	assert.Equal(t, 128+15, *code)
+	assert.Empty(t, diagnostics.String(), "a cancelled download is not reported as an error")
+}
+
+// A signal during the scan still removes the fetched copy.
+func TestRunRemovesTheFetchedRepositoryOnASignal(t *testing.T) {
+	code := exitCode(t)
+	signals := fakeSignals(t)
+	removed := make(chan struct{})
+	fetchRepository = func(context.Context, remote.Repository, string) (string, func(), error) {
+		return "/tmp/fetched", func() { close(removed) }, nil
+	}
+	t.Cleanup(func() { fetchRepository = remote.FetchContext })
+	run(repoConfig, func(*config.Config) error {
+		signals <- os.Interrupt
+		<-removed
+		return errors.New("interrupted")
+	})(&cobra.Command{}, nil)
+
+	assert.Equal(t, 128+2, *code)
+	assert.Empty(t, diagnostics.String())
+}
+
+type otherSignal struct{}
+
+func (otherSignal) String() string { return "other" }
+func (otherSignal) Signal()        {}
+
+func TestSignalNumber(t *testing.T) {
+	assert.Equal(t, 15, signalNumber(syscall.SIGTERM))
+	assert.Equal(t, 1, signalNumber(otherSignal{}), "a signal that is not a number exits 128 + 1")
 }

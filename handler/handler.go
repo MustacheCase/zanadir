@@ -64,18 +64,30 @@ func repoRelative(dir, path string) string {
 	return filepath.ToSlash(rel)
 }
 
-// sarifAnchor returns a repo-relative CI file for SARIF results to point at
-// when a finding has no location of its own.
+// sarifAnchor returns a repo-relative file for SARIF results to point at when
+// a finding has no location of its own, since code scanning rejects a result
+// without one: a CI file zanadir read, else the README, else the first file.
 func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 	for _, a := range artifacts {
-		if a == nil {
+		if a == nil || a.Skipped != "" {
 			continue
 		}
 		if rel := repoRelative(dir, a.Location); rel != "" {
 			return rel
 		}
 	}
-	return ""
+	entries, _ := os.ReadDir(dir)
+	var first string
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			continue
+		}
+		if strings.HasPrefix(strings.ToUpper(entry.Name()), "README") {
+			return entry.Name()
+		}
+		first = cmp.Or(first, entry.Name())
+	}
+	return first
 }
 
 // weakened lists the covered categories whose tooling cannot fully protect the

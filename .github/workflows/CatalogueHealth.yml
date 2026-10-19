@@ -1,0 +1,50 @@
+name: Catalogue health
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  # A scheduled-only workflow is disabled after a quiet period; this lets it
+  # be restarted, and run after a catalogue change.
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26'
+
+      - name: Check the catalogue
+        run: go run ./tools/cataloguehealth -out report.md
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      # One issue is kept: opened or updated while there are problems, and
+      # closed once there are none.
+      - name: Open, update or close the issue
+        run: |
+          title="Catalogue health"
+          number=$(gh issue list --state open --search "\"$title\" in:title" --json number,title \
+            --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)
+          if [ -s report.md ]; then
+            if [ -n "$number" ]; then
+              gh issue edit "$number" --body-file report.md
+            else
+              gh issue create --title "$title" --body-file report.md
+            fi
+          elif [ -n "$number" ]; then
+            gh issue close "$number" --comment "Every recommended tool and pinned action is alive and current again."
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

@@ -49,10 +49,6 @@ var iacDirs = map[string]bool{
 
 var manifestExtensions = map[string]bool{".yaml": true, ".yml": true, ".json": true, ".tpl": true, ".hcl": true, ".jsonnet": true}
 
-// testDirs hold what tests run against: a Dockerfile.test fixture, a
-// kubernetes directory of long file names.
-var testDirs = map[string]bool{"test": true, "tests": true, "fixtures": true, "__fixtures__": true, "spec": true, "benches": true}
-
 // A Dockerfile.json is data about a Dockerfile, not one.
 var dataExtensions = map[string]bool{".json": true, ".yaml": true, ".yml": true, ".txt": true, ".md": true, ".snap": true, ".golden": true, ".out": true}
 
@@ -116,7 +112,7 @@ func hasIaC(dir string) bool {
 		}
 		name := entry.Name()
 		if entry.IsDir() {
-			if path != dir && (utils.IsDependencyDir(name) || testDirs[strings.ToLower(name)] || strings.HasPrefix(name, ".")) {
+			if path != dir && (utils.IsDependencyDir(name) || utils.IsTestDir(name) || strings.HasPrefix(name, ".")) {
 				return fs.SkipDir
 			}
 			return nil

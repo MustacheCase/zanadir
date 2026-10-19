@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,6 +20,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/MustacheCase/zanadir/utils"
 )
 
 // Repository is a GitHub repository and, optionally, the ref to scan.
@@ -95,6 +98,20 @@ var (
 	maxFiles           = 200_000
 	maxFileBytes int64 = 4 << 20
 	maxKeptBytes int64 = 256 << 20
+	maxHeadBytes int64 = 64 << 20
+)
+
+// headBytes is as much of a JSON file as IaC detection reads.
+const headBytes = 32 << 10
+
+const tooLarge = "clone it and scan with --dir"
+
+type content int
+
+const (
+	placeholder content = iota
+	head
+	whole
 )
 
 // Fetch downloads the repository into a new temporary directory, which the
@@ -130,11 +147,13 @@ func download(repo Repository, token, dir string) error {
 	}
 	resp, err := get(endpoint, token)
 	if err != nil {
-		return fmt.Errorf("downloading %s: %w", repo, err)
+		return downloadFailed(repo, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	switch {
+	case resp.StatusCode == http.StatusUnprocessableEntity:
+		return fmt.Errorf("GitHub could not produce an archive of %s (%s), which usually means the repository is too large; %s", repo, resp.Status, tooLarge)
 	case resp.StatusCode == http.StatusNotFound:
 		return fmt.Errorf("%s was not found: check the name, or set GITHUB_TOKEN if it is private", repo)
 	case resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden:
@@ -142,7 +161,18 @@ func download(repo Repository, token, dir string) error {
 	case resp.StatusCode != http.StatusOK:
 		return fmt.Errorf("downloading %s: %s", repo, resp.Status)
 	}
-	return extract(resp.Body, dir)
+	if err := extract(resp.Body, dir); err != nil {
+		return downloadFailed(repo, err)
+	}
+	return nil
+}
+
+func downloadFailed(repo Repository, err error) error {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return fmt.Errorf("downloading %s took longer than %s, which usually means the repository is too large; %s", repo, client.Timeout, tooLarge)
+	}
+	return fmt.Errorf("downloading %s: %w", repo, err)
 }
 
 func get(endpoint, token string) (*http.Response, error) {
@@ -202,12 +232,14 @@ func restoreExportIgnored(repo Repository, token, dir string) error {
 			continue
 		}
 		if files++; files > maxFiles {
-			return fmt.Errorf("the repository has more than %d files", maxFiles)
+			return fmt.Errorf("the repository has more than %d files; %s", maxFiles, tooLarge)
 		}
-		if !keepContent(entry.Path) || entry.Size > maxFileBytes {
+		// A project that leaves its tests out of the archive has thousands of
+		// fixtures, so none is fetched.
+		if contentOf(entry.Path) != whole || entry.Size > maxFileBytes || underTests(entry.Path) {
 			err = writeFile(target, nil, 0)
 		} else if kept += entry.Size; kept > maxKeptBytes {
-			return fmt.Errorf("the repository's configuration files exceed %d bytes", maxKeptBytes)
+			return fmt.Errorf("the repository's configuration files exceed %d bytes; %s", maxKeptBytes, tooLarge)
 		} else {
 			err = fetchFile(raw(entry.Path), token, target, entry.Size)
 		}
@@ -264,20 +296,29 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// keepContent reports whether zanadir reads a file's contents: CI
-// configuration and the templates it includes, Jenkinsfiles, the dependency
-// bots' configuration, the makefiles and tox.ini that steps call into, and a
-// go-make build, which lives in .make.
+// contentOf says how much of a file zanadir reads: CI and build files
+// whole, the head of other JSON for IaC detection, else only the name.
+func contentOf(name string) content {
+	if keepContent(name) {
+		return whole
+	}
+	if ext := strings.ToLower(filepath.Ext(name)); ext == ".json" || ext == ".json5" {
+		return head
+	}
+	return placeholder
+}
+
 func keepContent(name string) bool {
 	if slices.Contains(strings.Split(filepath.ToSlash(name), "/"), ".make") {
 		return true
 	}
 	base := strings.ToLower(filepath.Base(name))
 	switch filepath.Ext(base) {
-	case ".yml", ".yaml", ".json", ".json5", ".mk":
+	case ".yml", ".yaml", ".mk":
 		return true
 	}
-	if base == ".renovaterc" || base == "tox.ini" || base == ".gitattributes" {
+	switch base {
+	case ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5", "tox.ini", ".gitattributes":
 		return true
 	}
 	// Makefile.common and the like are included by the Makefile.
@@ -294,7 +335,7 @@ func extract(r io.Reader, dir string) error {
 	}
 	archive := tar.NewReader(gz)
 
-	files, kept := 0, int64(0)
+	files, kept, heads := 0, int64(0), int64(0)
 	for {
 		header, err := archive.Next()
 		if errors.Is(err, io.EOF) {
@@ -321,20 +362,33 @@ func extract(r io.Reader, dir string) error {
 			}
 		case tar.TypeReg:
 			if files++; files > maxFiles {
-				return fmt.Errorf("the archive has more than %d files", maxFiles)
+				return fmt.Errorf("the archive has more than %d files; %s", maxFiles, tooLarge)
 			}
+			// A repository of JSON data runs out of heads rather than failing.
 			var size int64
-			if keepContent(name) && header.Size <= maxFileBytes {
-				size = header.Size
-			}
-			if kept += size; kept > maxKeptBytes {
-				return fmt.Errorf("the archive's configuration files exceed %d bytes", maxKeptBytes)
+			switch contentOf(name) {
+			case whole:
+				if header.Size <= maxFileBytes {
+					size = header.Size
+				}
+				if kept += size; kept > maxKeptBytes {
+					return fmt.Errorf("the archive's configuration files exceed %d bytes; %s", maxKeptBytes, tooLarge)
+				}
+			case head:
+				if heads < maxHeadBytes {
+					size = min(header.Size, headBytes)
+					heads += size
+				}
 			}
 			if err := writeFile(target, archive, size); err != nil {
 				return err
 			}
 		}
 	}
+}
+
+func underTests(name string) bool {
+	return slices.ContainsFunc(strings.Split(name, "/"), utils.IsTestDir)
 }
 
 // within joins name onto dir, refusing a name that is absolute or resolves

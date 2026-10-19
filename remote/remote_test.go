@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -157,6 +158,8 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 		entry{name: "owner-repo-abc/cmd/main.go", body: "package main\n"},
 		entry{name: "owner-repo-abc/go.mod", body: "module x\n"},
 		entry{name: "owner-repo-abc/infra/main.tf", body: "resource {}\n"},
+		entry{name: "owner-repo-abc/.github/renovate.json", body: `{"extends": ["config:base"]}`},
+		entry{name: "owner-repo-abc/data/poems.json", body: strings.Repeat("x", headBytes+10)},
 		entry{name: "owner-repo-abc/link", typeflag: tar.TypeSymlink},
 	))
 
@@ -182,6 +185,8 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 	assert.Empty(t, read("cmd/main.go"), "Go source outside .make is not read")
 	assert.Empty(t, read("go.mod"), "only the name matters, so the content is not kept")
 	assert.Empty(t, read("infra/main.tf"))
+	assert.Equal(t, `{"extends": ["config:base"]}`, read(".github/renovate.json"))
+	assert.Len(t, read("data/poems.json"), headBytes, "of other JSON, only the head IaC detection reads")
 	assert.DirExists(t, filepath.Join(dir, ".git"))
 	_, err = os.Lstat(filepath.Join(dir, "link"))
 	assert.True(t, os.IsNotExist(err), "symlinks are never written")
@@ -226,6 +231,42 @@ func TestFetchLimits(t *testing.T) {
 	serve(t, http.StatusOK, tarball(t, entry{name: "o-r-1/a.yml", body: "abcd"}, entry{name: "o-r-1/b.yml", body: "efgh"}))
 	_, _, err = Fetch(Repository{Owner: "o", Name: "r"}, "")
 	assert.ErrorContains(t, err, "exceed 6 bytes")
+	assert.ErrorContains(t, err, "scan with --dir")
+}
+
+// A repository of JSON data used to fail on the limit for files zanadir
+// never opens; past the budget for heads, the rest are placeholders.
+func TestFetchRunsOutOfHeadsRatherThanFailing(t *testing.T) {
+	defer func(heads int64) { maxHeadBytes = heads }(maxHeadBytes)
+	maxHeadBytes = 5
+	serve(t, http.StatusOK, tarball(t, entry{name: "o-r-1/a.json", body: "abcd"}, entry{name: "o-r-1/b.json", body: "efgh"}, entry{name: "o-r-1/c.json", body: "ijkl"}))
+	dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	require.NoError(t, err)
+	defer cleanup()
+	for name, want := range map[string]string{"a.json": "abcd", "b.json": "efgh", "c.json": ""} {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		require.NoError(t, err)
+		assert.Equal(t, want, string(data), name)
+	}
+}
+
+func TestFetchExplainsARepositoryTooLargeToArchive(t *testing.T) {
+	serve(t, http.StatusUnprocessableEntity, nil)
+	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	assert.ErrorContains(t, err, "GitHub could not produce an archive of github.com/o/r (422 Unprocessable Entity), which usually means the repository is too large; clone it and scan with --dir")
+}
+
+func TestFetchExplainsATimeout(t *testing.T) {
+	old := client
+	client = &http.Client{Timeout: 50 * time.Millisecond}
+	defer func() { client = old }()
+	github(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		time.Sleep(200 * time.Millisecond)
+	})
+	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	assert.ErrorContains(t, err, "took longer than 50ms, which usually means the repository is too large; clone it and scan with --dir")
 }
 
 func TestFetchReportsHTTPFailures(t *testing.T) {
@@ -330,7 +371,7 @@ func TestFetchRestoresWhatTheArchiveLeavesOut(t *testing.T) {
 	)
 	asked := routes(t, map[string]string{
 		"/repos/o/r/tarball":                     "200 " + string(archive),
-		"/repos/o/r/git/trees/HEAD":              tree(".github/", ".github/workflows/ci.yml", "tests/fixtures/Dockerfile", "keep.yml", "big.yml#99999999"),
+		"/repos/o/r/git/trees/HEAD":              tree(".github/", ".github/workflows/ci.yml", "tests/fixtures/Dockerfile", "keep.yml", "big.yml#99999999", "src/Tests/Fixtures/config.yml", "bridge/composer.json"),
 		"/raw/o/r/HEAD/.github/workflows/ci.yml": "200 on: push",
 	})
 
@@ -347,6 +388,10 @@ func TestFetchRestoresWhatTheArchiveLeavesOut(t *testing.T) {
 	assert.Empty(t, read("big.yml"), "a file over the size limit is a placeholder")
 	assert.Equal(t, "kept: true", read("keep.yml"), "a file the archive has is left alone")
 	assert.NotContains(t, *asked, "/raw/o/r/HEAD/keep.yml")
+	assert.Empty(t, read("src/Tests/Fixtures/config.yml"), "test fixtures are not fetched")
+	assert.Empty(t, read("bridge/composer.json"), "nor JSON, of which only a head would be read")
+	assert.NotContains(t, *asked, "/raw/o/r/HEAD/src/Tests/Fixtures/config.yml")
+	assert.NotContains(t, *asked, "/raw/o/r/HEAD/bridge/composer.json")
 }
 
 // .gitattributes often leaves itself out, so it is fetched when missing.
@@ -411,7 +456,7 @@ func TestFetchRestoresWithinLimits(t *testing.T) {
 	routes(t, map[string]string{"/repos/o/r/tarball": marked, "/repos/o/r/git/trees/HEAD": tree("a", "b", "c")})
 	maxFiles = 2
 	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
-	assert.ErrorContains(t, err, "more than 2 files")
+	assert.ErrorContains(t, err, "more than 2 files; clone it and scan with --dir")
 
 	maxFiles = files
 	routes(t, map[string]string{"/repos/o/r/tarball": marked, "/repos/o/r/git/trees/HEAD": tree("a.yml#600", "b.yml#600"),

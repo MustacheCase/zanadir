@@ -3,6 +3,7 @@ package wrapper
 import (
 	"cmp"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/internal/repofs"
@@ -39,7 +40,7 @@ func (e *Expander) tox(dir string, args []string) {
 		// ignore_outcome reports a failing environment as a warning, and a
 		// command starting with - has its exit code ignored.
 		outcome := strings.EqualFold(cmp.Or(ini[section]["ignore_outcome"], ini["testenv"]["ignore_outcome"]), "true")
-		for _, command := range strings.Split(ini[section]["commands"], "\n") {
+		for _, command := range strings.Split(toxSubstitute(ini, ini[section]["commands"], 0), "\n") {
 			command = strings.TrimSpace(command)
 			e.ignored(outcome || strings.HasPrefix(command, "-"), func() {
 				e.emit(dir, strings.TrimSpace(strings.TrimPrefix(command, "-")))
@@ -50,6 +51,24 @@ func (e *Expander) tox(dir string, args []string) {
 
 // toxfile reads tox.ini as sections of keys, joining a value's indented
 // continuation lines with newlines.
+var toxReference = regexp.MustCompile(`\{\[([^\]]+)\]([^}]+)\}`)
+
+// toxSubstitute puts the value of each {[section]key} reference in place,
+// as tox does, so commands = {[base]commands} runs the base commands.
+func toxSubstitute(ini map[string]map[string]string, value string, depth int) string {
+	if depth >= maxDepth {
+		return value
+	}
+	return toxReference.ReplaceAllStringFunc(value, func(ref string) string {
+		match := toxReference.FindStringSubmatch(ref)
+		replacement, ok := ini[strings.TrimSpace(match[1])][strings.ToLower(strings.TrimSpace(match[2]))]
+		if !ok {
+			return ref
+		}
+		return toxSubstitute(ini, replacement, depth+1)
+	})
+}
+
 func (e *Expander) toxfile(path string) map[string]map[string]string {
 	if ini, ok := e.toxfiles[path]; ok {
 		return ini

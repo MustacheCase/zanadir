@@ -112,6 +112,13 @@ func TestEmbeddedRulesCarryWeakenedChecks(t *testing.T) {
 		}
 	}
 	assert.True(t, hasInput, "tfsec should be weakened by soft_fail: true")
+
+	for _, id := range []string{"checkov-rule", "tfsec-rule"} {
+		softFail := byID[id].Weakened[0].RunMatches
+		assert.True(t, softFail.MatchString("checkov -d . --soft-fail"), id)
+		assert.True(t, softFail.MatchString("checkov -d . --soft-fail --quiet"), id)
+		assert.False(t, softFail.MatchString("checkov -d . --soft-fail-on CKV_AWS_20"), "%s: --soft-fail-on softens only the listed checks", id)
+	}
 }
 
 func TestCustomRuleJoinsTheCatalogue(t *testing.T) {

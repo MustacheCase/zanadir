@@ -240,6 +240,16 @@ func TestGradeToolSpecificFlags(t *testing.T) {
 		ID:       "trivy-rule",
 		Weakened: []rules.WeakenedWhen{{RunMatches: regexp.MustCompile(`--exit-code[= ]+0\b`), Verdict: "advisory"}},
 	}
+	gitleaks := &rules.Rule{
+		ID:       "gitleaks-rule",
+		Regex:    regexp.MustCompile(`\bgitleaks\b`),
+		Weakened: []rules.WeakenedWhen{{RunMatches: regexp.MustCompile(`--exit-code[= ]+0\b`), Verdict: "advisory"}},
+	}
+	checkov := &rules.Rule{
+		ID:       "checkov-rule",
+		Regex:    regexp.MustCompile(`\bcheckov\b`),
+		Weakened: []rules.WeakenedWhen{{RunMatches: regexp.MustCompile(`--soft-fail(?:\s|$)`), Verdict: "advisory"}},
+	}
 	softFail := &rules.Rule{
 		ID:       "tfsec-rule",
 		Weakened: []rules.WeakenedWhen{{Input: "soft_fail", Equals: "true", Verdict: "advisory"}},
@@ -270,6 +280,42 @@ func TestGradeToolSpecificFlags(t *testing.T) {
 			rule:     exitCodeZero,
 			job:      &models.Job{Run: "trivy fs --exit-code 1 ."},
 			expected: Enforcing,
+		},
+		{
+			name:     "a neighbouring tool's flag is not this tool's",
+			rule:     gitleaks,
+			job:      &models.Job{Run: "gitleaks detect\ntrivy fs --exit-code 0 ."},
+			expected: Enforcing,
+		},
+		{
+			name:     "nor in the same line, after &&",
+			rule:     gitleaks,
+			job:      &models.Job{Run: "trivy fs --exit-code 0 . && gitleaks detect"},
+			expected: Enforcing,
+		},
+		{
+			name:     "the tool's own flag still weakens it",
+			rule:     gitleaks,
+			job:      &models.Job{Run: "trivy fs .\ngitleaks detect --exit-code 0"},
+			expected: Advisory,
+		},
+		{
+			name:     "soft-fail-on softens only the checks it lists",
+			rule:     checkov,
+			job:      &models.Job{Run: "checkov -d . --soft-fail-on CKV_AWS_20"},
+			expected: Enforcing,
+		},
+		{
+			name:     "soft-fail softens them all",
+			rule:     checkov,
+			job:      &models.Job{Run: "checkov -d . --soft-fail"},
+			expected: Advisory,
+		},
+		{
+			name:     "a step matched by its action is read whole",
+			rule:     checkov,
+			job:      &models.Job{Package: "bridgecrewio/checkov-action", Run: "--soft-fail"},
+			expected: Advisory,
 		},
 		{
 			name:     "an action input that disables failure",

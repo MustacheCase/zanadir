@@ -3,6 +3,7 @@ package parser
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/internal/testrepo"
@@ -243,4 +244,88 @@ func TestAzureExistsAndErrors(t *testing.T) {
 	require.Len(t, artifacts, 1)
 	assert.NotEmpty(t, artifacts[0].Skipped)
 	assert.Empty(t, artifacts[0].Jobs)
+}
+
+// A template's parameters decide whether a control can fail, so they are
+// substituted from the call, or their defaults.
+func TestAzureSubstitutesTemplateParameters(t *testing.T) {
+	template := `parameters:
+  - name: softFail
+    default: false
+  - name: tool
+    default: gitleaks
+  - name: matrix
+    default: [a, b]
+steps:
+  - script: ${{ parameters.tool }} detect
+    continueOnError: ${{ parameters.softFail }}
+  - task: SnykSecurityScan@1
+    enabled: ${{ parameters.matrix }}
+    inputs:
+      failOnIssues: ${{ not(parameters.softFail) }}
+      monitorWhen: ${{ eq(parameters.softFail, true) }}
+      other: ${{ parameters.unknown }}
+`
+	for name, tt := range map[string]struct {
+		call      string
+		continues bool
+		failOn    string
+	}{
+		"given":   {"    parameters:\n      softFail: true\n", true, "false"},
+		"default": {"", false, "true"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			artifact := parseAzure(t, map[string]string{
+				"azure-pipelines.yml": "pr: [main]\nsteps:\n  - template: scan.yml\n" + tt.call,
+				"scan.yml":            template,
+			})
+			require.Len(t, artifact.Jobs, 2)
+			assert.Equal(t, "gitleaks detect", artifact.Jobs[0].Run)
+			assert.Equal(t, tt.continues, artifact.Jobs[0].ContinueOnError)
+			assert.Empty(t, artifact.Jobs[0].If)
+			snyk := artifact.Jobs[1]
+			assert.Equal(t, tt.failOn, snyk.With["failOnIssues"])
+			assert.Equal(t, "${{ eq("+strconv.FormatBool(tt.continues)+", true) }}", snyk.With["monitorWhen"], "an expression that is not a literal stays one")
+			assert.Equal(t, "${{ parameters.unknown }}", snyk.With["other"])
+			assert.Contains(t, snyk.If, "enabled: ${{ parameters.matrix }}", "an object parameter is not substituted")
+		})
+	}
+}
+
+func TestAzureReadsParametersDeclaredAsAMapping(t *testing.T) {
+	artifact := parseAzure(t, map[string]string{
+		"azure-pipelines.yml": "pr: [main]\njobs:\n  - template: job.yml\n",
+		"job.yml":             "parameters:\n  softFail: true\njobs:\n  - job: scan\n    continueOnError: ${{ parameters.softFail }}\n    steps:\n      - script: gitleaks detect\n",
+	})
+	require.Len(t, artifact.Jobs, 1)
+	assert.True(t, artifact.Jobs[0].ContinueOnError)
+}
+
+// What is still an expression is decided at run time, and grades unknown.
+func TestAzureRuntimeFlagsAreConditions(t *testing.T) {
+	artifact := parseAzure(t, map[string]string{"azure-pipelines.yml": `pr: [main]
+jobs:
+  - job: scan
+    continueOnError: $(isRelease)
+    steps:
+      - script: gitleaks detect
+        enabled: ${{ variables.scan }}
+      - script: semgrep ci
+        continueOnError: [not, a, flag]
+`})
+	require.Len(t, artifact.Jobs, 2)
+	assert.Equal(t, "continueOnError: $(isRelease)", artifact.Jobs[0].JobIf)
+	assert.Equal(t, "enabled: ${{ variables.scan }}", artifact.Jobs[0].If)
+	assert.False(t, artifact.Jobs[0].ContinueOnError)
+	assert.Empty(t, artifact.Jobs[1].If)
+}
+
+// A value that breaks the YAML it is put into leaves the template as written.
+func TestAzureReadsATemplateAsWrittenWhenSubstitutionBreaksIt(t *testing.T) {
+	artifact := parseAzure(t, map[string]string{
+		"azure-pipelines.yml": "pr: [main]\nsteps:\n  - template: scan.yml\n    parameters:\n      message: \"a: b\"\n",
+		"scan.yml":            "steps:\n  - script: echo ${{ parameters.message }} && gitleaks detect\n",
+	})
+	require.Len(t, artifact.Jobs, 1)
+	assert.Equal(t, "echo ${{ parameters.message }} && gitleaks detect", artifact.Jobs[0].Run)
 }

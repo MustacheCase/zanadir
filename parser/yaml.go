@@ -133,6 +133,10 @@ func readYAML(root, path string, target any) error {
 	if err != nil {
 		return err
 	}
+	return decodeYAML(data, target)
+}
+
+func decodeYAML(data []byte, target any) error {
 	if err := decodeNext(yaml.NewDecoder(bytes.NewReader(data)), target); !errors.Is(err, io.EOF) {
 		return err
 	}

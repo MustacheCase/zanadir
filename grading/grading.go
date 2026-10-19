@@ -95,6 +95,9 @@ func Grade(finding *matcher.Finding) Verdict {
 	return gradeTriggers(finding.Artifact)
 }
 
+// runtimeExpression is GitHub's ${{ }} or Azure's $( ) and $[ ].
+var runtimeExpression = regexp.MustCompile(`\$\{\{|\$\(|\$\[`)
+
 // toolSpecific applies a rule's weakenedWhen checks.
 func toolSpecific(rule *rules.Rule, job *models.Job) (Verdict, bool) {
 	if rule == nil {
@@ -116,8 +119,13 @@ func toolSpecific(rule *rules.Rule, job *models.Job) (Verdict, bool) {
 			}
 			continue
 		}
-		if value, ok := job.With[check.Input]; ok && strings.EqualFold(value, check.Equals) {
+		value, ok := job.With[check.Input]
+		switch {
+		case ok && strings.EqualFold(value, check.Equals):
 			return Verdict(check.Verdict), true
+		// An input set by an expression may be the weakening value or not.
+		case ok && runtimeExpression.MatchString(value):
+			return Unknown, true
 		}
 	}
 	return "", false

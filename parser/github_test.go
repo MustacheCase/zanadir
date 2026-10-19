@@ -1,6 +1,7 @@
 package parser_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -392,7 +393,7 @@ func TestParseSkipsUnparseableYAML(t *testing.T) {
 		jobs += len(a.Jobs)
 	}
 	assert.Contains(t, skipped["broken.yml"], "line 2")
-	assert.Equal(t, `yaml: unmarshal errors: line 4: mapping key "if" already defined at line 3`, skipped["duplicate.yml"])
+	assert.Equal(t, `it is not valid YAML (yaml: unmarshal errors: line 4: mapping key "if" already defined at line 3), so the CI platform cannot run it either`, skipped["duplicate.yml"])
 	assert.Empty(t, skipped["empty.yml"], "an empty file is valid, if pointless")
 	assert.Empty(t, skipped["lint.yml"])
 	assert.Equal(t, 1, jobs)
@@ -519,4 +520,31 @@ func TestGithubParserReadsPullRequestFilters(t *testing.T) {
 		{Event: "pull_request", IgnoredBranches: []string{"docs/**"}, Types: []string{"opened", "closed"}},
 		{Event: "push", Branches: []string{"main"}},
 	}, artifact.Triggers)
+}
+
+// One entry the scan cannot read used to abort it; like invalid YAML, it is
+// skipped with the reason, and the other workflows are still read.
+func TestParseSkipsWorkflowsItCannotRead(t *testing.T) {
+	root := workflows(t, map[string]string{"lint.yml": "on: pull_request\njobs:\n  lint:\n    steps:\n      - run: golangci-lint run\n"})
+	dir := filepath.Join(root, ".github", "workflows")
+	require.NoError(t, os.Symlink("/nonexistent/x.yml", filepath.Join(dir, "dangling.yml")))
+	require.NoError(t, os.Symlink("loop.yml", filepath.Join(dir, "loop.yml")))
+	require.NoError(t, os.Mkdir(filepath.Join(root, "adir"), 0o755))
+	require.NoError(t, os.Symlink(filepath.Join(root, "adir"), filepath.Join(dir, "dir.yml")))
+	locked := filepath.Join(dir, "locked.yml")
+	require.NoError(t, os.WriteFile(locked, []byte("on: push\n"), 0o000))
+
+	artifacts, err := parser.NewGithubParser().Parse(root)
+	require.NoError(t, err)
+	reasons := map[string]string{}
+	for _, a := range artifacts {
+		reasons[filepath.Base(a.Location)] = a.Skipped
+	}
+	assert.Empty(t, reasons["lint.yml"])
+	for _, name := range []string{"dangling.yml", "loop.yml", "dir.yml"} {
+		assert.Contains(t, reasons[name], "it cannot be read", name)
+	}
+	if os.Geteuid() != 0 {
+		assert.Contains(t, reasons["locked.yml"], "permission denied")
+	}
 }

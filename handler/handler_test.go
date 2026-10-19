@@ -943,7 +943,7 @@ func TestExecuteWarnsAboutASkippedFile(t *testing.T) {
 
 	dir := t.TempDir()
 	broken := &models.Artifact{Location: filepath.Join(dir, ".github", "workflows", "broken.yml"),
-		Skipped: "yaml: line 2: did not find expected key"}
+		Skipped: "it is not valid YAML (yaml: line 2: did not find expected key), so the CI platform cannot run it either"}
 	mockRules := new(MockRuleService)
 	mockRules.On("GetCategoryRules", mock.Anything).Return([]*rules.Rule{})
 	mockScan := new(MockScanner)
@@ -958,8 +958,8 @@ func TestExecuteWarnsAboutASkippedFile(t *testing.T) {
 	h := &Handler{RulesService: mockRules, ScanService: mockScan, MatchService: mockMatch,
 		SuggestionService: mockSuggest, OutputService: mockOut}
 	assert.NoError(t, h.Execute(&config.Config{Dir: dir, Output: "json"}))
-	assert.Equal(t, "Warning: skipped .github/workflows/broken.yml, which is not valid YAML "+
-		"(yaml: line 2: did not find expected key); the CI platform cannot run it either\n", warnings.String())
+	assert.Equal(t, "Warning: skipped .github/workflows/broken.yml: it is not valid YAML "+
+		"(yaml: line 2: did not find expected key), so the CI platform cannot run it either\n", warnings.String())
 }
 
 func fakeGate(t *testing.T, merge *gate.Gate, err error) *[]remote.Repository {

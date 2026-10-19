@@ -343,12 +343,13 @@ func TestGitlabIncludeAsASingleString(t *testing.T) {
 	assert.Equal(t, "go test ./...", jobs["unit"].Run)
 }
 
-func TestGitlabFailsOnlyWhenTheFileCannotBeRead(t *testing.T) {
+func TestGitlabSkipsAFileItCannotReadOrParse(t *testing.T) {
 	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, "test:\n  script: [oops\n"))
 	require.NoError(t, err)
-	assert.NotEmpty(t, artifacts[0].Skipped)
-	_, err = parser.NewGitlabParser().Parse(t.TempDir())
-	assert.Error(t, err)
+	assert.Contains(t, artifacts[0].Skipped, "not valid YAML")
+	artifacts, err = parser.NewGitlabParser().Parse(t.TempDir())
+	require.NoError(t, err)
+	assert.Contains(t, artifacts[0].Skipped, "it cannot be read")
 }
 
 func TestGitlabDoesNotIncludeFilesOutsideTheRepository(t *testing.T) {

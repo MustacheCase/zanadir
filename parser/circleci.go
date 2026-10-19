@@ -45,7 +45,7 @@ func (c *CircleCIParser) Parse(root string) ([]*models.Artifact, error) {
 func (c *CircleCIParser) parseCircleCIWorkflow(filePath string) (*models.Artifact, error) {
 	var wf circleCIDef
 	if err := readYAML(filePath, &wf); err != nil {
-		return unreadable(filePath, err)
+		return unreadable(filePath, err), nil
 	}
 
 	var jobs []*models.Job

@@ -173,7 +173,7 @@ func (r *azureReader) template(ref string, given *yaml.Node, dir string, ctx azu
 	// A value can break the YAML it is put into; the template is then read
 	// as written.
 	var doc azureDoc
-	if decodeYAML([]byte(substitute(string(data), parameterValues(&declared.Parameters, given))), &doc) != nil &&
+	if decodeYAML([]byte(substitute(string(data), parameterRef, parameterValues(&declared.Parameters, given))), &doc) != nil &&
 		decodeYAML(data, &doc) != nil {
 		return nil
 	}
@@ -334,14 +334,14 @@ func parameterValues(declared, given *yaml.Node) map[string]string {
 	return values
 }
 
-// substitute puts known parameters into each ${{ }} expression. One that is
-// then a literal, or not() of one, becomes its value; the rest stay
-// expressions.
-func substitute(text string, values map[string]string) string {
+// substitute puts known values into each ${{ }} expression, for the
+// references ref finds. One that is then a literal, or not() of one, becomes
+// its value; the rest stay expressions.
+func substitute(text string, ref *regexp.Regexp, values map[string]string) string {
 	return azureExpression.ReplaceAllStringFunc(text, func(expression string) string {
 		known := true
-		body := parameterRef.ReplaceAllStringFunc(strings.TrimSpace(azureExpression.FindStringSubmatch(expression)[1]), func(ref string) string {
-			value, ok := values[strings.TrimPrefix(ref, "parameters.")]
+		body := ref.ReplaceAllStringFunc(strings.TrimSpace(azureExpression.FindStringSubmatch(expression)[1]), func(name string) string {
+			value, ok := values[ref.FindStringSubmatch(name)[1]]
 			known = known && ok
 			return value
 		})

@@ -557,3 +557,93 @@ func TestParseSkipsWorkflowsItCannotRead(t *testing.T) {
 		assert.Contains(t, reasons["locked.yml"], "permission denied")
 	}
 }
+
+func compositeRepo(t *testing.T, files map[string]string) []*models.Job {
+	t.Helper()
+	artifacts, err := parser.NewGithubParser().Parse(testrepo.Write(t, files))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	return artifacts[0].Jobs
+}
+
+func runs(jobs []*models.Job) []string {
+	var found []string
+	for _, job := range jobs {
+		if job.Run != "" {
+			found = append(found, job.Run)
+		}
+	}
+	return found
+}
+
+// A local composite action's steps run as part of the step that uses it.
+func TestGithubFollowsLocalCompositeActions(t *testing.T) {
+	jobs := compositeRepo(t, map[string]string{
+		".github/workflows/ci.yml": `on: pull_request
+jobs:
+  scan:
+    runs-on: x
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: ./.github/actions/scan
+        if: always()
+        continue-on-error: true
+        with:
+          config: strict.toml
+`,
+		".github/actions/scan/action.yml": `inputs:
+  config:
+    default: .gitleaks.toml
+  exit-code:
+    default: "1"
+runs:
+  using: composite
+  steps:
+    - run: gitleaks detect --config ${{ inputs.config }} --exit-code ${{ inputs.exit-code }}
+      shell: bash
+      if: runner.os == 'Linux'
+    - uses: ./.github/actions/nested
+    - uses: aquasecurity/setup-trivy@v0.3.1
+      with:
+        version: latest
+`,
+		".github/actions/nested/action.yaml": "runs:\n  using: composite\n  steps:\n    - run: semgrep ci\n      shell: bash\n",
+	})
+
+	assert.Equal(t, []string{"gitleaks detect --config strict.toml --exit-code 1", "semgrep ci"}, runs(jobs),
+		"inputs come from the caller's with:, else their defaults, and nested actions are followed")
+	gitleaks := jobs[0]
+	assert.Equal(t, "scan", gitleaks.Name)
+	assert.True(t, gitleaks.ContinueOnError, "the calling step's continue-on-error carries over")
+	assert.Equal(t, "always() && runner.os == 'Linux'", gitleaks.If)
+	assert.Equal(t, "github.event_name == 'pull_request'", gitleaks.JobIf)
+	assert.Empty(t, gitleaks.With)
+	packages := map[string]string{}
+	for _, job := range jobs {
+		if job.Package != "" {
+			packages[job.Package] = job.Version
+		}
+	}
+	assert.Equal(t, map[string]string{"aquasecurity/setup-trivy": "v0.3.1", "./.github/actions/nested": "", "./.github/actions/scan": ""}, packages)
+}
+
+func TestGithubReadsOnlyCompositeLocalActions(t *testing.T) {
+	jobs := compositeRepo(t, map[string]string{
+		".github/workflows/ci.yml": `on: pull_request
+jobs:
+  scan:
+    runs-on: x
+    steps:
+      - uses: ./.github/actions/docker
+      - uses: ./.github/actions/missing
+      - uses: ./.github/actions/loop
+      - uses: ./.github/actions/broken
+      - uses: ./../outside
+`,
+		".github/actions/docker/action.yml": "runs:\n  using: docker\n  image: Dockerfile\n  steps:\n    - run: gitleaks detect\n",
+		".github/actions/loop/action.yml":   "runs:\n  using: composite\n  steps:\n    - uses: ./.github/actions/loop\n    - {}\n",
+		".github/actions/broken/action.yml": "runs: [\n",
+	})
+	assert.Empty(t, runs(jobs))
+	assert.Len(t, jobs, 5+8, "each uses step, and the self-using action stops at the depth limit")
+}

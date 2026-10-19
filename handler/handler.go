@@ -129,8 +129,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	debugf("Found %d artifacts", len(artifacts))
 	for _, a := range artifacts {
 		if a != nil && a.Skipped != "" {
-			_, _ = fmt.Fprintf(stderr, "Warning: skipped %s, which is not valid YAML (%s); the CI platform cannot run it either\n",
-				repoRelative(cfg.Dir, a.Location), a.Skipped)
+			_, _ = fmt.Fprintf(stderr, "Warning: skipped %s: %s\n", repoRelative(cfg.Dir, a.Location), a.Skipped)
 		}
 	}
 

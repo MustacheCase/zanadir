@@ -198,8 +198,9 @@ func TestJenkinsUnreadableFile(t *testing.T) {
 	}
 	root := testrepo.Write(t, map[string]string{"Jenkinsfile": "sh 'make'\n"})
 	require.NoError(t, os.Chmod(filepath.Join(root, "Jenkinsfile"), 0o000))
-	_, err := NewJenkinsParser().Parse(root)
-	assert.Error(t, err)
+	artifacts, err := NewJenkinsParser().Parse(root)
+	require.NoError(t, err)
+	assert.Contains(t, artifacts[0].Skipped, "permission denied")
 }
 
 func TestJenkinsParallelNestedConditionsAndOperators(t *testing.T) {

@@ -204,7 +204,7 @@ func inheritCallers(artifacts []*models.Artifact) {
 func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, error) {
 	var wf workflowDef
 	if err := readYAML(filePath, &wf); err != nil {
-		return unreadable(filePath, err)
+		return unreadable(filePath, err), nil
 	}
 
 	var jobs []*models.Job

@@ -206,8 +206,9 @@ func TestBitbucketExistsAndErrors(t *testing.T) {
 	p := NewBitbucketParser()
 	assert.False(t, p.Exists(dir))
 
-	_, err := p.Parse(dir)
-	assert.Error(t, err)
+	missing, err := p.Parse(dir)
+	require.NoError(t, err)
+	assert.Contains(t, missing[0].Skipped, "it cannot be read", "a file that cannot be read is skipped, not fatal")
 
 	require.NoError(t, os.WriteFile(filepath.Join(dir, bitbucketFile), []byte("pipelines: [\n"), 0o600))
 	assert.True(t, p.Exists(dir))

@@ -49,7 +49,8 @@ func (j *JenkinsParser) Parse(root string) ([]*models.Artifact, error) {
 	for _, path := range jenkinsFiles(root) {
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, err
+			artifacts = append(artifacts, unreadable(path, err))
+			continue
 		}
 		w := &jenkinsWalker{tokens: groovyTokens(string(data))}
 		artifacts = append(artifacts, &models.Artifact{

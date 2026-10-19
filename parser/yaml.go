@@ -3,6 +3,7 @@ package parser
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -183,23 +184,24 @@ func foldMergeKeys(node *yaml.Node) {
 	}
 }
 
-// unreadable answers a configuration file readYAML failed on. Invalid YAML
-// becomes an artifact with no jobs that says why it was skipped, so one broken
-// file does not fail the scan of a whole repository; any other error, such as
-// a file that cannot be opened, still does.
-func unreadable(path string, err error) (*models.Artifact, error) {
+// unreadable answers a configuration file that could not be read or parsed:
+// an artifact with no jobs that says why it was skipped, so one broken file -
+// invalid YAML, a dangling symlink, no permission - does not fail the scan of
+// a whole repository.
+func unreadable(path string, err error) *models.Artifact {
+	reason := fmt.Sprintf("it cannot be read (%s)", oneLine(err))
 	var invalid invalidYAML
 	if errors.As(err, &invalid) {
-		return &models.Artifact{Location: path, Skipped: strings.Join(strings.Fields(invalid.Error()), " ")}, nil
+		reason = fmt.Sprintf("it is not valid YAML (%s), so the CI platform cannot run it either", oneLine(invalid))
 	}
-	return nil, err
+	return &models.Artifact{Location: path, Skipped: reason}
+}
+
+func oneLine(err error) string {
+	return strings.Join(strings.Fields(err.Error()), " ")
 }
 
 // skippedFile is unreadable for a platform with a single configuration file.
 func skippedFile(path string, err error) ([]*models.Artifact, error) {
-	artifact, err := unreadable(path, err)
-	if err != nil {
-		return nil, err
-	}
-	return []*models.Artifact{artifact}, nil
+	return []*models.Artifact{unreadable(path, err)}, nil
 }

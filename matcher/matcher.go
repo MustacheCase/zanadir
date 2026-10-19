@@ -80,7 +80,7 @@ func matchingSteps(artifact *models.Artifact, rule *rules.Rule, field string) []
 				text = job.Package
 			}
 		case rules.FieldJobRun:
-			text = invocations(job.Run)
+			text = invocations(job.Run, rule.Unless)
 		default:
 			continue
 		}
@@ -97,12 +97,15 @@ func matchingSteps(artifact *models.Artifact, rule *rules.Rule, field string) []
 var setupAction = regexp.MustCompile(`(?i)(?:^|/)(?:setup|install|download)(?:-[^/]*)?$|-(?:installer|setup)$`)
 
 // invocations keeps the commands of a run script that run something, one per
-// line.
-func invocations(run string) string {
+// line, less those a rule excepts.
+func invocations(run string, unless *regexp.Regexp) string {
 	var kept []string
 	for _, command := range shell.Commands(run) {
 		if words := shell.Words(command); len(words) > 0 && !shell.Passive(words) {
-			kept = append(kept, strings.Join(shell.Invoked(words), " "))
+			invoked := strings.Join(shell.Invoked(words), " ")
+			if unless == nil || !unless.MatchString(invoked) {
+				kept = append(kept, invoked)
+			}
 		}
 	}
 	return strings.Join(kept, "\n")

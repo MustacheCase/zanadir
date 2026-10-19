@@ -244,8 +244,12 @@ func (g *GithubParser) parseGithubWorkflow(filePath string) (*models.Artifact, e
 				// Wrapper actions such as a retry or a problem matcher take the
 				// command they run as an input.
 				record.Run = cmp.Or(record.With["run"], record.With["command"])
-				if pkgName == "goreleaser/goreleaser-action" {
+				switch pkgName {
+				case "goreleaser/goreleaser-action":
 					record.Run = strings.TrimSpace("goreleaser " + record.With["args"])
+				case "aquasecurity/trivy-action":
+					with := record.With
+					record.Run = trivyCommand(scanType(with["scan-type"], "image"), with["scanners"], with["exit-code"], with["format"], "")
 				}
 				jobs = append(jobs, record)
 			}
@@ -278,4 +282,26 @@ func parseStepUsageStatement(use string) (string, string) {
 
 func NewGithubParser() Parser {
 	return &GithubParser{}
+}
+
+// scanType is the scan a trivy action or task is given, or its default. An
+// expression, such as a matrix of scan types, cannot be read, so it is taken
+// to be the default too.
+func scanType(given, fallback string) string {
+	if given == "" || strings.Contains(given, "$") {
+		return fallback
+	}
+	return given
+}
+
+// trivyCommand is the command a trivy action or task runs, so one set of
+// rules reads them all: which scanners run decides the categories.
+func trivyCommand(scanType, scanners, exitCode, format, options string) string {
+	command := []string{"trivy", scanType}
+	for _, flag := range [][2]string{{"--scanners", scanners}, {"--exit-code", exitCode}, {"--format", format}} {
+		if flag[1] != "" {
+			command = append(command, flag[0], flag[1])
+		}
+	}
+	return strings.TrimSpace(strings.Join(append(command, options), " "))
 }

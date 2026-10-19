@@ -257,6 +257,13 @@ func (r *azureReader) step(node *yaml.Node, dir string, ctx azureContext) []*mod
 
 	record.Package, record.Version, _ = strings.Cut(step.Task, "@")
 	record.With = scalars(step.Inputs)
+	if with := record.With; strings.EqualFold(record.Package, "trivy") {
+		fallback := "filesystem"
+		if with["image"] != "" {
+			fallback = "image"
+		}
+		record.Run = trivyCommand(scanType(with["type"], fallback), with["scanners"], with["exitCode"], "", with["options"])
+	}
 	return []*models.Job{record}
 }
 

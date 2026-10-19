@@ -223,6 +223,22 @@ func TestRunMatchesOnlyCommandsThatRunTheTool(t *testing.T) {
 	}
 }
 
+func TestUnlessExceptsOnlyTheCommandItMatches(t *testing.T) {
+	trivy := &rules.Rule{ID: "trivy-rule", Regex: regexp.MustCompile(`\btrivy fs\b`), Unless: regexp.MustCompile(`--scanners secret`),
+		ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SCA"}}
+
+	for run, want := range map[string]bool{
+		"trivy fs .":                                 true,
+		"trivy fs --scanners secret .":               false,
+		"trivy fs --scanners secret .\ntrivy fs .":   true,
+		"trivy fs --scanners secret . && echo trivy": false,
+	} {
+		artifacts := []*models.Artifact{{Jobs: []*models.Job{{Run: run}}}}
+		found := matcher.NewMatchService().Match(artifacts, []*rules.Rule{trivy})
+		assert.Equal(t, want, len(found) == 1, run)
+	}
+}
+
 func TestMatchOnJobName(t *testing.T) {
 	rule := &rules.Rule{ID: "unit", Regex: regexp.MustCompile(`(?i)\btests?\b`),
 		ApplyOn: []string{rules.FieldJobName, "Job.Unknown"}, Categories: []string{"Unit Tests"}}

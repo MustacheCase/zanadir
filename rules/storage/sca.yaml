@@ -7,10 +7,15 @@ rules:
     # builds the database.
     regex: "(?i)(?:^|[\\s/])grype(?:[\\s:@/]|$)"
 
+  # What trivy checks depends on its sub-command and --scanners, so it is
+  # matched on the command; parser/github.go turns trivy-action into one. These
+  # sub-commands scan dependencies, unless the scanners leave vuln out or the
+  # output is an SBOM, which trivy writes without scanning.
   - id: "trivy-rule"
-    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    applyOn: ["Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)\\btrivy\\b"
+    regex: "(?i)\\btrivy\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*(?:fs|filesystem|image|i|repo|repository|rootfs|vm|k8s|kubernetes|sbom)(?:\\s|$)"
+    unless: "(?i)--(?:scanners|security-checks)[= ](?:secret|misconfig|config|license|rbac)(?:,(?:secret|misconfig|config|license|rbac))*(?:\\s|$)|\\s(?:--format|-f)[= ](?:cyclonedx|spdx|spdx-json)\\b"
     weakenedWhen:
       - runMatches: "--exit-code[= ]+0\\b"
         verdict: "advisory"

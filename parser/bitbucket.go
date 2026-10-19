@@ -16,7 +16,6 @@ const bitbucketFile = "bitbucket-pipelines.yml"
 type BitbucketParser struct{}
 
 type bitbucketConfig struct {
-	Image     yaml.Node `yaml:"image"`
 	Pipelines struct {
 		Default      yaml.Node            `yaml:"default"`
 		Branches     map[string]yaml.Node `yaml:"branches"`
@@ -64,10 +63,9 @@ func (b *BitbucketParser) Parse(root string) ([]*models.Artifact, error) {
 		return skippedFile(path, err)
 	}
 
-	defaultImage := imageName(&config.Image)
 	var artifacts []*models.Artifact
 	add := func(node *yaml.Node, triggers []models.Trigger) {
-		jobs := bitbucketJobs(node, defaultImage)
+		jobs := bitbucketJobs(node)
 		if len(jobs) == 0 {
 			return
 		}
@@ -120,19 +118,19 @@ func branchTriggers(pattern string) []models.Trigger {
 // bitbucketJobs reads a pipeline's list of steps. An entry that cannot be read,
 // or a pipeline that is an import from another repository, yields nothing
 // rather than failing the scan.
-func bitbucketJobs(node *yaml.Node, defaultImage string) []*models.Job {
+func bitbucketJobs(node *yaml.Node) []*models.Job {
 	node = resolve(node)
 	if node == nil || node.Kind != yaml.SequenceNode {
 		return nil
 	}
 	var jobs []*models.Job
 	for _, entry := range node.Content {
-		jobs = append(jobs, bitbucketItemJobs(entry, defaultImage, false)...)
+		jobs = append(jobs, bitbucketItemJobs(entry, false)...)
 	}
 	return jobs
 }
 
-func bitbucketItemJobs(node *yaml.Node, defaultImage string, manual bool) []*models.Job {
+func bitbucketItemJobs(node *yaml.Node, manual bool) []*models.Job {
 	var item bitbucketItem
 	if resolve(node).Decode(&item) != nil {
 		return nil
@@ -140,12 +138,12 @@ func bitbucketItemJobs(node *yaml.Node, defaultImage string, manual bool) []*mod
 
 	var jobs []*models.Job
 	if item.Step != nil {
-		jobs = append(jobs, bitbucketStepJobs(item.Step, defaultImage, manual)...)
+		jobs = append(jobs, bitbucketStepJobs(item.Step, manual)...)
 	}
 	if item.Stage != nil {
 		stageManual := manual || strings.EqualFold(item.Stage.Trigger, "manual")
 		for i := range item.Stage.Steps {
-			jobs = append(jobs, bitbucketItemJobs(&item.Stage.Steps[i], defaultImage, stageManual)...)
+			jobs = append(jobs, bitbucketItemJobs(&item.Stage.Steps[i], stageManual)...)
 		}
 	}
 	if parallel := resolve(&item.Parallel); parallel != nil {
@@ -163,7 +161,7 @@ func bitbucketItemJobs(node *yaml.Node, defaultImage string, manual bool) []*mod
 			}
 		}
 		for _, step := range steps {
-			jobs = append(jobs, bitbucketItemJobs(step, defaultImage, manual)...)
+			jobs = append(jobs, bitbucketItemJobs(step, manual)...)
 		}
 	}
 	return jobs
@@ -172,12 +170,11 @@ func bitbucketItemJobs(node *yaml.Node, defaultImage string, manual bool) []*mod
 // bitbucketStepJobs splits a step into its script, each pipe it calls, and its
 // after-script. A failing after-script does not fail the step, so anything
 // there is recorded as unable to fail a build.
-func bitbucketStepJobs(step *bitbucketStep, defaultImage string, manual bool) []*models.Job {
+func bitbucketStepJobs(step *bitbucketStep, manual bool) []*models.Job {
 	manual = manual || strings.EqualFold(step.Trigger, "manual")
+	// A default image is the build environment of every step, not a tool any
+	// one of them runs; a step's own image is chosen for what it runs.
 	image := imageName(&step.Image)
-	if image == "" {
-		image = defaultImage
-	}
 
 	run, pipes := bitbucketScript(step.Script)
 	var jobs []*models.Job

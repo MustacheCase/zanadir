@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
@@ -25,11 +26,14 @@ const (
 var SupportedFields = []string{FieldArtifactName, FieldJobName, FieldJobPackage, FieldJobRun}
 
 type FileRule struct {
-	ID         string             `yaml:"id"`
-	ApplyOn    []string           `yaml:"applyOn"`
-	Categories []string           `yaml:"categories"`
-	Regex      string             `yaml:"regex"`
-	Weakened   []FileWeakenedWhen `yaml:"weakenedWhen"`
+	ID         string   `yaml:"id"`
+	ApplyOn    []string `yaml:"applyOn"`
+	Categories []string `yaml:"categories"`
+	Regex      string   `yaml:"regex"`
+	// Unless excludes a command the regex matches, such as a test runner
+	// told to skip the tests. It applies to Job.Run only.
+	Unless   string             `yaml:"unless"`
+	Weakened []FileWeakenedWhen `yaml:"weakenedWhen"`
 }
 
 // FileWeakenedWhen is one way a tool can be configured so that it cannot
@@ -65,6 +69,7 @@ type Rule struct {
 	ApplyOn    []string
 	Categories []string
 	Regex      *regexp.Regexp
+	Unless     *regexp.Regexp
 	IsChecked  bool
 	Weakened   []WeakenedWhen
 }
@@ -101,11 +106,16 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 			weakened = append(weakened, check)
 		}
 
+		var unless *regexp.Regexp
+		if r.Unless != "" {
+			unless = regexp.MustCompile(r.Unless)
+		}
 		convertedRules = append(convertedRules, &Rule{
 			ID:         r.ID,
 			ApplyOn:    r.ApplyOn,
 			Categories: r.Categories,
 			Regex:      regexp.MustCompile(r.Regex),
+			Unless:     unless,
 			IsChecked:  false,
 			Weakened:   weakened,
 		})
@@ -137,9 +147,25 @@ func validateRules(fileRules []FileRule) error {
 				return fmt.Errorf("rule %q: unknown category %q", r.ID, category)
 			}
 		}
+		if err := validateUnless(r); err != nil {
+			return err
+		}
 		if err := validateWeakened(r); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateUnless(r FileRule) error {
+	if r.Unless == "" {
+		return nil
+	}
+	if !slices.Contains(r.ApplyOn, FieldJobRun) {
+		return fmt.Errorf("rule %q: unless applies to %s, which the rule does not", r.ID, FieldJobRun)
+	}
+	if _, err := regexp.Compile(r.Unless); err != nil {
+		return fmt.Errorf("rule %q: unless %q: %w", r.ID, r.Unless, err)
 	}
 	return nil
 }

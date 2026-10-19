@@ -148,6 +148,10 @@ func TestCustomRulesAreChecked(t *testing.T) {
 		{"bad applyOn", func(r *rules.FileRule) { r.ApplyOn = []string{"Job.Steps"} }, "unknown applyOn"},
 		{"no category", func(r *rules.FileRule) { r.Categories = nil }, "at least one category"},
 		{"bad category", func(r *rules.FileRule) { r.Categories = []string{"Fuzzing"} }, "unknown category"},
+		{"unless off Job.Run", func(r *rules.FileRule) {
+			r.ApplyOn, r.Unless = []string{rules.FieldJobPackage}, "--dry-run"
+		}, "unless applies to Job.Run"},
+		{"bad unless", func(r *rules.FileRule) { r.Unless = "--dry-run(" }, "unless"},
 		{"bad weakenedWhen", func(r *rules.FileRule) {
 			r.Weakened = []rules.FileWeakenedWhen{{RunMatches: "--dry-run", Verdict: "broken"}}
 		}, "verdict"},

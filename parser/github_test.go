@@ -514,6 +514,15 @@ func TestGithubParserReadsGoreleaserActionArgs(t *testing.T) {
 	assert.ElementsMatch(t, []string{"goreleaser release --clean", "goreleaser"}, runs)
 }
 
+func TestGithubParserReadsTrivyActionAsItsCommand(t *testing.T) {
+	artifact := parseOne(t, "on: pull_request\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - uses: aquasecurity/trivy-action@v0.36.0\n      - uses: aquasecurity/trivy-action@v0.36.0\n        with:\n          scan-type: config\n          exit-code: '1'\n      - uses: aquasecurity/trivy-action@v0.36.0\n        with:\n          scan-type: fs\n          scanners: secret\n          format: sarif\n      - uses: aquasecurity/trivy-action@v0.36.0\n        with:\n          scan-type: ${{ matrix.scan-type }}\n")
+	var runs []string
+	for _, job := range artifact.Jobs {
+		runs = append(runs, job.Run)
+	}
+	assert.Equal(t, []string{"trivy image", "trivy config --exit-code 1", "trivy fs --scanners secret --format sarif", "trivy image"}, runs, "an expression is taken as the default")
+}
+
 func TestGithubParserReadsPullRequestFilters(t *testing.T) {
 	artifact := parseOne(t, "on:\n  pull_request:\n    types: [opened, closed]\n    branches-ignore: [docs/**]\n  push:\n    branches: [main]\njobs:\n  a:\n    runs-on: x\n    steps:\n      - run: echo\n")
 	assert.Equal(t, []models.Trigger{

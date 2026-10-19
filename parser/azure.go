@@ -1,8 +1,10 @@
 package parser
 
 import (
+	"io/fs"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -74,33 +76,88 @@ type azureContext struct {
 type azureReader struct {
 	root  string
 	depth int
+	steps int
 }
+
+// maxAzureSteps bounds the steps read from one pipeline: insertions and
+// templates nest, and the files are untrusted.
+var maxAzureSteps = 20000
+
+// azureDirs are where projects keep pipelines outside the root, at any depth.
+var azureDirs = []string{".azure-pipelines", ".pipelines", ".azuredevops", "azure-pipelines", "eng/pipelines", "build/azure-pipelines", "ci"}
+
+// maxAzureCandidates bounds the YAML files read to find pipelines.
+var maxAzureCandidates = 2000
 
 func (a *AzureParser) Exists(root string) bool {
-	return azurePipelineFile(root) != ""
+	return len(azurePipelines(root)) > 0
 }
 
-func azurePipelineFile(root string) string {
+// azurePipelines lists the root pipeline and those in azureDirs. Azure has no
+// fixed place for a pipeline, so outside the root a file counts when it has
+// what only a pipeline may: trigger:, pr:, schedules: or extends:.
+// Templates are read from the pipelines that use them.
+func azurePipelines(root string) []string {
+	var paths []string
 	if name := utils.FirstFile(root, azureFiles...); name != "" {
-		return filepath.Join(root, name)
+		paths = append(paths, filepath.Join(root, name))
 	}
-	return ""
+	candidates := 0
+	for _, dir := range azureDirs {
+		_ = filepath.WalkDir(filepath.Join(root, filepath.FromSlash(dir)), func(path string, entry fs.DirEntry, err error) error {
+			switch {
+			case err != nil || candidates >= maxAzureCandidates:
+				return fs.SkipDir
+			case !entry.Type().IsRegular() || (filepath.Ext(path) != ".yml" && filepath.Ext(path) != ".yaml") || isAzureTemplate(root, path):
+				return nil
+			}
+			candidates++
+			if isAzurePipeline(root, path) {
+				paths = append(paths, path)
+			}
+			return nil
+		})
+	}
+	return paths
+}
+
+// isAzureTemplate is a file kept with, or named as, templates: one may extend
+// another, so extends: alone does not make a pipeline.
+func isAzureTemplate(root, path string) bool {
+	rel, _ := filepath.Rel(root, path)
+	return slices.ContainsFunc(strings.Split(filepath.ToSlash(strings.ToLower(rel)), "/"), func(part string) bool {
+		return strings.Contains(part, "template")
+	})
+}
+
+func isAzurePipeline(root, path string) bool {
+	var doc azureDoc
+	if readYAML(root, path, &doc) != nil {
+		return false
+	}
+	runs := doc.Extends.Template != "" || slices.ContainsFunc([][]yaml.Node{doc.Stages, doc.Jobs, doc.Steps}, func(items []yaml.Node) bool {
+		return len(items) > 0 && resolve(&items[0]).Kind == yaml.MappingNode
+	})
+	return runs && (doc.Extends.Template != "" || doc.Trigger.Kind != 0 || doc.PR.Kind != 0 || len(doc.Schedules) > 0)
 }
 
 func (a *AzureParser) Parse(root string) ([]*models.Artifact, error) {
-	path := azurePipelineFile(root)
-	var doc azureDoc
-	if err := readYAML(root, path, &doc); err != nil {
-		return skippedFile(path, err)
+	var artifacts []*models.Artifact
+	for _, path := range azurePipelines(root) {
+		var doc azureDoc
+		if err := readYAML(root, path, &doc); err != nil {
+			artifacts = append(artifacts, unreadable(path, err))
+			continue
+		}
+		r := &azureReader{root: root}
+		artifacts = append(artifacts, &models.Artifact{
+			Name:     "Azure Pipelines",
+			Triggers: azureTriggers(&doc),
+			Jobs:     r.document(&doc, filepath.Dir(path), azureContext{}),
+			Location: path,
+		})
 	}
-
-	r := &azureReader{root: root}
-	return []*models.Artifact{{
-		Name:     "Azure Pipelines",
-		Triggers: azureTriggers(&doc),
-		Jobs:     r.document(&doc, filepath.Dir(path), azureContext{}),
-		Location: path,
-	}}, nil
+	return artifacts, nil
 }
 
 // azureTriggers records a pull request only when pr: names branches. Without
@@ -133,17 +190,46 @@ func (r *azureReader) document(doc *azureDoc, dir string, ctx azureContext) []*m
 	var jobs []*models.Job
 	if doc.Extends.Template != "" {
 		jobs = append(jobs, r.template(doc.Extends.Template, &doc.Extends.Parameters, dir, ctx)...)
+		jobs = append(jobs, r.extendedWork(&doc.Extends.Parameters, dir, ctx)...)
 	}
-	for i := range doc.Stages {
-		jobs = append(jobs, r.stage(&doc.Stages[i], dir, ctx)...)
-	}
-	for i := range doc.Jobs {
-		jobs = append(jobs, r.job(&doc.Jobs[i], dir, ctx)...)
-	}
-	for i := range doc.Steps {
-		jobs = append(jobs, r.step(&doc.Steps[i], dir, ctx)...)
+	for _, list := range []struct {
+		items []yaml.Node
+		read  func(*yaml.Node, string, azureContext) []*models.Job
+	}{{doc.Stages, r.stage}, {doc.Jobs, r.job}, {doc.Steps, r.step}} {
+		insertions(pointers(list.items), ctx, func(item *yaml.Node, ctx azureContext) {
+			jobs = append(jobs, list.read(item, dir, ctx)...)
+		})
 	}
 	return jobs
+}
+
+func pointers(items []yaml.Node) []*yaml.Node {
+	nodes := make([]*yaml.Node, len(items))
+	for i := range items {
+		nodes[i] = &items[i]
+	}
+	return nodes
+}
+
+// insertions visits each item of a list, and the items a ${{ if }},
+// ${{ else }} or ${{ each }} entry inserts. Whether those are inserted
+// depends on values decided when the pipeline compiles, so they carry the
+// expression as a condition.
+func insertions(items []*yaml.Node, ctx azureContext, visit func(*yaml.Node, azureContext)) {
+	for _, item := range items {
+		node := resolve(item)
+		if node.Kind != yaml.MappingNode || len(node.Content) < 2 || !strings.HasPrefix(node.Content[0].Value, "${{") {
+			visit(item, ctx)
+			continue
+		}
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			if inserted := resolve(node.Content[i+1]); inserted.Kind == yaml.SequenceNode {
+				inner := ctx
+				inner.condition = joinConditions(ctx.condition, node.Content[i].Value)
+				insertions(inserted.Content, inner, visit)
+			}
+		}
+	}
 }
 
 // template reads a template from this repository. One in another repository
@@ -182,6 +268,22 @@ func (r *azureReader) template(ref string, given *yaml.Node, dir string, ctx azu
 	return r.document(&doc, filepath.Dir(path), ctx)
 }
 
+// extendedWork reads the stages, jobs or steps a pipeline hands the template
+// it extends. They are its own work, whether the template is in another
+// repository, as 1ES and MicroBuild templates are, or takes them as an object
+// parameter, which is not substituted.
+func (r *azureReader) extendedWork(parameters *yaml.Node, dir string, ctx azureContext) []*models.Job {
+	var work struct {
+		Stages []yaml.Node `yaml:"stages"`
+		Jobs   []yaml.Node `yaml:"jobs"`
+		Steps  []yaml.Node `yaml:"steps"`
+	}
+	if resolve(parameters).Decode(&work) != nil {
+		return nil
+	}
+	return r.document(&azureDoc{Stages: work.Stages, Jobs: work.Jobs, Steps: work.Steps}, dir, ctx)
+}
+
 func (r *azureReader) stage(node *yaml.Node, dir string, ctx azureContext) []*models.Job {
 	var stage azureStage
 	if resolve(node).Decode(&stage) != nil {
@@ -192,9 +294,9 @@ func (r *azureReader) stage(node *yaml.Node, dir string, ctx azureContext) []*mo
 	}
 	ctx.condition = joinConditions(ctx.condition, stage.Condition)
 	var jobs []*models.Job
-	for i := range stage.Jobs {
-		jobs = append(jobs, r.job(&stage.Jobs[i], dir, ctx)...)
-	}
+	insertions(pointers(stage.Jobs), ctx, func(item *yaml.Node, ctx azureContext) {
+		jobs = append(jobs, r.job(item, dir, ctx)...)
+	})
 	return jobs
 }
 
@@ -215,17 +317,13 @@ func (r *azureReader) job(node *yaml.Node, dir string, ctx azureContext) []*mode
 	ctx.condition = joinConditions(joinConditions(ctx.condition, job.Condition), unread)
 	ctx.continueOnError = ctx.continueOnError || continues
 
-	steps := make([]*yaml.Node, 0, len(job.Steps))
-	for i := range job.Steps {
-		steps = append(steps, &job.Steps[i])
-	}
 	// A deployment job keeps its steps inside its strategy's lifecycle hooks.
-	steps = append(steps, nestedSteps(&job.Strategy)...)
+	steps := append(pointers(job.Steps), nestedSteps(&job.Strategy)...)
 
 	var jobs []*models.Job
-	for _, step := range steps {
-		jobs = append(jobs, r.step(step, dir, ctx)...)
-	}
+	insertions(steps, ctx, func(item *yaml.Node, ctx azureContext) {
+		jobs = append(jobs, r.step(item, dir, ctx)...)
+	})
 	return jobs
 }
 
@@ -248,9 +346,10 @@ func nestedSteps(node *yaml.Node) []*yaml.Node {
 
 func (r *azureReader) step(node *yaml.Node, dir string, ctx azureContext) []*models.Job {
 	var step azureStep
-	if resolve(node).Decode(&step) != nil {
+	if r.steps >= maxAzureSteps || resolve(node).Decode(&step) != nil {
 		return nil
 	}
+	r.steps++
 	if step.Template != "" {
 		return r.template(step.Template, &step.Parameters, dir, ctx)
 	}

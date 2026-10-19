@@ -67,7 +67,9 @@ adding tools, and use `zanadir fix --dir .` for configuration that fits this
 repository. Re-run the scan to confirm the change.
 ```
 
-[`llms.txt`](llms.txt) summarises zanadir for agents that read the repository.
+[`llms.txt`](llms.txt) summarises zanadir for agents that read the repository, and is
+served at [mustachecase.github.io/llms.txt](https://mustachecase.github.io/llms.txt)
+for those that look at a site's root.
 
 ## Features
 

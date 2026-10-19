@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"slices"
 	"sync"
 	"syscall"
 
@@ -24,9 +25,8 @@ var rootCmd = &cobra.Command{
 }
 
 var scanCmd = &cobra.Command{
-	Use: "scan",
-	// A stray word, as in --enforce false, would otherwise be ignored.
-	Args:  cobra.NoArgs,
+	Use:   "scan",
+	Args:  noArgs,
 	Short: "Scans a repository's CI configuration",
 	Long:  "The scan command reads a repository's CI configuration and reports the categories it does not cover.",
 	Run:   run(config.CreateConfig, scanRepo),
@@ -34,7 +34,7 @@ var scanCmd = &cobra.Command{
 
 var fixCmd = &cobra.Command{
 	Use:   "fix",
-	Args:  cobra.NoArgs,
+	Args:  noArgs,
 	Short: "Prints CI configuration for the categories a scan reports as missing",
 	Long:  "The fix command prints ready-to-paste CI configuration for each uncovered category, so a scan result can be acted on without leaving the tool.",
 	Run:   run(config.CreateFixConfig, fixRepo),
@@ -129,6 +129,13 @@ func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Con
 			exit(1)
 		}
 	}
+}
+
+// noArgs refuses a stray word, as in --enforce false, which would otherwise
+// be ignored. An empty argument is not one: the runner passes an action's
+// unset optional input to the container as "".
+func noArgs(cmd *cobra.Command, args []string) error {
+	return cobra.NoArgs(cmd, slices.DeleteFunc(slices.Clone(args), func(arg string) bool { return arg == "" }))
 }
 
 func signalNumber(sig os.Signal) int {

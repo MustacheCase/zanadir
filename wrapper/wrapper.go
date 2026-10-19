@@ -79,6 +79,10 @@ func (e *Expander) script(dir, script string) {
 			e.goRun(dir, words[1:])
 		case "goreleaser":
 			e.goreleaser(dir, words[1:])
+		case "pre-commit", "prek":
+			if len(words) > 1 && words[1] == "run" {
+				e.precommit(dir, words[2:])
+			}
 		}
 	}
 }

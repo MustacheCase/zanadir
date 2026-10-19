@@ -523,6 +523,15 @@ func TestGithubParserReadsTrivyActionAsItsCommand(t *testing.T) {
 	assert.Equal(t, []string{"trivy image", "trivy config --exit-code 1", "trivy fs --scanners secret --format sarif", "trivy image"}, runs, "an expression is taken as the default")
 }
 
+func TestGithubParserReadsPreCommitActionsAsTheirCommand(t *testing.T) {
+	artifact := parseOne(t, "on: pull_request\njobs:\n  hooks:\n    runs-on: x\n    steps:\n      - uses: pre-commit/action@v3.0.1\n      - uses: pre-commit/action@v3.0.1\n        with:\n          extra_args: --all-files zizmor\n      - uses: j178/prek-action@v1\n      - uses: j178/prek-action@v1\n        with:\n          extra-args: --all-files actionlint\n      - uses: j178/prek-action@v1\n        with:\n          install-only: 'true'\n")
+	var runs []string
+	for _, job := range artifact.Jobs {
+		runs = append(runs, job.Run)
+	}
+	assert.Equal(t, []string{"pre-commit run --all-files", "pre-commit run --all-files zizmor", "prek run --all-files", "prek run --all-files actionlint", ""}, runs)
+}
+
 func TestGithubParserReadsPullRequestFilters(t *testing.T) {
 	artifact := parseOne(t, "on:\n  pull_request:\n    types: [opened, closed]\n    branches-ignore: [docs/**]\n  push:\n    branches: [main]\njobs:\n  a:\n    runs-on: x\n    steps:\n      - run: echo\n")
 	assert.Equal(t, []models.Trigger{

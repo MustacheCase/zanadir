@@ -330,6 +330,18 @@ func TestGradeToolSpecificFlags(t *testing.T) {
 			expected: Advisory,
 		},
 		{
+			name:     "an input set at run time may be either",
+			rule:     softFail,
+			job:      &models.Job{With: map[string]string{"soft_fail": "${{ inputs.soft }}"}},
+			expected: Unknown,
+		},
+		{
+			name:     "or by an Azure variable",
+			rule:     softFail,
+			job:      &models.Job{With: map[string]string{"soft_fail": "$(softFail)"}},
+			expected: Unknown,
+		},
+		{
 			name:     "the input set to the safe value",
 			rule:     softFail,
 			job:      &models.Job{With: map[string]string{"soft_fail": "false"}},

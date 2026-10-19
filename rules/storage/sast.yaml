@@ -75,3 +75,9 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["SAST"]
     regex: "(?i)^(?:jobs|security)/sast(?:\\.latest)?\\.gitlab-ci\\.yml$|/components/sast/"
+
+  # The Clang static analyzer, run through its build wrapper.
+  - id: "scan-build-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bscan-build\\b"

@@ -461,3 +461,33 @@ func TestGitlabMainFileWinsOverAnInclude(t *testing.T) {
 	require.Len(t, jobs, 1)
 	assert.Equal(t, "golangci-lint run", jobs["lint"].Run)
 }
+
+// GitLab measures coverage itself from a job's coverage: pattern or a
+// coverage_report artifact; such a job is recorded as a coverage step too.
+func TestGitlabRecordsCoverageReports(t *testing.T) {
+	artifacts, err := parser.NewGitlabParser().Parse(gitlabDir(t, `.cover:
+  coverage: '/TOTAL.*\\s(\\d+)%/'
+test:
+  extends: .cover
+  script: make test
+rspec:
+  script: bundle exec rspec
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+build:
+  script: make
+  artifacts:
+    paths: [dist]
+`))
+	require.NoError(t, err)
+	var reported []string
+	for _, job := range artifacts[0].Jobs {
+		if job.Package == "coverage_report" {
+			reported = append(reported, job.Name)
+		}
+	}
+	assert.ElementsMatch(t, []string{"test", "rspec"}, reported)
+}

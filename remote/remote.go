@@ -128,6 +128,7 @@ func Fetch(repo Repository, token string) (string, func(), error) {
 	// The scanner accepts git repositories only; the history is never read.
 	err = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
 	if err == nil {
+		recordDefaultBranch(repo, token, dir)
 		err = download(repo, token, dir)
 	}
 	if err == nil {
@@ -138,6 +139,20 @@ func Fetch(repo Repository, token string) (string, func(), error) {
 		return "", nil, err
 	}
 	return dir, cleanup, nil
+}
+
+// recordDefaultBranch writes origin/HEAD as git clone would, so grading reads
+// the default branch of a fetched repository as it does a checkout's. A
+// failure leaves it unset, and grading falls back to common names.
+func recordDefaultBranch(repo Repository, token, dir string) {
+	var info struct {
+		DefaultBranch string `json:"default_branch"`
+	}
+	if getJSON(fmt.Sprintf("%s/repos/%s/%s", apiBase, repo.Owner, repo.Name), token, &info) != nil || info.DefaultBranch == "" {
+		return
+	}
+	head := "ref: refs/remotes/origin/" + info.DefaultBranch + "\n"
+	_ = writeFile(filepath.Join(dir, ".git", "refs", "remotes", "origin", "HEAD"), strings.NewReader(head), int64(len(head)))
 }
 
 func download(repo Repository, token, dir string) error {

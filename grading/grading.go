@@ -146,7 +146,7 @@ func gradeTriggers(artifact *models.Artifact) Verdict {
 		case !gatingEvents[trigger.Event]:
 		case closedOnly(trigger):
 			runs = true
-		case !coversDefaultBranch(trigger):
+		case !coversDefaultBranch(trigger, artifact.DefaultBranch):
 			unclear = true
 		default:
 			gates = true
@@ -175,23 +175,26 @@ func closedOnly(trigger models.Trigger) bool {
 		!slices.ContainsFunc(trigger.Types, func(t string) bool { return slices.Contains(reviewTypes, t) })
 }
 
-// defaultBranches stand for the default branch, which lives outside the
-// repository: the names it takes in practice (cli/cli and kafka use trunk).
+// defaultBranches stand for the default branch when it could not be read:
+// the names it takes in practice (cli/cli and kafka use trunk).
 var defaultBranches = []string{"main", "master", "trunk", "develop"}
 
 // coversDefaultBranch reports whether a pull request trigger's branch filters
-// admit the default branch: one of defaultBranches, or only those the
-// filters name, if they name any. A filter that leaves them all out may
-// cover the default branch or may not.
-func coversDefaultBranch(trigger models.Trigger) bool {
-	candidates := defaultBranches
-	named := slices.DeleteFunc(slices.Clone(candidates), func(branch string) bool {
-		return !slices.ContainsFunc(append(slices.Clone(trigger.Branches), trigger.IgnoredBranches...), func(p string) bool {
-			return strings.TrimPrefix(p, "!") == branch
+// admit the default branch. Unread, it is one of defaultBranches, or only
+// those the filters name, if they name any; a filter that leaves them all
+// out may cover the default branch or may not.
+func coversDefaultBranch(trigger models.Trigger, defaultBranch string) bool {
+	candidates := []string{defaultBranch}
+	if defaultBranch == "" {
+		candidates = defaultBranches
+		named := slices.DeleteFunc(slices.Clone(candidates), func(branch string) bool {
+			return !slices.ContainsFunc(append(slices.Clone(trigger.Branches), trigger.IgnoredBranches...), func(p string) bool {
+				return strings.TrimPrefix(p, "!") == branch
+			})
 		})
-	})
-	if len(named) > 0 {
-		candidates = named
+		if len(named) > 0 {
+			candidates = named
+		}
 	}
 	for _, branch := range candidates {
 		if (len(trigger.Branches) == 0 || branchFilter(trigger.Branches, branch)) &&

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"os"
@@ -167,8 +168,13 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 
 	merge := mergeGate(cfg, artifacts)
 	var required grading.Required
+	defaultBranch := gate.DefaultBranch(cfg.Dir)
 	if merge != nil {
-		required = merge.Blocks
+		required, defaultBranch = merge.Blocks, cmp.Or(merge.Branch, defaultBranch)
+	}
+	debugf("Default branch: %q", defaultBranch)
+	for _, a := range artifacts {
+		a.DefaultBranch = defaultBranch
 	}
 	weaknesses := weakened(skipped, cfg.Dir, findings, required, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))

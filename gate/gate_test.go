@@ -221,3 +221,14 @@ func TestReadFollowsPages(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []Check{{Context: "Unit tests"}}, g.Checks)
 }
+
+func TestDefaultBranch(t *testing.T) {
+	dir := t.TempDir()
+	assert.Empty(t, DefaultBranch(dir), "no origin/HEAD, as in most CI checkouts")
+	head := filepath.Join(dir, ".git", "refs", "remotes", "origin", "HEAD")
+	require.NoError(t, os.MkdirAll(filepath.Dir(head), 0o755))
+	require.NoError(t, os.WriteFile(head, []byte("ref: refs/remotes/origin/develop\n"), 0o600))
+	assert.Equal(t, "develop", DefaultBranch(dir))
+	require.NoError(t, os.WriteFile(head, []byte("0123456789abcdef\n"), 0o600))
+	assert.Empty(t, DefaultBranch(dir), "a detached origin/HEAD names no branch")
+}

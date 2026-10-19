@@ -411,6 +411,20 @@ func TestFetchReadsAGitattributesTheArchiveLeavesOut(t *testing.T) {
 	assert.Equal(t, "version: 2.1", string(data))
 }
 
+// A fetched repository gets origin/HEAD, as git clone writes it.
+func TestFetchRecordsTheDefaultBranch(t *testing.T) {
+	routes(t, map[string]string{
+		"/repos/o/r":         `200 {"default_branch": "develop"}`,
+		"/repos/o/r/tarball": "200 " + string(tarball(t, entry{name: "o-r-1/go.mod", body: "module x"})),
+	})
+	dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	require.NoError(t, err)
+	defer cleanup()
+	head, err := os.ReadFile(filepath.Join(dir, ".git", "refs", "remotes", "origin", "HEAD"))
+	require.NoError(t, err)
+	assert.Equal(t, "ref: refs/remotes/origin/develop\n", string(head))
+}
+
 func TestFetchWithNothingLeftOut(t *testing.T) {
 	asked := routes(t, map[string]string{
 		"/repos/o/r/tarball": "200 " + string(tarball(t, entry{name: "o-r-1/.gitattributes", body: "* text=auto"})),
@@ -418,7 +432,7 @@ func TestFetchWithNothingLeftOut(t *testing.T) {
 	_, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
 	require.NoError(t, err)
 	cleanup()
-	assert.Equal(t, []string{"/repos/o/r/tarball"}, *asked, "no export-ignore, nothing more to fetch")
+	assert.Equal(t, []string{"/repos/o/r", "/repos/o/r/tarball"}, *asked, "the default branch, then no export-ignore, nothing more to fetch")
 }
 
 func TestFetchReportsFilesItCannotRestore(t *testing.T) {

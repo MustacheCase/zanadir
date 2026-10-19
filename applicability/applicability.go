@@ -135,8 +135,9 @@ func hasIaC(dir string) bool {
 }
 
 // NotApplicable returns the categories a repository has nothing for. The
-// others cannot be ruled out without guessing.
-func NotApplicable(dir string) []string {
+// others cannot be ruled out without guessing. Files ignore says are not the
+// repository's own, such as the workflow fix --write generates, do not count.
+func NotApplicable(dir string, ignore func(string) bool) []string {
 	if _, err := os.Stat(dir); err != nil {
 		return nil
 	}
@@ -146,7 +147,7 @@ func NotApplicable(dir string) []string {
 		ruledOut = append(ruledOut, string(models.IaC))
 	}
 	// Every tool in Workflow Security reads GitHub Actions workflows.
-	if !parser.Uses(dir, parser.GitHub) {
+	if !slices.ContainsFunc(parser.GithubWorkflows(dir), func(path string) bool { return ignore == nil || !ignore(path) }) {
 		ruledOut = append(ruledOut, string(models.WorkflowSecurity))
 	}
 	return ruledOut

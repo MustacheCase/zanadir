@@ -129,18 +129,19 @@ func stepInputs(with map[string]any) map[string]string {
 	return inputs
 }
 
-// Only files directly in the directory are workflows; GitHub ignores the rest.
-func githubWorkflows(root string) []string {
+// GithubWorkflows lists the workflows: only files directly in the directory,
+// since GitHub ignores the rest.
+func GithubWorkflows(root string) []string {
 	return utils.YAMLFiles(filepath.Join(root, ".github", "workflows"))
 }
 
 func (g *GithubParser) Exists(root string) bool {
-	return len(githubWorkflows(root)) > 0
+	return len(GithubWorkflows(root)) > 0
 }
 
 func (g *GithubParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
-	for _, path := range githubWorkflows(root) {
+	for _, path := range GithubWorkflows(root) {
 		artifact, err := g.parseGithubWorkflow(root, path)
 		if err != nil {
 			return nil, err

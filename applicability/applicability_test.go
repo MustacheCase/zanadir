@@ -40,7 +40,7 @@ func TestIaCStaysApplicable(t *testing.T) {
 	} {
 		t.Run(file, func(t *testing.T) {
 			assert.Equal(t, []string{"Workflow Security"},
-				applicability.NotApplicable(testrepo.Touch(t, file)))
+				applicability.NotApplicable(testrepo.Touch(t, file), nil))
 		})
 	}
 }
@@ -48,7 +48,7 @@ func TestIaCStaysApplicable(t *testing.T) {
 func TestIaCIsRuledOutWithoutInfrastructure(t *testing.T) {
 	dir := testrepo.Touch(t, "src/main.go", "go.mod", "README.md", "docs/guide.md", ".github/workflows/ci.yml")
 
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
 }
 
 // Every tool in the Workflow Security category reads the GitHub Actions
@@ -94,7 +94,7 @@ func TestWorkflowSecurityNeedsGithubWorkflows(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, applicability.NotApplicable(testrepo.Touch(t, tt.files...)))
+			assert.Equal(t, tt.expected, applicability.NotApplicable(testrepo.Touch(t, tt.files...), nil))
 		})
 	}
 }
@@ -109,18 +109,18 @@ func TestIaCIgnoresVendoredDirectories(t *testing.T) {
 	} {
 		t.Run(vendored, func(t *testing.T) {
 			dir := testrepo.Touch(t, "go.mod", ".github/workflows/ci.yml", vendored)
-			assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+			assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
 		})
 	}
 }
 
 func TestNotApplicableWithNoDirectory(t *testing.T) {
-	assert.Nil(t, applicability.NotApplicable(filepath.Join(t.TempDir(), "absent")))
+	assert.Nil(t, applicability.NotApplicable(filepath.Join(t.TempDir(), "absent"), nil))
 }
 
 // An empty repository has no infrastructure and no workflows either.
 func TestNotApplicableWithAnEmptyRepository(t *testing.T) {
-	assert.Equal(t, []string{"IaC Security", "Workflow Security"}, applicability.NotApplicable(t.TempDir()))
+	assert.Equal(t, []string{"IaC Security", "Workflow Security"}, applicability.NotApplicable(t.TempDir(), nil))
 }
 
 // A directory it cannot read must not crash the walk, and must not be taken as
@@ -136,7 +136,7 @@ func TestIaCToleratesAnUnreadableDirectory(t *testing.T) {
 	assert.NoError(t, os.Chmod(locked, 0o000))
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
 }
 
 // cli/cli keeps a scripts directory inside .github/workflows, which is not a
@@ -144,10 +144,10 @@ func TestIaCToleratesAnUnreadableDirectory(t *testing.T) {
 func TestWorkflowSecurityIgnoresSubdirectories(t *testing.T) {
 	dir := testrepo.Touch(t, "Dockerfile", ".github/workflows/scripts/data.yml")
 
-	assert.Equal(t, []string{"Workflow Security"}, applicability.NotApplicable(dir))
+	assert.Equal(t, []string{"Workflow Security"}, applicability.NotApplicable(dir, nil))
 
 	withWorkflow := testrepo.Touch(t, "Dockerfile", ".github/workflows/scripts/data.yml", ".github/workflows/ci.yml")
-	assert.Empty(t, applicability.NotApplicable(withWorkflow))
+	assert.Empty(t, applicability.NotApplicable(withWorkflow, nil))
 }
 
 // CloudFormation, ARM templates and Kubernetes manifests are named anything,
@@ -164,7 +164,7 @@ func TestIaCRecognisesManifestsByContent(t *testing.T) {
 	} {
 		t.Run(file, func(t *testing.T) {
 			dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", file: content})
-			assert.Empty(t, applicability.NotApplicable(dir))
+			assert.Empty(t, applicability.NotApplicable(dir, nil))
 		})
 	}
 }
@@ -186,7 +186,7 @@ func TestIaCIgnoresTestDataAndLookalikes(t *testing.T) {
 	} {
 		t.Run(file, func(t *testing.T) {
 			dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", file: content})
-			assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+			assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
 		})
 	}
 }
@@ -196,7 +196,7 @@ func TestIaCDoesNotFollowASymlinkedFile(t *testing.T) {
 	assert.NoError(t, os.WriteFile(outside, []byte("AWSTemplateFormatVersion: x\n"), 0o600))
 	dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n"})
 	assert.NoError(t, os.Symlink(outside, filepath.Join(dir, "template.yaml")))
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
 }
 
 func TestIaCToleratesAnUnreadableManifest(t *testing.T) {
@@ -207,5 +207,17 @@ func TestIaCToleratesAnUnreadableManifest(t *testing.T) {
 	dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", "template.yaml": "AWSTemplateFormatVersion: x\n"})
 	assert.NoError(t, os.Chmod(filepath.Join(dir, "template.yaml"), 0o000))
 
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
+}
+
+// The workflow fix --write generates is zanadir's, not the repository's.
+func TestWorkflowSecurityIgnoresWhatItIsToldTo(t *testing.T) {
+	dir := testrepo.Touch(t, "go.mod", ".github/workflows/zanadir-suggested.yml")
+	generated := func(path string) bool { return filepath.Base(path) == "zanadir-suggested.yml" }
+
+	assert.Equal(t, []string{"IaC Security", "Workflow Security"}, applicability.NotApplicable(dir, generated))
+	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
+
+	dir = testrepo.Touch(t, "go.mod", ".github/workflows/zanadir-suggested.yml", ".github/workflows/ci.yml")
+	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, generated))
 }

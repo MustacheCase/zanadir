@@ -3,9 +3,12 @@
 package applicability
 
 import (
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
@@ -44,13 +47,30 @@ var iacDirs = map[string]bool{
 	"infrastructure": true,
 }
 
-func isIaC(name string, isDir bool) bool {
+var manifestExtensions = map[string]bool{".yaml": true, ".yml": true, ".json": true, ".tpl": true, ".hcl": true, ".jsonnet": true}
+
+// testDirs hold what tests run against: a Dockerfile.test fixture, a
+// kubernetes directory of long file names.
+var testDirs = map[string]bool{"test": true, "tests": true, "fixtures": true, "__fixtures__": true, "spec": true, "benches": true}
+
+// A Dockerfile.json is data about a Dockerfile, not one.
+var dataExtensions = map[string]bool{".json": true, ".yaml": true, ".yml": true, ".txt": true, ".md": true, ".snap": true, ".golden": true, ".out": true}
+
+var (
+	cloudFormation = regexp.MustCompile(`AWSTemplateFormatVersion|["']?Type["']?\s*:\s*["']?AWS::\w+::`)
+	armTemplate    = regexp.MustCompile(`deploymentTemplate\.json`)
+	k8sAPIVersion  = regexp.MustCompile(`(?m)^apiVersion:\s*\S`)
+	k8sKind        = regexp.MustCompile(`(?m)^kind:\s*["']?(?:Deployment|StatefulSet|DaemonSet|ReplicaSet|Pod|Job|CronJob|Service|Ingress|ConfigMap|Secret|Namespace|ServiceAccount|(?:Cluster)?Role(?:Binding)?|PersistentVolume(?:Claim)?|NetworkPolicy|HorizontalPodAutoscaler|CustomResourceDefinition)["']?\s*$`)
+)
+
+func isIaCFile(name string, inIaCDir bool) bool {
 	lower := strings.ToLower(name)
-	if isDir {
-		return iacDirs[lower]
-	}
-	if iacFiles[lower] || strings.HasPrefix(lower, "dockerfile") {
+	ext := filepath.Ext(lower)
+	switch {
+	case iacFiles[lower], inIaCDir && manifestExtensions[ext]:
 		return true
+	case strings.HasPrefix(lower, "dockerfile"):
+		return !dataExtensions[ext]
 	}
 	for _, suffix := range iacSuffixes {
 		if strings.HasSuffix(lower, suffix) {
@@ -58,6 +78,31 @@ func isIaC(name string, isDir bool) bool {
 		}
 	}
 	return false
+}
+
+// isManifest reads the start of a YAML or JSON file for CloudFormation, an
+// ARM template or a Kubernetes object, which can be named anything.
+func isManifest(path, name string) bool {
+	lower := strings.ToLower(name)
+	ext := filepath.Ext(lower)
+	if ext == ".json" && strings.HasPrefix(lower, "azuredeploy") {
+		return true
+	}
+	if ext != ".yaml" && ext != ".yml" && ext != ".json" {
+		return false
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = f.Close() }()
+	head := make([]byte, 32<<10)
+	n, _ := io.ReadFull(f, head)
+	head = head[:n]
+	if cloudFormation.Match(head) || armTemplate.Match(head) {
+		return true
+	}
+	return ext != ".json" && k8sAPIVersion.Match(head) && k8sKind.Match(head)
 }
 
 // hasIaC walks until it finds one marker, so only a repository with none is
@@ -70,12 +115,20 @@ func hasIaC(dir string) bool {
 			return nil
 		}
 		name := entry.Name()
-		if entry.IsDir() && path != dir {
-			if utils.IsDependencyDir(name) || strings.HasPrefix(name, ".") && !isIaC(name, true) {
+		if entry.IsDir() {
+			if path != dir && (utils.IsDependencyDir(name) || testDirs[strings.ToLower(name)] || strings.HasPrefix(name, ".")) {
 				return fs.SkipDir
 			}
+			return nil
 		}
-		if isIaC(name, entry.IsDir()) {
+		if !entry.Type().IsRegular() {
+			return nil
+		}
+		rel, _ := filepath.Rel(dir, path)
+		inIaCDir := slices.ContainsFunc(strings.Split(filepath.Dir(rel), string(filepath.Separator)), func(part string) bool {
+			return iacDirs[strings.ToLower(part)]
+		})
+		if isIaCFile(name, inIaCDir) || isManifest(path, name) {
 			found = true
 			return fs.SkipAll
 		}

@@ -159,11 +159,15 @@ templates:
         with:
           directory: .
 
-  - tool: "tfsec"
+  # trivy config exits 0 on findings unless told otherwise.
+  - tool: "Trivy"
     platform: "github"
+    category: "IaC Security"
     step: |
-      - name: Scan Terraform
-        uses: aquasecurity/tfsec-action@v1.0.3
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@v0.3.1
+      - name: Scan infrastructure as code
+        run: trivy config --exit-code 1 .
 
   # End-of-life detection is OS-level, so it needs an image, not the repo.
   - tool: "Trivy"

@@ -254,6 +254,12 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 				switch pkgName {
 				case "goreleaser/goreleaser-action":
 					record.Run = strings.TrimSpace("goreleaser " + record.With["args"])
+				case "pre-commit/action":
+					record.Run = "pre-commit run " + cmp.Or(record.With["extra_args"], "--all-files")
+				case "j178/prek-action":
+					if record.With["install-only"] != "true" {
+						record.Run = "prek run " + cmp.Or(record.With["extra-args"], record.With["extra_args"], "--all-files")
+					}
 				case "aquasecurity/trivy-action":
 					with := record.With
 					record.Run = trivyCommand(scanType(with["scan-type"], "image"), with["scanners"], with["exit-code"], with["format"], "")

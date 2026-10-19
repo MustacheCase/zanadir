@@ -17,7 +17,7 @@ rules:
   - id: "unit-test-command-rule"
     applyOn: ["Job.Run"]
     categories: ["Unit Tests"]
-    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\b(?:pytest|rspec|phpunit|jest|mocha|vitest|ctest|tox)\\b|\\bmvnw?\\s[^\\n]*\\btest\\b|\\bgradlew?\\s[^\\n]*\\btest\\b|\\bbundle\\s+exec\\s+rspec\\b"
+    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\b(?:pytest|rspec|phpunit|jest|mocha|vitest|ctest|tox)\\b|\\bmvnw?\\s[^\\n]*\\btest\\b|\\bgradlew?\\s[^\\n]*\\btest\\b|\\bbundle\\s+exec\\s+rspec\\b|\\bmeson\\s+test\\b|\\brun[-_]tests?\\.sh\\b"
     # Commands that build or check without running the tests: Maven's skip
     # properties, Gradle excluding the test task, cargo's --no-run, and tox
     # environments that only lint, type-check, document or package.

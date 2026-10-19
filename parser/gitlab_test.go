@@ -1,8 +1,10 @@
 package parser_test
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/internal/testrepo"
@@ -385,4 +387,77 @@ func TestGithubDoesNotReadASymlinkedWorkflowsDirectory(t *testing.T) {
 	require.Len(t, artifacts, 1)
 	assert.Empty(t, artifacts[0].Jobs)
 	assert.Contains(t, artifacts[0].Skipped, "cannot be read", "a skipped file says why")
+}
+
+// A hidden job never runs on its own; a job that extends it runs its script.
+func TestGitlabHiddenJobsRunOnlyThroughExtends(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{
+		".gitlab-ci.yml": `include: ci/templates.yml
+.unused:
+  script: gitleaks detect
+.lint:
+  image: golangci/golangci-lint
+  script: golangci-lint run
+  allow_failure: true
+.strict:
+  allow_failure: false
+lint:
+  extends: .lint
+strict-lint:
+  extends: [.lint, .strict]
+chained:
+  extends: lint
+  before_script: go mod download
+overridden:
+  extends: .lint
+  script: make build
+scan:
+  extends: .scan
+cycle:
+  extends: cycle
+missing:
+  extends: .nowhere
+  script: make
+`,
+		"ci/templates.yml": ".scan:\n  script: semgrep ci\n  when: manual\n",
+	})
+
+	assert.ElementsMatch(t, []string{"lint", "strict-lint", "chained", "overridden", "scan", "cycle", "missing"}, slices.Collect(maps.Keys(jobs)),
+		"hidden jobs are not jobs")
+	assert.Empty(t, jobs["cycle"].Run, "a cycle stops at GitLab's depth limit with nothing to run")
+	assert.Equal(t, "make", jobs["missing"].Run)
+	assert.Equal(t, "golangci-lint run", jobs["lint"].Run)
+	assert.Equal(t, "golangci/golangci-lint", jobs["lint"].Package)
+	assert.True(t, jobs["lint"].ContinueOnError)
+	assert.False(t, jobs["strict-lint"].ContinueOnError, "a later extends overrides an earlier one")
+	assert.Equal(t, "go mod download\ngolangci-lint run", jobs["chained"].Run, "extends chain, and the job adds its own keys")
+	assert.Equal(t, "make build", jobs["overridden"].Run, "the job's own key replaces the extended one")
+	assert.Equal(t, "semgrep ci", jobs["scan"].Run, "a hidden job in an included file")
+	assert.True(t, jobs["scan"].Manual)
+}
+
+// A manual job with allow_failure: false blocks the pipeline until it runs and
+// passes; whether that blocks a merge is a project setting.
+func TestGitlabBlockingManualJobIsAnUnreadableCondition(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{".gitlab-ci.yml": `secrets:
+  script: gitleaks detect
+  when: manual
+  allow_failure: false
+optional:
+  script: gitleaks detect
+  when: manual
+`})
+	assert.False(t, jobs["secrets"].Manual)
+	assert.NotEmpty(t, jobs["secrets"].If)
+	assert.True(t, jobs["optional"].Manual)
+	assert.Empty(t, jobs["optional"].If)
+}
+
+func TestGitlabMainFileWinsOverAnInclude(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{
+		".gitlab-ci.yml": "include: ci/lint.yml\nlint:\n  script: golangci-lint run\n",
+		"ci/lint.yml":    "lint:\n  script: echo skipped\n",
+	})
+	require.Len(t, jobs, 1)
+	assert.Equal(t, "golangci-lint run", jobs["lint"].Run)
 }

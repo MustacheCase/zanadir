@@ -1,7 +1,9 @@
 package wrapper
 
 import (
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/internal/repofs"
@@ -14,8 +16,25 @@ var taskfileNames = []string{
 }
 
 type taskfile struct {
-	path  string
-	tasks map[string]yaml.Node
+	path     string
+	tasks    map[string]yaml.Node
+	includes map[string]taskInclude
+}
+
+// taskInclude is one entry of includes:, as a path or a mapping.
+type taskInclude struct {
+	Taskfile string `yaml:"taskfile"`
+	Dir      string `yaml:"dir"`
+	Flatten  bool   `yaml:"flatten"`
+}
+
+func (i *taskInclude) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		i.Taskfile = node.Value
+		return nil
+	}
+	type plain taskInclude
+	return node.Decode((*plain)(i))
 }
 
 func (e *Expander) task(dir string, args []string) {
@@ -61,20 +80,64 @@ func (e *Expander) taskfile(path string) *taskfile {
 	}
 	t := &taskfile{path: path}
 	var doc struct {
-		Tasks map[string]yaml.Node `yaml:"tasks"`
+		Tasks    map[string]yaml.Node   `yaml:"tasks"`
+		Includes map[string]taskInclude `yaml:"includes"`
 	}
 	if data, err := repofs.ReadFile(e.root, path); err == nil && yaml.Unmarshal(data, &doc) == nil {
-		t.tasks = doc.Tasks
+		t.tasks, t.includes = doc.Tasks, doc.Includes
 	}
 	e.taskfiles[path] = t
 	return t
+}
+
+// included resolves a task name through includes: "ns:task" in the file the
+// namespace names, nested as "a:b:task", or a task of a flattened include.
+// Its tasks run in the including directory unless the include sets dir:.
+func (e *Expander) included(t *taskfile, dir, name string) (*taskfile, string, string, bool) {
+	for _, namespace := range slices.Sorted(maps.Keys(t.includes)) {
+		include := t.includes[namespace]
+		rest, found := strings.CutPrefix(name, namespace+":")
+		if !found && !include.Flatten {
+			continue
+		}
+		if !found {
+			rest = name
+		}
+		file, ok := e.within(filepath.Dir(t.path), include.Taskfile)
+		if !ok {
+			continue
+		}
+		if names := findFile(file, taskfileNames); names != "" {
+			file = filepath.Join(file, names)
+		}
+		if include.Dir != "" {
+			if next, ok := e.within(filepath.Dir(t.path), include.Dir); ok {
+				dir = next
+			}
+		}
+		// A namespace is followed even into a nested include; a flattened
+		// include answers only for the tasks it has.
+		inner := e.taskfile(file)
+		if _, ok := inner.tasks[rest]; ok || found {
+			return inner, dir, rest, true
+		}
+	}
+	return nil, "", "", false
 }
 
 // runTask follows a task given as one command, a list of them, or a mapping
 // with deps, which run first, and cmd or cmds.
 func (e *Expander) runTask(t *taskfile, dir, name string) {
 	node, ok := t.tasks[name]
-	if !ok || !e.once("task "+t.path+" "+name) {
+	if !ok {
+		if inner, innerDir, rest, found := e.included(t, dir, name); found && e.depth < maxDepth {
+			e.depth++
+			defer func() { e.depth-- }()
+			e.runTask(inner, innerDir, rest)
+		}
+		return
+	}
+	if !e.once("task " + t.path + " " + name) {
 		return
 	}
 	switch node.Kind {

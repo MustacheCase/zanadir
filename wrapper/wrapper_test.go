@@ -246,3 +246,69 @@ func TestWrappersKeepTheirIgnoreMarkers(t *testing.T) {
 	assert.Equal(t, []string{"gitleaks detect || true", "trufflehog git ."}, expand(t, task, "task secrets"))
 	assert.Equal(t, []string{"semgrep scan || true", "gitleaks detect || true", "trufflehog git . || true"}, expand(t, task, "task all"))
 }
+
+func TestTaskFollowsIncludes(t *testing.T) {
+	files := map[string]string{
+		"Taskfile.yml": `version: '3'
+includes:
+  sec: ./taskfiles/security.yml
+  lint:
+    taskfile: ./lint
+    dir: ./src
+  common:
+    taskfile: ./taskfiles/common.yml
+    flatten: true
+  outside: ../outside.yml
+tasks:
+  ci:
+    deps: [sec:leaks, lint:go, fmt]
+`,
+		"taskfiles/security.yml": "version: '3'\nincludes:\n  deep: ./deep.yml\ntasks:\n  leaks:\n    cmds:\n      - gitleaks detect\n      - task: deep:sast\n",
+		"taskfiles/deep.yml":     "version: '3'\ntasks:\n  sast: semgrep ci\n",
+		"lint/Taskfile.yml":      "version: '3'\ntasks:\n  go: golangci-lint run\n",
+		"taskfiles/common.yml":   "version: '3'\ntasks:\n  fmt: gofmt -l .\n",
+		"src/main.go":            "package main\n",
+	}
+	assert.Equal(t, []string{"gitleaks detect", "semgrep ci", "golangci-lint run", "gofmt -l ."}, expand(t, files, "task ci"),
+		"a namespace, a nested one, a directory include and a flattened include")
+	assert.Equal(t, []string{"semgrep ci"}, expand(t, files, "task sec:deep:sast"))
+	assert.Nil(t, expand(t, files, "task outside:anything"), "an include outside the repository is not read")
+	assert.Nil(t, expand(t, files, "task sec:missing"))
+}
+
+func TestToxSubstitutesReferences(t *testing.T) {
+	files := map[string]string{"tox.ini": `[tox]
+envlist = py, lint
+
+[base]
+commands =
+    pytest -q
+    coverage xml
+
+[testenv]
+commands = {[base]commands}
+
+[testenv:lint]
+commands =
+    {[testenv:style]commands}
+    {[nowhere]commands}
+
+[testenv:style]
+commands = ruff check .
+`}
+	assert.Equal(t, []string{"pytest -q", "coverage xml", "ruff check .", "{[nowhere]commands}"}, expand(t, files, "tox"),
+		"a reference the file does not define is left as written")
+}
+
+// A file that includes or refers to itself stops at the depth bound.
+func TestIncludesAndReferencesThatLoopStop(t *testing.T) {
+	loop := map[string]string{"Taskfile.yml": "version: '3'\nincludes:\n  me: ./Taskfile.yml\ntasks:\n  x: gitleaks detect\n"}
+	assert.Equal(t, []string{"gitleaks detect"}, expand(t, loop, "task me:me:x"))
+	assert.Nil(t, expand(t, loop, "task "+strings.Repeat("me:", 20)+"x"))
+
+	twice := map[string]string{"Taskfile.yml": "version: '3'\ntasks:\n  ci:\n    deps: [lint, lint]\n  lint: golangci-lint run\n"}
+	assert.Equal(t, []string{"golangci-lint run"}, expand(t, twice, "task ci"), "a task is followed once")
+
+	tox := map[string]string{"tox.ini": "[tox]\nenvlist = py\n[testenv]\ncommands = {[testenv]commands}\n"}
+	assert.Len(t, expand(t, tox, "tox"), 1)
+}

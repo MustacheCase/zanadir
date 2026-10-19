@@ -102,7 +102,7 @@ func invocations(run string) string {
 	var kept []string
 	for _, command := range shell.Commands(run) {
 		if words := shell.Words(command); len(words) > 0 && !shell.Passive(words) {
-			kept = append(kept, command)
+			kept = append(kept, strings.Join(shell.Invoked(words), " "))
 		}
 	}
 	return strings.Join(kept, "\n")

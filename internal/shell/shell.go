@@ -8,23 +8,84 @@ import (
 	"strings"
 )
 
-var separator = regexp.MustCompile(`\|\||&&|[;|\n]`)
-
 // Commands splits a script into commands, dropping comments: they name tools
 // without running them.
 func Commands(script string) []string {
 	var commands []string
-	for _, command := range separator.Split(strings.ReplaceAll(script, "\\\n", " "), -1) {
-		if command = strings.TrimSpace(command); command != "" && !strings.HasPrefix(command, "#") {
+	for _, command := range split(strings.ReplaceAll(script, "\\\n", " "), true) {
+		if command = strings.TrimSpace(command); command != "" {
 			commands = append(commands, command)
 		}
 	}
 	return commands
 }
 
+var heredoc = regexp.MustCompile(`<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
+
+// split cuts text at its top-level separators - between commands, or with
+// words set at whitespace - leaving quotes, $(...) and backticks whole. A #
+// starting a word begins a comment that runs to the end of the line, and a
+// heredoc's body is text, not commands.
+func split(text string, commands bool) []string {
+	var parts []string
+	var current strings.Builder
+	cut := func() {
+		parts = append(parts, current.String())
+		current.Reset()
+	}
+	quote, depth := byte(0), 0
+	for i := 0; i < len(text); i++ {
+		c := text[i]
+		top := quote == 0 && depth == 0
+		switch {
+		case c == '\\' && quote != '\'' && i+1 < len(text):
+			current.WriteByte(c)
+			i++
+			c = text[i]
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '\'' || c == '"' || c == '`':
+			quote = c
+		case c == '$' && i+1 < len(text) && text[i+1] == '(':
+			depth++
+		case c == ')' && depth > 0:
+			depth--
+		case top && c == '#' && (i == 0 || strings.ContainsRune(" \t\n;|&", rune(text[i-1]))):
+			for i+1 < len(text) && text[i+1] != '\n' {
+				i++
+			}
+			continue
+		case top && commands && c == '\n':
+			if body := heredoc.FindStringSubmatch(current.String()); body != nil {
+				i = skipHeredoc(text, i, body[1])
+			}
+			cut()
+			continue
+		case top && commands && (c == ';' || c == '|' || c == '&' && i+1 < len(text) && text[i+1] == '&'):
+			if i+1 < len(text) && (text[i+1] == '|' || text[i+1] == '&') && c != ';' {
+				i++
+			}
+			cut()
+			continue
+		case top && !commands && (c == ' ' || c == '\t'):
+			if current.Len() > 0 {
+				cut()
+			}
+			continue
+		}
+		current.WriteByte(c)
+	}
+	if current.Len() > 0 || commands {
+		cut()
+	}
+	return parts
+}
+
 // Words returns a command's program and arguments, past sudo and VAR=value.
 func Words(command string) []string {
-	words := strings.Fields(command)
+	words := split(strings.TrimSpace(command), false)
 	for len(words) > 0 && (words[0] == "sudo" || strings.Contains(words[0], "=")) {
 		words = words[1:]
 	}
@@ -58,6 +119,12 @@ func set(words ...string) map[string]bool {
 // Passive reports whether a command handles, installs or describes a tool
 // rather than running it.
 func Passive(words []string) bool {
+	for len(words) > 0 && conditions[words[0]] {
+		words = words[1:]
+	}
+	if len(words) == 0 || tests[words[0]] {
+		return true
+	}
 	if len(words) > 2 && strings.HasPrefix(filepath.Base(words[0]), "python") && words[1] == "-m" {
 		words = words[2:]
 	}
@@ -111,4 +178,49 @@ func Swallowed(script string, runs func(command string) bool) bool {
 		}
 	}
 	return found
+}
+
+// skipHeredoc returns where a heredoc's body ends: the end of the line that
+// holds only its delimiter, or of the text.
+func skipHeredoc(text string, newline int, delimiter string) int {
+	for start := newline + 1; start < len(text); {
+		end := strings.IndexByte(text[start:], '\n')
+		if end < 0 {
+			end = len(text) - start
+		}
+		if strings.TrimSpace(text[start:start+end]) == delimiter {
+			return start + end
+		}
+		start += end + 1
+	}
+	return len(text)
+}
+
+// namingFlags take a value that names something - a binary, a package, an
+// image tag - rather than running it. -m is not one: "python -m pyright"
+// runs what it names, and a commit message is quoted anyway.
+var namingFlags = set("--bin", "--package", "--chart", "--charts", "--tag", "-t", "--name", "--title",
+	"--message", "--author", "--label", "--target")
+
+var shells = set("bash", "sh", "zsh", "dash", "pwsh", "powershell", "cmd")
+
+// Invoked keeps the words that can name what a command runs. A quoted
+// argument to a flag is text, a commit message or a licence holder, unless
+// the command is a shell running it as a script; a naming flag's value
+// names a thing rather than running it.
+func Invoked(words []string) []string {
+	if len(words) == 0 {
+		return nil
+	}
+	shell := shells[filepath.Base(words[0])]
+	kept := []string{words[0]}
+	for i := 1; i < len(words); i++ {
+		flag := strings.HasPrefix(words[i-1], "-")
+		quoted := strings.ContainsAny(words[i][:1], `"'`)
+		if flag && (namingFlags[words[i-1]] || quoted && !shell) {
+			continue
+		}
+		kept = append(kept, words[i])
+	}
+	return kept
 }

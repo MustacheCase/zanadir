@@ -1,7 +1,10 @@
 package parser
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/utils"
@@ -44,14 +47,14 @@ func (b *DependencyBotParser) Exists(root string) bool {
 	return false
 }
 
-// Parse reports one artifact per configured bot. The contents are not read:
-// the file existing is the control.
+// Parse reports one artifact per configured bot that watches the project's
+// dependencies. A file zanadir cannot read still counts: it cannot tell.
 func (b *DependencyBotParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 
 	for _, bot := range botConfigs {
 		rel := utils.FirstFile(root, bot.paths...)
-		if rel == "" {
+		if rel == "" || onlyTooling(bot.tool, filepath.Join(root, rel)) {
 			continue
 		}
 		artifacts = append(artifacts, &models.Artifact{
@@ -64,6 +67,41 @@ func (b *DependencyBotParser) Parse(root string) ([]*models.Artifact, error) {
 	}
 
 	return artifacts, nil
+}
+
+// toolingEcosystems keep the CI and the dev container current rather than the
+// code's dependencies, which is what the bots are counted for.
+var toolingEcosystems = []string{"github-actions", "devcontainers"}
+
+// onlyTooling reports whether a bot's configuration updates nothing but
+// tooling: Dependabot's package-ecosystem entries, or Renovate's
+// enabledManagers in a plain-JSON file.
+func onlyTooling(tool, path string) bool {
+	var updated []string
+	switch tool {
+	case "dependabot":
+		var config struct {
+			Updates []struct {
+				Ecosystem string `yaml:"package-ecosystem"`
+			} `yaml:"updates"`
+		}
+		if readYAML(path, &config) != nil {
+			return false
+		}
+		for _, update := range config.Updates {
+			updated = append(updated, update.Ecosystem)
+		}
+	default:
+		var config struct {
+			EnabledManagers []string `json:"enabledManagers"`
+		}
+		data, err := os.ReadFile(path)
+		if err != nil || json.Unmarshal(data, &config) != nil {
+			return false
+		}
+		updated = config.EnabledManagers
+	}
+	return len(updated) > 0 && !slices.ContainsFunc(updated, func(e string) bool { return !slices.Contains(toolingEcosystems, e) })
 }
 
 func NewDependencyBotParser() Parser {

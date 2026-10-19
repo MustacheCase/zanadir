@@ -129,7 +129,7 @@ func TestBitbucketDefaultPipelineSplitsAfterScript(t *testing.T) {
 	jobs := parseBitbucket(t, bitbucketPipelines)[0].Jobs
 	require.Len(t, jobs, 3)
 
-	assert.Equal(t, &models.Job{Name: "Test", Package: "node:20", Run: "npm ci\nnpm test"}, jobs[0])
+	assert.Equal(t, &models.Job{Name: "Test", Run: "npm ci\nnpm test"}, jobs[0], "the default image is the build environment, not a tool the step runs")
 	assert.Equal(t, "npx eslint .", jobs[1].Run)
 	assert.True(t, jobs[1].ContinueOnError, "a failing after-script does not fail the step")
 	assert.Equal(t, "snyk/snyk-scan", jobs[2].Package)
@@ -151,15 +151,14 @@ func TestBitbucketAnchorsStagesAndManualTriggers(t *testing.T) {
 
 func TestBitbucketParallelBlocksAndPipes(t *testing.T) {
 	jobs := byEvent(parseBitbucket(t, bitbucketPipelines), "pull_request")[0].Jobs
-	require.Len(t, jobs, 5)
+	require.Len(t, jobs, 3, "a step of only pipes, in the default image, runs nothing else")
 
-	assert.Equal(t, "node:20", jobs[0].Package, "a step with no image runs the default one")
-	assert.Equal(t, "atlassian/git-secrets-scan", jobs[1].Package)
-	assert.Equal(t, "0.6.1", jobs[1].Version)
-	assert.Equal(t, "Scan again", jobs[2].Name, "a merge key keeps the anchor and applies overrides")
-	assert.Equal(t, "aquasec/trivy", jobs[2].Package)
+	assert.Equal(t, "atlassian/git-secrets-scan", jobs[0].Package)
+	assert.Equal(t, "0.6.1", jobs[0].Version)
+	assert.Equal(t, "Scan again", jobs[1].Name, "a merge key keeps the anchor and applies overrides")
+	assert.Equal(t, "aquasec/trivy", jobs[1].Package)
 
-	snyk := jobs[4]
+	snyk := jobs[2]
 	assert.Equal(t, "snyk/snyk-scan", snyk.Package)
 	assert.Equal(t, "1.0.1", snyk.Version)
 	assert.Equal(t, map[string]string{"SNYK_TOKEN": "$SNYK_TOKEN", "DONT_BREAK_BUILD": "true"}, snyk.With)

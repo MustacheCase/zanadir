@@ -36,8 +36,9 @@ rules:
     categories: ["Supply Chain"]
     regex: "(?i)actions/attest-(build-provenance|sbom)"
 
-  # "trivy" alone is SCA; the sbom sub-command generates a bill of materials.
+  # trivy writes a bill of materials when asked for one as its output format.
+  # Its sbom sub-command does the opposite: it scans one, which is SCA.
   - id: "trivy-sbom-rule"
-    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    applyOn: ["Job.Run"]
     categories: ["Supply Chain"]
-    regex: "(?i)\\btrivy\\s+sbom\\b"
+    regex: "(?i)\\btrivy\\b[^\\n]*\\s(?:--format|-f)[= ](?:cyclonedx|spdx|spdx-json)\\b"

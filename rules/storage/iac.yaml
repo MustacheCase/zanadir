@@ -42,11 +42,15 @@ rules:
     categories: ["IaC Security"]
     regex: "(?i)\\bsnyk\\s+iac\\b"
 
-  # Likewise trivy: the config sub-command is the misconfiguration scanner.
+  # Likewise trivy: config, or misconfig among the scanners of another
+  # sub-command. See trivy-rule in sca.yaml.
   - id: "trivy-config-rule"
-    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    applyOn: ["Job.Run"]
     categories: ["IaC Security"]
-    regex: "(?i)\\btrivy\\s+config\\b"
+    regex: "(?i)\\btrivy\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*(?:config|conf)(?:\\s|$)|\\btrivy\\b[^\\n]*--(?:scanners|security-checks)[= ](?:[\\w-]+,)*(?:misconfig|config)\\b"
+    weakenedWhen:
+      - runMatches: "--exit-code[= ]+0\\b"
+        verdict: "advisory"
 
   - id: "cfn-nag-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

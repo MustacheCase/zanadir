@@ -202,6 +202,33 @@ stages:
 	assert.Equal(t, "semgrep ci", artifact.Jobs[1].Run)
 }
 
+func TestAzureReadsTheTrivyTaskAsItsCommand(t *testing.T) {
+	artifact := parseAzure(t, map[string]string{"azure-pipelines.yml": `
+pr: [main]
+steps:
+  - task: trivy@1
+    inputs:
+      path: .
+  - task: trivy@1
+    inputs:
+      image: alpine:3.20
+      exitCode: 0
+  - task: trivy@2
+    inputs:
+      type: repository
+      scanners: misconfig
+      options: --severity HIGH
+  - task: trivy@2
+    inputs:
+      type: $(scanType)
+`})
+	var runs []string
+	for _, job := range artifact.Jobs {
+		runs = append(runs, job.Run)
+	}
+	assert.Equal(t, []string{"trivy filesystem", "trivy image --exit-code 0", "trivy repository --scanners misconfig --severity HIGH", "trivy filesystem"}, runs)
+}
+
 func TestAzureExistsAndErrors(t *testing.T) {
 	dir := t.TempDir()
 	p := NewAzureParser()

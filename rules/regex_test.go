@@ -35,8 +35,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 	}{
 		{
 			ruleID:         "trivy-rule",
-			shouldMatch:    []string{"trivy fs .", "aquasecurity/trivy-action", "run trivy"},
-			shouldNotMatch: []string{"trivyscanner", "mytrivy"},
+			shouldMatch:    []string{"trivy fs .", "trivy image --exit-code 1 alpine", "trivy -q repo .", "trivy --cache-dir /tmp/t rootfs /", "trivy sbom sbom.json", "docker run aquasec/trivy filesystem /src"},
+			shouldNotMatch: []string{"trivyscanner", "mytrivy fs", "trivy config .", "trivy --version", "trivy image-something", "aquasecurity/trivy-action"},
 		},
 		{
 			ruleID:         "sonar-rule",
@@ -332,8 +332,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 		{
 			// "trivy" alone is SCA; the config sub-command is the misconfig scanner.
 			ruleID:         "trivy-config-rule",
-			shouldMatch:    []string{"trivy config .", "trivy  config  ./infra"},
-			shouldNotMatch: []string{"trivy fs .", "trivy image alpine"},
+			shouldMatch:    []string{"trivy config .", "trivy  config  ./infra", "trivy -q conf .", "trivy fs --scanners vuln,misconfig .", "trivy repo --security-checks config ."},
+			shouldNotMatch: []string{"trivy fs .", "trivy image alpine", "trivy fs --scanners vuln ."},
 		},
 		{
 			ruleID:         "codecov-rule",
@@ -388,10 +388,15 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"actions/checkout@v4", "attestation"},
 		},
 		{
-			// "trivy" alone is SCA; the sbom sub-command is supply chain.
+			// trivy writes an SBOM as an output format; "trivy sbom" scans one.
 			ruleID:         "trivy-sbom-rule",
-			shouldMatch:    []string{"trivy sbom --format cyclonedx .", "trivy  sbom ."},
-			shouldNotMatch: []string{"trivy fs .", "trivy image alpine", "trivy config ."},
+			shouldMatch:    []string{"trivy fs --format cyclonedx --output sbom.json .", "trivy image -f spdx-json alpine"},
+			shouldNotMatch: []string{"trivy fs .", "trivy image alpine", "trivy config .", "trivy sbom sbom.json", "trivy fs --format sarif ."},
+		},
+		{
+			ruleID:         "trivy-secret-rule",
+			shouldMatch:    []string{"trivy fs --scanners secret .", "trivy repo --scanners vuln,secret ."},
+			shouldNotMatch: []string{"trivy fs .", "trivy fs --scanners vuln ."},
 		},
 	}
 
@@ -400,10 +405,29 @@ func TestRuleRegexPrecision(t *testing.T) {
 			rule := findRule(t, rs, tt.ruleID)
 			for _, s := range tt.shouldMatch {
 				assert.True(t, rule.Regex.MatchString(s), "%s should match %q", tt.ruleID, s)
+				if rule.Unless != nil {
+					assert.False(t, rule.Unless.MatchString(s), "%s should not except %q", tt.ruleID, s)
+				}
 			}
 			for _, s := range tt.shouldNotMatch {
 				assert.False(t, rule.Regex.MatchString(s), "%s should NOT match %q", tt.ruleID, s)
 			}
 		})
+	}
+}
+
+// A command a rule's regex matches, but that does not do what the rule credits.
+func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
+	rs, err := rules.NewRulesService()
+	assert.NoError(t, err)
+
+	for id, excepted := range map[string][]string{
+		"trivy-rule": {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
+	} {
+		rule := findRule(t, rs, id)
+		for _, command := range excepted {
+			assert.True(t, rule.Regex.MatchString(command), "%s should match %q before excepting it", id, command)
+			assert.True(t, rule.Unless.MatchString(command), "%s should except %q", id, command)
+		}
 	}
 }

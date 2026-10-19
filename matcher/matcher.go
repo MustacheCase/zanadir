@@ -57,7 +57,7 @@ func matchingJobs(artifact *models.Artifact, rule *rules.Rule) []*models.Job {
 	named := false
 	for _, field := range rule.ApplyOn {
 		if field == rules.FieldArtifactName {
-			named = named || rule.Regex.MatchString(artifact.Name)
+			named = named || matches(rule, artifact.Name)
 			continue
 		}
 		matched = append(matched, matchingSteps(artifact, rule, field)...)
@@ -85,12 +85,16 @@ func matchingSteps(artifact *models.Artifact, rule *rules.Rule, field string) []
 			continue
 		}
 		// A rule that can match "" would otherwise match every step that
-		// lacks the field.
-		if text != "" && rule.Regex.MatchString(text) {
+		// lacks the field. A run's excepted commands are already dropped.
+		if text != "" && (field == rules.FieldJobRun && rule.Regex.MatchString(text) || matches(rule, text)) {
 			matched = append(matched, job)
 		}
 	}
 	return matched
+}
+
+func matches(rule *rules.Rule, text string) bool {
+	return rule.Regex.MatchString(text) && (rule.Unless == nil || !rule.Unless.MatchString(text))
 }
 
 // setupAction names an action that installs a tool for later steps.

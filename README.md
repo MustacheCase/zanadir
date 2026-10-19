@@ -763,7 +763,7 @@ rules:
     applyOn: [Job.Run]          # Artifact.Name, Job.Name, Job.Package, Job.Run
     categories: [SAST]
     regex: '\bacme-scan\b'
-    unless: '--list-rules'      # optional, Job.Run only: a command that does not scan
+    unless: '--list-rules'      # optional: a match that does not count, e.g. a command that does not scan
     weakenedWhen:               # optional: configurations that cannot fail a build
       - runMatches: '--report-only'
         verdict: advisory       # advisory or partial

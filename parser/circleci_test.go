@@ -170,5 +170,56 @@ workflows:
 	for _, job := range artifacts[0].Jobs {
 		packages[job.Name] = job.Package + "|" + job.Version + "|" + job.Run
 	}
-	assert.Equal(t, map[string]string{"python": "circleci/python|2.1.1|", "build": "||pytest"}, packages)
+	assert.Equal(t, map[string]string{"build": "||pytest"}, packages, "the python orb is declared but nothing uses it")
+}
+
+func TestCircleCICountsOnlyWhatAWorkflowRuns(t *testing.T) {
+	artifacts, err := parser.NewCircleCIParser().Parse(circleCIDir(t, `
+version: 2.1
+orbs:
+  snyk: snyk/snyk@2.0.0
+  sonar: sonarsource/sonarcloud@2.0.0
+  codecov: codecov/codecov@4.0.0
+  unused: circleci/unused@1.0.0
+  semgrep: semgrep/semgrep@1.0.0
+jobs:
+  build:
+    steps:
+      - checkout
+      - sonar/scan
+      - run: make build
+  coverage:
+    steps:
+      - codecov/upload:
+          file: coverage.txt
+  secrets:
+    steps:
+      - unused/run
+      - run: gitleaks detect
+  release:
+    steps:
+      - unless:
+          condition: << pipeline.parameters.skip >>
+          steps:
+            - semgrep/scan
+workflows:
+  version: 2
+  main:
+    jobs:
+      - build
+      - snyk/scan:
+          monitor-on-build: false
+  nightly:
+    jobs:
+      - coverage
+      - release
+`))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	var names []string
+	for _, job := range artifacts[0].Jobs {
+		names = append(names, job.Name)
+	}
+	assert.ElementsMatch(t, []string{"snyk", "sonar", "codecov", "semgrep", "build"}, names,
+		"an orb used by a workflow or by a running job's step counts; a job no workflow lists, and what only it uses, do not")
 }

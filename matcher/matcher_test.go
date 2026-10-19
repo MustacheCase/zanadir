@@ -8,6 +8,7 @@ import (
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMatch(t *testing.T) {
@@ -247,6 +248,19 @@ func TestMatchOnJobName(t *testing.T) {
 	found := matcher.NewMatchService().Match(artifacts, []*rules.Rule{rule})
 	assert.Len(t, found, 1)
 	assert.Equal(t, "unit tests", found[0].Job.Name)
+}
+
+func TestUnlessExceptsANameOrWorkflow(t *testing.T) {
+	rule := &rules.Rule{ID: "unit", Regex: regexp.MustCompile(`(?i)\btests?\b`), Unless: regexp.MustCompile(`(?i)\bdeploy\b`),
+		ApplyOn: []string{rules.FieldArtifactName, rules.FieldJobName}, Categories: []string{"Unit Tests"}}
+	artifacts := []*models.Artifact{
+		{Name: "deploy test", Jobs: []*models.Job{{Name: "deploy-test"}, {Name: "unit-tests"}}},
+		{Name: "deploy test env"},
+	}
+
+	found := matcher.NewMatchService().Match(artifacts, []*rules.Rule{rule})
+	require.Len(t, found, 1)
+	assert.Equal(t, "unit-tests", found[0].Job.Name)
 }
 
 // A workflow named after its tool used to yield a finding with no step, which

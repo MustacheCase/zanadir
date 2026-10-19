@@ -26,12 +26,9 @@ func required(re *syntax.Regexp) []string {
 	switch re.Op {
 	case syntax.OpLiteral:
 		return []string{strings.ToLower(string(re.Rune))}
+	// Simplify has already rewritten counted repeats into these.
 	case syntax.OpCapture, syntax.OpPlus:
 		return required(re.Sub[0])
-	case syntax.OpRepeat:
-		if re.Min > 0 {
-			return required(re.Sub[0])
-		}
 	case syntax.OpConcat:
 		var best []string
 		for _, sub := range re.Sub {

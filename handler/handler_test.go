@@ -23,6 +23,7 @@ import (
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 type MockRuleService struct{ mock.Mock }
@@ -745,6 +746,25 @@ func TestSetup(t *testing.T) {
 	assert.NotNil(t, h.MatchService)
 	assert.NotNil(t, h.SuggestionService)
 	assert.NotNil(t, h.OutputService)
+}
+
+// The workflow fix --write generates is its own output, not the repository's,
+// so the second run, which finds it, must write the same file as the first.
+func TestFixWriteIsIdempotent(t *testing.T) {
+	h, err := Setup()
+	require.NoError(t, err)
+	dir := testrepo.Write(t, map[string]string{"go.mod": "module x\n", ".git/HEAD": "ref: refs/heads/main\n"})
+	workflow := filepath.Join(dir, ".github", "workflows", "zanadir-suggested.yml")
+
+	var written []string
+	for range 2 {
+		require.NoError(t, h.Fix(&config.Config{Dir: dir, Write: true}, io.Discard))
+		data, err := os.ReadFile(workflow)
+		require.NoError(t, err)
+		written = append(written, string(data))
+	}
+	assert.Equal(t, written[0], written[1])
+	assert.NotContains(t, written[0], "zizmor", "Workflow Security applies once the repository has workflows of its own")
 }
 
 func TestSetupRejectsABadCustomRule(t *testing.T) {

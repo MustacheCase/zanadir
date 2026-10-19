@@ -155,7 +155,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	languages := language.Detect(cfg.Dir)
 	debugf("Detected languages: %v", languages)
 
-	notApplicable := applicability.NotApplicable(cfg.Dir)
+	notApplicable := applicability.NotApplicable(cfg.Dir, ignore)
 	debugf("Not applicable: %v", notApplicable)
 
 	// A category with nothing to scan is skipped exactly as an operator-

@@ -32,10 +32,11 @@ func TestIaCStaysApplicable(t *testing.T) {
 		"serverless.yml",
 		"cdk.json",
 		"azure/template.bicep",
-		// A directory name is enough: a manifest inside one can be called
-		// anything.
-		"infrastructure/notes.txt",
-		"helm/values-prod.txt",
+		// A manifest inside an infrastructure directory can be called anything.
+		"infrastructure/network.json",
+		"helm/values-prod.yaml",
+		"deploy/k8s/overlays/prod/patch.yml",
+		"Dockerfile-dev",
 	} {
 		t.Run(file, func(t *testing.T) {
 			assert.Equal(t, []string{"Workflow Security"},
@@ -147,4 +148,64 @@ func TestWorkflowSecurityIgnoresSubdirectories(t *testing.T) {
 
 	withWorkflow := testrepo.Touch(t, "Dockerfile", ".github/workflows/scripts/data.yml", ".github/workflows/ci.yml")
 	assert.Empty(t, applicability.NotApplicable(withWorkflow))
+}
+
+// CloudFormation, ARM templates and Kubernetes manifests are named anything,
+// so they are recognised by what they hold.
+func TestIaCRecognisesManifestsByContent(t *testing.T) {
+	for file, content := range map[string]string{
+		"template.yaml":           "AWSTemplateFormatVersion: \"2010-09-09\"\nResources: {}\n",
+		"sam/app.yml":             "Transform: AWS::Serverless-2016-10-31\nResources:\n  Fn:\n    Type: AWS::Serverless::Function\n",
+		"cloudformation/vpc.json": `{"Resources": {"Vpc": {"Type": "AWS::EC2::VPC"}}}`,
+		"azuredeploy.json":        "{}",
+		"arm/main.json":           `{"$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#"}`,
+		"deploy/app.yaml":         "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: app\n",
+		"ops/all.yaml":            "---\napiVersion: v1\nkind: \"Service\"\n",
+	} {
+		t.Run(file, func(t *testing.T) {
+			dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", file: content})
+			assert.Empty(t, applicability.NotApplicable(dir))
+		})
+	}
+}
+
+// Fixtures, test data and YAML that only looks like a manifest are not
+// infrastructure.
+func TestIaCIgnoresTestDataAndLookalikes(t *testing.T) {
+	for file, content := range map[string]string{
+		"extensions/colorize-tests/test/colorize-results/Dockerfile.json": "",
+		"railties/test/fixtures/Dockerfile.test":                          "",
+		"tests/specs/pack/long_file_names/kubernetes/a.yaml":              "",
+		"libs/core/benches/infra/x.json":                                  "",
+		"spec/fixtures/main.tf":                                           "",
+		"docs/Dockerfile.md":                                              "",
+		"infra/README.txt":                                                "",
+		"catalog-info.yaml":                                               "apiVersion: backstage.io/v1alpha1\nkind: Component\n",
+		"openapi.yaml":                                                    "openapi: 3.0.0\ncomponents:\n  schemas:\n    Thing:\n      type: object\n",
+		"package.json":                                                    `{"name": "app"}`,
+	} {
+		t.Run(file, func(t *testing.T) {
+			dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", file: content})
+			assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+		})
+	}
+}
+
+func TestIaCDoesNotFollowASymlinkedFile(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "template.yaml")
+	assert.NoError(t, os.WriteFile(outside, []byte("AWSTemplateFormatVersion: x\n"), 0o600))
+	dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n"})
+	assert.NoError(t, os.Symlink(outside, filepath.Join(dir, "template.yaml")))
+	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
+}
+
+func TestIaCToleratesAnUnreadableManifest(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root ignores file permissions")
+	}
+
+	dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", "template.yaml": "AWSTemplateFormatVersion: x\n"})
+	assert.NoError(t, os.Chmod(filepath.Join(dir, "template.yaml"), 0o000))
+
+	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir))
 }

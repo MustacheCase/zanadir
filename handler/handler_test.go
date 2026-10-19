@@ -79,17 +79,19 @@ func setup() {
 
 }
 
-func captureOutput(f func()) string {
-	old := os.Stdout
+// captureDebugLog captures the process's stderr, where the --debug logger
+// writes.
+func captureDebugLog(f func()) string {
+	old := os.Stderr
 	r, w, _ := os.Pipe()
-	os.Stdout = w
+	os.Stderr = w
 
 	f()
 
 	w.Close() //nolint:errcheck
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)
-	os.Stdout = old
+	os.Stderr = old
 	return buf.String()
 }
 
@@ -180,12 +182,12 @@ func TestHandler_Execute_DebugMode(t *testing.T) {
 	mockSuggester.On("FindSuggestions", mock.Anything, mock.Anything).Return(suggestions)
 	mockOutput.On("Response", mock.Anything).Return(nil)
 
-	out := captureOutput(func() {
+	out := captureDebugLog(func() {
 		err := NewHandler(mockRuleService, mockScanner, mockSuggester, mockMatcher, mockOutput).Execute(&cfg)
 		assert.NoError(t, err)
 	})
 
-	// Check that the debug output contains our expected log message.
+	// Debug output goes to stderr, so it cannot corrupt a report on stdout.
 	assert.Contains(t, out, "Starting scan for directory:")
 }
 

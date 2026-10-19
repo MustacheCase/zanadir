@@ -21,7 +21,7 @@ var (
 func GetLogger() *Logger {
 	once.Do(func() {
 		instance = &Logger{
-			logger: log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile),
+			logger: log.New(stderr{}, "", log.Ldate|log.Ltime|log.Lshortfile),
 		}
 	})
 	return instance
@@ -51,3 +51,9 @@ func (l *Logger) Fatal(format string, v ...interface{}) {
 	_ = l.logger.Output(2, fmt.Sprintf(format, v...))
 	os.Exit(1)
 }
+
+// stderr writes to whatever os.Stderr is when a line is logged, keeping debug
+// output out of a report on stdout.
+type stderr struct{}
+
+func (stderr) Write(p []byte) (int, error) { return os.Stderr.Write(p) }

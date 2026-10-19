@@ -33,10 +33,11 @@ var fixCmd = &cobra.Command{
 	Run:   run(config.CreateFixConfig, fixRepo),
 }
 
-// exit and fetchRepository are replaced in tests.
+// exit, stderr and fetchRepository are replaced in tests.
 var (
-	exit            = os.Exit
-	fetchRepository = remote.Fetch
+	exit                      = os.Exit
+	stderr          io.Writer = os.Stderr
+	fetchRepository           = remote.Fetch
 )
 
 // githubToken is the token a remote scan sends, if the environment has one.
@@ -45,25 +46,20 @@ var (
 func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Config) error) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, _ []string) {
 		cfg, err := build(cmd)
+		cleanup := func() {}
+		if err == nil && cfg.Repo != nil {
+			cfg.Dir, cleanup, err = fetchRepository(*cfg.Repo, remote.Token())
+		}
 		if err != nil {
-			fmt.Printf("Error: Unable to initialize configuration service %v\n", err)
+			_, _ = fmt.Fprintf(stderr, "Error: %v\n", err)
 			exit(1)
 			return
-		}
-		cleanup := func() {}
-		if cfg.Repo != nil {
-			if cfg.Dir, cleanup, err = fetchRepository(*cfg.Repo, remote.Token()); err != nil {
-				fmt.Printf("Error: %v\n", err)
-				exit(1)
-				return
-			}
 		}
 		// exit does not run deferred calls, so the fetched copy goes first.
 		err = do(cfg)
 		cleanup()
 		if err != nil {
-			w, msg := scanErrorReport(err)
-			_, _ = fmt.Fprint(w, msg)
+			_, _ = fmt.Fprint(stderr, scanErrorReport(err))
 			exit(1)
 		}
 	}
@@ -99,16 +95,16 @@ func NewApp() *cobra.Command {
 	return rootCmd
 }
 
-// scanErrorReport decides how a failed scan is reported. An enforcement failure
-// is the tool doing its job, so it names the categories on stderr — not obvious
-// once --fail-on or a baseline narrows enforcement down. Anything else is an
-// operational error and keeps its original destination.
-func scanErrorReport(err error) (io.Writer, string) {
+// scanErrorReport words a failed scan. An enforcement failure is the tool
+// doing its job, so it names the categories - not obvious once --fail-on or a
+// baseline narrows enforcement down. Both go to stderr, so a JSON or SARIF
+// report on stdout stays parseable.
+func scanErrorReport(err error) string {
 	var enforceErr *models.EnforceError
 	if errors.As(err, &enforceErr) {
-		return os.Stderr, fmt.Sprintf("Enforcement failed: %v\n", err)
+		return fmt.Sprintf("Enforcement failed: %v\n", err)
 	}
-	return os.Stdout, fmt.Sprintf("Error: scan repo failed: %v\n", err)
+	return fmt.Sprintf("Error: scan repo failed: %v\n", err)
 }
 
 func scanRepo(cfg *config.Config) error {

@@ -226,12 +226,12 @@ func TestResponse_TableStatesWhenNothingToSuggest(t *testing.T) {
 	service := NewOutputService()
 
 	out := captureStdout(func() {
-		if err := service.Response(Report{Suggestions: nil, Format: config.OutputTable}); err != nil {
+		if err := service.Response(Report{Suggestions: nil, Format: config.OutputTable, Score: score.Score{Covered: 11, Total: 11}}); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
-	if !strings.Contains(out, "All categories are covered") {
+	if !strings.Contains(out, "all categories are covered") {
 		t.Errorf("expected an explicit all-clear, got:\n%q", out)
 	}
 	if strings.Contains(out, "CATEGORY") || strings.Contains(out, "|---") {
@@ -275,7 +275,7 @@ func TestHeadlineLeadsWithTheScoreWhenThereIsOne(t *testing.T) {
 
 func TestHeadlineIsGrammatical(t *testing.T) {
 	for count, want := range map[int]string{
-		0: "All categories are covered - no suggestions.",
+		0: "No category is scored: each one is excluded or not applicable.",
 		1: "1 category needs attention:",
 		2: "2 categories need attention:",
 	} {
@@ -820,4 +820,17 @@ func renderString(report Report) (string, error) {
 	var b strings.Builder
 	err := render(&b, report)
 	return b.String(), err
+}
+
+func TestMarkdownTextAndCode(t *testing.T) {
+	for got, want := range map[string]string{
+		markdownText("a <img src=x>\n & b|c"): "a &lt;img src=x&gt; &amp; b|c",
+		markdownCode("ci.yml"):                "`ci.yml`",
+		markdownCode("a`<b>`.yml"):            "``a`<b>`.yml``",
+		markdownCode("`x`"):                   "`` `x` ``",
+	} {
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
+	}
 }

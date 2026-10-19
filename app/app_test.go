@@ -218,3 +218,12 @@ func TestSignalNumber(t *testing.T) {
 	assert.Equal(t, 15, signalNumber(syscall.SIGTERM))
 	assert.Equal(t, 1, signalNumber(otherSignal{}), "a signal that is not a number exits 128 + 1")
 }
+
+// A stray word, as in --enforce false, used to be ignored, and the scan
+// enforced.
+func TestScanAndFixRejectArguments(t *testing.T) {
+	for _, cmd := range []*cobra.Command{scanCmd, fixCmd} {
+		assert.Error(t, cmd.Args(cmd, []string{"false"}), cmd.Use)
+		assert.NoError(t, cmd.Args(cmd, nil), cmd.Use)
+	}
+}

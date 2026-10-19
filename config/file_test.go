@@ -146,3 +146,10 @@ func TestConfigFileRejectsAMisspeltRuleKey(t *testing.T) {
 	_, err := CreateConfig(withConfig(newScanCmd(t.TempDir(), nil), path))
 	assert.ErrorContains(t, err, "aplyOn")
 }
+
+// yaml.v3 drops an empty list entry, so a stray dash would silently be no rule.
+func TestConfigFileRejectsAnEmptyRule(t *testing.T) {
+	path := writeConfig(t, "rules:\n  - id: acme\n    applyOn: [Job.Run]\n    categories: [SAST]\n    regex: acme\n  - null\n")
+	_, err := CreateConfig(withConfig(newScanCmd(t.TempDir(), nil), path))
+	assert.ErrorContains(t, err, "rules entry 2 is empty")
+}

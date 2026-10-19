@@ -74,17 +74,16 @@ func resolveDir(cmd *cobra.Command) (string, error) {
 		return "", fmt.Errorf("error: --dir (-d) or --repo is required")
 	}
 
+	// A symlink the operator names is followed; what the scan reads is held
+	// inside the directory it points at by repofs.
 	dir = filepath.Clean(dir)
-
-	info, err := os.Lstat(dir)
+	info, err := os.Stat(dir)
 	if err != nil {
 		return "", err
 	}
-
-	if info.Mode()&os.ModeSymlink != 0 {
-		return "", fmt.Errorf("error: Symlinks are not allowed")
+	if !info.IsDir() {
+		return "", fmt.Errorf("--dir %s is not a directory", dir)
 	}
-
 	return dir, nil
 }
 
@@ -150,10 +149,15 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	cfg.Badge, _ = flags.GetString("badge")
 	cfg.OutputFile, _ = flags.GetString("output-file")
 	cfg.Output, _ = flags.GetString("output")
+	cfg.Output = strings.ToLower(cfg.Output)
 
-	// --write-baseline with no --baseline writes to the default location.
+	// --write-baseline with no --baseline writes to the default location, in
+	// the scanned directory; a fetched copy is removed, so then the current one.
 	if cfg.WriteBaseline && cfg.Baseline == "" {
 		cfg.Baseline = baseline.DefaultPath
+		if cfg.Repo == nil {
+			cfg.Baseline = filepath.Join(cfg.Dir, baseline.DefaultPath)
+		}
 	}
 	if !slices.Contains(OutputFormats, cfg.Output) {
 		return nil, fmt.Errorf("unsupported output format: %s (expected one of %s)", cfg.Output, strings.Join(OutputFormats, ", "))

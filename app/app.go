@@ -24,7 +24,9 @@ var rootCmd = &cobra.Command{
 }
 
 var scanCmd = &cobra.Command{
-	Use:   "scan",
+	Use: "scan",
+	// A stray word, as in --enforce false, would otherwise be ignored.
+	Args:  cobra.NoArgs,
 	Short: "Scans a repository's CI configuration",
 	Long:  "The scan command reads a repository's CI configuration and reports the categories it does not cover.",
 	Run:   run(config.CreateConfig, scanRepo),
@@ -32,6 +34,7 @@ var scanCmd = &cobra.Command{
 
 var fixCmd = &cobra.Command{
 	Use:   "fix",
+	Args:  cobra.NoArgs,
 	Short: "Prints CI configuration for the categories a scan reports as missing",
 	Long:  "The fix command prints ready-to-paste CI configuration for each uncovered category, so a scan result can be acted on without leaving the tool.",
 	Run:   run(config.CreateFixConfig, fixRepo),

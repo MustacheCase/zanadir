@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/internal/repofs"
@@ -127,6 +128,8 @@ type invalidYAML struct{ err error }
 
 func (e invalidYAML) Error() string { return e.err.Error() }
 
+func (e invalidYAML) Unwrap() error { return e.err }
+
 // readYAML decodes the first document of a configuration file into target.
 func readYAML(root, path string, target any) error {
 	data, err := repofs.ReadFile(root, path)
@@ -195,7 +198,11 @@ func foldMergeKeys(node *yaml.Node) {
 func unreadable(path string, err error) *models.Artifact {
 	reason := fmt.Sprintf("it cannot be read (%s)", oneLine(err))
 	var invalid invalidYAML
-	if errors.As(err, &invalid) {
+	var shape *yaml.TypeError
+	switch {
+	case errors.As(err, &shape) && !slices.ContainsFunc(shape.Errors, func(e string) bool { return !strings.Contains(e, "cannot unmarshal") }):
+		reason = fmt.Sprintf("it is valid YAML but not shaped as the CI platform expects (%s), so it cannot run it either", oneLine(shape))
+	case errors.As(err, &invalid):
 		reason = fmt.Sprintf("it is not valid YAML (%s), so the CI platform cannot run it either", oneLine(invalid))
 	}
 	return &models.Artifact{Location: path, Skipped: reason}

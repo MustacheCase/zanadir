@@ -21,8 +21,8 @@ type Report struct {
 	Format      string
 	DestPath    string // empty means stdout
 	Anchor      string // repo-relative path SARIF results point at
-	// Score is the coverage summary. A zero score means none was computed and
-	// the headline falls back to a plain count.
+	// Score is the coverage summary. A zero total means every category was
+	// excluded or ruled out, and the headline says so.
 	Score score.Score
 	// Weakened lists categories that have tooling which cannot fully protect
 	// the repository. Informational: it never fails a scan.
@@ -129,8 +129,9 @@ func headline(s score.Score, count int) string {
 	}
 
 	switch {
+	// Only excluding or ruling out every category leaves nothing to score.
 	case count == 0 && prefix == "":
-		return "All categories are covered - no suggestions."
+		return "No category is scored: each one is excluded or not applicable."
 	case count == 0:
 		return prefix + "all categories are covered."
 	case count == 1:
@@ -148,6 +149,25 @@ const MarkdownMarker = "<!-- zanadir-report -->"
 // the cell, and a newline ends the row.
 func markdownCell(text string) string {
 	return strings.ReplaceAll(strings.Join(strings.Fields(text), " "), "|", "\\|")
+}
+
+// markdownText makes a value safe as Markdown prose: a file name or a reason
+// can hold <, which would otherwise reach a PR comment as raw HTML.
+func markdownText(text string) string {
+	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(strings.Join(strings.Fields(text), " "))
+}
+
+// markdownCode wraps a value in a code span its own backticks cannot close.
+func markdownCode(text string) string {
+	text = strings.Join(strings.Fields(text), " ")
+	fence := "`"
+	for strings.Contains(text, fence) {
+		fence += "`"
+	}
+	if strings.HasPrefix(text, "`") || strings.HasSuffix(text, "`") {
+		text = " " + text + " "
+	}
+	return fence + text + fence
 }
 
 func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score, weaknesses []Weakness, notApplicable []string, merge *Gate) error {
@@ -171,22 +191,22 @@ func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, co
 	}
 
 	if len(notApplicable) > 0 {
-		fmt.Fprintf(&b, "\n_%s_\n", markdownCell(notApplicableLine(notApplicable)))
+		fmt.Fprintf(&b, "\n_%s_\n", markdownText(notApplicableLine(notApplicable)))
 	}
 
 	if len(weaknesses) > 0 {
 		fmt.Fprintf(&b, "\n**%s**\n\n", weakenedHeadline(len(weaknesses)))
 		for _, weakness := range weaknesses {
-			fmt.Fprintf(&b, "- `%s` is **%s** in `%s`%s\n",
-				markdownCell(weakness.Category), markdownCell(weakness.Verdict), markdownCell(weakness.Location), markdownCell(weakness.because()))
+			fmt.Fprintf(&b, "- %s is **%s** in %s%s\n",
+				markdownCode(weakness.Category), markdownText(weakness.Verdict), markdownCode(weakness.Location), markdownText(weakness.because()))
 		}
 	}
 
 	if merge != nil {
 		title, lines := gateLines(merge)
-		fmt.Fprintf(&b, "\n**%s**\n\n", markdownCell(title))
+		fmt.Fprintf(&b, "\n**%s**\n\n", markdownText(title))
 		for _, line := range lines {
-			fmt.Fprintf(&b, "- %s\n", markdownCell(line))
+			fmt.Fprintf(&b, "- %s\n", markdownText(line))
 		}
 	}
 

@@ -329,6 +329,36 @@ post. Guard it with
 rather than reaching for `pull_request_target`, which would run your workflow
 with write access to a fork's code.
 
+### Scanning an organisation
+
+`--org` scans every repository of a GitHub organisation, through the same
+remote scan as `--repo`, and reports on them together: the worst repositories
+first, then which categories are missing where.
+
+```sh
+GITHUB_TOKEN=... zanadir scan --org github.com/acme
+GITHUB_TOKEN=... zanadir scan --org acme -o json --output-file acme.json
+```
+
+- It needs `GITHUB_TOKEN`: a repository costs about three requests, and
+  without a token GitHub allows about 20 repositories an hour. Private
+  repositories are scanned when the token can see them.
+- Archived repositories, forks and empty ones are skipped and listed;
+  `--include-archived` and `--include-forks` bring them back. A repository
+  with no CI is kept, since that is the finding.
+- `--parallel` sets how many repositories are scanned at a time (default 4).
+  Progress goes to stderr, a line per repository.
+- A rate limit that resets within 15 minutes is waited out. A repository that
+  cannot be scanned is listed with the reason, and the rest go on; the run
+  fails only if none could be scanned.
+- `-o json` gives each repository's report in the `scan -o json` shape, with
+  counts per category.
+- A large organisation takes minutes, so this suits a scheduled job.
+
+`--org` doesn't take `--enforce`, `--fail-on`, `--fail-on-weakened`,
+`--baseline` or `--required-checks` yet; they're the next phases of
+[the design](docs/design/003-organisation-scan.md).
+
 ## Coverage Score
 
 Every scan is summarised as a coverage score: the categories that apply to the

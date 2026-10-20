@@ -14,6 +14,8 @@ import (
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/handler"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/org"
+	"github.com/MustacheCase/zanadir/output"
 	"github.com/MustacheCase/zanadir/remote"
 	"github.com/spf13/cobra"
 )
@@ -42,10 +44,11 @@ var fixCmd = &cobra.Command{
 
 // exit, stderr, fetchRepository and interrupts are replaced in tests.
 var (
-	exit                      = os.Exit
-	stderr          io.Writer = os.Stderr
-	fetchRepository           = remote.FetchContext
-	interrupts                = defaultInterrupts
+	exit                       = os.Exit
+	stderr           io.Writer = os.Stderr
+	fetchRepository            = remote.FetchContext
+	scanOrganisation           = org.Scan
+	interrupts                 = defaultInterrupts
 )
 
 func defaultInterrupts() (<-chan os.Signal, func()) {
@@ -57,7 +60,7 @@ func defaultInterrupts() (<-chan os.Signal, func()) {
 // githubToken is the token a remote scan sends, if the environment has one.
 // run builds a command's configuration and does its work, exiting non-zero
 // on any failure.
-func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Config) error) func(*cobra.Command, []string) {
+func run(build func(*cobra.Command) (*config.Config, error), do func(context.Context, *config.Config) error) func(*cobra.Command, []string) {
 	return func(cmd *cobra.Command, _ []string) {
 		cfg, err := build(cmd)
 		if err != nil {
@@ -75,12 +78,18 @@ func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Con
 		var mu sync.Mutex
 		cleanup := func() {}
 		fetched, finished, exited := make(chan struct{}), make(chan struct{}), make(chan struct{})
+		// An organisation scan stops on the signal itself, cleaning up and
+		// writing what it has, so the exit waits for it.
+		worked := make(chan struct{})
 		defer close(finished)
 		go func() {
 			select {
 			case sig := <-signals:
 				cancel()
 				<-fetched
+				if cfg.Org != "" {
+					<-worked
+				}
 				mu.Lock()
 				cleanup()
 				mu.Unlock()
@@ -117,7 +126,8 @@ func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Con
 			return
 		}
 		// exit does not run deferred calls, so the fetched copy goes first.
-		err = do(cfg)
+		err = do(ctx, cfg)
+		close(worked)
 		if interrupted() {
 			return
 		}
@@ -159,6 +169,10 @@ func NewApp() *cobra.Command {
 	rootCmd.AddCommand(scanCmd, fixCmd)
 
 	addSharedFlags(scanCmd)
+	scanCmd.Flags().String("org", "", "Scan every repository of a GitHub organisation: github.com/name; needs GITHUB_TOKEN (optional)")
+	scanCmd.Flags().Int("parallel", 4, "With --org, how many repositories to scan at a time (optional)")
+	scanCmd.Flags().Bool("include-archived", false, "With --org, also scan archived repositories (optional)")
+	scanCmd.Flags().Bool("include-forks", false, "With --org, also scan forks (optional)")
 	scanCmd.Flags().Bool("enforce", false, "Fails the CI process when any category is uncovered (optional)")
 	scanCmd.Flags().StringSlice("fail-on", []string{}, "Fail only when these specific categories are uncovered (optional)")
 	scanCmd.Flags().Bool("fail-on-weakened", false, "Also fail when a category has tooling that cannot fail a build (optional)")
@@ -187,15 +201,46 @@ func scanErrorReport(err error) string {
 	return fmt.Sprintf("Error: scan repo failed: %v\n", err)
 }
 
-func scanRepo(cfg *config.Config) error {
+func scanRepo(ctx context.Context, cfg *config.Config) error {
 	h, err := handler.Setup(cfg.Rules...)
 	if err != nil {
 		return err
 	}
+	if cfg.Org != "" {
+		return scanOrg(ctx, h, cfg)
+	}
 	return h.Execute(cfg)
 }
 
-func fixRepo(cfg *config.Config) error {
+// scanOrg scans every repository of cfg.Org, each graded as a --repo scan.
+func scanOrg(ctx context.Context, h *handler.Handler, cfg *config.Config) error {
+	token := remote.Token()
+	if token == "" {
+		return errors.New("--org needs GITHUB_TOKEN: without one GitHub allows about 20 repositories an hour")
+	}
+	report, err := scanOrganisation(ctx, org.Options{
+		Org: cfg.Org, Token: token, Parallel: cfg.Parallel,
+		IncludeArchived: cfg.IncludeArchived, IncludeForks: cfg.IncludeForks, Progress: stderr,
+		Assess: func(repo remote.Repository, dir string) (output.Report, error) {
+			repoCfg := *cfg
+			repoCfg.Org, repoCfg.Repo, repoCfg.Dir = "", &repo, dir
+			return h.Assess(&repoCfg)
+		},
+	})
+	if err != nil {
+		return err
+	}
+	report.Format, report.DestPath = cfg.Output, cfg.OutputFile
+	if err := output.WriteOrg(report); err != nil {
+		return err
+	}
+	if len(report.Repositories) == 0 && len(report.Failed) > 0 {
+		return fmt.Errorf("none of the %d repositories of %s could be scanned", len(report.Failed), cfg.Org)
+	}
+	return nil
+}
+
+func fixRepo(_ context.Context, cfg *config.Config) error {
 	h, err := handler.Setup(cfg.Rules...)
 	if err != nil {
 		return err

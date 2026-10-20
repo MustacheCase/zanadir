@@ -51,6 +51,16 @@ type jsonWeakness struct {
 }
 
 func renderJSON(w io.Writer, report Report) error {
+	return writeJSON(w, jsonOf(report))
+}
+
+func writeJSON(w io.Writer, value any) error {
+	encoder := json.NewEncoder(w)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(value)
+}
+
+func jsonOf(report Report) jsonReport {
 	out := jsonReport{
 		Score:         jsonScore{Covered: report.Score.Covered, Total: report.Score.Total},
 		Platforms:     append([]string{}, report.Platforms...),
@@ -72,8 +82,5 @@ func renderJSON(w io.Writer, report Report) error {
 	if g := report.Gate; g != nil {
 		out.RequiredChecks = &jsonGate{Branch: g.Branch, Required: append([]string{}, g.Required...), Scanning: append([]string{}, g.Scanning...), Problems: append([]string{}, g.Problems...)}
 	}
-
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(out)
+	return out
 }

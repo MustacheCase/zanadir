@@ -285,27 +285,14 @@ func (h *Handler) Execute(cfg *config.Config) error {
 		}
 	}
 	debugf := newDebug(cfg)
-	debugf("Starting scan for directory: %s", cfg.Dir)
-	result, err := h.analyse(cfg, debugf, nil)
+	report, result, err := h.assess(cfg, debugf)
 	if err != nil {
 		return err
 	}
-	suggestions := result.suggestions
+	suggestions, coverage := report.Suggestions, report.Score
+	report.Format, report.DestPath = cfg.Output, cfg.OutputFile
 
-	coverage := score.Of(result.skipped, len(suggestions))
-	debugf("Coverage score: %s", coverage)
-
-	err = h.OutputService.Response(output.Report{
-		Suggestions:   suggestions,
-		Format:        cfg.Output,
-		DestPath:      cfg.OutputFile,
-		Anchor:        sarifAnchor(cfg.Dir, result.artifacts),
-		Score:         coverage,
-		Weakened:      result.weaknesses,
-		NotApplicable: result.notApplicable,
-		Platforms:     parser.Found(cfg.Dir),
-		Gate:          reportGate(result.gate),
-	})
+	err = h.OutputService.Response(report)
 	if err != nil {
 		debugf("Output error: %v", err)
 		return err
@@ -347,6 +334,31 @@ func (h *Handler) Execute(cfg *config.Config) error {
 
 	debugf("Scan completed successfully")
 	return nil
+}
+
+// Assess scans one repository and returns its report, without writing it.
+func (h *Handler) Assess(cfg *config.Config) (output.Report, error) {
+	report, _, err := h.assess(cfg, newDebug(cfg))
+	return report, err
+}
+
+func (h *Handler) assess(cfg *config.Config, debugf debugFunc) (output.Report, *scanResult, error) {
+	debugf("Starting scan for directory: %s", cfg.Dir)
+	result, err := h.analyse(cfg, debugf, nil)
+	if err != nil {
+		return output.Report{}, nil, err
+	}
+	coverage := score.Of(result.skipped, len(result.suggestions))
+	debugf("Coverage score: %s", coverage)
+	return output.Report{
+		Suggestions:   result.suggestions,
+		Anchor:        sarifAnchor(cfg.Dir, result.artifacts),
+		Score:         coverage,
+		Weakened:      result.weaknesses,
+		NotApplicable: result.notApplicable,
+		Platforms:     parser.Found(cfg.Dir),
+		Gate:          reportGate(result.gate),
+	}, result, nil
 }
 
 // enforcement is what should fail the scan. The two are kept apart because a

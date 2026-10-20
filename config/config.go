@@ -49,6 +49,13 @@ type Config struct {
 	Write bool
 	// Rules are custom rules from the config file, added to the catalogue.
 	Rules []rules.FileRule
+	// Org is an organisation whose repositories to scan instead of Dir.
+	Org string
+	// Parallel is how many of Org's repositories are scanned at a time.
+	Parallel int
+	// IncludeArchived and IncludeForks keep what an organisation scan skips.
+	IncludeArchived bool
+	IncludeForks    bool
 	// Repo is a repository to fetch and scan instead of Dir; nil for a local
 	// checkout.
 	Repo *remote.Repository
@@ -117,6 +124,13 @@ func newConfig(cmd *cobra.Command) (*Config, error) {
 // fetch with --repo, never both.
 func target(cmd *cobra.Command) (*Config, error) {
 	repo, _ := cmd.Flags().GetString("repo")
+	if org, _ := cmd.Flags().GetString("org"); org != "" {
+		if dir, _ := cmd.Flags().GetString("dir"); dir != "" || repo != "" {
+			return nil, fmt.Errorf("--org scans every repository of an organisation; give it without --dir or --repo")
+		}
+		name, err := remote.ParseOrg(org)
+		return &Config{Org: name}, err
+	}
 	if repo == "" {
 		dir, err := resolveDir(cmd)
 		return &Config{Dir: dir}, err
@@ -161,6 +175,35 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	}
 	if !slices.Contains(OutputFormats, cfg.Output) {
 		return nil, fmt.Errorf("unsupported output format: %s (expected one of %s)", cfg.Output, strings.Join(OutputFormats, ", "))
+	}
+	if cfg.Org != "" {
+		return orgConfig(cmd, cfg)
+	}
+	return cfg, nil
+}
+
+// orgConfig reads the organisation scan's own flags, and refuses those it
+// does not support yet: enforcement, baselines, required checks, the badge
+// and the SARIF and Markdown reports come in later phases.
+func orgConfig(cmd *cobra.Command, cfg *Config) (*Config, error) {
+	flags := cmd.Flags()
+	cfg.Parallel, _ = flags.GetInt("parallel")
+	cfg.IncludeArchived, _ = flags.GetBool("include-archived")
+	cfg.IncludeForks, _ = flags.GetBool("include-forks")
+	if cfg.Parallel < 1 {
+		return nil, fmt.Errorf("--parallel %d: scan at least one repository at a time", cfg.Parallel)
+	}
+	for _, unsupported := range []struct {
+		flag string
+		set  bool
+	}{
+		{"--enforce", cfg.Enforce}, {"--fail-on", len(cfg.FailOn) > 0}, {"--fail-on-weakened", cfg.FailOnWeakened},
+		{"--required-checks", cfg.RequiredChecks}, {"--baseline", cfg.Baseline != ""}, {"--write-baseline", cfg.WriteBaseline},
+		{"--badge", cfg.Badge != ""}, {"-o " + cfg.Output, cfg.Output != OutputTable && cfg.Output != OutputJSON},
+	} {
+		if unsupported.set {
+			return nil, fmt.Errorf("%s is not supported with --org yet", unsupported.flag)
+		}
 	}
 	return cfg, nil
 }

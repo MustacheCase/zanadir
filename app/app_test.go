@@ -5,7 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/MustacheCase/zanadir/internal/testrepo"
+	"github.com/MustacheCase/zanadir/org"
+	"github.com/MustacheCase/zanadir/output"
+	"github.com/stretchr/testify/require"
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 
@@ -44,7 +49,7 @@ func TestScanCmdFlags(t *testing.T) {
 
 func TestScanRepo(t *testing.T) {
 	mockConfig := &config.Config{}
-	err := scanRepo(mockConfig)
+	err := scanRepo(context.Background(), mockConfig)
 	assert.NotNil(t, err, "scanRepo should return an error when handler setup fails")
 }
 
@@ -56,7 +61,7 @@ func TestScanErrorReport(t *testing.T) {
 }
 
 func TestFixRepo(t *testing.T) {
-	err := fixRepo(&config.Config{})
+	err := fixRepo(context.Background(), &config.Config{})
 	assert.NotNil(t, err, "fixRepo should return an error when the directory is not a repository")
 }
 
@@ -79,7 +84,7 @@ func TestRunExitsWhenTheConfigurationIsBad(t *testing.T) {
 	code := exitCode(t)
 	did := false
 	run(func(*cobra.Command) (*config.Config, error) { return nil, errors.New("no --dir") },
-		func(*config.Config) error { did = true; return nil })(&cobra.Command{}, nil)
+		func(context.Context, *config.Config) error { did = true; return nil })(&cobra.Command{}, nil)
 
 	assert.Equal(t, 1, *code)
 	assert.False(t, did, "nothing runs without a configuration")
@@ -89,7 +94,9 @@ func TestRunExitsWhenTheConfigurationIsBad(t *testing.T) {
 func TestRunExitsWhenTheWorkFails(t *testing.T) {
 	code := exitCode(t)
 	run(func(*cobra.Command) (*config.Config, error) { return &config.Config{}, nil },
-		func(*config.Config) error { return models.NewEnforceError("uncovered categories: SCA") })(&cobra.Command{}, nil)
+		func(context.Context, *config.Config) error {
+			return models.NewEnforceError("uncovered categories: SCA")
+		})(&cobra.Command{}, nil)
 
 	assert.Equal(t, 1, *code)
 	assert.Equal(t, "Enforcement failed: uncovered categories: SCA\n", diagnostics.String())
@@ -98,15 +105,15 @@ func TestRunExitsWhenTheWorkFails(t *testing.T) {
 func TestRunDoesNotExitOnSuccess(t *testing.T) {
 	code := exitCode(t)
 	run(func(*cobra.Command) (*config.Config, error) { return &config.Config{}, nil },
-		func(*config.Config) error { return nil })(&cobra.Command{}, nil)
+		func(context.Context, *config.Config) error { return nil })(&cobra.Command{}, nil)
 
 	assert.Equal(t, -1, *code)
 }
 
 func TestABadCustomRuleStopsBothCommands(t *testing.T) {
 	cfg := &config.Config{Rules: []rules.FileRule{{ID: "no-regex"}}}
-	assert.ErrorContains(t, scanRepo(cfg), "no-regex")
-	assert.ErrorContains(t, fixRepo(cfg), "no-regex")
+	assert.ErrorContains(t, scanRepo(context.Background(), cfg), "no-regex")
+	assert.ErrorContains(t, fixRepo(context.Background(), cfg), "no-regex")
 }
 
 // fakeFetch stands in for remote.Fetch and records whether the copy it
@@ -132,7 +139,7 @@ func TestRunScansAFetchedRepositoryAndRemovesIt(t *testing.T) {
 	code := exitCode(t)
 	removed := fakeFetch(t, nil)
 	var scanned string
-	run(repoConfig, func(cfg *config.Config) error { scanned = cfg.Dir; return nil })(&cobra.Command{}, nil)
+	run(repoConfig, func(_ context.Context, cfg *config.Config) error { scanned = cfg.Dir; return nil })(&cobra.Command{}, nil)
 
 	assert.Equal(t, "/tmp/fetched", scanned)
 	assert.True(t, *removed)
@@ -142,7 +149,7 @@ func TestRunScansAFetchedRepositoryAndRemovesIt(t *testing.T) {
 func TestRunRemovesTheFetchedRepositoryWhenTheScanFails(t *testing.T) {
 	code := exitCode(t)
 	removed := fakeFetch(t, nil)
-	run(repoConfig, func(*config.Config) error { return errors.New("boom") })(&cobra.Command{}, nil)
+	run(repoConfig, func(context.Context, *config.Config) error { return errors.New("boom") })(&cobra.Command{}, nil)
 
 	assert.True(t, *removed, "exit skips deferred calls, so cleanup must not be deferred")
 	assert.Equal(t, 1, *code)
@@ -152,7 +159,7 @@ func TestRunExitsWhenTheFetchFails(t *testing.T) {
 	code := exitCode(t)
 	fakeFetch(t, errors.New("github.com/o/r was not found"))
 	did := false
-	run(repoConfig, func(*config.Config) error { did = true; return nil })(&cobra.Command{}, nil)
+	run(repoConfig, func(context.Context, *config.Config) error { did = true; return nil })(&cobra.Command{}, nil)
 
 	assert.Equal(t, 1, *code)
 	assert.False(t, did)
@@ -182,7 +189,7 @@ func TestRunAbandonsTheDownloadOnASignal(t *testing.T) {
 	}
 	t.Cleanup(func() { fetchRepository = remote.FetchContext })
 	scanned := false
-	run(repoConfig, func(*config.Config) error { scanned = true; return nil })(&cobra.Command{}, nil)
+	run(repoConfig, func(context.Context, *config.Config) error { scanned = true; return nil })(&cobra.Command{}, nil)
 
 	assert.True(t, abandoned)
 	assert.False(t, scanned)
@@ -199,7 +206,7 @@ func TestRunRemovesTheFetchedRepositoryOnASignal(t *testing.T) {
 		return "/tmp/fetched", func() { close(removed) }, nil
 	}
 	t.Cleanup(func() { fetchRepository = remote.FetchContext })
-	run(repoConfig, func(*config.Config) error {
+	run(repoConfig, func(context.Context, *config.Config) error {
 		signals <- os.Interrupt
 		<-removed
 		return errors.New("interrupted")
@@ -229,4 +236,71 @@ func TestScanAndFixRejectArguments(t *testing.T) {
 		// The zanadir action passes each unset optional input as "".
 		assert.NoError(t, cmd.Args(cmd, []string{"", ""}), cmd.Use)
 	}
+}
+
+func fakeOrganisation(t *testing.T, scan func(context.Context, org.Options) (output.OrgReport, error)) {
+	t.Helper()
+	scanOrganisation = scan
+	t.Cleanup(func() { scanOrganisation = org.Scan })
+}
+
+func TestScanOrgNeedsAToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+	assert.ErrorContains(t, scanRepo(context.Background(), &config.Config{Org: "acme"}), "--org needs GITHUB_TOKEN")
+}
+
+// Each repository is assessed as a --repo scan of its fetched copy.
+func TestScanOrgAssessesEachRepositoryAndWritesTheReport(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "t")
+	dir := testrepo.Write(t, map[string]string{".git/HEAD": "ref: refs/heads/main\n", ".github/workflows/ci.yml": "on: pull_request\njobs:\n  a:\n    runs-on: x\n    steps:\n      - run: gitleaks detect\n"})
+	fakeOrganisation(t, func(_ context.Context, opts org.Options) (output.OrgReport, error) {
+		assert.Equal(t, "acme", opts.Org)
+		assert.Equal(t, "t", opts.Token)
+		report, err := opts.Assess(remote.Repository{Owner: "acme", Name: "web"}, dir)
+		require.NoError(t, err)
+		return output.OrgReport{Org: "acme", Repositories: []output.OrgRepository{{Name: "acme/web", Report: report}}}, nil
+	})
+	out := filepath.Join(t.TempDir(), "org.json")
+	require.NoError(t, scanRepo(context.Background(), &config.Config{Org: "acme", Parallel: 2, Output: config.OutputJSON, OutputFile: out}))
+	data, err := os.ReadFile(out)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"repository": "acme/web"`)
+	assert.NotContains(t, string(data), `"id": "Secrets Detection"`, "the repository's own workflow was read: gitleaks covers it")
+}
+
+func TestScanOrgFailsWhenNothingCouldBeScanned(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "t")
+	fakeOrganisation(t, func(context.Context, org.Options) (output.OrgReport, error) {
+		return output.OrgReport{Org: "acme", Failed: []output.OrgRepository{{Name: "acme/a", Reason: "x"}}}, nil
+	})
+	assert.ErrorContains(t, scanRepo(context.Background(), &config.Config{Org: "acme", OutputFile: filepath.Join(t.TempDir(), "r.txt")}), "none of the 1 repositories of acme could be scanned")
+
+	fakeOrganisation(t, func(context.Context, org.Options) (output.OrgReport, error) {
+		return output.OrgReport{}, errors.New("listing failed")
+	})
+	assert.ErrorContains(t, scanRepo(context.Background(), &config.Config{Org: "acme"}), "listing failed")
+
+	fakeOrganisation(t, func(context.Context, org.Options) (output.OrgReport, error) {
+		return output.OrgReport{Org: "acme"}, nil
+	})
+	assert.Error(t, scanRepo(context.Background(), &config.Config{Org: "acme", OutputFile: filepath.Join(t.TempDir(), "no", "r.txt")}))
+}
+
+// An organisation scan stops on the signal itself, so the exit waits for it
+// to finish writing what it has.
+func TestRunWaitsForAnOrganisationScanOnASignal(t *testing.T) {
+	code := exitCode(t)
+	signals := fakeSignals(t)
+	finished := false
+	run(func(*cobra.Command) (*config.Config, error) { return &config.Config{Org: "acme"}, nil },
+		func(ctx context.Context, _ *config.Config) error {
+			signals <- syscall.SIGTERM
+			<-ctx.Done()
+			finished = true
+			return nil
+		})(&cobra.Command{}, nil)
+
+	assert.True(t, finished)
+	assert.Equal(t, 128+15, *code)
 }

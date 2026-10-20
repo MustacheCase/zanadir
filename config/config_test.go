@@ -347,3 +347,47 @@ func TestCreateConfigFollowsASymlinkedDir(t *testing.T) {
 	_, err = CreateConfig(newScanCmd(file, nil))
 	assert.ErrorContains(t, err, "is not a directory")
 }
+
+func newOrgCmd(org string) *cobra.Command {
+	cmd := newScanCmd("", nil)
+	cmd.Flags().String("repo", "", "repo")
+	cmd.Flags().String("org", org, "org")
+	cmd.Flags().Int("parallel", 4, "parallel")
+	cmd.Flags().Bool("include-archived", false, "archived")
+	cmd.Flags().Bool("include-forks", false, "forks")
+	return cmd
+}
+
+func TestCreateConfigForAnOrganisation(t *testing.T) {
+	cmd := newOrgCmd("github.com/acme")
+	assert.NoError(t, cmd.Flags().Set("parallel", "8"))
+	assert.NoError(t, cmd.Flags().Set("include-forks", "true"))
+	assert.NoError(t, cmd.Flags().Set("output", "json"))
+	cfg, err := CreateConfig(cmd)
+	assert.NoError(t, err)
+	assert.Equal(t, "acme", cfg.Org)
+	assert.Equal(t, 8, cfg.Parallel)
+	assert.True(t, cfg.IncludeForks)
+	assert.False(t, cfg.IncludeArchived)
+	assert.Empty(t, cfg.Dir)
+}
+
+func TestCreateConfigRefusesWhatOrgDoesNotSupportYet(t *testing.T) {
+	for flag, value := range map[string]string{
+		"enforce": "true", "fail-on": "SAST", "fail-on-weakened": "true", "required-checks": "true",
+		"baseline": "b.yaml", "write-baseline": "true", "badge": "b.json", "output": "sarif", "parallel": "0",
+	} {
+		cmd := newOrgCmd("acme")
+		assert.NoError(t, cmd.Flags().Set(flag, value))
+		_, err := CreateConfig(cmd)
+		assert.Error(t, err, flag)
+	}
+	for _, other := range []string{"dir", "repo"} {
+		cmd := newOrgCmd("acme")
+		assert.NoError(t, cmd.Flags().Set(other, "x"))
+		_, err := CreateConfig(cmd)
+		assert.ErrorContains(t, err, "without --dir or --repo", other)
+	}
+	_, err := CreateConfig(newOrgCmd("acme/repo"))
+	assert.ErrorContains(t, err, "not an organisation")
+}

@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -185,6 +186,9 @@ func download(ctx context.Context, repo Repository, token, dir string) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if limit := rateLimited(resp); limit != nil {
+		return limit
+	}
 	switch {
 	case resp.StatusCode == http.StatusUnprocessableEntity:
 		return fmt.Errorf("GitHub could not produce an archive of %s (%s), which usually means the repository is too large; %s", repo, resp.Status, tooLarge)
@@ -290,10 +294,86 @@ func getJSON(ctx context.Context, endpoint, token string, out any) error {
 		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if limit := rateLimited(resp); limit != nil {
+		return limit
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("GitHub answered %s", resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
+}
+
+// ParseOrg reads an organisation as acme, github.com/acme or its URL.
+func ParseOrg(s string) (string, error) {
+	org := strings.TrimSuffix(strings.TrimSpace(s), "/")
+	for _, prefix := range []string{"https://", "http://"} {
+		if len(org) >= len(prefix) && strings.EqualFold(org[:len(prefix)], prefix) {
+			org = org[len(prefix):]
+		}
+	}
+	if len(org) > len("github.com/") && strings.EqualFold(org[:len("github.com/")], "github.com/") {
+		org = org[len("github.com/"):]
+	}
+	if !ownerPart.MatchString(org) {
+		return "", fmt.Errorf("%q is not an organisation: expected github.com/name", s)
+	}
+	return org, nil
+}
+
+// RateLimitError is GitHub refusing a request until its rate limit resets.
+type RateLimitError struct {
+	Reset time.Time
+}
+
+func (e *RateLimitError) Error() string {
+	return fmt.Sprintf("GitHub's rate limit is spent until %s; set GITHUB_TOKEN for a higher one", e.Reset.Format(time.Kitchen))
+}
+
+// rateLimited reads a 403 or 429 that is a rate limit, and when it resets:
+// Retry-After for a secondary limit, X-RateLimit-Reset for the primary one.
+func rateLimited(resp *http.Response) *RateLimitError {
+	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+		return nil
+	}
+	if seconds, err := strconv.Atoi(resp.Header.Get("Retry-After")); err == nil {
+		return &RateLimitError{Reset: now().Add(time.Duration(seconds) * time.Second)}
+	}
+	if resp.Header.Get("X-RateLimit-Remaining") != "0" {
+		return nil
+	}
+	reset, err := strconv.ParseInt(resp.Header.Get("X-RateLimit-Reset"), 10, 64)
+	if err != nil {
+		return &RateLimitError{Reset: now().Add(time.Minute)}
+	}
+	return &RateLimitError{Reset: time.Unix(reset, 0)}
+}
+
+// now is time.Now, replaced in tests.
+var now = time.Now
+
+// Listed is a repository an organisation has, as GitHub lists it.
+type Listed struct {
+	Name     string `json:"name"`
+	Archived bool   `json:"archived"`
+	Fork     bool   `json:"fork"`
+	Size     int    `json:"size"`
+}
+
+// ListRepositories lists every repository of an organisation the token can
+// see, private ones included, in pages of 100.
+func ListRepositories(ctx context.Context, org, token string) ([]Listed, error) {
+	var all []Listed
+	for page := 1; ; page++ {
+		var listed []Listed
+		err := getJSON(ctx, fmt.Sprintf("%s/orgs/%s/repos?type=all&per_page=100&page=%d", apiBase, url.PathEscape(org), page), token, &listed)
+		if err != nil {
+			return nil, fmt.Errorf("listing the repositories of %s: %w", org, err)
+		}
+		all = append(all, listed...)
+		if len(listed) < 100 {
+			return all, nil
+		}
+	}
 }
 
 func fetchFile(ctx context.Context, endpoint, token, target string, size int64) error {

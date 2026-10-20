@@ -504,3 +504,70 @@ func TestGetJSONReportsAnUnreachableHost(t *testing.T) {
 	var out struct{}
 	assert.Error(t, getJSON(context.Background(), "http://127.0.0.1:1/x", "", &out))
 }
+
+func TestParseOrg(t *testing.T) {
+	for in, want := range map[string]string{"acme": "acme", "github.com/acme": "acme", "HTTPS://GitHub.com/acme/": "acme", " a-b ": "a-b"} {
+		got, err := ParseOrg(in)
+		require.NoError(t, err, in)
+		assert.Equal(t, want, got, in)
+	}
+	for _, in := range []string{"", "acme/repo", "gitlab.com/acme", "a b"} {
+		_, err := ParseOrg(in)
+		assert.ErrorContains(t, err, "not an organisation", in)
+	}
+}
+
+func TestListRepositoriesReadsEveryPage(t *testing.T) {
+	page := func(n, from int) string {
+		var items []string
+		for i := range n {
+			items = append(items, fmt.Sprintf(`{"name": "r%d", "archived": %t, "fork": false, "size": 1}`, from+i, i == 0))
+		}
+		return "200 [" + strings.Join(items, ",") + "]"
+	}
+	asked := routes(t, map[string]string{"/orgs/acme/repos": ""})
+	github(t, func(w http.ResponseWriter, r *http.Request) {
+		*asked = append(*asked, r.URL.RequestURI())
+		body := page(100, 0)
+		if r.URL.Query().Get("page") == "2" {
+			body = page(3, 100)
+		}
+		_, _ = w.Write([]byte(strings.TrimPrefix(body, "200 ")))
+	})
+	listed, err := ListRepositories(context.Background(), "acme", "t")
+	require.NoError(t, err)
+	assert.Len(t, listed, 103)
+	assert.Equal(t, Listed{Name: "r0", Archived: true, Size: 1}, listed[0])
+	assert.Contains(t, *asked, "/orgs/acme/repos?type=all&per_page=100&page=2")
+
+	routes(t, map[string]string{"/orgs/acme/repos": "404 "})
+	_, err = ListRepositories(context.Background(), "acme", "t")
+	assert.ErrorContains(t, err, "listing the repositories of acme: GitHub answered 404")
+}
+
+func TestRateLimitsAreRecognised(t *testing.T) {
+	defer func(f func() time.Time) { now = f }(now)
+	at := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	now = func() time.Time { return at }
+	response := func(status int, headers map[string]string) *http.Response {
+		h := http.Header{}
+		for k, v := range headers {
+			h.Set(k, v)
+		}
+		return &http.Response{StatusCode: status, Header: h}
+	}
+	assert.Equal(t, at.Add(30*time.Second), rateLimited(response(429, map[string]string{"Retry-After": "30"})).Reset)
+	assert.Equal(t, time.Unix(1792500000, 0), rateLimited(response(403, map[string]string{"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1792500000"})).Reset)
+	assert.Equal(t, at.Add(time.Minute), rateLimited(response(403, map[string]string{"X-RateLimit-Remaining": "0"})).Reset)
+	assert.Nil(t, rateLimited(response(403, nil)), "a 403 that is not a rate limit is a refusal")
+	assert.Nil(t, rateLimited(response(200, nil)))
+	assert.Contains(t, (&RateLimitError{Reset: at}).Error(), "rate limit is spent until 12:00PM")
+
+	github(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "5")
+		w.WriteHeader(http.StatusTooManyRequests)
+	})
+	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	var limit *RateLimitError
+	assert.ErrorAs(t, err, &limit)
+}

@@ -798,6 +798,22 @@ func TestExecuteWarnsOfFailOnExcludedAndLeavesExclusionsOutOfNotApplicable(t *te
 	assert.Contains(t, string(data), "Workflow Security", "a category that is not applicable, and not excluded, is still named")
 }
 
+// Assess is the scan without its output, for an organisation scan to gather.
+func TestAssessReturnsTheReportWithoutWritingIt(t *testing.T) {
+	h, err := Setup()
+	require.NoError(t, err)
+	dir := testrepo.Write(t, map[string]string{".git/HEAD": "ref: refs/heads/main\n", ".github/workflows/ci.yml": "on: pull_request\njobs:\n  a:\n    runs-on: x\n    steps:\n      - run: gitleaks detect\n"})
+	report, err := h.Assess(&config.Config{Dir: dir})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"github"}, report.Platforms)
+	assert.Empty(t, report.Format, "the caller decides how it is written")
+	for _, s := range report.Suggestions {
+		assert.NotEqual(t, "Secrets Detection", s.ID)
+	}
+	_, err = h.Assess(&config.Config{Dir: t.TempDir()})
+	assert.ErrorContains(t, err, "not a git repository")
+}
+
 func TestSetupRejectsABadCustomRule(t *testing.T) {
 	_, err := Setup(rules.FileRule{ID: "acme"})
 	assert.ErrorContains(t, err, "acme")

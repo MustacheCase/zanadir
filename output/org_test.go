@@ -54,7 +54,7 @@ func TestOrgTableIsWorstFirst(t *testing.T) {
 		}
 	}
 	legacy, web, api := strings.Index(out, "| legacy"), strings.Index(out, "| web"), strings.Index(out, "| api")
-	if !(legacy < web && web < api) {
+	if legacy >= web || web >= api {
 		t.Errorf("want legacy (0/11), then web (10/12, weakened), then api: %d %d %d", legacy, web, api)
 	}
 	if strings.Contains(out, "acme/web") {

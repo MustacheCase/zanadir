@@ -35,6 +35,57 @@ zanadir scan --repo github.com/owner/name --output json
 zanadir fix --dir .
 ```
 
+## Installation
+
+Try it on any public repository without installing anything:
+
+```sh
+docker run --rm mustachecase/zanadir scan --repo github.com/owner/name
+```
+
+To install it, download the archive for Linux, macOS or Windows (amd64 or
+arm64) from the [latest release](https://github.com/MustacheCase/zanadir/releases/latest).
+`checksums.txt` lists each archive's SHA-256, and every archive has a build
+provenance attestation:
+
+```sh
+gh attestation verify zanadir_<version>_linux_amd64.tar.gz --repo MustacheCase/zanadir
+```
+
+Or with Homebrew (the tap is this repository) or Go:
+
+```sh
+brew tap --custom-remote MustacheCase/zanadir https://github.com/MustacheCase/zanadir.git
+brew install mustachecase/zanadir/zanadir
+go install github.com/MustacheCase/zanadir@latest
+```
+
+In GitHub Actions, use [zanadir-action](https://github.com/MustacheCase/zanadir-action).
+This workflow reports on every pull request without failing it:
+
+```yaml
+# .github/workflows/zanadir.yml
+name: zanadir
+on: [pull_request]
+permissions:
+  contents: read
+jobs:
+  zanadir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: mustachecase/zanadir-action@v1.19
+        with:
+          dir: .
+```
+
+When you are ready to gate, add `enforce: true` (fail on any uncovered
+category), `fail-on` (only the categories you name) or `fail-on-weakened`. To
+post the report as a pull request comment, see
+[Posting the report to a pull request](#posting-the-report-to-a-pull-request).
+
 ## zanadir and OpenSSF Scorecard
 
 [OpenSSF Scorecard](https://github.com/ossf/scorecard) and zanadir answer
@@ -913,29 +964,6 @@ without it and paste the snippets.
 
 `--excluded-categories` works as it does for `scan`.
 
-## Installation
-
-You can install Zanadir using Go:
-
-```sh
-# Install directly from source
-go install github.com/MustacheCase/zanadir@latest
-```
-
-Or using Homebrew:
-
-```sh
-# Install using Homebrew (custom tap)
-brew tap --custom-remote MustacheCase/zanadir https://github.com/MustacheCase/zanadir.git
-brew install mustachecase/zanadir/zanadir
-```
-
-The tap is this repository, so the formula lives in `Formula/zanadir.rb`.
-
-## GitHub Actions
-If you're using GitHub Actions, you can use our [Zanadir-based action](https://github.com/MustacheCase/zanadir-action) to run CI\CD scans on your code during your CI workflows.
-
 ## Contributors
 
-Zanadir is still in its experimental phase. We are working hard to release the first stable version soon.  
-Your feedback and contributions are welcome!
+Feedback, issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).

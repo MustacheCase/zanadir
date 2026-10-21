@@ -1,0 +1,61 @@
+name: Release binaries
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  binaries:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26'
+          cache: false
+
+      - name: Build
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os=${target%/*} arch=${target#*/}
+            name="zanadir_${TAG}_${os}_${arch}"
+            exe=zanadir
+            [ "$os" = windows ] && exe=zanadir.exe
+            mkdir "build-$name"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X github.com/MustacheCase/zanadir/app.version=${TAG}" \
+              -o "build-$name/$exe" .
+            cp LICENSE README.md "build-$name/"
+            if [ "$os" = windows ]; then
+              (cd "build-$name" && zip -q "../dist/$name.zip" "$exe" LICENSE README.md)
+            else
+              tar -czf "dist/$name.tar.gz" -C "build-$name" "$exe" LICENSE README.md
+            fi
+          done
+          (cd dist && sha256sum ./* | sed 's| \./| |' > checksums.txt)
+          cat dist/checksums.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Attach the binaries to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/* --clobber --repo "$GITHUB_REPOSITORY"

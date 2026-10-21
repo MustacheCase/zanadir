@@ -20,7 +20,7 @@ zanadir fix --dir .
 zanadir fix --dir . --write   # writes .github/workflows/zanadir-suggested.yml
 ```
 
-Install: `go install github.com/MustacheCase/zanadir@latest`, Homebrew (`brew tap --custom-remote MustacheCase/zanadir https://github.com/MustacheCase/zanadir.git && brew install mustachecase/zanadir/zanadir`), or the Docker image `mustachecase/zanadir`. In GitHub Actions, use `MustacheCase/zanadir-action`.
+Try without installing: `docker run --rm mustachecase/zanadir scan --repo github.com/owner/name`. Install: a prebuilt archive for Linux, macOS or Windows from https://github.com/MustacheCase/zanadir/releases/latest, `go install github.com/MustacheCase/zanadir@latest`, Homebrew (`brew tap --custom-remote MustacheCase/zanadir https://github.com/MustacheCase/zanadir.git && brew install mustachecase/zanadir/zanadir`), or the Docker image `mustachecase/zanadir`. In GitHub Actions, use `MustacheCase/zanadir-action`.
 
 ## Docs
 

@@ -5,6 +5,7 @@
 FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 ARG TARGETOS
 ARG TARGETARCH
+ARG VERSION
 
 WORKDIR /app
 
@@ -20,7 +21,7 @@ RUN go mod download
 COPY . .
 
 # Make sure rules and suggester are copied BEFORE build (or included in build context)
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o zanadir .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags "-X github.com/MustacheCase/zanadir/app.version=$VERSION" -o zanadir .
 
 # Stage 2 - Create tiny final image
 FROM scratch

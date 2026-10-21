@@ -67,6 +67,17 @@ adding tools, and use `zanadir fix --dir .` for configuration that fits this
 repository. Re-run the scan to confirm the change.
 ```
 
+In Claude Code, the zanadir plugin does this as a skill: it scans, reads your
+CI configuration, recommends fixes in priority order, and edits files only
+after you choose.
+
+```
+/plugin marketplace add MustacheCase/zanadir
+/plugin install zanadir@mustachecase
+```
+
+Then ask Claude Code to review or harden your CI, or run `/zanadir:improve-ci`.
+
 [`llms.txt`](llms.txt) summarises zanadir for agents that read the repository, and is
 served at [mustachecase.github.io/llms.txt](https://mustachecase.github.io/llms.txt)
 for those that look at a site's root.

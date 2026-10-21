@@ -1,0 +1,10 @@
+{
+  "name": "zanadir",
+  "description": "Find what a repository's CI is missing, and which controls cannot fail a build, then close the gaps with zanadir.",
+  "version": "1.0.0",
+  "author": { "name": "MustacheCase" },
+  "homepage": "https://mustachecase.github.io/",
+  "repository": "https://github.com/MustacheCase/zanadir",
+  "license": "MIT",
+  "keywords": ["ci", "devsecops", "github-actions", "gitlab-ci", "pipeline-security"]
+}

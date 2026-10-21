@@ -352,7 +352,7 @@ func keepContent(name string) bool {
 		return true
 	}
 	switch base {
-	case ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5", "tox.ini", ".gitattributes":
+	case ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5", "tox.ini", ".gitattributes", "package.json":
 		return true
 	}
 	// Makefile.common and the like are included by the Makefile.

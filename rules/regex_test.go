@@ -423,6 +423,81 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"shellchecker-config"},
 		},
 		{
+			ruleID:         "biome-rule",
+			shouldMatch:    []string{"biome check .", "npx @biomejs/biome ci", "pnpm biome lint src", "biomejs/setup-biome"},
+			shouldNotMatch: []string{"biome.json", "terraform apply -var biome=forest"},
+		},
+		{
+			ruleID:         "oxlint-rule",
+			shouldMatch:    []string{"oxlint", "npx oxlint@latest --deny-warnings", "oxc-project/oxlint-action"},
+			shouldNotMatch: []string{"oxlintrc", "toxlint"},
+		},
+		{
+			ruleID:         "next-lint-rule",
+			shouldMatch:    []string{"next lint", "next  lint --dir src"},
+			shouldNotMatch: []string{"next build", "nextlint"},
+		},
+		{
+			ruleID:         "deno-lint-rule",
+			shouldMatch:    []string{"deno lint", "deno lint --unstable"},
+			shouldNotMatch: []string{"deno fmt", "deno test"},
+		},
+		{
+			ruleID:         "stylelint-rule",
+			shouldMatch:    []string{"stylelint '**/*.css'", "npx stylelint ."},
+			shouldNotMatch: []string{"stylelinter"},
+		},
+		{
+			ruleID:         "go-vet-rule",
+			shouldMatch:    []string{"go vet ./...", "go  vet -tags integration ./..."},
+			shouldNotMatch: []string{"go test ./...", "govet", "cargo vet"},
+		},
+		{
+			ruleID:         "staticcheck-rule",
+			shouldMatch:    []string{"staticcheck ./...", "dominikh/staticcheck-action"},
+			shouldNotMatch: []string{"staticchecker"},
+		},
+		{
+			ruleID:         "kotlin-linter-rule",
+			shouldMatch:    []string{"./gradlew ktlintCheck", "ktlint --reporter=plain", "./gradlew detekt"},
+			shouldNotMatch: []string{"ktlints", "detektor"},
+		},
+		{
+			ruleID:         "checkstyle-rule",
+			shouldMatch:    []string{"./gradlew checkstyleMain checkstyleTest", "mvn checkstyle:check"},
+			shouldNotMatch: []string{"checkstyles", "./gradlew build"},
+		},
+		{
+			ruleID:         "swiftlint-rule",
+			shouldMatch:    []string{"swiftlint --strict", "norio-nomura/action-swiftlint"},
+			shouldNotMatch: []string{"swiftlinter"},
+		},
+		{
+			ruleID:         "dart-analyze-rule",
+			shouldMatch:    []string{"flutter analyze", "dart analyze --fatal-infos"},
+			shouldNotMatch: []string{"flutter test", "dart analyzer"},
+		},
+		{
+			ruleID:         "hadolint-rule",
+			shouldMatch:    []string{"hadolint Dockerfile", "hadolint/hadolint-action"},
+			shouldNotMatch: []string{"hadolints"},
+		},
+		{
+			ruleID:         "credo-rule",
+			shouldMatch:    []string{"mix credo --strict"},
+			shouldNotMatch: []string{"credo", "mix test"},
+		},
+		{
+			ruleID:         "standardrb-rule",
+			shouldMatch:    []string{"bundle exec standardrb"},
+			shouldNotMatch: []string{"standard"},
+		},
+		{
+			ruleID:         "haskell-lua-linter-rule",
+			shouldMatch:    []string{"hlint src", "luacheck ."},
+			shouldNotMatch: []string{"hlinter"},
+		},
+		{
 			ruleID:         "clippy-rule",
 			shouldMatch:    []string{"cargo clippy --all-targets -- -D warnings", "actions-rs/clippy-check"},
 			shouldNotMatch: []string{"cargo build", "clippy.toml"},

@@ -24,6 +24,9 @@ type Expander struct {
 	taskfiles map[string]*taskfile
 	toxfiles  map[string]map[string]map[string]string
 	gomakes   map[string]*gomakeBuild
+	packages  map[string]*nodePackage
+
+	workspaceDirs map[string][]string
 
 	seen  map[string]bool
 	lines []string
@@ -40,6 +43,9 @@ func New(root string) *Expander {
 		taskfiles: map[string]*taskfile{},
 		toxfiles:  map[string]map[string]map[string]string{},
 		gomakes:   map[string]*gomakeBuild{},
+		packages:  map[string]*nodePackage{},
+
+		workspaceDirs: map[string][]string{},
 	}
 }
 
@@ -79,6 +85,20 @@ func (e *Expander) script(dir, script string) {
 			e.goRun(dir, words[1:])
 		case "goreleaser":
 			e.goreleaser(dir, words[1:])
+		case "npm":
+			e.npm(dir, words[1:])
+		case "yarn":
+			e.yarn(dir, words[1:])
+		case "pnpm":
+			e.pnpm(dir, words[1:])
+		case "bun":
+			e.bun(dir, words[1:])
+		case "turbo":
+			e.turbo(dir, words[1:])
+		case "lerna":
+			e.lerna(dir, words[1:])
+		case "nx":
+			e.nx(dir, words[1:])
 		case "pre-commit", "prek":
 			if len(words) > 1 && words[1] == "run" {
 				e.precommit(dir, words[2:])
@@ -139,6 +159,13 @@ func unwrap(words []string) []string {
 			words = words[1:]
 		}
 	case len(words) > 2 && strings.HasPrefix(words[0], "python") && words[1] == "-m":
+		words = words[2:]
+	case len(words) > 1 && (words[0] == "npx" || words[0] == "bunx" || words[0] == "corepack"):
+		words = words[1:]
+		for len(words) > 1 && strings.HasPrefix(words[0], "-") {
+			words = words[1:]
+		}
+	case len(words) > 2 && (words[0] == "pnpm" || words[0] == "yarn" || words[0] == "npm") && (words[1] == "exec" || words[1] == "dlx"):
 		words = words[2:]
 	}
 	return words

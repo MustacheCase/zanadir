@@ -167,6 +167,7 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 		entry{name: "owner-repo-abc/infra/main.tf", body: "resource {}\n"},
 		entry{name: "owner-repo-abc/.github/renovate.json", body: `{"extends": ["config:base"]}`},
 		entry{name: "owner-repo-abc/data/poems.json", body: strings.Repeat("x", headBytes+10)},
+		entry{name: "owner-repo-abc/web/package.json", body: strings.Repeat(" ", headBytes) + `{"scripts": {}}`},
 		entry{name: "owner-repo-abc/link", typeflag: tar.TypeSymlink},
 	))
 
@@ -194,6 +195,7 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 	assert.Empty(t, read("infra/main.tf"))
 	assert.Equal(t, `{"extends": ["config:base"]}`, read(".github/renovate.json"))
 	assert.Len(t, read("data/poems.json"), headBytes, "of other JSON, only the head IaC detection reads")
+	assert.Len(t, read("web/package.json"), headBytes+15, "package.json scripts are followed, so it is kept whole")
 	assert.DirExists(t, filepath.Join(dir, ".git"))
 	_, err = os.Lstat(filepath.Join(dir, "link"))
 	assert.True(t, os.IsNotExist(err), "symlinks are never written")

@@ -99,6 +99,8 @@ func (e *Expander) script(dir, script string) {
 			e.lerna(dir, words[1:])
 		case "nx":
 			e.nx(dir, words[1:])
+		case "npm-run-all", "npm-run-all2", "run-s", "run-p":
+			e.runAll(dir, words[1:])
 		case "pre-commit", "prek":
 			if len(words) > 1 && words[1] == "run" {
 				e.precommit(dir, words[2:])

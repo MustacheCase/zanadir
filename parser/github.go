@@ -27,7 +27,7 @@ type workflowDef struct {
 
 type workflowJobDef struct {
 	Name            string          `yaml:"name"`
-	Uses            string          `yaml:"uses"`
+	Uses            usesRef         `yaml:"uses"`
 	If              string          `yaml:"if"`
 	ContinueOnError continueOnError `yaml:"continue-on-error"`
 	Needs           stringList      `yaml:"needs"`
@@ -36,11 +36,27 @@ type workflowJobDef struct {
 
 type stepDef struct {
 	Name            string          `yaml:"name"`
-	Uses            string          `yaml:"uses"`
+	Uses            usesRef         `yaml:"uses"`
 	Run             string          `yaml:"run"`
 	If              string          `yaml:"if"`
 	ContinueOnError continueOnError `yaml:"continue-on-error"`
 	With            map[string]any  `yaml:"with"`
+}
+
+// usesRef is a uses: value. "$/" names the workflow's own repository at the
+// same commit, as "./" does.
+type usesRef string
+
+func (u *usesRef) UnmarshalYAML(node *yaml.Node) error {
+	var value string
+	if err := node.Decode(&value); err != nil {
+		return err
+	}
+	if rest, ok := strings.CutPrefix(value, "$/"); ok {
+		value = "./" + rest
+	}
+	*u = usesRef(value)
+	return nil
 }
 
 // continueOnError is true, false, or an expression such as
@@ -216,7 +232,7 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 		// A job calling a reusable workflow has no steps but still reports a
 		// check, as "name / called job".
 		if job.Uses != "" {
-			pkg, version := parseStepUsageStatement(job.Uses)
+			pkg, version := parseStepUsageStatement(string(job.Uses))
 			jobs = append(jobs, &models.Job{Name: jobName, Check: cmp.Or(job.Name, jobName), Needs: job.Needs,
 				Package: pkg, Version: version,
 				ContinueOnError: job.ContinueOnError.always, JobIf: joinConditions(job.If, job.ContinueOnError.condition())})
@@ -242,10 +258,10 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 			if step.Uses == "" {
 				continue
 			}
-			if strings.HasPrefix(step.Uses, "./") {
-				jobs = append(jobs, compositeSteps(root, step.Uses, record, 0)...)
+			if strings.HasPrefix(string(step.Uses), "./") {
+				jobs = append(jobs, compositeSteps(root, string(step.Uses), record, 0)...)
 			}
-			pkgName, version := parseStepUsageStatement(step.Uses)
+			pkgName, version := parseStepUsageStatement(string(step.Uses))
 			if pkgName != "" {
 				record.Package, record.Version = pkgName, version
 				// Wrapper actions such as a retry or a problem matcher take the
@@ -329,11 +345,11 @@ func compositeSteps(root, uses string, caller *models.Job, depth int) []*models.
 		record.Package, record.Version, record.Run = "", "", step.Run
 		switch {
 		case step.Run != "":
-		case strings.HasPrefix(step.Uses, "./"):
-			jobs = append(jobs, compositeSteps(root, step.Uses, &record, depth+1)...)
+		case strings.HasPrefix(string(step.Uses), "./"):
+			jobs = append(jobs, compositeSteps(root, string(step.Uses), &record, depth+1)...)
 			fallthrough
 		case step.Uses != "":
-			record.Package, record.Version = parseStepUsageStatement(step.Uses)
+			record.Package, record.Version = parseStepUsageStatement(string(step.Uses))
 			record.Run = cmp.Or(record.With["run"], record.With["command"])
 		default:
 			continue

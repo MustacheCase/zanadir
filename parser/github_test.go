@@ -658,3 +658,23 @@ jobs:
 	assert.Empty(t, runs(jobs))
 	assert.Len(t, jobs, 5+8, "each uses step, and the self-using action stops at the depth limit")
 }
+
+// uv calls its own workflows and actions as $/.github/..., the repository at
+// the workflow's commit.
+func TestGithubReadsDollarSlashAsTheRepositoryItself(t *testing.T) {
+	got := byFile(t, map[string]string{
+		"ci.yml":   "on: pull_request\njobs:\n  lint:\n    uses: $/.github/workflows/lint.yml\n",
+		"lint.yml": "on: workflow_call\njobs:\n  deny:\n    runs-on: x\n    steps:\n      - run: cargo deny check licenses\n",
+	})
+	assert.ElementsMatch(t, []string{"workflow_call", "pull_request"}, events(got["lint.yml"]))
+
+	jobs := compositeRepo(t, map[string]string{
+		".github/workflows/ci.yml":          "on: pull_request\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - uses: $/.github/actions/scan\n",
+		".github/actions/scan/action.yml":   "runs:\n  using: composite\n  steps:\n    - uses: $/.github/actions/nested\n",
+		".github/actions/nested/action.yml": "runs:\n  using: composite\n  steps:\n    - run: gitleaks detect\n      shell: bash\n",
+	})
+	assert.Equal(t, []string{"gitleaks detect"}, runs(jobs))
+
+	odd := byFile(t, map[string]string{"odd.yml": "on: pull_request\njobs:\n  a:\n    uses: {path: x}\n"})
+	assert.Contains(t, odd["odd.yml"].Skipped, "not shaped as the CI platform expects", "a uses: that is not a string")
+}

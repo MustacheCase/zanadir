@@ -46,7 +46,7 @@ jobs:
               tar -czf "dist/$name.tar.gz" -C "build-$name" "$exe" LICENSE README.md
             fi
           done
-          (cd dist && sha256sum ./* | sed 's| \./| |' > checksums.txt)
+          (cd dist && sha256sum -- *.tar.gz *.zip > checksums.txt)
           cat dist/checksums.txt
 
       - name: Attest build provenance

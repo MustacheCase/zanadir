@@ -31,6 +31,7 @@ type workflowJobDef struct {
 	If              string          `yaml:"if"`
 	ContinueOnError continueOnError `yaml:"continue-on-error"`
 	Needs           stringList      `yaml:"needs"`
+	With            map[string]any  `yaml:"with"`
 	Steps           []stepDef       `yaml:"steps"`
 }
 
@@ -160,14 +161,16 @@ func (g *GithubParser) Exists(root string) bool {
 
 func (g *GithubParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
+	defaults := map[*models.Artifact]map[string]string{}
 	for _, path := range GithubWorkflows(root) {
-		artifact, err := g.parseGithubWorkflow(root, path)
+		artifact, inputs, err := g.parseGithubWorkflow(root, path)
 		if err != nil {
 			return nil, err
 		}
 		artifacts = append(artifacts, artifact)
+		defaults[artifact] = inputs
 	}
-	inheritCallers(artifacts)
+	inheritCallers(artifacts, defaults)
 	return artifacts, nil
 }
 
@@ -178,7 +181,8 @@ const localWorkflows = "./.github/workflows/"
 // A chain of calls settles within as many passes as there are workflows.
 // The callers' conditions carry over too, and with a single caller the
 // called jobs report their checks as "caller / job", as GitHub names them.
-func inheritCallers(artifacts []*models.Artifact) {
+// The callers' with: values, over the inputs' defaults, are put in place.
+func inheritCallers(artifacts []*models.Artifact, defaults map[*models.Artifact]map[string]string) {
 	byFile := map[string]*models.Artifact{}
 	for _, a := range artifacts {
 		byFile[localWorkflows+filepath.Base(a.Location)] = a
@@ -209,7 +213,20 @@ func inheritCallers(artifacts []*models.Artifact) {
 	}
 	for called, jobs := range callers {
 		allMayFail := !slices.ContainsFunc(jobs, func(j *models.Job) bool { return !j.ContinueOnError })
+		var variants []map[string]string
+		for _, caller := range jobs {
+			values := maps.Clone(defaults[called])
+			if values == nil {
+				values = map[string]string{}
+			}
+			maps.Copy(values, caller.With)
+			variants = append(variants, values)
+		}
 		for _, job := range called.Jobs {
+			job.Run = withInputs(job.Run, variants)
+			for key, value := range job.With {
+				job.With[key] = withInputs(value, variants)
+			}
 			job.ContinueOnError = job.ContinueOnError || allMayFail
 			for _, caller := range jobs {
 				job.JobIf = joinConditions(job.JobIf, caller.JobIf)
@@ -221,10 +238,51 @@ func inheritCallers(artifacts []*models.Artifact) {
 	}
 }
 
-func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artifact, error) {
+// withInputs puts each caller's inputs into text; callers passing different
+// values give one line each.
+func withInputs(text string, variants []map[string]string) string {
+	if !strings.Contains(text, "inputs.") {
+		return text
+	}
+	var lines []string
+	for _, values := range variants {
+		whole := wholeInputRef.ReplaceAllStringFunc(text, func(ref string) string {
+			if value, ok := values[wholeInputRef.FindStringSubmatch(ref)[1]]; ok {
+				return value
+			}
+			return ref
+		})
+		if line := substitute(whole, inputRef, values); !slices.Contains(lines, line) {
+			lines = append(lines, line)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func callInputDefaults(on *yaml.Node) map[string]string {
+	var declared struct {
+		WorkflowCall struct {
+			Inputs map[string]struct {
+				Default yaml.Node `yaml:"default"`
+			} `yaml:"inputs"`
+		} `yaml:"workflow_call"`
+	}
+	if on.Kind != yaml.MappingNode || on.Decode(&declared) != nil {
+		return nil
+	}
+	values := map[string]string{}
+	for name, input := range declared.WorkflowCall.Inputs {
+		if input.Default.Kind == yaml.ScalarNode {
+			values[name] = input.Default.Value
+		}
+	}
+	return values
+}
+
+func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artifact, map[string]string, error) {
 	var wf workflowDef
 	if err := readYAML(root, filePath, &wf); err != nil {
-		return unreadable(filePath, err), nil
+		return unreadable(filePath, err), nil, nil
 	}
 
 	var jobs []*models.Job
@@ -234,7 +292,7 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 		if job.Uses != "" {
 			pkg, version := parseStepUsageStatement(string(job.Uses))
 			jobs = append(jobs, &models.Job{Name: jobName, Check: cmp.Or(job.Name, jobName), Needs: job.Needs,
-				Package: pkg, Version: version,
+				Package: pkg, Version: version, With: stepInputs(job.With),
 				ContinueOnError: job.ContinueOnError.always, JobIf: joinConditions(job.If, job.ContinueOnError.condition())})
 		}
 		for _, step := range job.Steps {
@@ -290,13 +348,17 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 		Triggers: parseTriggers(&wf.On),
 		Jobs:     jobs,
 		Location: filePath,
-	}, nil
+	}, callInputDefaults(&wf.On), nil
 }
 
 // Local composite actions nest; this bounds a chain that uses itself.
 const compositeDepth = 8
 
 var inputRef = regexp.MustCompile(`\binputs\.([A-Za-z_][\w-]*)`)
+
+// wholeInputRef is an expression that is only an input, replaced by its
+// value verbatim even when that is a script.
+var wholeInputRef = regexp.MustCompile(`\$\{\{\s*inputs\.([A-Za-z_][\w-]*)\s*\}\}`)
 
 // compositeSteps reads a local composite action and returns its steps, run as
 // part of the calling step: its job, triggers, condition and

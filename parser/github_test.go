@@ -3,6 +3,7 @@ package parser_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/internal/testrepo"
@@ -677,4 +678,37 @@ func TestGithubReadsDollarSlashAsTheRepositoryItself(t *testing.T) {
 
 	odd := byFile(t, map[string]string{"odd.yml": "on: pull_request\njobs:\n  a:\n    uses: {path: x}\n"})
 	assert.Contains(t, odd["odd.yml"].Skipped, "not shaped as the CI platform expects", "a uses: that is not a string")
+}
+
+// next.js passes its lint command to a reusable build workflow as an input.
+func TestReusableWorkflowsGetTheirCallersInputs(t *testing.T) {
+	got := byFile(t, map[string]string{
+		"lint.yml":  "on: pull_request\njobs:\n  lint:\n    uses: ./.github/workflows/build.yml\n    with:\n      afterBuild: pnpm lint\n      fail: false\n",
+		"test.yml":  "on: push\njobs:\n  test:\n    uses: ./.github/workflows/build.yml\n    with:\n      afterBuild: pnpm test\n",
+		"build.yml": "on:\n  workflow_call:\n    inputs:\n      afterBuild: {type: string}\n      scanner: {default: gitleaks detect}\n      fail: {default: true}\njobs:\n  build:\n    runs-on: x\n    steps:\n      - run: ${{ inputs.afterBuild }}\n      - run: ${{ inputs.scanner }} --redact\n      - uses: org/scan@v1\n        with:\n          fail-build: ${{ inputs.fail }}\n",
+	})
+	var runs []string
+	var with []string
+	for _, job := range got["build.yml"].Jobs {
+		if job.Run != "" {
+			runs = append(runs, job.Run)
+		}
+		if job.With != nil {
+			with = append(with, job.With["fail-build"])
+		}
+	}
+	assert.ElementsMatch(t, []string{"pnpm lint\npnpm test", "gitleaks detect --redact"}, runs, "each caller's value, else the default")
+	assert.Len(t, with, 1)
+	assert.ElementsMatch(t, []string{"false", "true"}, strings.Split(with[0], "\n"))
+
+	script := byFile(t, map[string]string{
+		"ci.yml":  "on: pull_request\njobs:\n  a:\n    uses: ./.github/workflows/run.yml\n    with:\n      script: |\n        export A=(1, 2)\n        pnpm lint\n",
+		"run.yml": "on:\n  workflow_call:\n    inputs:\n      script: {type: string}\njobs:\n  r:\n    runs-on: x\n    steps:\n      - run: ${{ inputs.script }}\n      - run: echo ${{ inputs.script && 'x' || 'y' }}\n      - run: ${{ inputs.missing }}\n",
+	})
+	runs = nil
+	for _, job := range script["run.yml"].Jobs {
+		runs = append(runs, job.Run)
+	}
+	assert.Equal(t, []string{"export A=(1, 2)\npnpm lint\n", "echo ${{ export A=(1, 2)\npnpm lint\n && 'x' || 'y' }}", "${{ inputs.missing }}"}, runs,
+		"an expression that is only an input becomes the script itself")
 }

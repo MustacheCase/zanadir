@@ -1,0 +1,14 @@
+{
+  "name": "mustachecase",
+  "description": "zanadir's Claude Code plugins: review and harden a repository's CI with zanadir.",
+  "owner": {
+    "name": "MustacheCase"
+  },
+  "plugins": [
+    {
+      "name": "zanadir",
+      "source": "./plugins/zanadir",
+      "description": "Find what a repository's CI is missing, and which controls cannot fail a build, then close the gaps with zanadir."
+    }
+  ]
+}

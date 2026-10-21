@@ -157,6 +157,7 @@ func addSharedFlags(cmd *cobra.Command) {
 // NewApp initializes the CLI application
 func NewApp() *cobra.Command {
 	rootCmd.AddCommand(scanCmd, fixCmd)
+	rootCmd.Version = Version()
 
 	addSharedFlags(scanCmd)
 	scanCmd.Flags().Bool("enforce", false, "Fails the CI process when any category is uncovered (optional)")

@@ -20,6 +20,7 @@ import (
 func TestNewApp(t *testing.T) {
 	app := NewApp()
 	assert.NotNil(t, app, "NewApp should return a non-nil root command")
+	assert.Equal(t, Version(), app.Version, "cobra prints it for --version")
 }
 
 func TestScanCmdFlags(t *testing.T) {

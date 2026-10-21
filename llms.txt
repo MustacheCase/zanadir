@@ -4,7 +4,7 @@
 
 - Categories: SCA, Secrets Detection, SAST, Linter, Unit Tests, Coverage, License Compliance, End Of Life, IaC Security, Supply Chain (SBOM, signing, provenance), Workflow Security, Performance Testing.
 - Each control found is graded: `enforcing` (can fail a merge), `partial` (runs, but not on every change, e.g. push-only), `advisory` (cannot fail: continue-on-error, `--exit-code 0`, `|| true`, allow_failure, soft-fail flags) or `unknown` (behind a condition the file cannot settle).
-- CI platforms: GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure Pipelines, Jenkins. It follows Makefiles, Taskfiles, tox, goreleaser, go-make, reusable workflows, local composite actions and CI templates into the commands they run.
+- CI platforms: GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure Pipelines, Jenkins. It follows Makefiles, Taskfiles, tox, goreleaser, go-make, package.json scripts (npm, yarn, pnpm, bun, npm-run-all, turbo, lerna, nx), reusable workflows, local composite actions and CI templates into the commands they run.
 - Input: a checkout (`--dir`) or a GitHub repository without cloning (`--repo github.com/owner/name`). Output: table, JSON, SARIF, Markdown.
 - `--required-checks` counts a control as enforcing only when branch protection or a ruleset requires its check. `--enforce`, `--fail-on` and `--fail-on-weakened` fail a CI run on gaps.
 - It complements OpenSSF Scorecard, which rates project-wide practices through the forge's API; zanadir reads the CI configuration and grades whether each control can fail a build.
@@ -29,6 +29,7 @@ Try without installing: `docker run --rm mustachecase/zanadir scan --repo github
 - [zanadir fix](https://github.com/MustacheCase/zanadir/blob/main/README.md#zanadir-fix): CI configuration for the gaps
 - [Custom rules](https://github.com/MustacheCase/zanadir/blob/main/README.md#custom-rules): teaching zanadir an in-house tool
 - [zanadir-action](https://github.com/MustacheCase/zanadir-action): running zanadir in GitHub Actions
+- [State of CI security 2026](https://mustachecase.github.io/state-of-ci/): what the CI of 1,000 of the most-starred GitHub repositories checks, and which checks cannot fail a build
 
 ## Optional
 

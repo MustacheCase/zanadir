@@ -31,6 +31,11 @@ It reads GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure
 Pipelines and Jenkins, from a checkout (`--dir`) or straight from GitHub
 (`--repo`), and reports as a table, JSON, SARIF or Markdown.
 
+How common are these gaps? The [State of CI security 2026](https://mustachecase.github.io/state-of-ci/)
+scanned 1,000 of the most-starred GitHub repositories: 511 declare no
+dependency, secret or code scanning at all, and 1 in 6 of those that run a
+scanner in CI have one that cannot fail the build.
+
 ```sh
 zanadir scan --dir .
 zanadir scan --repo github.com/owner/name --output json

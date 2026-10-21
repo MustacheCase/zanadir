@@ -11,8 +11,8 @@ func nodeRepo() map[string]string {
 		"package.json": `{"name": "root", "workspaces": ["packages/*", "!packages/skipped", "../outside/*"],
 			"scripts": {"prelint": "echo pre", "lint": "eslint . && npm run types", "postlint": "echo post",
 				"types": "tsc --noEmit", "test": "vitest run", "loop": "npm run loop", "ci": "turbo run check"}}`,
-		"packages/web/package.json": `{"name": "@acme/web", "scripts": {"lint": "next lint", "check": "biome check ."}}`,
-		"packages/api/package.json": `{"name": "api", "scripts": {"lint": "oxlint", "test": "jest"}}`,
+		"packages/web/package.json":     `{"name": "@acme/web", "scripts": {"lint": "next lint", "check": "biome check ."}}`,
+		"packages/api/package.json":     `{"name": "api", "scripts": {"lint": "oxlint", "test": "jest"}}`,
 		"packages/skipped/package.json": `{"name": "skipped", "scripts": {"lint": "never"}}`,
 		"packages/notes/README.md":      "not a package",
 	}
@@ -71,4 +71,15 @@ func TestMonorepoRunnersRunWorkspaceScripts(t *testing.T) {
 func TestPackageScriptsWithoutAPackage(t *testing.T) {
 	assert.Empty(t, expand(t, map[string]string{"package.json": "not json"}, "npm run lint && yarn workspaces run lint"))
 	assert.Empty(t, expand(t, map[string]string{"pnpm-workspace.yaml": ": not yaml"}, "pnpm -r lint && yarn workspace web lint"))
+}
+
+// next.js lints with run-p "lint-eslint ." and preact with run-s oxlint tsc.
+func TestNpmRunAllRunsScriptsByNameOrGlob(t *testing.T) {
+	files := map[string]string{"package.json": `{"scripts": {"lint-eslint": "eslint", "lint:css": "stylelint .", "lint:js:strict": "oxlint",
+		"lint:md": "markdownlint .", "pretest": "echo pre", "test": "vitest run", "types": "tsc"}}`}
+	assert.Equal(t, []string{"eslint", "tsc"}, expand(t, files, `run-p prettier-check "lint-eslint ." types`))
+	assert.Equal(t, []string{"stylelint .", "markdownlint ."}, expand(t, files, "run-s lint:*"))
+	assert.Equal(t, []string{"stylelint .", "oxlint", "markdownlint ."}, expand(t, files, "npm-run-all --max-parallel 2 -p lint:**"))
+	assert.Equal(t, []string{"echo pre || true", "vitest run || true"}, expand(t, files, "npm-run-all -c test"))
+	assert.Empty(t, expand(t, map[string]string{}, "run-p lint"))
 }

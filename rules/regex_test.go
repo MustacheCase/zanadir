@@ -498,6 +498,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"hlinter"},
 		},
 		{
+			ruleID:         "vite-plus-lint-rule",
+			shouldMatch:    []string{"vp lint --deny-warnings", "pnpm exec vp  lint"},
+			shouldNotMatch: []string{"vp build", "mvp lint"},
+		},
+		{
 			ruleID:         "clippy-rule",
 			shouldMatch:    []string{"cargo clippy --all-targets -- -D warnings", "actions-rs/clippy-check"},
 			shouldNotMatch: []string{"cargo build", "clippy.toml"},

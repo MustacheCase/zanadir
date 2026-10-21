@@ -148,3 +148,8 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\b(?:hlint|luacheck)\\b"
+
+  - id: "vite-plus-lint-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bvp\\s+lint\\b"

@@ -72,3 +72,79 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bcargo\\s+clippy\\b|clippy-check"
+
+  # Biome's binary is also a common word, so only its commands and action.
+  - id: "biome-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bbiome\\s+(?:check|lint|ci)\\b|biomejs/setup-biome"
+
+  - id: "oxlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\boxlint\\b"
+
+  - id: "next-lint-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bnext\\s+lint\\b"
+
+  - id: "deno-lint-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bdeno\\s+lint\\b"
+
+  - id: "stylelint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bstylelint\\b"
+
+  - id: "go-vet-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bgo\\s+vet\\b"
+
+  - id: "staticcheck-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bstaticcheck\\b"
+
+  - id: "kotlin-linter-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:ktlint(?:check)?|detekt)\\b"
+
+  - id: "checkstyle-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bcheckstyle(?:main|test)?\\b"
+
+  - id: "swiftlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bswiftlint\\b"
+
+  - id: "dart-analyze-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:dart|flutter)\\s+analyze\\b"
+
+  - id: "hadolint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bhadolint\\b"
+
+  - id: "credo-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bmix\\s+credo\\b"
+
+  - id: "standardrb-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bstandardrb\\b"
+
+  - id: "haskell-lua-linter-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:hlint|luacheck)\\b"

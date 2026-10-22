@@ -65,7 +65,7 @@ docker run --rm -v "$PWD:/repo" mustachecase/zanadir scan --dir /repo -c /repo/.
 Use the action rather than the image directly:
 
 ```yaml
-- uses: mustachecase/zanadir-action@v1.22
+- uses: mustachecase/zanadir-action@v1.23
   with:
     dir: .
 ```
@@ -75,7 +75,7 @@ See https://github.com/MustacheCase/zanadir-action.
 ## Tags
 
 - `latest` - the newest release
-- `0.17.0`, `0.16.0`, ... - one tag per [release](https://github.com/MustacheCase/zanadir/releases); pin one in CI
+- `0.17.1`, `0.17.0`, ... - one tag per [release](https://github.com/MustacheCase/zanadir/releases); pin one in CI
 
 Every release has an SPDX SBOM attached on GitHub. The image is built `FROM scratch`: the static binary, CA certificates and the rule catalogue, nothing else.
 

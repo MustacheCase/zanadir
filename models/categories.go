@@ -2,6 +2,7 @@ package models
 
 import "strings"
 
+// Categories and output formats.
 const (
 	SCA                CategoryTitle = "SCA"
 	Secrets            CategoryTitle = "Secrets Detection"
@@ -19,10 +20,13 @@ const (
 	JSON               Format        = "json"
 )
 
+// CategoryTitles lists every category, in report order.
 var CategoryTitles = []CategoryTitle{SCA, Secrets, Licenses, EndOfLife, Coverage, Linter, PerformanceTesting, UnitTests, SAST, IaC, SupplyChain, WorkflowSecurity}
 
+// CategoryTitle names a category of CI control.
 type CategoryTitle string
 
+// Format is a report output format.
 type Format string
 
 // ResolveCategory returns the canonical CategoryTitle for a user-supplied name,

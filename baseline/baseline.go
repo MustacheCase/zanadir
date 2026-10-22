@@ -1,3 +1,4 @@
+// Package baseline reads and writes the file of uncovered categories a repository has accepted.
 package baseline
 
 import (

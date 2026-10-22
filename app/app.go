@@ -1,3 +1,4 @@
+// Package app builds zanadir's command line: the scan and fix commands, their flags and exit codes.
 package app
 
 import (

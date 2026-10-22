@@ -10,6 +10,7 @@ import (
 	"github.com/MustacheCase/zanadir/models"
 )
 
+// JenkinsParser reads Jenkinsfiles.
 type JenkinsParser struct{}
 
 const jenkinsFile = "Jenkinsfile"
@@ -21,6 +22,7 @@ var shellSteps = map[string]bool{"sh": true, "bat": true, "powershell": true, "p
 // file cannot narrow down, so their steps keep the surrounding context.
 var groovyBlocks = map[string]bool{"try": true, "catch": true, "finally": true, "for": true, "while": true, "switch": true}
 
+// Exists reports whether root has a Jenkinsfile.
 func (j *JenkinsParser) Exists(root string) bool {
 	return len(jenkinsFiles(root)) > 0
 }
@@ -437,6 +439,7 @@ func isIdentPart(c byte) bool {
 	return isIdentStart(c) || c >= '0' && c <= '9'
 }
 
+// NewJenkinsParser returns a Parser for Jenkins.
 func NewJenkinsParser() Parser {
 	return &JenkinsParser{}
 }

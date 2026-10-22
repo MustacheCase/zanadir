@@ -1,3 +1,4 @@
+// Package output renders a scan report as a table, JSON, SARIF or Markdown.
 package output
 
 import (
@@ -88,6 +89,7 @@ func weakenedHeadline(count int) string {
 	return fmt.Sprintf("%d covered categories are weakened:", count)
 }
 
+// Output writes a Report in the format it asks for.
 type Output interface {
 	Response(report Report) error
 }
@@ -356,6 +358,7 @@ func renderFooter(w io.Writer, report Report, colour bool) error {
 	return renderNotApplicable(w, report.NotApplicable, colour)
 }
 
+// NewOutputService returns the default Output.
 func NewOutputService() Output {
 	return &service{}
 }

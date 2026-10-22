@@ -1,3 +1,4 @@
+// Command zanadir reports which security and quality controls a repository's CI is missing, or wired so they cannot fail a build.
 package main
 
 import (

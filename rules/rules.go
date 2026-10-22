@@ -1,3 +1,4 @@
+// Package rules loads the catalogue of rules that recognise each tool in CI configuration.
 package rules
 
 import (
@@ -24,6 +25,7 @@ const (
 // SupportedFields lists every selector matchesRule handles.
 var SupportedFields = []string{FieldArtifactName, FieldJobName, FieldJobPackage, FieldJobRun}
 
+// FileRule is a rule as written in the catalogue or a config file.
 type FileRule struct {
 	ID         string   `yaml:"id"`
 	ApplyOn    []string `yaml:"applyOn"`
@@ -53,16 +55,19 @@ type FileWeakenedWhen struct {
 // which imports this one; a test in grading keeps the two in step.
 var WeakenedVerdicts = []string{"advisory", "partial"}
 
+// FileRules is a rule file.
 type FileRules struct {
 	Rules []FileRule `yaml:"rules"`
 }
 
+// Collection indexes the compiled rules by category and by id.
 type Collection struct {
 	ByCategory map[string][]*Rule
 	ByID       map[string]*Rule
 	Skip       map[string]bool
 }
 
+// Rule is a compiled FileRule.
 type Rule struct {
 	ID         string
 	ApplyOn    []string
@@ -83,6 +88,7 @@ type WeakenedWhen struct {
 	Verdict    string
 }
 
+// RuleService hands out the rules for a category.
 type RuleService interface {
 	GetCategoryRules(category models.CategoryTitle) []*Rule
 }

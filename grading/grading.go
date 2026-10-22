@@ -13,8 +13,10 @@ import (
 	"github.com/MustacheCase/zanadir/rules"
 )
 
+// Verdict says whether a control can fail a build.
 type Verdict string
 
+// Verdicts, strongest first.
 const (
 	Enforcing Verdict = "enforcing"
 	Partial   Verdict = "partial"

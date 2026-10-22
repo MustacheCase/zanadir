@@ -1,3 +1,4 @@
+// Package logger writes zanadir's debug and error output.
 package logger
 
 import (

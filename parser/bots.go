@@ -38,6 +38,7 @@ var botConfigs = []struct {
 	},
 }
 
+// Exists reports whether root configures Dependabot or Renovate.
 func (b *DependencyBotParser) Exists(root string) bool {
 	for _, bot := range botConfigs {
 		if utils.FirstFile(root, bot.paths...) != "" {
@@ -104,6 +105,7 @@ func onlyTooling(tool, root, path string) bool {
 	return len(updated) > 0 && !slices.ContainsFunc(updated, func(e string) bool { return !slices.Contains(toolingEcosystems, e) })
 }
 
+// NewDependencyBotParser returns a Parser for Dependabot and Renovate configuration.
 func NewDependencyBotParser() Parser {
 	return &DependencyBotParser{}
 }

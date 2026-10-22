@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// CircleCIParser reads CircleCI configuration.
 type CircleCIParser struct{}
 
 // circleCIDef holds only what is read. Fields like docker: and workflows: take
@@ -27,10 +28,12 @@ func circleCIConfigs(root string) []string {
 	return utils.YAMLFiles(filepath.Join(root, ".circleci"))
 }
 
+// Exists reports whether root has CircleCI configuration.
 func (c *CircleCIParser) Exists(root string) bool {
 	return len(circleCIConfigs(root)) > 0
 }
 
+// Parse reads root's CircleCI configuration.
 func (c *CircleCIParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	for _, path := range circleCIConfigs(root) {
@@ -170,6 +173,7 @@ func extractRunCommands(steps []interface{}) []string {
 	return commands
 }
 
+// NewCircleCIParser returns a Parser for CircleCI.
 func NewCircleCIParser() Parser {
 	return &CircleCIParser{}
 }

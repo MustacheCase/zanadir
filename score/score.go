@@ -9,6 +9,7 @@ import (
 	"github.com/MustacheCase/zanadir/models"
 )
 
+// Score is how many of the applicable categories are covered.
 type Score struct {
 	Covered int
 	Total   int
@@ -45,6 +46,7 @@ func (s Score) String() string {
 	return fmt.Sprintf("%d/%d", s.Covered, s.Total)
 }
 
+// Percent is the share covered, rounded down, or 0 when nothing applies.
 func (s Score) Percent() int {
 	if s.Total == 0 {
 		return 0

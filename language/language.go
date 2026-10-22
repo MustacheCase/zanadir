@@ -1,3 +1,4 @@
+// Package language detects the programming languages a repository uses.
 package language
 
 import (

@@ -1,3 +1,4 @@
+// Package config turns command-line flags and an optional config file into a Config.
 package config
 
 import (
@@ -14,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Output formats accepted by --output.
 const (
 	OutputJSON     = "json"
 	OutputTable    = "table"
@@ -25,6 +27,7 @@ const (
 // to the user.
 var OutputFormats = []string{OutputTable, OutputJSON, OutputSARIF, OutputMarkdown}
 
+// Config is everything a scan or fix run needs, resolved from flags and the config file.
 type Config struct {
 	Dir                string
 	ExcludedCategories []string
@@ -131,6 +134,7 @@ func target(cmd *cobra.Command) (*Config, error) {
 	return &Config{Repo: &parsed}, nil
 }
 
+// CreateConfig builds the scan command's Config from its flags and config file.
 func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	cfg, err := newConfig(cmd)
 	if err != nil {

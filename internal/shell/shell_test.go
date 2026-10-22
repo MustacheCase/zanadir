@@ -99,3 +99,11 @@ func TestATestOnlyComparesText(t *testing.T) {
 	}
 	assert.False(t, shell.Passive(shell.Words("if gitleaks detect")))
 }
+
+func TestSwallowedCommand(t *testing.T) {
+	assert.True(t, shell.SwallowedCommand("make lint || true", "make lint"))
+	assert.True(t, shell.SwallowedCommand("if make lint; then echo ok; fi", "if make lint"))
+	assert.False(t, shell.SwallowedCommand("make lint || exit 1", "make lint"))
+	assert.False(t, shell.SwallowedCommand("make lint\nmake lint || true", "make lint"))
+	assert.False(t, shell.SwallowedCommand("make test || true", "make lint"))
+}

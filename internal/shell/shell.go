@@ -224,3 +224,14 @@ func Invoked(words []string) []string {
 	}
 	return kept
 }
+
+// SwallowedCommand reports whether script, one of whose Commands is command,
+// discards that command's failure wherever it appears.
+func SwallowedCommand(script, command string) bool {
+	words := Words(command)
+	for len(words) > 0 && conditions[words[0]] {
+		words = words[1:]
+	}
+	target := strings.Join(words, " ")
+	return Swallowed(script, func(c string) bool { return c == target })
+}

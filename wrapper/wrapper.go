@@ -36,6 +36,7 @@ type Expander struct {
 	ignoring int
 }
 
+// New returns an Expander for the repository at root.
 func New(root string) *Expander {
 	return &Expander{
 		root:      root,

@@ -1,3 +1,4 @@
+// Package fixer renders CI configuration snippets for the categories a scan reports as uncovered.
 package fixer
 
 import (
@@ -20,6 +21,7 @@ import (
 //go:embed templates.yaml
 var templatesFS embed.FS
 
+// Template is one tool's CI configuration snippet for one platform.
 type Template struct {
 	Tool     string `yaml:"tool"`
 	Platform string `yaml:"platform"`
@@ -43,6 +45,7 @@ type Snippet struct {
 	Step       string
 }
 
+// Fixer turns uncovered categories into CI configuration snippets for a platform.
 type Fixer interface {
 	Snippets(suggestions []*suggester.CategorySuggestion, platform string) []Snippet
 }
@@ -133,6 +136,7 @@ func validate(templates []Template, catalogue []suggester.CategorySuggestion) er
 	return nil
 }
 
+// NewFixService returns a Fixer backed by the embedded templates.
 func NewFixService() (Fixer, error) {
 	templates, err := readTemplates()
 	if err != nil {

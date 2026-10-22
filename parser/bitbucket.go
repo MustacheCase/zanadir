@@ -13,6 +13,7 @@ import (
 
 const bitbucketFile = "bitbucket-pipelines.yml"
 
+// BitbucketParser reads bitbucket-pipelines.yml.
 type BitbucketParser struct{}
 
 type bitbucketConfig struct {
@@ -50,6 +51,7 @@ type bitbucketPipe struct {
 	Variables map[string]yaml.Node `yaml:"variables"`
 }
 
+// Exists reports whether root has a bitbucket-pipelines.yml.
 func (b *BitbucketParser) Exists(root string) bool {
 	return utils.IsFile(filepath.Join(root, bitbucketFile))
 }
@@ -232,6 +234,7 @@ func bitbucketPipeJob(stepName string, pipe bitbucketPipe, manual, afterScript b
 	}
 }
 
+// NewBitbucketParser returns a Parser for Bitbucket Pipelines.
 func NewBitbucketParser() Parser {
 	return &BitbucketParser{}
 }

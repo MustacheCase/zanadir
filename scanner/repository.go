@@ -6,6 +6,7 @@ import (
 	"github.com/MustacheCase/zanadir/wrapper"
 )
 
+// RepositoryScanner parses a repository's CI configuration and follows the build tools its jobs call.
 type RepositoryScanner struct {
 	parsers []parser.Parser
 }
@@ -37,6 +38,7 @@ func (r *RepositoryScanner) Scan(root string) ([]*models.Artifact, error) {
 	return artifacts, nil
 }
 
+// NewRepositoryScanner returns a Scanner that reads every supported platform and the dependency bots.
 func NewRepositoryScanner() Scanner {
 	parsers := make([]parser.Parser, 0, len(parser.Platforms)+1)
 	for _, platform := range parser.Platforms {

@@ -19,6 +19,7 @@ var azureFiles = []string{"azure-pipelines.yml", "azure-pipelines.yaml"}
 // Templates nest; this bounds a chain that includes itself.
 const azureTemplateDepth = 8
 
+// AzureParser reads Azure Pipelines YAML.
 type AzureParser struct{}
 
 type azureDoc struct {
@@ -89,6 +90,7 @@ var azureDirs = []string{".azure-pipelines", ".pipelines", ".azuredevops", "azur
 // maxAzureCandidates bounds the YAML files read to find pipelines.
 var maxAzureCandidates = 2000
 
+// Exists reports whether root has an Azure pipeline.
 func (a *AzureParser) Exists(root string) bool {
 	return len(azurePipelines(root)) > 0
 }
@@ -141,6 +143,7 @@ func isAzurePipeline(root, path string) bool {
 	return runs && (doc.Extends.Template != "" || doc.Trigger.Kind != 0 || doc.PR.Kind != 0 || len(doc.Schedules) > 0)
 }
 
+// Parse reads every Azure pipeline under root.
 func (a *AzureParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	for _, path := range azurePipelines(root) {
@@ -477,6 +480,7 @@ func joinConditions(outer, inner string) string {
 	return outer + " && " + inner
 }
 
+// NewAzureParser returns a Parser for Azure Pipelines.
 func NewAzureParser() Parser {
 	return &AzureParser{}
 }

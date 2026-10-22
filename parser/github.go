@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// GithubParser reads GitHub Actions workflows.
 type GithubParser struct{}
 
 type workflowDef struct {
@@ -155,10 +156,12 @@ func GithubWorkflows(root string) []string {
 	return utils.YAMLFiles(filepath.Join(root, ".github", "workflows"))
 }
 
+// Exists reports whether root has a GitHub Actions workflow.
 func (g *GithubParser) Exists(root string) bool {
 	return len(GithubWorkflows(root)) > 0
 }
 
+// Parse reads root's GitHub Actions workflows, grading reusable workflows by their callers.
 func (g *GithubParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	defaults := map[*models.Artifact]map[string]string{}
@@ -437,6 +440,7 @@ func parseStepUsageStatement(use string) (string, string) {
 	return "", ""
 }
 
+// NewGithubParser returns a Parser for GitHub Actions.
 func NewGithubParser() Parser {
 	return &GithubParser{}
 }

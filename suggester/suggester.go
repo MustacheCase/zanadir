@@ -1,3 +1,4 @@
+// Package suggester proposes tools for the categories a scan found uncovered.
 package suggester
 
 import (
@@ -38,6 +39,7 @@ type CategoryFile struct {
 //go:embed suggestions.yaml
 var suggestionsFS embed.FS
 
+// Suggester picks tools for the categories a scan found uncovered.
 type Suggester interface {
 	FindSuggestions(findings []*matcher.Finding, excludedCategories []string, languages []string) []*CategorySuggestion
 }
@@ -165,6 +167,7 @@ func newService(cats []CategorySuggestion) (*service, error) {
 	return s, nil
 }
 
+// NewSuggestionService returns a Suggester backed by the embedded catalogue.
 func NewSuggestionService() (Suggester, error) {
 	cats, err := readEmbeddedSuggestions()
 	if err != nil {

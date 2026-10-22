@@ -7,6 +7,7 @@ var version string
 
 var readBuildInfo = debug.ReadBuildInfo
 
+// Version reports the release zanadir was built as, else the module version go install recorded, else "dev".
 func Version() string {
 	if version != "" {
 		return version

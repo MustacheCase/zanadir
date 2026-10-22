@@ -1,3 +1,4 @@
+// Package handler runs a scan end to end: parse, match, grade, suggest and report.
 package handler
 
 import (
@@ -43,6 +44,7 @@ func newDebug(cfg *config.Config) debugFunc {
 // stderr is where warnings go, keeping them out of a JSON or SARIF report.
 var stderr io.Writer = os.Stderr
 
+// Handler runs scans with its services.
 type Handler struct {
 	RulesService      rules.RuleService
 	ScanService       scanner.Scanner
@@ -432,6 +434,7 @@ func (h *Handler) enforceableCategories(cfg *config.Config, uncovered []string, 
 	return result, nil
 }
 
+// Setup builds a Handler with the default services and any custom rules.
 func Setup(custom ...rules.FileRule) (*Handler, error) {
 	rulesService, err := rules.NewRulesService(custom...)
 	if err != nil {
@@ -449,6 +452,7 @@ func Setup(custom ...rules.FileRule) (*Handler, error) {
 	return NewHandler(rulesService, scanService, suggestionService, matchService, outputService), nil
 }
 
+// NewHandler builds a Handler from its services.
 func NewHandler(rulesService rules.RuleService, scanService scanner.Scanner,
 	suggestionService suggester.Suggester, matchService matcher.Matcher,
 	outputService output.Output) *Handler {

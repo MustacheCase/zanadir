@@ -1,3 +1,4 @@
+// Package scanner finds and parses a repository's CI configuration and follows the build tools its jobs call.
 package scanner
 
 import (
@@ -27,6 +28,7 @@ func (s *service) Scan(dir string) ([]*models.Artifact, error) {
 	return s.repository.Scan(dir)
 }
 
+// NewScanService returns a Scanner that scans with repository.
 func NewScanService(repository Scanner) Scanner {
 	return &service{repository: repository}
 }

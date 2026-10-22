@@ -15,6 +15,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// GitlabParser reads .gitlab-ci.yml and what it includes.
 type GitlabParser struct{}
 
 const gitlabFile = ".gitlab-ci.yml"
@@ -59,10 +60,12 @@ type gitlabReader struct {
 	included    []*models.Job
 }
 
+// Exists reports whether root has a .gitlab-ci.yml.
 func (g *GitlabParser) Exists(root string) bool {
 	return utils.IsFile(filepath.Join(root, gitlabFile))
 }
 
+// Parse reads root's .gitlab-ci.yml.
 func (g *GitlabParser) Parse(root string) ([]*models.Artifact, error) {
 	path := filepath.Join(root, gitlabFile)
 	config, err := readGitlabConfig(root, path)
@@ -268,6 +271,7 @@ func (r *gitlabReader) local(pattern string) {
 	}
 }
 
+// NewGitlabParser returns a Parser for GitLab CI.
 func NewGitlabParser() Parser {
 	return &GitlabParser{}
 }

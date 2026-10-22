@@ -1,3 +1,4 @@
+// Package utils holds small filesystem helpers.
 package utils
 
 import (

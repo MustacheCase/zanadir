@@ -1,3 +1,4 @@
+// Package parser reads the CI configuration of each supported platform into Artifacts.
 package parser
 
 import "github.com/MustacheCase/zanadir/models"

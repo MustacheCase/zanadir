@@ -1,3 +1,4 @@
+// Package models holds the types shared across zanadir: parsed CI configuration, categories and errors.
 package models
 
 import (
@@ -5,6 +6,7 @@ import (
 	"strings"
 )
 
+// Artifact is one CI configuration file as parsed: its triggers and jobs.
 type Artifact struct {
 	Name string
 	// Empty means none were captured, not that it runs on everything.
@@ -19,6 +21,7 @@ type Artifact struct {
 	DefaultBranch string
 }
 
+// Trigger is one event a CI configuration runs on, with its filters.
 type Trigger struct {
 	Event    string
 	Branches []string
@@ -28,6 +31,7 @@ type Trigger struct {
 	Types           []string
 }
 
+// Job is one step of CI configuration, with what decides whether its failure fails the build.
 type Job struct {
 	Name    string
 	Package string
@@ -48,6 +52,7 @@ type Job struct {
 	Check string
 }
 
+// HasTrigger reports whether the configuration runs on event.
 func (a *Artifact) HasTrigger(event string) bool {
 	for _, t := range a.Triggers {
 		if t.Event == event {

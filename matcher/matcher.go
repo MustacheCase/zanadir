@@ -1,3 +1,4 @@
+// Package matcher finds which rules match the jobs of parsed CI configuration.
 package matcher
 
 import (
@@ -10,6 +11,7 @@ import (
 	"github.com/MustacheCase/zanadir/rules"
 )
 
+// Finding is one rule matched in one place.
 type Finding struct {
 	Category string
 	RuleID   string
@@ -20,6 +22,7 @@ type Finding struct {
 	Rule     *rules.Rule
 }
 
+// Matcher finds the rules that match parsed CI configuration.
 type Matcher interface {
 	Match([]*models.Artifact, []*rules.Rule) []*Finding
 }
@@ -173,6 +176,7 @@ func eachInvocation(run string, visit func(command, invoked string)) {
 	}
 }
 
+// NewMatchService returns the default Matcher.
 func NewMatchService() Matcher {
 	return &service{}
 }

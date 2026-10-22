@@ -68,43 +68,50 @@ func (e *Expander) script(dir, script string) {
 		if len(words) == 0 {
 			continue
 		}
-		switch filepath.Base(words[0]) {
-		case "cd":
+		if filepath.Base(words[0]) == "cd" {
 			if len(words) > 1 {
 				if next, ok := e.within(dir, words[1]); ok {
 					dir = next
 				}
 			}
-		case "make", "gmake":
-			e.make(dir, words[1:])
-		case "task":
-			e.task(dir, words[1:])
-		case "tox":
-			e.tox(dir, words[1:])
-		case "go":
-			e.goRun(dir, words[1:])
-		case "goreleaser":
-			e.goreleaser(dir, words[1:])
-		case "npm":
-			e.npm(dir, words[1:])
-		case "yarn":
-			e.yarn(dir, words[1:])
-		case "pnpm":
-			e.pnpm(dir, words[1:])
-		case "bun":
-			e.bun(dir, words[1:])
-		case "turbo":
-			e.turbo(dir, words[1:])
-		case "lerna":
-			e.lerna(dir, words[1:])
-		case "nx":
-			e.nx(dir, words[1:])
-		case "npm-run-all", "npm-run-all2", "run-s", "run-p":
-			e.runAll(dir, words[1:])
-		case "pre-commit", "prek":
-			if len(words) > 1 && words[1] == "run" {
-				e.precommit(dir, words[2:])
-			}
+			continue
+		}
+		e.ignored(shell.SwallowedCommand(script, command), func() { e.follow(dir, words) })
+	}
+}
+
+// follow expands one command that runs a build tool.
+func (e *Expander) follow(dir string, words []string) {
+	switch filepath.Base(words[0]) {
+	case "make", "gmake":
+		e.make(dir, words[1:])
+	case "task":
+		e.task(dir, words[1:])
+	case "tox":
+		e.tox(dir, words[1:])
+	case "go":
+		e.goRun(dir, words[1:])
+	case "goreleaser":
+		e.goreleaser(dir, words[1:])
+	case "npm":
+		e.npm(dir, words[1:])
+	case "yarn":
+		e.yarn(dir, words[1:])
+	case "pnpm":
+		e.pnpm(dir, words[1:])
+	case "bun":
+		e.bun(dir, words[1:])
+	case "turbo":
+		e.turbo(dir, words[1:])
+	case "lerna":
+		e.lerna(dir, words[1:])
+	case "nx":
+		e.nx(dir, words[1:])
+	case "npm-run-all", "npm-run-all2", "run-s", "run-p":
+		e.runAll(dir, words[1:])
+	case "pre-commit", "prek":
+		if len(words) > 1 && words[1] == "run" {
+			e.precommit(dir, words[2:])
 		}
 	}
 }
@@ -154,6 +161,9 @@ func (e *Expander) within(dir, path string) (string, bool) {
 var runPrefixes = map[string]bool{"uv": true, "poetry": true, "pdm": true, "pipx": true, "rye": true}
 
 func unwrap(words []string) []string {
+	for len(words) > 0 && (words[0] == "if" || words[0] == "elif" || words[0] == "while" || words[0] == "until" || words[0] == "!") {
+		words = words[1:]
+	}
 	switch {
 	case len(words) > 2 && runPrefixes[words[0]] && words[1] == "run":
 		words = words[2:]

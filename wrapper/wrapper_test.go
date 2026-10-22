@@ -312,3 +312,17 @@ func TestIncludesAndReferencesThatLoopStop(t *testing.T) {
 	tox := map[string]string{"tox.ini": "[tox]\nenvlist = py\n[testenv]\ncommands = {[testenv]commands}\n"}
 	assert.Len(t, expand(t, tox, "tox"), 1)
 }
+
+// A caller that discards a build tool's failure discards what it runs.
+func TestASwallowedCallSwallowsWhatItExpands(t *testing.T) {
+	files := map[string]string{
+		"Makefile":     "lint:\n\tgolangci-lint run\n",
+		"package.json": `{"scripts": {"lint": "eslint ."}}`,
+	}
+	assert.Equal(t, []string{"golangci-lint run || true"}, expand(t, files, "make lint || true"))
+	assert.Equal(t, []string{"eslint . || true"}, expand(t, files, "npm run lint || echo 'lint failed'"))
+	assert.Equal(t, []string{"golangci-lint run || true"}, expand(t, files, "if make lint; then echo ok; fi"))
+	assert.Equal(t, []string{"golangci-lint run"}, expand(t, files, "make lint || exit 1"), "a re-raise still fails")
+	assert.Equal(t, []string{"golangci-lint run"}, expand(t, files, "make lint\nmake lint || true"), "one call that can fail is enough")
+	assert.Equal(t, []string{"golangci-lint run || true", "eslint ."}, expand(t, files, "make lint || true && npm run lint"), "only the swallowed call")
+}

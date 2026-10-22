@@ -834,3 +834,17 @@ func TestMarkdownTextAndCode(t *testing.T) {
 		}
 	}
 }
+
+func TestResponseWritesToTheGivenWriter(t *testing.T) {
+	var b strings.Builder
+	dest := filepath.Join(t.TempDir(), "unused.json")
+	if err := NewOutputService().Response(Report{Format: "json", DestPath: dest, Writer: &b, Score: score.Score{Covered: 1, Total: 2}}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), `"covered": 1`) {
+		t.Errorf("report not written to the writer: %s", b.String())
+	}
+	if _, err := os.Stat(dest); err == nil {
+		t.Error("the writer wins over the destination")
+	}
+}

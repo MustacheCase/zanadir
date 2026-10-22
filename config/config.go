@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -55,6 +56,9 @@ type Config struct {
 	// Repo is a repository to fetch and scan instead of Dir; nil for a local
 	// checkout.
 	Repo *remote.Repository
+	// Out receives the report instead of OutputFile or stdout, for callers
+	// that are not the command line.
+	Out io.Writer
 }
 
 // normalizeCategories canonicalises category names and rejects unknown ones.

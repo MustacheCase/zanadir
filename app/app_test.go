@@ -231,3 +231,14 @@ func TestScanAndFixRejectArguments(t *testing.T) {
 		assert.NoError(t, cmd.Args(cmd, []string{"", ""}), cmd.Use)
 	}
 }
+
+func TestMCPCommandServesWithTheVersion(t *testing.T) {
+	old := serveMCP
+	t.Cleanup(func() { serveMCP = old })
+	var served string
+	serveMCP = func(_ context.Context, version string) error { served = version; return nil }
+	assert.NoError(t, mcpCmd.RunE(mcpCmd, nil))
+	assert.Equal(t, Version(), served)
+	assert.NoError(t, mcpCmd.Args(mcpCmd, []string{""}), "an MCP client may pass empty arguments too")
+	assert.Error(t, mcpCmd.Args(mcpCmd, []string{"scan"}))
+}

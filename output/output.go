@@ -21,7 +21,9 @@ type Report struct {
 	Suggestions []*suggester.CategorySuggestion
 	Format      string
 	DestPath    string // empty means stdout
-	Anchor      string // repo-relative path SARIF results point at
+	// Writer receives the report instead of DestPath when set.
+	Writer io.Writer
+	Anchor string // repo-relative path SARIF results point at
 	// Score is the coverage summary. A zero total means every category was
 	// excluded or ruled out, and the headline says so.
 	Score score.Score
@@ -282,6 +284,9 @@ func destination(path string) (io.Writer, func(), error) {
 }
 
 func (s *service) Response(report Report) error {
+	if report.Writer != nil {
+		return render(report.Writer, report)
+	}
 	w, closeDest, err := destination(report.DestPath)
 	if err != nil {
 		return err

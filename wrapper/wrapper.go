@@ -114,6 +114,17 @@ func (e *Expander) follow(dir string, words []string) {
 		if len(words) > 1 && words[1] == "run" {
 			e.precommit(dir, words[2:])
 		}
+	case "source", ".":
+		if len(words) > 1 {
+			e.shellFile(dir, words[1], true)
+		}
+	default:
+		switch {
+		case shells[filepath.Base(words[0])]:
+			e.shellRun(dir, words[1:])
+		case isScriptPath(words[0]):
+			e.shellFile(dir, words[0], false)
+		}
 	}
 }
 

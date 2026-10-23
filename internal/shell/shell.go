@@ -150,15 +150,17 @@ var (
 
 // Swallowed reports whether a script discards the failure of every command
 // that runs reports true for: one followed by || and anything but a
-// re-raise, or one that is the condition of an if, a while or a !. A script
-// with no such command swallows nothing.
+// re-raise, or one that is the condition of an if, a while or a ! with no
+// re-raise anywhere after it. A script with no such command swallows nothing.
 func Swallowed(script string, runs func(command string) bool) bool {
 	found := false
-	for _, line := range strings.Split(strings.ReplaceAll(script, "\\\n", " "), "\n") {
+	lines := strings.Split(strings.ReplaceAll(script, "\\\n", " "), "\n")
+	for i, line := range lines {
 		start := 0
 		for _, end := range append(statementEnd.FindAllStringIndex(line, -1), []int{len(line), len(line)}) {
 			statement := line[start:end[0]]
 			rest := line[start:]
+			later := line[end[0]:] + "\n" + strings.Join(lines[i+1:], "\n")
 			start = end[1]
 
 			command, _, handled := strings.Cut(statement, "||")
@@ -172,7 +174,7 @@ func Swallowed(script string, runs func(command string) bool) bool {
 			}
 			found = true
 			_, afterOr, _ := strings.Cut(rest, "||")
-			if swallowed := conditional || handled && !reraise.MatchString(afterOr); !swallowed {
+			if swallowed := conditional && !reraise.MatchString(later) || handled && !reraise.MatchString(afterOr); !swallowed {
 				return false
 			}
 		}
@@ -234,4 +236,28 @@ func SwallowedCommand(script, command string) bool {
 	}
 	target := strings.Join(words, " ")
 	return Swallowed(script, func(c string) bool { return c == target })
+}
+
+// Lines returns a script's command lines as written, || and all: line
+// continuations joined, and blank lines, comments and heredoc bodies left
+// out.
+func Lines(script string) []string {
+	text := strings.ReplaceAll(script, "\\\n", " ")
+	var lines []string
+	for i := 0; i < len(text); {
+		end := strings.IndexByte(text[i:], '\n')
+		if end < 0 {
+			end = len(text) - i
+		}
+		line := text[i : i+end]
+		next := i + end + 1
+		if m := heredoc.FindStringSubmatch(line); m != nil {
+			next = skipHeredoc(text, i+end, m[1]) + 1
+		}
+		if trimmed := strings.TrimSpace(line); trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+			lines = append(lines, trimmed)
+		}
+		i = next
+	}
+	return lines
 }

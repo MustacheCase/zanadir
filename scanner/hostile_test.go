@@ -42,6 +42,7 @@ func TestAHostileRepositoryCannotReadOutsideItself(t *testing.T) {
 		"gitlab.yml":                    "lint:\n  script: [" + leaked + "]\n",
 		"pkg/package.json":              `{"name": "pkg", "scripts": {"lint": "` + leaked + `"}}`,
 		".git/refs/remotes/origin/HEAD": "ref: refs/remotes/origin/main\n",
+		"script.sh":                     "set -e\n" + leaked + "\n",
 	} {
 		write(outside, rel, content)
 	}
@@ -61,6 +62,10 @@ jobs:
       - run: cd ../outside && npm run lint
       - run: npm run lint --workspaces
       - run: tox -c ../outside/tox.ini -e lint
+      - run: bash ../outside/script.sh
+      - run: source `+outside+`/script.sh
+      - run: ./linked-script.sh
+      - run: bash -c "cd .. && bash outside/script.sh"
       - uses: ./../outside/action
       - uses: ./linked-action
   b:
@@ -74,6 +79,7 @@ jobs:
 	link(outside, "linked/out")
 	link(filepath.Join(outside, "Taskfile.yml"), "Taskfile.yml")
 	link(filepath.Join(outside, "tox.ini"), "tox.ini")
+	link(filepath.Join(outside, "script.sh"), "linked-script.sh")
 
 	artifacts, err := NewRepositoryScanner().Scan(root)
 	require.NoError(t, err)

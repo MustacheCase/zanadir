@@ -22,25 +22,28 @@ func TestWords(t *testing.T) {
 func TestSwallowed(t *testing.T) {
 	runs := func(command string) bool { return strings.Contains(command, "gitleaks") }
 	for script, want := range map[string]bool{
-		"gitleaks detect || true":                               true,
-		"gitleaks detect || echo 'leaks found'":                 true,
-		"if ! gitleaks detect; then echo found; fi":             true,
-		"if gitleaks detect; then echo clean; fi":               true,
-		"! gitleaks detect":                                     true,
-		"while ! gitleaks detect; do sleep 1; done":             true,
-		"set -e\ngitleaks detect --report r.json \\\n  || true": true,
-		"gitleaks detect":                                       false,
-		"gitleaks detect || exit 1":                             false,
-		"gitleaks detect || exit $?":                            false,
-		"gitleaks detect || { echo 'leaks found'; exit 1; }":    false,
-		"gitleaks detect || false":                              false,
-		"gitleaks detect || true\ngitleaks detect --staged":     false,
-		"make || gitleaks detect":                               false,
-		`if [ "$TOOL" = gitleaks ]; then make; fi`:              false,
-		"pip install gitleaks || true":                          false,
-		"echo gitleaks || true":                                 false,
-		"# gitleaks detect || true":                             false,
-		"":                                                      false,
+		"gitleaks detect || true":                                                  true,
+		"gitleaks detect || echo 'leaks found'":                                    true,
+		"if ! gitleaks detect; then echo found; fi":                                true,
+		"if gitleaks detect; then echo clean; fi":                                  true,
+		"! gitleaks detect":                                                        true,
+		"while ! gitleaks detect; do sleep 1; done":                                true,
+		"set -e\ngitleaks detect --report r.json \\\n  || true":                    true,
+		"gitleaks detect":                                                          false,
+		"gitleaks detect || exit 1":                                                false,
+		"gitleaks detect || exit $?":                                               false,
+		"gitleaks detect || { echo 'leaks found'; exit 1; }":                       false,
+		"gitleaks detect || false":                                                 false,
+		"if ! gitleaks detect; then exit 1; fi":                                    false,
+		"if ! gitleaks detect; then\n  failed=1\nfi\n[ -z \"$failed\" ] || exit 1": false,
+		"if gitleaks detect; then echo clean; else return 1; fi":                   false,
+		"gitleaks detect || true\ngitleaks detect --staged":                        false,
+		"make || gitleaks detect":                                                  false,
+		`if [ "$TOOL" = gitleaks ]; then make; fi`:                                 false,
+		"pip install gitleaks || true":                                             false,
+		"echo gitleaks || true":                                                    false,
+		"# gitleaks detect || true":                                                false,
+		"":                                                                         false,
 	} {
 		assert.Equal(t, want, shell.Swallowed(script, runs), script)
 	}
@@ -106,4 +109,10 @@ func TestSwallowedCommand(t *testing.T) {
 	assert.False(t, shell.SwallowedCommand("make lint || exit 1", "make lint"))
 	assert.False(t, shell.SwallowedCommand("make lint\nmake lint || true", "make lint"))
 	assert.False(t, shell.SwallowedCommand("make test || true", "make lint"))
+}
+
+func TestLines(t *testing.T) {
+	script := "#!/bin/bash\nset -e\n\n  # a comment\nruff check . || true\ngo test \\\n  ./...\ncat > config.yml <<EOF\ngolangci-lint: yes\nEOF\nif ! mypy .; then exit 1; fi"
+	assert.Equal(t, []string{"set -e", "ruff check . || true", "go test    ./...", "cat > config.yml <<EOF", "if ! mypy .; then exit 1; fi"}, shell.Lines(script))
+	assert.Empty(t, shell.Lines("\n# only\n"))
 }

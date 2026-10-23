@@ -98,13 +98,21 @@ type response struct {
 	Error   *rpcError       `json:"error,omitempty"`
 }
 
+// Options say what the server reports and where its tools read by default.
+type Options struct {
+	Version string
+	// Dir is the repository a tool reads when the call names none; empty
+	// means the working directory.
+	Dir string
+}
+
 // Run serves on stdin and stdout until the client closes stdin or ctx ends.
-func Run(ctx context.Context, version string) error {
-	return Serve(ctx, stdin, os.Stdout, version)
+func Run(ctx context.Context, opts Options) error {
+	return Serve(ctx, stdin, os.Stdout, opts)
 }
 
 // Serve answers the newline-delimited JSON-RPC messages read from in on out.
-func Serve(ctx context.Context, in io.Reader, out io.Writer, version string) error {
+func Serve(ctx context.Context, in io.Reader, out io.Writer, opts Options) error {
 	lines := make(chan []byte)
 	ended := make(chan error, 1)
 	go func() {
@@ -128,7 +136,7 @@ func Serve(ctx context.Context, in io.Reader, out io.Writer, version string) err
 		case err := <-ended:
 			return err
 		case line := <-lines:
-			if reply := handle(ctx, line, version); reply != nil {
+			if reply := handle(ctx, line, opts); reply != nil {
 				if err := encoder.Encode(reply); err != nil {
 					return err
 				}
@@ -137,7 +145,7 @@ func Serve(ctx context.Context, in io.Reader, out io.Writer, version string) err
 	}
 }
 
-func handle(ctx context.Context, line []byte, version string) *response {
+func handle(ctx context.Context, line []byte, opts Options) *response {
 	if len(bytes.TrimSpace(line)) == 0 {
 		return nil
 	}
@@ -162,21 +170,21 @@ func handle(ctx context.Context, line []byte, version string) *response {
 		reply.Result = map[string]any{
 			"protocolVersion": agreed,
 			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
-			"serverInfo":      map[string]any{"name": "zanadir", "title": "zanadir", "version": version},
+			"serverInfo":      map[string]any{"name": "zanadir", "title": "zanadir", "version": opts.Version},
 		}
 	case "ping":
 		reply.Result = map[string]any{}
 	case "tools/list":
 		reply.Result = map[string]any{"tools": tools}
 	case "tools/call":
-		reply.Result, reply.Error = callTool(ctx, req.Params)
+		reply.Result, reply.Error = callTool(ctx, req.Params, opts.Dir)
 	default:
 		reply.Error = &rpcError{-32601, "method not found: " + req.Method}
 	}
 	return reply
 }
 
-func callTool(ctx context.Context, raw json.RawMessage) (any, *rpcError) {
+func callTool(ctx context.Context, raw json.RawMessage, dir string) (any, *rpcError) {
 	var params struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
@@ -188,14 +196,14 @@ func callTool(ctx context.Context, raw json.RawMessage) (any, *rpcError) {
 	if i < 0 {
 		return nil, &rpcError{-32602, fmt.Sprintf("unknown tool %q", params.Name)}
 	}
-	text, err := run(ctx, tools[i], params.Arguments)
+	text, err := run(ctx, tools[i], params.Arguments, dir)
 	if err != nil {
 		text = err.Error()
 	}
 	return map[string]any{"content": []map[string]string{{"type": "text", "text": text}}, "isError": err != nil}, nil
 }
 
-func run(ctx context.Context, t tool, arguments json.RawMessage) (string, error) {
+func run(ctx context.Context, t tool, arguments json.RawMessage, dir string) (string, error) {
 	var target Target
 	if len(arguments) > 0 && string(arguments) != "null" {
 		decoder := json.NewDecoder(bytes.NewReader(arguments))
@@ -204,7 +212,7 @@ func run(ctx context.Context, t tool, arguments json.RawMessage) (string, error)
 			return "", fmt.Errorf("invalid arguments: %w", err)
 		}
 	}
-	cfg, cleanup, err := configure(ctx, target)
+	cfg, cleanup, err := configure(ctx, target, dir)
 	if err != nil {
 		return "", err
 	}
@@ -220,7 +228,7 @@ func run(ctx context.Context, t tool, arguments json.RawMessage) (string, error)
 	return out.String(), nil
 }
 
-func configure(ctx context.Context, target Target) (*config.Config, func(), error) {
+func configure(ctx context.Context, target Target, defaultDir string) (*config.Config, func(), error) {
 	cfg := &config.Config{}
 	for _, name := range target.ExcludedCategories {
 		category, ok := models.ResolveCategory(name)
@@ -230,7 +238,7 @@ func configure(ctx context.Context, target Target) (*config.Config, func(), erro
 		cfg.ExcludedCategories = append(cfg.ExcludedCategories, string(category))
 	}
 	if target.Repo == "" {
-		dir, err := filepath.Abs(cmp.Or(target.Dir, "."))
+		dir, err := filepath.Abs(cmp.Or(target.Dir, defaultDir, "."))
 		cfg.Dir = dir
 		return cfg, func() {}, err
 	}

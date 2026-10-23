@@ -15,8 +15,12 @@ which controls are present but wired so they cannot fail a build.
 
 ## 1. Check zanadir
 
-Run `command -v zanadir`. If it is missing, tell the user how to install it
-and stop:
+If this plugin's zanadir MCP tools, `scan` and `fix`, are available, use
+them for steps 2 and 3: they return the same JSON report and snippets as the
+commands below, for the project by default, or for `dir` or `repo` when given.
+
+Otherwise run `command -v zanadir`. If it is missing, tell the user how to
+install it and stop:
 
 - a prebuilt binary from https://github.com/MustacheCase/zanadir/releases/latest
 - `brew tap --custom-remote MustacheCase/zanadir https://github.com/MustacheCase/zanadir.git && brew install mustachecase/zanadir/zanadir`

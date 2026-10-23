@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/mcpserver"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
 	"github.com/MustacheCase/zanadir/rules"
@@ -235,10 +236,11 @@ func TestScanAndFixRejectArguments(t *testing.T) {
 func TestMCPCommandServesWithTheVersion(t *testing.T) {
 	old := serveMCP
 	t.Cleanup(func() { serveMCP = old })
-	var served string
-	serveMCP = func(_ context.Context, version string) error { served = version; return nil }
+	var served mcpserver.Options
+	serveMCP = func(_ context.Context, opts mcpserver.Options) error { served = opts; return nil }
+	assert.NoError(t, mcpCmd.Flags().Set("dir", "/repo"))
 	assert.NoError(t, mcpCmd.RunE(mcpCmd, nil))
-	assert.Equal(t, Version(), served)
+	assert.Equal(t, mcpserver.Options{Version: Version(), Dir: "/repo"}, served)
 	assert.NoError(t, mcpCmd.Args(mcpCmd, []string{""}), "an MCP client may pass empty arguments too")
 	assert.Error(t, mcpCmd.Args(mcpCmd, []string{"scan"}))
 }

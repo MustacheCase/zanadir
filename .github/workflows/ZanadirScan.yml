@@ -22,7 +22,7 @@ jobs:
         persist-credentials: false
         fetch-depth: 0
     - name: Run zanadir Github action
-      uses: mustachecase/zanadir-action@5a1681535d7d58ca2eb79128644692e15859d95d # v1.25
+      uses: mustachecase/zanadir-action@9e62146fb6d12ed61d21b214e474f8b6cc5d8861 # v1.26
       with:
         dir: .
         # Load and stress testing is for services under traffic; this is a CLI.
@@ -50,7 +50,7 @@ jobs:
       # the checkout credential is the point.
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Score our own coverage
-      uses: mustachecase/zanadir-action@5a1681535d7d58ca2eb79128644692e15859d95d # v1.25
+      uses: mustachecase/zanadir-action@9e62146fb6d12ed61d21b214e474f8b6cc5d8861 # v1.26
       with:
         dir: .
         # Load and stress testing is for services under traffic; this is a CLI.
@@ -93,7 +93,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Scan
-      uses: mustachecase/zanadir-action@5a1681535d7d58ca2eb79128644692e15859d95d # v1.25
+      uses: mustachecase/zanadir-action@9e62146fb6d12ed61d21b214e474f8b6cc5d8861 # v1.26
       with:
         dir: .
         # Load and stress testing is for services under traffic; this is a CLI.

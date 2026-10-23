@@ -34,3 +34,11 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["Performance Testing"]
     regex: "(?i)^(?:jobs|verify)/(?:browser|load)-performance(?:-testing)?\\.gitlab-ci\\.yml$"
+
+  # warp is MinIO's S3 load tester. The bare word is too common (a Rust
+  # crate, runner labels), so only its subcommands or its image. Installing
+  # it is passive, as for every tool.
+  - id: "warp-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Performance Testing"]
+    regex: "(?i)\\bminio/warp\\b|\\bwarp\\s+(?:mixed|get|put|delete|list|stat|versioned|multipart|multipart-put|append|retention|fanout|snowball|zip|analyze|cmp|merge|client)\\b"

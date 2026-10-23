@@ -503,6 +503,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"vp build", "mvp lint"},
 		},
 		{
+			ruleID:         "warp-rule",
+			shouldMatch:    []string{"warp mixed --host localhost:9000 --duration 5m", "curl -fsSL https://github.com/minio/warp/releases/download/v1.1.4/warp_Linux_x86_64.tar.gz", "docker run minio/warp get --obj.size 1MiB"},
+			shouldNotMatch: []string{"cargo build -p warp", "use warp::Filter", "time warp drive", "minio/warpspeed"},
+		},
+		{
 			ruleID:         "clippy-rule",
 			shouldMatch:    []string{"cargo clippy --all-targets -- -D warnings", "actions-rs/clippy-check"},
 			shouldNotMatch: []string{"cargo build", "clippy.toml"},

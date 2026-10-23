@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "zanadir": {
+      "command": "go",
+      "args": ["run", ".", "mcp"]
+    }
+  }
+}

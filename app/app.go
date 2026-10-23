@@ -14,6 +14,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/handler"
+	"github.com/MustacheCase/zanadir/mcpserver"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
 	"github.com/spf13/cobra"
@@ -33,6 +34,16 @@ var scanCmd = &cobra.Command{
 	Run:   run(config.CreateConfig, scanRepo),
 }
 
+var mcpCmd = &cobra.Command{
+	Use:   "mcp",
+	Args:  noArgs,
+	Short: "Serves scan and fix to AI coding agents over the Model Context Protocol",
+	Long:  "The mcp command runs a Model Context Protocol server on stdin and stdout, offering scan and fix as tools to coding agents such as Claude Code and Cursor.",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return serveMCP(cmd.Context(), Version())
+	},
+}
+
 var fixCmd = &cobra.Command{
 	Use:   "fix",
 	Args:  noArgs,
@@ -46,6 +57,7 @@ var (
 	exit                      = os.Exit
 	stderr          io.Writer = os.Stderr
 	fetchRepository           = remote.FetchContext
+	serveMCP                  = mcpserver.Run
 	interrupts                = defaultInterrupts
 )
 
@@ -157,7 +169,7 @@ func addSharedFlags(cmd *cobra.Command) {
 
 // NewApp initializes the CLI application
 func NewApp() *cobra.Command {
-	rootCmd.AddCommand(scanCmd, fixCmd)
+	rootCmd.AddCommand(scanCmd, fixCmd, mcpCmd)
 	rootCmd.Version = Version()
 
 	addSharedFlags(scanCmd)

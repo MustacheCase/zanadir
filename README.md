@@ -125,6 +125,35 @@ adding tools, and use `zanadir fix --dir .` for configuration that fits this
 repository. Re-run the scan to confirm the change.
 ```
 
+### As an MCP server
+
+`zanadir mcp` serves two read-only tools over the Model Context Protocol, so
+any agent that speaks MCP can grade CI before and after changing it:
+
+- `scan` returns the JSON report: the score, uncovered categories with
+  suggested tools, and weakened controls with their verdicts;
+- `fix` returns ready-to-paste configuration for the gaps, and writes nothing.
+
+Both take `dir` (a local checkout, by default the current directory) or
+`repo` (`github.com/owner/name[@ref]`, read without cloning), and
+`excludedCategories`.
+
+```sh
+claude mcp add zanadir -- zanadir mcp
+```
+
+For other clients, such as Cursor, VS Code or Windsurf:
+
+```json
+{
+  "mcpServers": {
+    "zanadir": { "command": "zanadir", "args": ["mcp"] }
+  }
+}
+```
+
+### As a Claude Code plugin
+
 In Claude Code, the zanadir plugin does this as a skill: it scans, reads your
 CI configuration, recommends fixes in priority order, and edits files only
 after you choose.

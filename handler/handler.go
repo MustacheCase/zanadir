@@ -301,6 +301,7 @@ func (h *Handler) Execute(cfg *config.Config) error {
 		Suggestions:   suggestions,
 		Format:        cfg.Output,
 		DestPath:      cfg.OutputFile,
+		Writer:        cfg.Out,
 		Anchor:        sarifAnchor(cfg.Dir, result.artifacts),
 		Score:         coverage,
 		Weakened:      result.weaknesses,

@@ -939,6 +939,10 @@ rules:
         verdict: advisory       # advisory or partial
 ```
 
+A rule that also matches on `Artifact.Name` can take `unlessPackage`, a regex
+over the workflow's actions: when one matches, the workflow's steps decide and
+its name does not count (`unlessPackage: '^acme/scan-action'`).
+
 Custom rules add to the catalogue and never replace a built-in rule, so an
 `id` that is already taken is an error, as is a regex that does not compile or
 an unknown category. A rule that matches counts as coverage and is graded like

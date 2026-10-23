@@ -156,6 +156,11 @@ func TestCustomRulesAreChecked(t *testing.T) {
 		{"no category", func(r *rules.FileRule) { r.Categories = nil }, "at least one category"},
 		{"bad category", func(r *rules.FileRule) { r.Categories = []string{"Fuzzing"} }, "unknown category"},
 		{"bad unless", func(r *rules.FileRule) { r.Unless = "--dry-run(" }, "unless"},
+		{"unlessPackage without a name match", func(r *rules.FileRule) { r.UnlessPackage = "acme/action" }, "unlessPackage only qualifies"},
+		{"bad unlessPackage", func(r *rules.FileRule) {
+			r.ApplyOn = []string{rules.FieldArtifactName}
+			r.UnlessPackage = "acme("
+		}, "unlessPackage"},
 		{"bad weakenedWhen", func(r *rules.FileRule) {
 			r.Weakened = []rules.FileWeakenedWhen{{RunMatches: "--dry-run", Verdict: "broken"}}
 		}, "verdict"},

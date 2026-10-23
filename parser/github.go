@@ -340,6 +340,8 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 				case "aquasecurity/trivy-action":
 					with := record.With
 					record.Run = trivyCommand(scanType(with["scan-type"], "image"), with["scanners"], with["exit-code"], with["format"], "")
+				case "github/codeql-action/init":
+					record.Run = codeqlCommand(record.With["languages"])
 				}
 				jobs = append(jobs, record)
 			}
@@ -453,6 +455,20 @@ func scanType(given, fallback string) string {
 		return fallback
 	}
 	return given
+}
+
+// codeqlCommand is the database CodeQL's init action creates. Its languages
+// decide the category: actions alone checks workflows, not code. A list
+// built from an expression cannot be read, and is left out.
+func codeqlCommand(languages string) string {
+	if strings.Contains(languages, "$") {
+		languages = ""
+	}
+	fields := strings.FieldsFunc(languages, func(r rune) bool { return strings.ContainsRune("[]\"', \t\n", r) })
+	if len(fields) == 0 {
+		return "codeql database create"
+	}
+	return "codeql database create --language=" + strings.Join(fields, ",")
 }
 
 // trivyCommand is the command a trivy action or task runs, so one set of

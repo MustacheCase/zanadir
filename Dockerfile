@@ -26,6 +26,9 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags "-X github
 # Stage 2 - Create tiny final image
 FROM scratch
 
+# The MCP Registry checks this matches server.json's name before listing the image.
+LABEL io.modelcontextprotocol.server.name="io.github.MustacheCase/zanadir"
+
 # Copy binary and CA certs
 COPY --from=builder /app/zanadir /zanadir
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "zanadir": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/scripts/zanadir-mcp",
+      "args": ["${CLAUDE_PROJECT_DIR}"]
+    }
+  }
+}

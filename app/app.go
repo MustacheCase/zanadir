@@ -40,7 +40,8 @@ var mcpCmd = &cobra.Command{
 	Short: "Serves scan and fix to AI coding agents over the Model Context Protocol",
 	Long:  "The mcp command runs a Model Context Protocol server on stdin and stdout, offering scan and fix as tools to coding agents such as Claude Code and Cursor.",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return serveMCP(cmd.Context(), Version())
+		dir, _ := cmd.Flags().GetString("dir")
+		return serveMCP(cmd.Context(), mcpserver.Options{Version: Version(), Dir: dir})
 	},
 }
 
@@ -170,6 +171,7 @@ func addSharedFlags(cmd *cobra.Command) {
 // NewApp initializes the CLI application
 func NewApp() *cobra.Command {
 	rootCmd.AddCommand(scanCmd, fixCmd, mcpCmd)
+	mcpCmd.Flags().StringP("dir", "d", "", "Repository the tools read when a call names none (optional; default: the working directory)")
 	rootCmd.Version = Version()
 
 	addSharedFlags(scanCmd)

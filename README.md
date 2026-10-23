@@ -142,7 +142,10 @@ Both take `dir` (a local checkout, by default the current directory) or
 claude mcp add zanadir -- zanadir mcp
 ```
 
-For other clients, such as Cursor, VS Code or Windsurf:
+It is listed in the [MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=zanadir)
+as `io.github.MustacheCase/zanadir`, where it runs from the Docker image with
+your repository mounted read-only. For other clients, such as Cursor, VS Code
+or Windsurf:
 
 ```json
 {
@@ -154,9 +157,10 @@ For other clients, such as Cursor, VS Code or Windsurf:
 
 ### As a Claude Code plugin
 
-In Claude Code, the zanadir plugin does this as a skill: it scans, reads your
-CI configuration, recommends fixes in priority order, and edits files only
-after you choose.
+In Claude Code, the zanadir plugin brings both: the MCP server, and a skill
+that scans, reads your CI configuration, recommends fixes in priority order,
+and edits files only after you choose. The server runs the installed
+`zanadir` if it is 0.18.0 or later, and otherwise the Docker image.
 
 ```
 /plugin marketplace add MustacheCase/zanadir

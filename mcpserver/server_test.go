@@ -43,6 +43,9 @@ type reply struct {
 	} `json:"error"`
 }
 
+// options are what session serves with; a test may change them.
+var options = Options{Version: "1.2.3"}
+
 // session sends messages, one per line, and returns the replies in order.
 func session(t *testing.T, messages ...any) []reply {
 	t.Helper()
@@ -55,7 +58,7 @@ func session(t *testing.T, messages ...any) []reply {
 		require.NoError(t, json.NewEncoder(&in).Encode(m))
 	}
 	var out bytes.Buffer
-	require.NoError(t, Serve(context.Background(), &in, &out, "1.2.3"))
+	require.NoError(t, Serve(context.Background(), &in, &out, options))
 	var replies []reply
 	decoder := json.NewDecoder(&out)
 	for decoder.More() {
@@ -107,6 +110,15 @@ func TestScanReturnsTheJSONReport(t *testing.T) {
 	assert.Equal(t, []string{"github"}, report.Platforms)
 	assert.Equal(t, []struct{ Category, Verdict string }{{"Secrets Detection", "advisory"}}, report.Weakened)
 	assert.NotContains(t, report.Uncovered, struct{ ID string }{"Performance Testing"}, "excluded")
+}
+
+func TestToolsReadTheDefaultDirectory(t *testing.T) {
+	old := options
+	t.Cleanup(func() { options = old })
+	options.Dir = repo(t)
+	replies := session(t, callMessage(1, "scan", nil))
+	require.False(t, replies[0].Result.IsError, replies[0].Result.Content)
+	assert.Contains(t, replies[0].Result.Content[0].Text, `"github"`, "the server's directory, not the working one")
 }
 
 func TestFixPrintsSnippetsWithoutWriting(t *testing.T) {
@@ -172,12 +184,12 @@ func TestServeStops(t *testing.T) {
 	cancel()
 	reader, writer := io.Pipe()
 	defer func() { _ = writer.Close() }()
-	assert.ErrorIs(t, Serve(ctx, reader, io.Discard, "x"), context.Canceled, "when its context ends")
+	assert.ErrorIs(t, Serve(ctx, reader, io.Discard, Options{}), context.Canceled, "when its context ends")
 
 	in := strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}` + "\n")
-	assert.ErrorIs(t, Serve(context.Background(), in, failingWriter{}, "x"), io.ErrClosedPipe, "when it cannot reply")
+	assert.ErrorIs(t, Serve(context.Background(), in, failingWriter{}, Options{}), io.ErrClosedPipe, "when it cannot reply")
 
-	assert.Error(t, Serve(context.Background(), strings.NewReader(strings.Repeat("x", 17<<20)), io.Discard, "x"), "on a line too long to read")
+	assert.Error(t, Serve(context.Background(), strings.NewReader(strings.Repeat("x", 17<<20)), io.Discard, Options{}), "on a line too long to read")
 }
 
 type gatedReader struct {
@@ -200,7 +212,7 @@ func TestTheReaderStopsWithItsContext(t *testing.T) {
 	cancel()
 	gate := make(chan struct{})
 	in := gatedReader{gate: gate, r: strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"ping"}` + "\n")}
-	assert.ErrorIs(t, Serve(ctx, in, io.Discard, "x"), context.Canceled)
+	assert.ErrorIs(t, Serve(ctx, in, io.Discard, Options{}), context.Canceled)
 	close(gate)
 	<-exited
 }
@@ -209,7 +221,7 @@ func TestRunServesStdin(t *testing.T) {
 	old := stdin
 	t.Cleanup(func() { stdin = old })
 	stdin = strings.NewReader("")
-	assert.NoError(t, Run(context.Background(), "x"))
+	assert.NoError(t, Run(context.Background(), Options{}))
 }
 
 // The MCP Registry lists the image only if its label matches server.json.

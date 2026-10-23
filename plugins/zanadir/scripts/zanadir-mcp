@@ -1,0 +1,15 @@
+#!/bin/sh
+# Starts zanadir's MCP server for the project in $1: the installed binary if it
+# has the mcp command, else the Docker image with the project mounted read-only.
+dir=${1:-$PWD}
+case $dir in *CLAUDE_PROJECT_DIR*) dir=$PWD ;; esac
+
+if command -v zanadir >/dev/null 2>&1 && zanadir mcp --help 2>/dev/null | grep -q "Model Context Protocol"; then
+  exec zanadir mcp --dir "$dir"
+fi
+if command -v docker >/dev/null 2>&1; then
+  exec docker run -i --rm --mount "type=bind,src=$dir,dst=/workspace,readonly" --workdir /workspace \
+    ${GITHUB_TOKEN:+-e GITHUB_TOKEN} mustachecase/zanadir:0.18.0 mcp
+fi
+echo "zanadir: install zanadir 0.18.0 or later (https://github.com/MustacheCase/zanadir#installation), or Docker, to use these tools" >&2
+exit 1

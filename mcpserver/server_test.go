@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -209,4 +210,16 @@ func TestRunServesStdin(t *testing.T) {
 	t.Cleanup(func() { stdin = old })
 	stdin = strings.NewReader("")
 	assert.NoError(t, Run(context.Background(), "x"))
+}
+
+// The MCP Registry lists the image only if its label matches server.json.
+func TestTheRegistryNameMatchesTheImageLabel(t *testing.T) {
+	data, err := os.ReadFile("../server.json")
+	require.NoError(t, err)
+	var server struct{ Name string }
+	require.NoError(t, json.Unmarshal(data, &server))
+	dockerfile, err := os.ReadFile("../Dockerfile")
+	require.NoError(t, err)
+	assert.Contains(t, string(dockerfile), `LABEL io.modelcontextprotocol.server.name="`+server.Name+`"`)
+	assert.Equal(t, "io.github.MustacheCase/zanadir", server.Name, "GitHub OIDC grants the namespace of the repository's owner, as GitHub spells it")
 }

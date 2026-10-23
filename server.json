@@ -1,0 +1,56 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.MustacheCase/zanadir",
+  "title": "zanadir",
+  "description": "Find what a repository's CI is missing, and which security checks cannot fail the build.",
+  "repository": {
+    "url": "https://github.com/MustacheCase/zanadir",
+    "source": "github"
+  },
+  "websiteUrl": "https://mustachecase.github.io/",
+  "version": "0.17.1",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "docker.io/mustachecase/zanadir:0.17.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--mount",
+          "description": "The repository to read, mounted read-only; tools default to it",
+          "value": "type=bind,src={repository},dst=/workspace,readonly",
+          "isRequired": true,
+          "variables": {
+            "repository": {
+              "description": "Path to the repository on this machine",
+              "format": "filepath",
+              "isRequired": true
+            }
+          }
+        },
+        {
+          "type": "named",
+          "name": "--workdir",
+          "value": "/workspace"
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "GITHUB_TOKEN",
+          "description": "Optional: a token for reading GitHub repositories with the repo argument without hitting the anonymous rate limit",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

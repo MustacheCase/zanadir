@@ -1,8 +1,8 @@
 class Zanadir < Formula
   desc "Find missing and non-blocking security controls in CI pipelines"
   homepage "https://github.com/MustacheCase/zanadir"
-  url "https://github.com/MustacheCase/zanadir/archive/refs/tags/0.17.1.tar.gz"
-  sha256 "ba0b65e9581e3492002966527ac5b46835470b1389a331011393a186e014eedb"
+  url "https://github.com/MustacheCase/zanadir/archive/refs/tags/0.18.0.tar.gz"
+  sha256 "f2af175b460f6a5d5e56ccd93aed9657a4ebae857fedc0b0e2b31253e46b1074"
   license "MIT"
   head "https://github.com/MustacheCase/zanadir.git", branch: "main"
 

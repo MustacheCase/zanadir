@@ -240,6 +240,15 @@ func TestUnlessExceptsOnlyTheCommandItMatches(t *testing.T) {
 	}
 }
 
+func TestAToolsOwnActionOverridesTheWorkflowName(t *testing.T) {
+	named := &rules.Rule{ID: "codeql-name-rule", Regex: regexp.MustCompile(`(?i)\bcodeql\b`), UnlessPackage: regexp.MustCompile(`^github/codeql-action/`),
+		ApplyOn: []string{rules.FieldArtifactName}, Categories: []string{"SAST"}}
+	withAction := &models.Artifact{Name: "CodeQL", Jobs: []*models.Job{{Package: "github/codeql-action/init"}}}
+	elsewhere := &models.Artifact{Name: "CodeQL", Jobs: []*models.Job{{Package: "org/.github/.github/workflows/codeql.yml"}}}
+	assert.Empty(t, matcher.NewMatchService().Match([]*models.Artifact{withAction}, []*rules.Rule{named}))
+	assert.Len(t, matcher.NewMatchService().Match([]*models.Artifact{elsewhere}, []*rules.Rule{named}), 1, "the name still counts when the steps show nothing")
+}
+
 func TestMatchOnJobName(t *testing.T) {
 	rule := &rules.Rule{ID: "unit", Regex: regexp.MustCompile(`(?i)\btests?\b`),
 		ApplyOn: []string{rules.FieldJobName, "Job.Unknown"}, Categories: []string{"Unit Tests"}}

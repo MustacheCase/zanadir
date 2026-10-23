@@ -62,7 +62,7 @@ func (runs scripts) matchingJobs(artifact *models.Artifact, rule *rules.Rule) []
 	named := false
 	for _, field := range rule.ApplyOn {
 		if field == rules.FieldArtifactName {
-			named = named || matches(rule, artifact.Name)
+			named = named || matches(rule, artifact.Name) && !packageDecides(rule, artifact)
 			continue
 		}
 		matched = append(matched, runs.matchingSteps(artifact, rule, field)...)
@@ -96,6 +96,13 @@ func (runs scripts) matchingSteps(artifact *models.Artifact, rule *rules.Rule, f
 		}
 	}
 	return matched
+}
+
+// packageDecides reports whether a step's package rules a name match out.
+func packageDecides(rule *rules.Rule, artifact *models.Artifact) bool {
+	return rule.UnlessPackage != nil && slices.ContainsFunc(artifact.Jobs, func(job *models.Job) bool {
+		return rule.UnlessPackage.MatchString(job.Package)
+	})
 }
 
 func matches(rule *rules.Rule, text string) bool {

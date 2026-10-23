@@ -526,6 +526,17 @@ func TestGithubParserReadsTrivyActionAsItsCommand(t *testing.T) {
 	assert.Equal(t, []string{"trivy image", "trivy config --exit-code 1", "trivy fs --scanners secret --format sarif", "trivy image"}, runs, "an expression is taken as the default")
 }
 
+func TestGithubParserReadsCodeQLInitAsTheDatabaseItCreates(t *testing.T) {
+	artifact := parseOne(t, "on: pull_request\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - uses: github/codeql-action/init@v4\n        with:\n          languages: actions\n      - uses: github/codeql-action/init@v4\n        with:\n          languages: [go, 'actions']\n      - uses: github/codeql-action/init@v4\n        with:\n          languages: javascript-typescript, python\n      - uses: github/codeql-action/init@v4\n        with:\n          languages: ${{ matrix.language }}\n      - uses: github/codeql-action/init@v4\n      - uses: github/codeql-action/analyze@v4\n")
+	var runs []string
+	for _, job := range artifact.Jobs {
+		runs = append(runs, job.Run)
+	}
+	assert.Equal(t, []string{"codeql database create --language=actions", "codeql database create --language=go,actions",
+		"codeql database create --language=javascript-typescript,python", "codeql database create", "codeql database create", ""}, runs,
+		"an expression, or no languages, says nothing")
+}
+
 func TestGithubParserReadsPreCommitActionsAsTheirCommand(t *testing.T) {
 	artifact := parseOne(t, "on: pull_request\njobs:\n  hooks:\n    runs-on: x\n    steps:\n      - uses: pre-commit/action@v3.0.1\n      - uses: pre-commit/action@v3.0.1\n        with:\n          extra_args: --all-files zizmor\n      - uses: j178/prek-action@v1\n      - uses: j178/prek-action@v1\n        with:\n          extra-args: --all-files actionlint\n      - uses: j178/prek-action@v1\n        with:\n          install-only: 'true'\n")
 	var runs []string

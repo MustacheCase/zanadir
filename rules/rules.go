@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/models"
@@ -33,8 +34,11 @@ type FileRule struct {
 	Regex      string   `yaml:"regex"`
 	// Unless excludes a match: on Job.Run a command, such as a test runner
 	// told to skip the tests, and on the other fields their whole text.
-	Unless   string             `yaml:"unless"`
-	Weakened []FileWeakenedWhen `yaml:"weakenedWhen"`
+	Unless string `yaml:"unless"`
+	// UnlessPackage stops an Artifact.Name match in a workflow with a step
+	// whose package matches it: the tool's own action shows what it does.
+	UnlessPackage string             `yaml:"unlessPackage"`
+	Weakened      []FileWeakenedWhen `yaml:"weakenedWhen"`
 }
 
 // FileWeakenedWhen is one way a tool can be configured so that it cannot
@@ -74,10 +78,11 @@ type Rule struct {
 	Categories []string
 	Regex      *regexp.Regexp
 	// Literals are strings one of which a match contains, lowercased.
-	Literals  []string
-	Unless    *regexp.Regexp
-	IsChecked bool
-	Weakened  []WeakenedWhen
+	Literals      []string
+	Unless        *regexp.Regexp
+	UnlessPackage *regexp.Regexp
+	IsChecked     bool
+	Weakened      []WeakenedWhen
 }
 
 // WeakenedWhen is a compiled FileWeakenedWhen.
@@ -113,19 +118,23 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 			weakened = append(weakened, check)
 		}
 
-		var unless *regexp.Regexp
+		var unless, unlessPackage *regexp.Regexp
 		if r.Unless != "" {
 			unless = regexp.MustCompile(r.Unless)
 		}
+		if r.UnlessPackage != "" {
+			unlessPackage = regexp.MustCompile(r.UnlessPackage)
+		}
 		convertedRules = append(convertedRules, &Rule{
-			ID:         r.ID,
-			ApplyOn:    r.ApplyOn,
-			Categories: r.Categories,
-			Regex:      regexp.MustCompile(r.Regex),
-			Literals:   requiredLiterals(r.Regex),
-			Unless:     unless,
-			IsChecked:  false,
-			Weakened:   weakened,
+			ID:            r.ID,
+			ApplyOn:       r.ApplyOn,
+			Categories:    r.Categories,
+			Regex:         regexp.MustCompile(r.Regex),
+			Literals:      requiredLiterals(r.Regex),
+			Unless:        unless,
+			UnlessPackage: unlessPackage,
+			IsChecked:     false,
+			Weakened:      weakened,
 		})
 	}
 	return convertedRules
@@ -166,11 +175,19 @@ func validateRules(fileRules []FileRule) error {
 }
 
 func validateUnless(r FileRule) error {
-	if r.Unless == "" {
+	if r.Unless != "" {
+		if _, err := regexp.Compile(r.Unless); err != nil {
+			return fmt.Errorf("rule %q: unless %q: %w", r.ID, r.Unless, err)
+		}
+	}
+	if r.UnlessPackage == "" {
 		return nil
 	}
-	if _, err := regexp.Compile(r.Unless); err != nil {
-		return fmt.Errorf("rule %q: unless %q: %w", r.ID, r.Unless, err)
+	if !slices.Contains(r.ApplyOn, FieldArtifactName) {
+		return fmt.Errorf("rule %q: unlessPackage only qualifies an %s match", r.ID, FieldArtifactName)
+	}
+	if _, err := regexp.Compile(r.UnlessPackage); err != nil {
+		return fmt.Errorf("rule %q: unlessPackage %q: %w", r.ID, r.UnlessPackage, err)
 	}
 	return nil
 }

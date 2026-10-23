@@ -15,3 +15,9 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Workflow Security"]
     regex: "(?i)ossf/scorecard-action|\\bscorecard\\b"
+
+  # CodeQL's actions language finds injection and other workflow flaws.
+  - id: "codeql-actions-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Workflow Security"]
+    regex: "(?i)\\bcodeql\\s+database\\s+create\\b[^\\n]*--language[= ](?:[\\w+-]+,)*actions\\b"

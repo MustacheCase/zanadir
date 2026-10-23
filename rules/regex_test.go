@@ -273,9 +273,9 @@ func TestRuleRegexPrecision(t *testing.T) {
 		},
 		{
 			ruleID: "codeql-rule",
-			shouldMatch: []string{"github/codeql-action/analyze@v3", "github/codeql-action/init", "github/codeql-action/autobuild",
+			shouldMatch: []string{"codeql database create --language=go,actions", "codeql database create",
 				"codeql database analyze db --format=sarif-latest", "AdvancedSecurity-Codeql-Init@1"},
-			shouldNotMatch: []string{"codeqlish", "github/codeql-action/upload-sarif@v3", "github/codeql-action/upload-sarif",
+			shouldNotMatch: []string{"codeqlish", "github/codeql-action/upload-sarif@v3", "github/codeql-action/analyze@v3",
 				"echo codeql"},
 		},
 		{
@@ -538,6 +538,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"actions/dependency-review-action-fork", "my/actions/dependency-review-action"},
 		},
 		{
+			ruleID:         "codeql-actions-rule",
+			shouldMatch:    []string{"codeql database create --language=actions", "codeql database create --language=go,actions,python"},
+			shouldNotMatch: []string{"codeql database create --language=go", "codeql database create", "codeql database create --language=github-actions"},
+		},
+		{
 			ruleID:         "trivy-secret-rule",
 			shouldMatch:    []string{"trivy fs --scanners secret .", "trivy repo --scanners vuln,secret ."},
 			shouldNotMatch: []string{"trivy fs .", "trivy fs --scanners vuln ."},
@@ -572,6 +577,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	for id, excepted := range map[string][]string{
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
+		"codeql-rule":                {"codeql database create --language=actions"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"unit-test-command-rule": {
 			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test",

@@ -30,9 +30,9 @@ type Suggestion struct {
 	Repository  string `yaml:"repository"`
 	Description string `yaml:"description"`
 	Language    string `yaml:"language"`
-	// Platform is the one CI system a tool reads, such as "github" or
+	// Platforms are the CI systems a tool reads, such as "github" and
 	// "gitlab"; empty when it reads any.
-	Platform string `yaml:"platform"`
+	Platforms []string `yaml:"platforms"`
 }
 
 // CategoryFile holds all category suggestions.
@@ -83,7 +83,7 @@ func filterByPlatform(suggestions []*Suggestion, platforms []string) []*Suggesti
 	}
 	filtered := make([]*Suggestion, 0, len(suggestions))
 	for _, sug := range suggestions {
-		if sug.Platform == "" || slices.Contains(platforms, sug.Platform) {
+		if len(sug.Platforms) == 0 || slices.ContainsFunc(sug.Platforms, func(p string) bool { return slices.Contains(platforms, p) }) {
 			filtered = append(filtered, sug)
 		}
 	}
@@ -161,7 +161,7 @@ func convertSuggestions(sugs []*Suggestion) []*Suggestion {
 			Repository:  sug.Repository,
 			Description: sug.Description,
 			Language:    sug.Language,
-			Platform:    sug.Platform,
+			Platforms:   sug.Platforms,
 		})
 	}
 	return result

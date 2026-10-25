@@ -211,6 +211,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "poutine-rule",
+			shouldMatch: []string{
+				"boostsecurityio/poutine-action",
+				"poutine analyze_local .",
+				"poutine analyze_repo org/repo --token $GH_TOKEN",
+				"poutine analyze_org my-org --scm gitlab",
+				"docker run --rm -v $PWD:/src ghcr.io/boostsecurityio/poutine:1.1.6 analyze_local . --fail-on-violation",
+				"ghcr.io/boostsecurityio/poutine:1.1.6",
+			},
+			shouldNotMatch: []string{"poutine", "make poutine", "echo poutine recipe", "poutineries analyze", "boostsecurityio/poutines"},
+		},
+		{
 			ruleID:         "actionlint-rule",
 			shouldMatch:    []string{"rhysd/actionlint", "reviewdog/action-actionlint", "actionlint -color"},
 			shouldNotMatch: []string{"actionlinter", "action lint"},

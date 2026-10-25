@@ -266,3 +266,23 @@ templates:
           entrypoint: [""]
         script:
           - glsec .gitlab-ci.yml
+
+  - tool: "poutine"
+    platform: "github"
+    step: |
+      # --fail-on-violation makes findings fail the build; poutine otherwise
+      # exits 0. Add --skip <rule> for a rule you accept.
+      - name: Analyze the pipeline with poutine
+        run: docker run --rm -v "$PWD:/src:ro" -w /src ghcr.io/boostsecurityio/poutine:1.1.6 analyze_local . --fail-on-violation
+
+  - tool: "poutine"
+    platform: "gitlab"
+    step: |
+      # --fail-on-violation makes findings fail the pipeline; poutine
+      # otherwise exits 0. Add --skip <rule> for a rule you accept.
+      poutine:
+        image:
+          name: ghcr.io/boostsecurityio/poutine:1.1.6
+          entrypoint: [""]
+        script:
+          - poutine analyze_local . --fail-on-violation

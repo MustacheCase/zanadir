@@ -452,8 +452,9 @@ Three rules keep the number honest:
   Two categories are ruled out this way. **IaC Security** needs
   infrastructure to scan, and the detection is deliberately broad — a
   directory called `infra`, `k8s` or `charts` is enough to keep it.
-  **Workflow Security** needs GitHub Actions, because every tool in it reads
-  that format, so a GitLab-only repository is not told to add actionlint.
+  **Workflow Security** needs GitHub Actions or GitLab CI, the formats its
+  tools read. A GitLab project is pointed at glsec, a GitHub one at zizmor,
+  actionlint or Scorecard, and a CircleCI-only repository is not scored on it.
 
   The rest apply to any codebase, and the ones that arguably do not — load
   testing a library, an SBOM for something that ships nothing — cannot be told

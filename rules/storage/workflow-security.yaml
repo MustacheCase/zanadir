@@ -9,6 +9,14 @@ rules:
     categories: ["Workflow Security"]
     regex: "(?i)\\bzizmor\\b"
 
+  # glsec reads GitLab CI. It runs as the ghcr.io/glsec/glsec image, as the
+  # gitlab.com/glsec-io/glsec components or as the binary, and each form names
+  # it as a whole word.
+  - id: "glsec-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Workflow Security"]
+    regex: "(?i)\\bglsec\\b"
+
   # "scorecard" is the tool's whole name, so the word is enough; the plural
   # "scorecards" is a different thing and the boundary excludes it.
   - id: "scorecard-rule"

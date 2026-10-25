@@ -51,9 +51,9 @@ func TestIaCIsRuledOutWithoutInfrastructure(t *testing.T) {
 	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
 }
 
-// Every tool in the Workflow Security category reads the GitHub Actions
-// format, so a repository on another platform has nothing to point them at.
-func TestWorkflowSecurityNeedsGithubWorkflows(t *testing.T) {
+// The tools in the Workflow Security category read GitHub Actions or GitLab
+// CI, so a repository on another platform has nothing to point them at.
+func TestWorkflowSecurityNeedsGithubOrGitlab(t *testing.T) {
 	tests := []struct {
 		name     string
 		files    []string
@@ -70,9 +70,10 @@ func TestWorkflowSecurityNeedsGithubWorkflows(t *testing.T) {
 			expected: nil,
 		},
 		{
+			// glsec reads GitLab CI.
 			name:     "gitlab only",
 			files:    []string{"Dockerfile", ".gitlab-ci.yml"},
-			expected: []string{"Workflow Security"},
+			expected: nil,
 		},
 		{
 			name:     "circleci only",

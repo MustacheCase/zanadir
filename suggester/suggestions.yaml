@@ -250,11 +250,19 @@ categories:
       - name: "zizmor"
         repository: "https://github.com/zizmorcore/zizmor"
         description: "Finds security problems in GitHub Actions workflows: unpinned actions, dangerous triggers, template injection and excessive permissions."
+        platform: "github"
 
       - name: "actionlint"
         repository: "https://github.com/rhysd/actionlint"
         description: "Static checker for GitHub Actions workflows, covering syntax, expressions, shell scripts in run steps and action input validity."
+        platform: "github"
 
       - name: "OpenSSF Scorecard"
         repository: "https://github.com/ossf/scorecard-action"
         description: "Grades a repository against supply-chain practices including pinned dependencies, token permissions and branch protection."
+        platform: "github"
+
+      - name: "glsec"
+        repository: "https://github.com/glsec/glsec"
+        description: "Finds security problems in GitLab CI pipelines: mutable images and includes, script injection through branch names and commit messages, secrets in variables and unprotected deployments."
+        platform: "gitlab"

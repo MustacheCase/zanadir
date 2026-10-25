@@ -48,9 +48,10 @@ type gitlabJob struct {
 const gitlabExtendsDepth = 11
 
 type gitlabInclude struct {
-	Local     string `yaml:"local"`
-	Template  string `yaml:"template"`
-	Component string `yaml:"component"`
+	Local     string               `yaml:"local"`
+	Template  string               `yaml:"template"`
+	Component string               `yaml:"component"`
+	Inputs    map[string]yaml.Node `yaml:"inputs"`
 }
 
 type gitlabReader struct {
@@ -245,9 +246,34 @@ func (r *gitlabReader) includes(node *yaml.Node) {
 		case include.Template != "":
 			r.included = append(r.included, &models.Job{Name: "include", Package: include.Template})
 		case include.Component != "":
-			r.included = append(r.included, &models.Job{Name: "include", Package: include.Component})
+			r.included = append(r.included, &models.Job{Name: "include", Package: include.Component, Run: componentCommand(include.Component, include.Inputs)})
 		}
 	}
+}
+
+// componentCommand is the command a known CI/CD component runs, so grading
+// reads it as it would the same command in a script: glsec's code-quality
+// component ends in "|| true" and cannot fail the pipeline. The component is
+// matched by its path, so a mirror on another host counts too.
+func componentCommand(component string, inputs map[string]yaml.Node) string {
+	path, _, _ := strings.Cut(component, "@")
+	file := ".gitlab-ci.yml"
+	if node, ok := inputs["file"]; ok {
+		if value := resolve(&node); value.Kind == yaml.ScalarNode && value.Value != "" {
+			file = value.Value
+		}
+	}
+	switch {
+	case strings.HasSuffix(path, "/glsec-io/glsec/glsec"):
+		command := "glsec"
+		if node, ok := inputs["strict"]; ok && scalarIs(&node, "true") {
+			command += " --strict"
+		}
+		return command + " -- " + file
+	case strings.HasSuffix(path, "/glsec-io/glsec/glsec-code-quality"):
+		return "glsec --format codeclimate -- " + file + " > gl-code-quality.json || true"
+	}
+	return ""
 }
 
 // local reads files included from this repository. GitLab resolves them from

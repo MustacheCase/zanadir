@@ -186,6 +186,17 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"zizmorish", "myzizmor"},
 		},
 		{
+			ruleID: "glsec-rule",
+			shouldMatch: []string{
+				"ghcr.io/glsec/glsec",
+				"gitlab.com/glsec-io/glsec/glsec@v1.0.25",
+				"gitlab.com/glsec-io/glsec/glsec-code-quality@v1.0.25",
+				"glsec --strict .gitlab-ci.yml",
+				"./glsec .gitlab-ci.yml",
+			},
+			shouldNotMatch: []string{"glsecure", "myglsec", "glsec_tool", "gl-sec"},
+		},
+		{
 			ruleID:         "actionlint-rule",
 			shouldMatch:    []string{"rhysd/actionlint", "reviewdog/action-actionlint", "actionlint -color"},
 			shouldNotMatch: []string{"actionlinter", "action lint"},

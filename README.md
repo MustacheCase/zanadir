@@ -453,8 +453,9 @@ Three rules keep the number honest:
   infrastructure to scan, and the detection is deliberately broad — a
   directory called `infra`, `k8s` or `charts` is enough to keep it.
   **Workflow Security** needs GitHub Actions or GitLab CI, the formats its
-  tools read. A GitLab project is pointed at glsec, a GitHub one at zizmor,
-  actionlint or Scorecard, and a CircleCI-only repository is not scored on it.
+  tools read. A GitLab project is pointed at glsec or poutine, a GitHub one at
+  zizmor, actionlint, Scorecard or poutine, and a CircleCI-only repository is
+  not scored on it.
 
   The rest apply to any codebase, and the ones that arguably do not — load
   testing a library, an SBOM for something that ships nothing — cannot be told

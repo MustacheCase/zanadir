@@ -6,6 +6,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
 )
@@ -196,7 +197,7 @@ func TestFindSuggestionsFiltersByPlatform(t *testing.T) {
 	assert.NoError(t, err)
 
 	gitlab := toolNames(findCategory(s.FindSuggestions(nil, nil, nil, []string{"gitlab"}), "Workflow Security"))
-	assert.Equal(t, []string{"glsec"}, gitlab)
+	assert.Equal(t, []string{"glsec", "poutine"}, gitlab, "a tool that reads several platforms is kept for each")
 
 	github := toolNames(findCategory(s.FindSuggestions(nil, nil, nil, []string{"github"}), "Workflow Security"))
 	assert.Contains(t, github, "zizmor")
@@ -209,7 +210,7 @@ func TestFindSuggestionsFiltersByPlatform(t *testing.T) {
 	// Tools for any platform stay, and no platform at all filters nothing.
 	linter := toolNames(findCategory(s.FindSuggestions(nil, nil, nil, []string{"gitlab"}), "Linter"))
 	assert.Equal(t, toolNames(findCategory(s.FindSuggestions(nil, nil, nil, nil), "Linter")), linter)
-	assert.Len(t, findCategory(s.FindSuggestions(nil, nil, nil, nil), "Workflow Security").Suggestions, 4)
+	assert.Len(t, findCategory(s.FindSuggestions(nil, nil, nil, nil), "Workflow Security").Suggestions, 5)
 }
 
 // A platform none of a category's tools read keeps them all, as an unknown
@@ -219,5 +220,21 @@ func TestFindSuggestionsKeepsAllToolsForAnUnreadPlatform(t *testing.T) {
 	assert.NoError(t, err)
 
 	result := s.FindSuggestions(nil, nil, nil, []string{"circleci"})
-	assert.Len(t, findCategory(result, "Workflow Security").Suggestions, 4)
+	assert.Len(t, findCategory(result, "Workflow Security").Suggestions, 5)
+}
+
+// A platform name the parser does not know would silently filter a tool out.
+func TestSuggestionPlatformsAreKnownPlatforms(t *testing.T) {
+	s, err := suggester.NewSuggestionService()
+	assert.NoError(t, err)
+	for _, category := range s.FindSuggestions(nil, nil, nil, nil) {
+		for _, tool := range category.Suggestions {
+			for _, platform := range tool.Platforms {
+				_, ok := parser.Lookup(platform)
+				assert.True(t, ok, "%s names unknown platform %q", tool.Name, platform)
+			}
+		}
+	}
+	github := toolNames(findCategory(s.FindSuggestions(nil, nil, nil, []string{parser.GitHub}), "Workflow Security"))
+	assert.Contains(t, github, "poutine")
 }

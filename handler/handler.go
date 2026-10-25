@@ -127,6 +127,7 @@ type scanResult struct {
 	artifacts     []*models.Artifact
 	weaknesses    []output.Weakness
 	notApplicable []string
+	platforms     []string
 	gate          *gate.Gate
 	// skipped is every category left out of the score: excluded by the
 	// operator or not applicable to the repository.
@@ -180,7 +181,8 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	// excluded one is, and leaves the score's denominator the same way.
 	skipped := append(append([]string{}, cfg.ExcludedCategories...), notApplicable...)
 
-	suggestions := h.SuggestionService.FindSuggestions(findings, skipped, languages, parser.Found(cfg.Dir))
+	platforms := parser.Found(cfg.Dir)
+	suggestions := h.SuggestionService.FindSuggestions(findings, skipped, languages, platforms)
 	debugf("Total suggestions: %d", len(suggestions))
 
 	merge := mergeGate(cfg, artifacts)
@@ -201,6 +203,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 		artifacts:     artifacts,
 		weaknesses:    weaknesses,
 		notApplicable: notApplicable,
+		platforms:     platforms,
 		gate:          merge,
 		skipped:       skipped,
 	}, nil
@@ -306,7 +309,7 @@ func (h *Handler) Execute(cfg *config.Config) error {
 		Score:         coverage,
 		Weakened:      result.weaknesses,
 		NotApplicable: result.notApplicable,
-		Platforms:     parser.Found(cfg.Dir),
+		Platforms:     result.platforms,
 		Gate:          reportGate(result.gate),
 	})
 	if err != nil {

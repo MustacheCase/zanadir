@@ -49,48 +49,35 @@ type Suggester interface {
 }
 
 // filterByLanguage drops tools targeting a language the repository does not
-// use. Tools with no language are agnostic and always kept. If filtering would
-// empty a category, the unfiltered set is returned instead.
+// use. Tools with no language are agnostic and always kept.
 func filterByLanguage(suggestions []*Suggestion, languages []string) []*Suggestion {
-	if len(languages) == 0 || len(suggestions) == 0 {
+	if len(languages) == 0 {
 		return suggestions
 	}
-
-	detected := make(map[string]bool, len(languages))
-	for _, l := range languages {
-		detected[strings.ToLower(l)] = true
-	}
-
-	filtered := make([]*Suggestion, 0, len(suggestions))
-	for _, sug := range suggestions {
-		if sug.Language == "" || detected[strings.ToLower(sug.Language)] {
-			filtered = append(filtered, sug)
-		}
-	}
-
-	if len(filtered) == 0 {
-		return suggestions
-	}
-	return filtered
+	return narrow(suggestions, func(sug *Suggestion) bool {
+		return sug.Language == "" || slices.ContainsFunc(languages, func(l string) bool { return strings.EqualFold(l, sug.Language) })
+	})
 }
 
 // filterByPlatform keeps the tools that read a CI system the repository uses,
-// so a GitLab project is not pointed at a GitHub Actions linter. Like the
-// language filter, it keeps everything when nothing would be left.
+// so a GitLab project is not pointed at a GitHub Actions linter.
 func filterByPlatform(suggestions []*Suggestion, platforms []string) []*Suggestion {
-	if len(platforms) == 0 || len(suggestions) == 0 {
+	if len(platforms) == 0 {
 		return suggestions
 	}
-	filtered := make([]*Suggestion, 0, len(suggestions))
-	for _, sug := range suggestions {
-		if len(sug.Platforms) == 0 || slices.ContainsFunc(sug.Platforms, func(p string) bool { return slices.Contains(platforms, p) }) {
-			filtered = append(filtered, sug)
-		}
-	}
-	if len(filtered) == 0 {
+	return narrow(suggestions, func(sug *Suggestion) bool {
+		return len(sug.Platforms) == 0 || slices.ContainsFunc(sug.Platforms, func(p string) bool { return slices.Contains(platforms, p) })
+	})
+}
+
+// narrow keeps the suggestions that pass keep, or all of them when none
+// would be left. It never modifies the slice it is given.
+func narrow(suggestions []*Suggestion, keep func(*Suggestion) bool) []*Suggestion {
+	kept := slices.DeleteFunc(slices.Clone(suggestions), func(sug *Suggestion) bool { return !keep(sug) })
+	if len(kept) == 0 {
 		return suggestions
 	}
-	return filtered
+	return kept
 }
 
 func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategories []string, languages []string, platforms []string) []*CategorySuggestion {

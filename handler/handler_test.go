@@ -17,6 +17,7 @@ import (
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/output"
+	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/remote"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/score"
@@ -1090,4 +1091,26 @@ func TestExecuteGradesAgainstTheMergeSettings(t *testing.T) {
 	assert.NoError(t, h.Execute(&config.Config{Dir: dir, Output: "json", RequiredChecks: true, Repo: &remote.Repository{Owner: "o", Name: "r"}}))
 	assert.Equal(t, &output.Gate{Branch: "main", Required: []string{}}, got.Gate)
 	assert.Contains(t, got.Weakened, output.Weakness{Category: "Linter", Verdict: "partial", Location: "ci.yml", Reason: grading.NotRequired})
+}
+
+type platformsSuggester struct{ got []string }
+
+func (s *platformsSuggester) FindSuggestions(_ []*matcher.Finding, _, _, platforms []string) []*suggester.CategorySuggestion {
+	s.got = platforms
+	return nil
+}
+
+func TestHandler_ExecutePassesDetectedPlatforms(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".gitlab-ci.yml"), []byte("test:\n  script: [go test ./...]\n"), 0o644))
+
+	h := newEnforcementHandler()
+	sug := &platformsSuggester{}
+	h.SuggestionService = sug
+
+	require.NoError(t, h.Execute(&config.Config{Dir: dir}))
+
+	assert.Equal(t, []string{parser.GitLab}, sug.got)
+	report := h.OutputService.(*MockOutput).Calls[0].Arguments.Get(0).(output.Report)
+	assert.Equal(t, []string{parser.GitLab}, report.Platforms)
 }

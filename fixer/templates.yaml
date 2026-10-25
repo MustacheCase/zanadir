@@ -23,6 +23,7 @@ templates:
     platform: "gitlab"
     step: |
       secret_detection:
+        stage: .pre
         image:
           name: zricethezav/gitleaks
           entrypoint: [""]
@@ -84,6 +85,7 @@ templates:
     platform: "gitlab"
     step: |
       dependency_scanning:
+        stage: .pre
         image:
           name: aquasec/trivy
           entrypoint: [""]
@@ -261,6 +263,7 @@ templates:
       # Fails the pipeline on error findings. The entrypoint override lets
       # the runner's shell start; the image's own entrypoint is glsec.
       glsec:
+        stage: .pre
         image:
           name: ghcr.io/glsec/glsec:1.23.0
           entrypoint: [""]
@@ -281,6 +284,7 @@ templates:
       # --fail-on-violation makes findings fail the pipeline; poutine
       # otherwise exits 0. Add --skip <rule> for a rule you accept.
       poutine:
+        stage: .pre
         image:
           name: ghcr.io/boostsecurityio/poutine:1.1.6
           entrypoint: [""]

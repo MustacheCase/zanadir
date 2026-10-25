@@ -575,3 +575,20 @@ func TestPoutineTemplatesAreReadByTheirRule(t *testing.T) {
 		assert.True(t, slices.ContainsFunc(artifacts[0].Jobs, func(job *models.Job) bool { return rule.Regex.MatchString(job.Run) }), platform)
 	}
 }
+
+// A job with no stage lands in test, which a project's own stages: list may
+// not declare; GitLab then rejects the whole pipeline.
+func TestGitlabTemplatesNameAStage(t *testing.T) {
+	templates, err := readTemplates()
+	require.NoError(t, err)
+	for _, tmpl := range templates {
+		if tmpl.Platform != parser.GitLab {
+			continue
+		}
+		var jobs map[string]map[string]any
+		require.NoError(t, yaml.Unmarshal([]byte(tmpl.Step), &jobs), tmpl.Tool)
+		for name, job := range jobs {
+			assert.Equal(t, ".pre", job["stage"], "%s job %s", tmpl.Tool, name)
+		}
+	}
+}

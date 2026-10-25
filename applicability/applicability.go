@@ -146,8 +146,9 @@ func NotApplicable(dir string, ignore func(string) bool) []string {
 	if !hasIaC(dir) {
 		ruledOut = append(ruledOut, string(models.IaC))
 	}
-	// Every tool in Workflow Security reads GitHub Actions workflows.
-	if !slices.ContainsFunc(parser.GithubWorkflows(dir), func(path string) bool { return ignore == nil || !ignore(path) }) {
+	// The tools in Workflow Security read GitHub Actions workflows or GitLab CI.
+	ownWorkflow := slices.ContainsFunc(parser.GithubWorkflows(dir), func(path string) bool { return ignore == nil || !ignore(path) })
+	if !ownWorkflow && !parser.Uses(dir, parser.GitLab) {
 		ruledOut = append(ruledOut, string(models.WorkflowSecurity))
 	}
 	return ruledOut

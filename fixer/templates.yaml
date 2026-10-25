@@ -254,3 +254,15 @@ templates:
         uses: zizmorcore/zizmor-action@v0.7.1
         with:
           advanced-security: false
+
+  - tool: "glsec"
+    platform: "gitlab"
+    step: |
+      # Fails the pipeline on error findings. The entrypoint override lets
+      # the runner's shell start; the image's own entrypoint is glsec.
+      glsec:
+        image:
+          name: ghcr.io/glsec/glsec:1.23.0
+          entrypoint: [""]
+        script:
+          - glsec .gitlab-ci.yml

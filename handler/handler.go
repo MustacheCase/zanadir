@@ -180,7 +180,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	// excluded one is, and leaves the score's denominator the same way.
 	skipped := append(append([]string{}, cfg.ExcludedCategories...), notApplicable...)
 
-	suggestions := h.SuggestionService.FindSuggestions(findings, skipped, languages)
+	suggestions := h.SuggestionService.FindSuggestions(findings, skipped, languages, parser.Found(cfg.Dir))
 	debugf("Total suggestions: %d", len(suggestions))
 
 	merge := mergeGate(cfg, artifacts)

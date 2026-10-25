@@ -491,3 +491,43 @@ build:
 	}
 	assert.ElementsMatch(t, []string{"test", "rspec"}, reported)
 }
+
+// glsec's components are recorded with the command they run, so grading sees
+// the code-quality component's "|| true". Inputs that change the command are
+// read; a mirror on another host, or the path in other case, is the same
+// component.
+func TestGitlabGlsecComponentsRecordTheirCommand(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{".gitlab-ci.yml": `
+include:
+  - component: gitlab.com/glsec-io/glsec/glsec@v1.0.25
+  - component: gitlab.com/glsec-io/glsec/glsec-code-quality@v1.0.25
+    inputs:
+      file: ci/main.yml
+  - component: $CI_SERVER_FQDN/glsec-io/glsec/glsec@v1.0.25
+    inputs:
+      strict: true
+      file: pipeline.yml
+  - component: gitlab.com/someone/glsec/glsec@1
+  - component: gitlab.com/glsec-io/glsec/glsec-extra@1
+  - component: gitlab.com/GLSEC-IO/glsec/glsec-code-quality@1.23.0
+`})
+	assert.Equal(t, "glsec -- .gitlab-ci.yml", jobs["gitlab.com/glsec-io/glsec/glsec@v1.0.25"].Run)
+	assert.Equal(t, "glsec --format codeclimate -- ci/main.yml > gl-code-quality.json || true", jobs["gitlab.com/glsec-io/glsec/glsec-code-quality@v1.0.25"].Run)
+	assert.Equal(t, "glsec --strict -- pipeline.yml", jobs["$CI_SERVER_FQDN/glsec-io/glsec/glsec@v1.0.25"].Run)
+	assert.Empty(t, jobs["gitlab.com/someone/glsec/glsec@1"].Run, "another project's component is not glsec's")
+	assert.Empty(t, jobs["gitlab.com/glsec-io/glsec/glsec-extra@1"].Run)
+	assert.Equal(t, "glsec --format codeclimate -- .gitlab-ci.yml > gl-code-quality.json || true", jobs["gitlab.com/GLSEC-IO/glsec/glsec-code-quality@1.23.0"].Run, "GitLab paths are case-insensitive")
+}
+
+// A boolean or numeric input must not make the include unreadable.
+func TestGitlabComponentInputsOfAnyType(t *testing.T) {
+	jobs := gitlabJobs(t, map[string]string{".gitlab-ci.yml": `
+include:
+  - component: gitlab.com/example/scan/scan@1
+    inputs:
+      strict: false
+      retries: 3
+      paths: [a, b]
+`})
+	assert.Contains(t, jobs, "gitlab.com/example/scan/scan@1")
+}

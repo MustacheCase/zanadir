@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -530,4 +531,20 @@ func TestTemplatesPinActionsToReleases(t *testing.T) {
 		assert.Regexp(t, `^v\d+(\.\d+)*$`, ref[2], ref[1])
 	}
 	assert.Contains(t, Workflow(nil), "actions/checkout@v7\n        with:\n          persist-credentials: false\n")
+}
+
+// The glsec snippet, pasted into .gitlab-ci.yml, is found by the rule that
+// covers Workflow Security.
+func TestGlsecTemplateIsReadByTheGitlabParser(t *testing.T) {
+	templates, err := readTemplates()
+	require.NoError(t, err)
+	idx := slices.IndexFunc(templates, func(t Template) bool { return t.Tool == "glsec" && t.Platform == parser.GitLab })
+	require.NotEqual(t, -1, idx)
+
+	artifacts, err := parser.NewGitlabParser().Parse(testrepo.Write(t, map[string]string{".gitlab-ci.yml": templates[idx].Step}))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	require.Len(t, artifacts[0].Jobs, 1)
+	assert.Equal(t, "ghcr.io/glsec/glsec:1.23.0", artifacts[0].Jobs[0].Package)
+	assert.Equal(t, "glsec .gitlab-ci.yml", artifacts[0].Jobs[0].Run)
 }

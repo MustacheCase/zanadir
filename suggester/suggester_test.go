@@ -19,7 +19,7 @@ func TestFindSuggestions(t *testing.T) {
 		{Category: "OtherCategory"},
 	}
 	// Expect that the embedded suggestions (e.g. "SCA", "Secrets") are suggested.
-	result := s.FindSuggestions(findings, []string{}, nil)
+	result := s.FindSuggestions(findings, []string{}, nil, nil)
 	assert.NotEmpty(t, result, "expected non-empty suggestions")
 	// Optionally, verify that known IDs exist based on your embedded suggestions content.
 }
@@ -33,7 +33,7 @@ func TestFindSuggestionsWithExclusion(t *testing.T) {
 		{Category: "SCA"},
 	}
 	// Exclude "Secrets" (or any other known category as defined in your embedded suggestions).
-	result := s.FindSuggestions(findings, []string{"Secrets"}, nil)
+	result := s.FindSuggestions(findings, []string{"Secrets"}, nil, nil)
 	// Verify that no suggested category has an ID equal to "Secrets".
 	for _, cat := range result {
 		assert.NotEqual(t, "Secrets", cat.ID)
@@ -46,7 +46,7 @@ func TestFindSuggestionsCoversEveryCategory(t *testing.T) {
 	s, err := suggester.NewSuggestionService()
 	assert.NoError(t, err)
 
-	result := s.FindSuggestions(nil, nil, nil)
+	result := s.FindSuggestions(nil, nil, nil, nil)
 
 	got := make(map[string]bool, len(result))
 	for _, cat := range result {
@@ -63,7 +63,7 @@ func TestFindSuggestionsExcludesByCanonicalTitle(t *testing.T) {
 	s, err := suggester.NewSuggestionService()
 	assert.NoError(t, err)
 
-	result := s.FindSuggestions(nil, []string{string(models.Secrets)}, nil)
+	result := s.FindSuggestions(nil, []string{string(models.Secrets)}, nil, nil)
 
 	for _, cat := range result {
 		assert.NotEqual(t, string(models.Secrets), cat.ID)
@@ -99,7 +99,7 @@ func TestFindSuggestionsFiltersByLanguage(t *testing.T) {
 	s, err := suggester.NewSuggestionService()
 	assert.NoError(t, err)
 
-	result := s.FindSuggestions(nil, nil, []string{"Go"})
+	result := s.FindSuggestions(nil, nil, []string{"Go"}, nil)
 
 	linter := findCategory(result, "Linter")
 	assert.NotNil(t, linter)
@@ -115,7 +115,7 @@ func TestFindSuggestionsKeepsAllToolsWhenNoLanguageDetected(t *testing.T) {
 	s, err := suggester.NewSuggestionService()
 	assert.NoError(t, err)
 
-	result := s.FindSuggestions(nil, nil, nil)
+	result := s.FindSuggestions(nil, nil, nil, nil)
 
 	linter := findCategory(result, "Linter")
 	assert.NotNil(t, linter)
@@ -129,7 +129,7 @@ func TestFindSuggestionsPolyglotKeepsEachLanguage(t *testing.T) {
 	s, err := suggester.NewSuggestionService()
 	assert.NoError(t, err)
 
-	result := s.FindSuggestions(nil, nil, []string{"Go", "Python"})
+	result := s.FindSuggestions(nil, nil, []string{"Go", "Python"}, nil)
 
 	names := toolNames(findCategory(result, "Linter"))
 	assert.Contains(t, names, "GolangCI-Lint")
@@ -144,7 +144,7 @@ func TestFindSuggestionsFallsBackWhenFilterEmptiesCategory(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Rust matches none of the Unit Tests tools (JUnit, pytest, Mocha).
-	result := s.FindSuggestions(nil, nil, []string{"Rust"})
+	result := s.FindSuggestions(nil, nil, []string{"Rust"}, nil)
 
 	unitTests := findCategory(result, "Unit Tests")
 	assert.NotNil(t, unitTests)
@@ -156,11 +156,11 @@ func TestFindSuggestionsDoesNotMutateSharedCatalogue(t *testing.T) {
 	s, err := suggester.NewSuggestionService()
 	assert.NoError(t, err)
 
-	goOnly := s.FindSuggestions(nil, nil, []string{"Go"})
+	goOnly := s.FindSuggestions(nil, nil, []string{"Go"}, nil)
 	assert.NotContains(t, toolNames(findCategory(goOnly, "Linter")), "ESLint")
 
 	// A second call with no language must still see the full catalogue.
-	unfiltered := s.FindSuggestions(nil, nil, nil)
+	unfiltered := s.FindSuggestions(nil, nil, nil, nil)
 	assert.Contains(t, toolNames(findCategory(unfiltered, "Linter")), "ESLint")
 }
 
@@ -168,7 +168,7 @@ func TestCatalogueDescriptionsAreDistinctAndComplete(t *testing.T) {
 	s, err := suggester.NewSuggestionService()
 	assert.NoError(t, err)
 
-	all := s.FindSuggestions(nil, []string{}, nil)
+	all := s.FindSuggestions(nil, []string{}, nil, nil)
 	assert.Len(t, all, len(models.CategoryTitles), "every category should be suggested when nothing is covered")
 
 	seen := make(map[string]string, len(all))
@@ -188,4 +188,36 @@ func TestCatalogueDescriptionsAreDistinctAndComplete(t *testing.T) {
 			assert.NotEmpty(t, tool.Repository, "tool %q in %q has no repository", tool.Name, c.ID)
 		}
 	}
+}
+
+// A GitLab project is pointed at glsec, not at linters for GitHub Actions.
+func TestFindSuggestionsFiltersByPlatform(t *testing.T) {
+	s, err := suggester.NewSuggestionService()
+	assert.NoError(t, err)
+
+	gitlab := toolNames(findCategory(s.FindSuggestions(nil, nil, nil, []string{"gitlab"}), "Workflow Security"))
+	assert.Equal(t, []string{"glsec"}, gitlab)
+
+	github := toolNames(findCategory(s.FindSuggestions(nil, nil, nil, []string{"github"}), "Workflow Security"))
+	assert.Contains(t, github, "zizmor")
+	assert.NotContains(t, github, "glsec")
+
+	both := toolNames(findCategory(s.FindSuggestions(nil, nil, nil, []string{"github", "gitlab"}), "Workflow Security"))
+	assert.Contains(t, both, "zizmor")
+	assert.Contains(t, both, "glsec")
+
+	// Tools for any platform stay, and no platform at all filters nothing.
+	linter := toolNames(findCategory(s.FindSuggestions(nil, nil, nil, []string{"gitlab"}), "Linter"))
+	assert.Equal(t, toolNames(findCategory(s.FindSuggestions(nil, nil, nil, nil), "Linter")), linter)
+	assert.Len(t, findCategory(s.FindSuggestions(nil, nil, nil, nil), "Workflow Security").Suggestions, 4)
+}
+
+// A platform none of a category's tools read keeps them all, as an unknown
+// language does.
+func TestFindSuggestionsKeepsAllToolsForAnUnreadPlatform(t *testing.T) {
+	s, err := suggester.NewSuggestionService()
+	assert.NoError(t, err)
+
+	result := s.FindSuggestions(nil, nil, nil, []string{"circleci"})
+	assert.Len(t, findCategory(result, "Workflow Security").Suggestions, 4)
 }

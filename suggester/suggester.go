@@ -4,6 +4,7 @@ package suggester
 import (
 	"embed"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/matcher"
@@ -29,6 +30,9 @@ type Suggestion struct {
 	Repository  string `yaml:"repository"`
 	Description string `yaml:"description"`
 	Language    string `yaml:"language"`
+	// Platform is the one CI system a tool reads, such as "github" or
+	// "gitlab"; empty when it reads any.
+	Platform string `yaml:"platform"`
 }
 
 // CategoryFile holds all category suggestions.
@@ -41,7 +45,7 @@ var suggestionsFS embed.FS
 
 // Suggester picks tools for the categories a scan found uncovered.
 type Suggester interface {
-	FindSuggestions(findings []*matcher.Finding, excludedCategories []string, languages []string) []*CategorySuggestion
+	FindSuggestions(findings []*matcher.Finding, excludedCategories []string, languages []string, platforms []string) []*CategorySuggestion
 }
 
 // filterByLanguage drops tools targeting a language the repository does not
@@ -70,7 +74,26 @@ func filterByLanguage(suggestions []*Suggestion, languages []string) []*Suggesti
 	return filtered
 }
 
-func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategories []string, languages []string) []*CategorySuggestion {
+// filterByPlatform keeps the tools that read a CI system the repository uses,
+// so a GitLab project is not pointed at a GitHub Actions linter. Like the
+// language filter, it keeps everything when nothing would be left.
+func filterByPlatform(suggestions []*Suggestion, platforms []string) []*Suggestion {
+	if len(platforms) == 0 || len(suggestions) == 0 {
+		return suggestions
+	}
+	filtered := make([]*Suggestion, 0, len(suggestions))
+	for _, sug := range suggestions {
+		if sug.Platform == "" || slices.Contains(platforms, sug.Platform) {
+			filtered = append(filtered, sug)
+		}
+	}
+	if len(filtered) == 0 {
+		return suggestions
+	}
+	return filtered
+}
+
+func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategories []string, languages []string, platforms []string) []*CategorySuggestion {
 	var categoriesSuggestions []*CategorySuggestion
 	coveredCategories := make(map[string]bool)
 	for _, f := range findings {
@@ -94,7 +117,7 @@ func (s *service) FindSuggestions(findings []*matcher.Finding, excludedCategorie
 					ID:          category.ID,
 					Name:        category.Name,
 					Description: category.Description,
-					Suggestions: filterByLanguage(category.Suggestions, languages),
+					Suggestions: filterByPlatform(filterByLanguage(category.Suggestions, languages), platforms),
 				})
 			}
 		}
@@ -138,6 +161,7 @@ func convertSuggestions(sugs []*Suggestion) []*Suggestion {
 			Repository:  sug.Repository,
 			Description: sug.Description,
 			Language:    sug.Language,
+			Platform:    sug.Platform,
 		})
 	}
 	return result

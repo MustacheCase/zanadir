@@ -256,7 +256,8 @@ func (r *gitlabReader) includes(node *yaml.Node) {
 // component ends in "|| true" and cannot fail the pipeline. The component is
 // matched by its path, so a mirror on another host counts too.
 func componentCommand(component string, inputs map[string]yaml.Node) string {
-	path, _, _ := strings.Cut(component, "@")
+	// GitLab paths are case-insensitive.
+	path, _, _ := strings.Cut(strings.ToLower(component), "@")
 	file := ".gitlab-ci.yml"
 	if node, ok := inputs["file"]; ok {
 		if value := resolve(&node); value.Kind == yaml.ScalarNode && value.Value != "" {

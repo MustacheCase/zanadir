@@ -23,6 +23,10 @@ func TestGlsecOnGitlabIsGradedEndToEnd(t *testing.T) {
 			file: "include:\n  - component: gitlab.com/glsec-io/glsec/glsec-code-quality@v1.0.25\n",
 			want: Advisory,
 		},
+		"code-quality component written in upper case": {
+			file: "include:\n  - component: gitlab.com/GLSEC-IO/glsec/glsec-code-quality@1.23.0\n",
+			want: Advisory,
+		},
 		"image": {
 			file: "glsec:\n  image:\n    name: ghcr.io/glsec/glsec:1.23.0\n    entrypoint: [\"\"]\n  script:\n    - glsec .gitlab-ci.yml\n",
 			want: Unknown,
@@ -39,6 +43,19 @@ func TestGlsecOnGitlabIsGradedEndToEnd(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGitlabParser(), ".gitlab-ci.yml", tc.file)
 			assert.Equal(t, tc.want, verdicts["Workflow Security"])
+		})
+	}
+}
+
+// Components that only have glsec in their path don't cover the category.
+func TestGlsecLookalikeComponentsDoNotCoverWorkflowSecurity(t *testing.T) {
+	for _, component := range []string{
+		"gitlab.com/someone/glsec/glsec@1",
+		"gitlab.com/glsec-io/glsec/glsec-extra@1",
+	} {
+		t.Run(component, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGitlabParser(), ".gitlab-ci.yml", "include:\n  - component: "+component+"\n")
+			assert.NotContains(t, verdicts, "Workflow Security")
 		})
 	}
 }

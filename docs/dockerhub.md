@@ -65,7 +65,7 @@ docker run --rm -v "$PWD:/repo" mustachecase/zanadir scan --dir /repo -c /repo/.
 Use the action rather than the image directly:
 
 ```yaml
-- uses: mustachecase/zanadir-action@v1.27
+- uses: mustachecase/zanadir-action@v1.29
   with:
     dir: .
 ```

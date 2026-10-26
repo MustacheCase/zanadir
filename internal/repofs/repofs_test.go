@@ -63,3 +63,23 @@ func TestWriteFileStaysInTheRepository(t *testing.T) {
 	assert.Error(t, WriteFile(repo, filepath.Join(base, "z.yml"), nil, 0o644))
 	assert.Error(t, WriteFile(filepath.Join(base, "missing"), filepath.Join(base, "missing", "z.yml"), nil, 0o644))
 }
+
+func TestWriteOutputRefusesASymlink(t *testing.T) {
+	dir := t.TempDir()
+	victim, link := filepath.Join(dir, "victim.txt"), filepath.Join(dir, "zanadir.md")
+	require.NoError(t, os.WriteFile(victim, []byte("keep"), 0o600))
+	require.NoError(t, os.Symlink(victim, link))
+
+	assert.ErrorContains(t, WriteOutput(link, []byte("report"), 0o644), "symbolic link")
+	data, err := os.ReadFile(victim)
+	require.NoError(t, err)
+	assert.Equal(t, "keep", string(data))
+
+	out := filepath.Join(dir, "out.md")
+	require.NoError(t, os.WriteFile(out, []byte("an older, longer report"), 0o600))
+	require.NoError(t, WriteOutput(out, []byte("report"), 0o644))
+	data, err = os.ReadFile(out)
+	require.NoError(t, err)
+	assert.Equal(t, "report", string(data), "an existing file is truncated")
+	assert.Error(t, WriteOutput(filepath.Join(dir, "missing", "x.md"), nil, 0o644))
+}

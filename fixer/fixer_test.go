@@ -551,28 +551,37 @@ func TestGlsecTemplateIsReadByTheGitlabParser(t *testing.T) {
 	assert.Equal(t, "glsec .gitlab-ci.yml", artifacts[0].Jobs[0].Run)
 }
 
-// Each poutine snippet, pasted, is a step the poutine rule recognises.
-func TestPoutineTemplatesAreReadByTheirRule(t *testing.T) {
+// Each snippet for these tools, pasted, is a step its rule recognises.
+func TestTemplatesAreReadByTheirRule(t *testing.T) {
 	rs, err := rules.NewRulesService()
 	require.NoError(t, err)
-	idx := slices.IndexFunc(rs.GetCategoryRules(models.WorkflowSecurity), func(r *rules.Rule) bool { return r.ID == "poutine-rule" })
-	require.NotEqual(t, -1, idx)
-	rule := rs.GetCategoryRules(models.WorkflowSecurity)[idx]
-
 	templates, err := readTemplates()
 	require.NoError(t, err)
-	for platform, file := range map[string]string{parser.GitHub: ".github/workflows/ci.yml", parser.GitLab: ".gitlab-ci.yml"} {
-		i := slices.IndexFunc(templates, func(t Template) bool { return t.Tool == "poutine" && t.Platform == platform })
-		require.NotEqual(t, -1, i, platform)
-		step := templates[i].Step
-		if platform == parser.GitHub {
-			step = "on: pull_request\njobs:\n  a:\n    runs-on: x\n    steps:\n" + indent(step, "      ")
+
+	for tool, want := range map[string]struct {
+		category models.CategoryTitle
+		rule     string
+	}{
+		"poutine":             {models.WorkflowSecurity, "poutine-rule"},
+		"Cisco Skill Scanner": {models.AgentSkillSecurity, "cisco-skill-scanner-rule"},
+	} {
+		idx := slices.IndexFunc(rs.GetCategoryRules(want.category), func(r *rules.Rule) bool { return r.ID == want.rule })
+		require.NotEqual(t, -1, idx, want.rule)
+		rule := rs.GetCategoryRules(want.category)[idx]
+
+		for platform, file := range map[string]string{parser.GitHub: ".github/workflows/ci.yml", parser.GitLab: ".gitlab-ci.yml"} {
+			i := slices.IndexFunc(templates, func(t Template) bool { return t.Tool == tool && t.Platform == platform })
+			require.NotEqual(t, -1, i, tool, platform)
+			step := templates[i].Step
+			if platform == parser.GitHub {
+				step = "on: pull_request\njobs:\n  a:\n    runs-on: x\n    steps:\n" + indent(step, "      ")
+			}
+			p, _ := parser.Lookup(platform)
+			artifacts, err := p.Parser.Parse(testrepo.Write(t, map[string]string{file: step}))
+			require.NoError(t, err, tool, platform)
+			require.NotEmpty(t, artifacts, tool, platform)
+			assert.True(t, slices.ContainsFunc(artifacts[0].Jobs, func(job *models.Job) bool { return rule.Regex.MatchString(job.Run) }), tool, platform)
 		}
-		p, _ := parser.Lookup(platform)
-		artifacts, err := p.Parser.Parse(testrepo.Write(t, map[string]string{file: step}))
-		require.NoError(t, err, platform)
-		require.NotEmpty(t, artifacts, platform)
-		assert.True(t, slices.ContainsFunc(artifacts[0].Jobs, func(job *models.Job) bool { return rule.Regex.MatchString(job.Run) }), platform)
 	}
 }
 

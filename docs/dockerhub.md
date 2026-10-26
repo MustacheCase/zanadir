@@ -2,7 +2,7 @@
 
 **Does this repository's CI actually protect it?** zanadir reads a repository's CI configuration and reports which security and quality controls are missing, and which are wired so they cannot fail a build: a scanner with `continue-on-error`, a secret scan that only runs on a schedule, a quality gate that never aborts.
 
-It reads **GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines, Jenkins and CircleCI**, and grades twelve categories: SCA, Secrets Detection, License Compliance, End Of Life, Coverage, Linter, Performance Testing, Unit Tests, SAST, IaC Security, Supply Chain and Workflow Security.
+It reads **GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines, Jenkins and CircleCI**, and grades thirteen categories: SCA, Secrets Detection, License Compliance, End Of Life, Coverage, Linter, Performance Testing, Unit Tests, SAST, IaC Security, Supply Chain, Workflow Security and Agent Skill Security.
 
 Source, documentation and issues: **https://github.com/MustacheCase/zanadir**
 

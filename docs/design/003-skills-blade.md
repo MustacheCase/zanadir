@@ -1,6 +1,6 @@
 # Design: the skills blade
 
-**Status:** phase 1 implemented (`zanadir skills`); phases 2-5 proposed
+**Status:** phases 1 (`zanadir skills`) and 2 (Agent Skill Security) implemented; 3-5 proposed
 **Scope:** auditing a repository's (or a user's) agent skills: what is missing,
 what is broken, and what will never trigger
 
@@ -115,6 +115,16 @@ tools, so this matters more here.
 A new CI category, **Agent Skill Security**, applies only when the repository
 contains skills: is SkillSpector or an equivalent run in CI on them? This is
 the cheapest piece and works through the existing rule engine.
+
+Phase 2 built it with three tools: Cisco Skill Scanner, SkillSpector and Snyk
+Agent Scan. None of the 17 skill repositories used in phase 1 runs any of
+them, and GitHub code search finds almost no CI file that does, so for now
+nearly every repository with skills is uncovered. SkillSpector's own CI was
+the one near-miss: it runs `skillspector --version` and builds an image of
+that name, so the rule credits only its `scan` command. The fix snippet uses
+Cisco's CLI, because it installs from PyPI at a pinned version and takes a
+severity threshold; SkillSpector installs from git, and Snyk Agent Scan
+covers MCP servers first.
 
 ## Fix
 

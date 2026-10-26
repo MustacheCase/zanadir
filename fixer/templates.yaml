@@ -290,3 +290,26 @@ templates:
           entrypoint: [""]
         script:
           - poutine analyze_local . --fail-on-violation
+
+  - tool: "Cisco Skill Scanner"
+    platform: "github"
+    step: |
+      # Static rules only. Cisco recommends its LLM judge as well
+      # (--use-llm, with a model key as a secret) to catch malicious skills.
+      # --fail-on-severity makes HIGH findings fail the build; it exits 0
+      # without it.
+      - name: Scan agent skills
+        run: pipx run --spec cisco-ai-skill-scanner==2.3.1 skill-scanner scan-all . --recursive --fail-on-severity high
+
+  - tool: "Cisco Skill Scanner"
+    platform: "gitlab"
+    step: |
+      # Static rules only. Cisco recommends its LLM judge as well
+      # (--use-llm, with a model key as a CI/CD variable) to catch malicious
+      # skills. --fail-on-severity makes HIGH findings fail the pipeline.
+      skill_scan:
+        stage: .pre
+        image: python:3.12-slim
+        script:
+          - pip install cisco-ai-skill-scanner==2.3.1
+          - skill-scanner scan-all . --recursive --fail-on-severity high

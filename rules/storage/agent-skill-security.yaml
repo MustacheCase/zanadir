@@ -1,0 +1,27 @@
+rules:
+  # NVIDIA SkillSpector. It exits 1 when a skill's risk score is over 50, so
+  # the default run already gates. Only its scan command counts: the tool's
+  # own CI runs skillspector --version and builds an image of that name.
+  - id: "skillspector-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Agent Skill Security"]
+    regex: "(?i)\\bskillspector(?::[\\w.-]+)?\\s+scan\\b"
+
+  # Cisco AI Defense skill-scanner, as its reusable workflow or its CLI.
+  # "skill-scanner" alone is also Sentry's skill of that name, which runs
+  # inside an agent rather than in CI, so the CLI needs a scan subcommand.
+  # The CLI exits 0 on findings unless --fail-on-severity or
+  # --fail-on-findings is given; like poutine's, a missing flag is not
+  # graded.
+  - id: "cisco-skill-scanner-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Agent Skill Security"]
+    regex: "(?i)\\bcisco-ai-defense/skill-scanner\\b|(?:^|[\\s/])skill-scanner\\s+scan(?:-all|-repo)?\\b"
+
+  # Snyk Agent Scan, formerly Invariant's mcp-scan, which scans skills unless
+  # told not to. It exits 0 on findings without --ci.
+  - id: "snyk-agent-scan-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Agent Skill Security"]
+    regex: "(?i)\\bsnyk-agent-scan\\b"
+    unless: "--no-skills\\b"

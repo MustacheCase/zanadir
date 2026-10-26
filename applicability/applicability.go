@@ -13,6 +13,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
+	"github.com/MustacheCase/zanadir/skills"
 	"github.com/MustacheCase/zanadir/utils"
 )
 
@@ -150,6 +151,9 @@ func NotApplicable(dir string, ignore func(string) bool) []string {
 	ownWorkflow := slices.ContainsFunc(parser.GithubWorkflows(dir), func(path string) bool { return ignore == nil || !ignore(path) })
 	if !ownWorkflow && !parser.Uses(dir, parser.GitLab) {
 		ruledOut = append(ruledOut, string(models.WorkflowSecurity))
+	}
+	if !skills.Present(dir) {
+		ruledOut = append(ruledOut, string(models.AgentSkillSecurity))
 	}
 	return ruledOut
 }

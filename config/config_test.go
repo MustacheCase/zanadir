@@ -347,3 +347,29 @@ func TestCreateConfigFollowsASymlinkedDir(t *testing.T) {
 	_, err = CreateConfig(newScanCmd(file, nil))
 	assert.ErrorContains(t, err, "is not a directory")
 }
+
+func newSkillsCmd(dir, output string, enforce bool) *cobra.Command {
+	cmd := &cobra.Command{Use: "skills"}
+	cmd.Flags().StringP("dir", "d", dir, "dir")
+	cmd.Flags().StringP("output", "o", output, "output")
+	cmd.Flags().Bool("enforce", enforce, "enforce")
+	return cmd
+}
+
+func TestCreateSkillsConfig(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := CreateSkillsConfig(newSkillsCmd(dir, "JSON", true))
+
+	assert.NoError(t, err)
+	assert.Equal(t, dir, cfg.Dir)
+	assert.Equal(t, OutputJSON, cfg.Output)
+	assert.True(t, cfg.Enforce)
+}
+
+func TestCreateSkillsConfigRejectsBadInput(t *testing.T) {
+	_, err := CreateSkillsConfig(newSkillsCmd(t.TempDir(), "sarif", false))
+	assert.EqualError(t, err, "unsupported output format: sarif (expected table or json)")
+
+	_, err = CreateSkillsConfig(newSkillsCmd("", "table", false))
+	assert.Error(t, err)
+}

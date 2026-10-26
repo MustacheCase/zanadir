@@ -173,6 +173,23 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	return cfg, nil
 }
 
+// CreateSkillsConfig builds the skills command's Config. Skills are read from
+// a checkout only: a fetched repository keeps CI files alone.
+func CreateSkillsConfig(cmd *cobra.Command) (*Config, error) {
+	dir, err := resolveDir(cmd)
+	if err != nil {
+		return nil, err
+	}
+	cfg := &Config{Dir: dir}
+	cfg.Enforce, _ = cmd.Flags().GetBool("enforce")
+	cfg.Output, _ = cmd.Flags().GetString("output")
+	cfg.Output = strings.ToLower(cfg.Output)
+	if cfg.Output != OutputTable && cfg.Output != OutputJSON {
+		return nil, fmt.Errorf("unsupported output format: %s (expected table or json)", cfg.Output)
+	}
+	return cfg, nil
+}
+
 // CreateFixConfig builds the subset of configuration the fix command needs.
 // It does not read the scan-only flags, which fix does not define.
 func CreateFixConfig(cmd *cobra.Command) (*Config, error) {

@@ -244,3 +244,30 @@ func TestMCPCommandServesWithTheVersion(t *testing.T) {
 	assert.NoError(t, mcpCmd.Args(mcpCmd, []string{""}), "an MCP client may pass empty arguments too")
 	assert.Error(t, mcpCmd.Args(mcpCmd, []string{"scan"}))
 }
+
+func TestCheckSkills(t *testing.T) {
+	dir := t.TempDir()
+	assert.NoError(t, os.MkdirAll(dir+"/skills/a", 0o755))
+	assert.NoError(t, os.WriteFile(dir+"/skills/a/SKILL.md", []byte("---\nname: a\ndescription: Does a. Use when the user asks for a.\n---\n[x](gone.md)\n"), 0o644))
+	var out bytes.Buffer
+	stdout = &out
+	t.Cleanup(func() { stdout = os.Stdout })
+
+	assert.NoError(t, checkSkills(&config.Config{Dir: dir, Output: config.OutputTable}))
+	assert.Contains(t, out.String(), "links gone.md, which does not exist")
+
+	out.Reset()
+	err := checkSkills(&config.Config{Dir: dir, Output: config.OutputJSON, Enforce: true})
+	var enforceErr *models.EnforceError
+	assert.ErrorAs(t, err, &enforceErr)
+	assert.Contains(t, out.String(), `"rule": "missing-reference"`)
+
+	assert.Error(t, checkSkills(&config.Config{Dir: dir + "/absent"}))
+}
+
+func TestSkillsCommandIsRegistered(t *testing.T) {
+	cmd, _, err := rootCmd.Find([]string{"skills"})
+	assert.NoError(t, err)
+	assert.Equal(t, "skills", cmd.Name())
+	assert.NotNil(t, cmd.Flags().Lookup("enforce"))
+}

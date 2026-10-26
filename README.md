@@ -1021,6 +1021,52 @@ without it and paste the snippets.
 
 `--excluded-categories` works as it does for `scan`.
 
+## `zanadir skills`
+
+Agent skills (`SKILL.md` files for Claude Code, Codex and other agents) fail
+quietly: a vague description never triggers, a linked script was deleted, two
+skills compete for the same requests. `skills` finds every `SKILL.md` in a
+checkout and reports them:
+
+```sh
+zanadir skills --dir .
+```
+
+```
+Found 3 skills: .claude/skills/deploy, .claude/skills/review, plugins/acme/skills/db-migrate
+
+Quality
+  ! .claude/skills/deploy/SKILL.md:3  description says what the skill does but not when to use it; add a "Use when ..." sentence  [description-no-trigger]
+  ✗ plugins/acme/skills/db-migrate/SKILL.md:41  links scripts/rollback.sh, which does not exist  [missing-reference]
+
+Safety
+  ! .claude/skills/review/scripts/setup.sh:4  downloads a script and pipes it straight into a shell  [pipe-to-shell]
+
+1 error, 2 warnings
+```
+
+| Rule | Severity | Finds |
+|---|---|---|
+| `frontmatter-invalid` | error | frontmatter that is not valid YAML |
+| `missing-reference` | error | a link to a file in the repository that does not exist |
+| `hidden-unicode` | error | bidirectional overrides or tag characters, which can hide text from a reviewer; a warning for zero-width characters in `SKILL.md` |
+| `frontmatter-missing`, `name-missing`, `description-missing` | warning | no frontmatter, name or description |
+| `name-format`, `name-mismatch` | warning | a name that is not lowercase-hyphenated, or does not match its directory |
+| `description-short`, `description-long` | warning | under 40 characters, or over the 1,024 the Agent Skills specification allows |
+| `description-no-trigger` | warning | a description that says what, never when ("Use when ...") |
+| `description-overlap` | warning | two skills in one skills directory whose descriptions share most of their words |
+| `body-long` | warning | a `SKILL.md` over 500 lines, which loads whole every time |
+| `bash-unrestricted` | warning | `allowed-tools` granting every shell command |
+| `pipe-to-shell`, `skip-approvals` | warning | `curl \| sh`, or running the agent without approvals or its sandbox, in `SKILL.md` or a script |
+
+The safety rules are shallow on purpose and read only what the agent follows
+or runs, not reference documents that describe a risky pattern. For a security
+audit of a skill, use [SkillSpector](https://github.com/nvidia/skillspector).
+
+`--output json` gives the findings to other tools, and `--enforce` exits
+non-zero when any error is found. Dependency, test and `.git` directories are
+skipped. `skills` reads a checkout only; `--repo` is not supported yet.
+
 ## Contributors
 
 Feedback, issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/handler"
@@ -101,9 +102,13 @@ type response struct {
 // Options say what the server reports and where its tools read by default.
 type Options struct {
 	Version string
-	// Dir is the repository a tool reads when the call names none; empty
-	// means the working directory.
+	// Dir is the repository a tool reads when the call names none, and the
+	// directory a call's dir must stay inside; empty means the working
+	// directory.
 	Dir string
+	// RepoToken lets repo fetches use GITHUB_TOKEN or GH_TOKEN. Off, they are
+	// anonymous, so an agent cannot read private repositories with it.
+	RepoToken bool
 }
 
 // Run serves on stdin and stdout until the client closes stdin or ctx ends.
@@ -177,14 +182,14 @@ func handle(ctx context.Context, line []byte, opts Options) *response {
 	case "tools/list":
 		reply.Result = map[string]any{"tools": tools}
 	case "tools/call":
-		reply.Result, reply.Error = callTool(ctx, req.Params, opts.Dir)
+		reply.Result, reply.Error = callTool(ctx, req.Params, opts)
 	default:
 		reply.Error = &rpcError{-32601, "method not found: " + req.Method}
 	}
 	return reply
 }
 
-func callTool(ctx context.Context, raw json.RawMessage, dir string) (any, *rpcError) {
+func callTool(ctx context.Context, raw json.RawMessage, opts Options) (any, *rpcError) {
 	var params struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
@@ -196,14 +201,14 @@ func callTool(ctx context.Context, raw json.RawMessage, dir string) (any, *rpcEr
 	if i < 0 {
 		return nil, &rpcError{-32602, fmt.Sprintf("unknown tool %q", params.Name)}
 	}
-	text, err := run(ctx, tools[i], params.Arguments, dir)
+	text, err := run(ctx, tools[i], params.Arguments, opts)
 	if err != nil {
 		text = err.Error()
 	}
 	return map[string]any{"content": []map[string]string{{"type": "text", "text": text}}, "isError": err != nil}, nil
 }
 
-func run(ctx context.Context, t tool, arguments json.RawMessage, dir string) (string, error) {
+func run(ctx context.Context, t tool, arguments json.RawMessage, opts Options) (string, error) {
 	var target Target
 	if len(arguments) > 0 && string(arguments) != "null" {
 		decoder := json.NewDecoder(bytes.NewReader(arguments))
@@ -212,7 +217,7 @@ func run(ctx context.Context, t tool, arguments json.RawMessage, dir string) (st
 			return "", fmt.Errorf("invalid arguments: %w", err)
 		}
 	}
-	cfg, cleanup, err := configure(ctx, target, dir)
+	cfg, cleanup, err := configure(ctx, target, opts)
 	if err != nil {
 		return "", err
 	}
@@ -228,7 +233,7 @@ func run(ctx context.Context, t tool, arguments json.RawMessage, dir string) (st
 	return out.String(), nil
 }
 
-func configure(ctx context.Context, target Target, defaultDir string) (*config.Config, func(), error) {
+func configure(ctx context.Context, target Target, opts Options) (*config.Config, func(), error) {
 	cfg := &config.Config{}
 	for _, name := range target.ExcludedCategories {
 		category, ok := models.ResolveCategory(name)
@@ -238,7 +243,7 @@ func configure(ctx context.Context, target Target, defaultDir string) (*config.C
 		cfg.ExcludedCategories = append(cfg.ExcludedCategories, string(category))
 	}
 	if target.Repo == "" {
-		dir, err := filepath.Abs(cmp.Or(target.Dir, defaultDir, "."))
+		dir, err := confine(cmp.Or(opts.Dir, "."), target.Dir)
 		cfg.Dir = dir
 		return cfg, func() {}, err
 	}
@@ -249,10 +254,32 @@ func configure(ctx context.Context, target Target, defaultDir string) (*config.C
 	if err != nil {
 		return nil, nil, err
 	}
-	dir, cleanup, err := fetch(ctx, repo, remote.Token())
+	token := ""
+	if opts.RepoToken {
+		token = remote.Token()
+	}
+	dir, cleanup, err := fetch(ctx, repo, token)
 	if err != nil {
 		return nil, nil, err
 	}
 	cfg.Dir = dir
 	return cfg, cleanup, nil
+}
+
+// confine resolves dir against base and refuses one outside it, symlinks
+// followed, so a call cannot read checkouts the server was not pointed at.
+func confine(base, dir string) (string, error) {
+	base, errAbs := filepath.Abs(base)
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(base, dir)
+	}
+	realBase, errBase := filepath.EvalSymlinks(base)
+	realDir, errDir := filepath.EvalSymlinks(dir)
+	if err := errors.Join(errAbs, errBase, errDir); err != nil {
+		return "", err
+	}
+	if rel, err := filepath.Rel(realBase, realDir); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("dir %s is outside %s; start zanadir mcp with --dir to read elsewhere", dir, base)
+	}
+	return filepath.Clean(dir), nil
 }

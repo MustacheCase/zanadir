@@ -46,7 +46,7 @@
       "environmentVariables": [
         {
           "name": "GITHUB_TOKEN",
-          "description": "Optional: a token for reading GitHub repositories with the repo argument without hitting the anonymous rate limit",
+          "description": "Optional: a token for the repo argument, used only when the server is started with --repo-token",
           "isRequired": false,
           "isSecret": true
         }

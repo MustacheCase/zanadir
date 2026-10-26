@@ -139,6 +139,13 @@ Both take `dir` (a local checkout, by default the current directory) or
 `repo` (`github.com/owner/name[@ref]`, read without cloning), and
 `excludedCategories`.
 
+An agent can be steered by what it reads, so the server keeps its tools to
+what you started it with. A `dir` must be inside `--dir` (by default the
+directory the server starts in); a relative one is read from there. `repo`
+fetches are anonymous, so they reach public repositories only, unless you
+start the server with `--repo-token` to let them use `GITHUB_TOKEN` or
+`GH_TOKEN`.
+
 ```sh
 claude mcp add zanadir -- zanadir mcp
 ```

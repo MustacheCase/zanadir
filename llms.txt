@@ -9,7 +9,7 @@
 - `--required-checks` counts a control as enforcing only when branch protection or a ruleset requires its check. `--enforce`, `--fail-on` and `--fail-on-weakened` fail a CI run on gaps.
 - It complements OpenSSF Scorecard, which rates project-wide practices through the forge's API; zanadir reads the CI configuration and grades whether each control can fail a build.
 
-For AI coding agents, `zanadir mcp` is a Model Context Protocol server with two read-only tools: `scan` (the JSON report) and `fix` (configuration for the gaps), each taking `dir` or `repo`. It is listed in the MCP Registry as `io.github.MustacheCase/zanadir`. Add it with `claude mcp add zanadir -- zanadir mcp`, or `{"command": "zanadir", "args": ["mcp"]}` in other clients.
+For AI coding agents, `zanadir mcp` is a Model Context Protocol server with two read-only tools: `scan` (the JSON report) and `fix` (configuration for the gaps), each taking `dir` (inside the server's `--dir`) or `repo` (anonymous unless the server runs with `--repo-token`). It is listed in the MCP Registry as `io.github.MustacheCase/zanadir`. Add it with `claude mcp add zanadir -- zanadir mcp`, or `{"command": "zanadir", "args": ["mcp"]}` in other clients.
 
 ## Usage
 

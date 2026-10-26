@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -69,6 +70,13 @@ func session(t *testing.T, messages ...any) []reply {
 	return replies
 }
 
+// serveFrom makes dir the server's --dir for one test.
+func serveFrom(t *testing.T, dir string) {
+	old := options
+	t.Cleanup(func() { options = old })
+	options.Dir = dir
+}
+
 func callMessage(id int, tool string, args any) map[string]any {
 	return map[string]any{"jsonrpc": "2.0", "id": id, "method": "tools/call", "params": map[string]any{"name": tool, "arguments": args}}
 }
@@ -99,7 +107,9 @@ func TestHandshakeAndToolList(t *testing.T) {
 }
 
 func TestScanReturnsTheJSONReport(t *testing.T) {
-	replies := session(t, callMessage(1, "scan", map[string]any{"dir": repo(t), "excludedCategories": []string{"performance testing"}}))
+	dir := repo(t)
+	serveFrom(t, dir)
+	replies := session(t, callMessage(1, "scan", map[string]any{"dir": dir, "excludedCategories": []string{"performance testing"}}))
 	require.False(t, replies[0].Result.IsError, replies[0].Result.Content)
 	var report struct {
 		Platforms []string
@@ -123,6 +133,7 @@ func TestToolsReadTheDefaultDirectory(t *testing.T) {
 
 func TestFixPrintsSnippetsWithoutWriting(t *testing.T) {
 	dir := repo(t)
+	serveFrom(t, dir)
 	replies := session(t, callMessage(1, "fix", map[string]any{"dir": dir}))
 	require.False(t, replies[0].Result.IsError)
 	assert.Contains(t, replies[0].Result.Content[0].Text, "is not covered. Add to .github/workflows/")
@@ -131,6 +142,9 @@ func TestFixPrintsSnippetsWithoutWriting(t *testing.T) {
 
 func TestARepositoryIsFetchedAndRemoved(t *testing.T) {
 	dir, removed := repo(t), false
+	base := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(base, "plain"), 0o755))
+	serveFrom(t, base)
 	oldFetch := fetch
 	t.Cleanup(func() { fetch = oldFetch })
 	fetch = func(_ context.Context, r remote.Repository, _ string) (string, func(), error) {
@@ -149,7 +163,7 @@ func TestARepositoryIsFetchedAndRemoved(t *testing.T) {
 		"not both":                map[string]any{"repo": "github.com/o/r", "dir": "."},
 		"only github.com":         map[string]any{"repo": "gitlab.com/o/r"},
 		`unknown category "nope"`: map[string]any{"excludedCategories": []string{"nope"}},
-		"not a git repository":    map[string]any{"dir": t.TempDir()},
+		"not a git repository":    map[string]any{"dir": "plain"},
 		`unknown field "branch"`:  map[string]any{"branch": "main"},
 		"invalid arguments":       []string{"dir"},
 	} {
@@ -234,4 +248,42 @@ func TestTheRegistryNameMatchesTheImageLabel(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(dockerfile), `LABEL io.modelcontextprotocol.server.name="`+server.Name+`"`)
 	assert.Equal(t, "io.github.MustacheCase/zanadir", server.Name, "GitHub OIDC grants the namespace of the repository's owner, as GitHub spells it")
+}
+
+func TestADirStaysInsideTheServersDirectory(t *testing.T) {
+	base, outside := repo(t), repo(t)
+	require.NoError(t, os.Symlink(outside, filepath.Join(base, "link")))
+	require.NoError(t, os.MkdirAll(filepath.Join(base, "sub", ".github"), 0o755))
+	serveFrom(t, base)
+
+	for _, dir := range []string{outside, "../" + filepath.Base(outside), "link"} {
+		replies := session(t, callMessage(1, "scan", map[string]any{"dir": dir}))
+		assert.True(t, replies[0].Result.IsError, dir)
+		assert.Contains(t, replies[0].Result.Content[0].Text, "start zanadir mcp with --dir to read elsewhere", dir)
+	}
+	replies := session(t, callMessage(1, "scan", map[string]any{"dir": "missing"}))
+	assert.True(t, replies[0].Result.IsError)
+	for _, dir := range []string{base, ".", "sub"} {
+		replies := session(t, callMessage(1, "scan", map[string]any{"dir": dir}))
+		assert.NotContains(t, replies[0].Result.Content[0].Text, "outside", dir)
+	}
+}
+
+func TestRepoFetchesUseTheTokenOnlyWhenAllowed(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "secret")
+	dir, used := repo(t), ""
+	oldFetch := fetch
+	t.Cleanup(func() { fetch = oldFetch })
+	fetch = func(_ context.Context, _ remote.Repository, token string) (string, func(), error) {
+		used = token
+		return dir, func() {}, nil
+	}
+	session(t, callMessage(1, "scan", map[string]any{"repo": "github.com/o/r"}))
+	assert.Empty(t, used, "anonymous unless the server allows the token")
+
+	old := options
+	t.Cleanup(func() { options = old })
+	options.RepoToken = true
+	session(t, callMessage(1, "scan", map[string]any{"repo": "github.com/o/r"}))
+	assert.Equal(t, "secret", used)
 }

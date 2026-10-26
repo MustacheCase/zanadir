@@ -313,12 +313,13 @@ func TestFetchReportsAnUnreachableHost(t *testing.T) {
 }
 
 func TestFetchSkipsTheArchivesOwnGitDirectory(t *testing.T) {
-	serve(t, http.StatusOK, tarball(t, entry{name: "o-r-1/.git", body: "gitdir: elsewhere"}, entry{name: "o-r-1/.git/config", body: "x"}))
+	serve(t, http.StatusOK, tarball(t, entry{name: "o-r-1/.git", body: "gitdir: elsewhere"}, entry{name: "o-r-1/.git/config", body: "x"}, entry{name: "o-r-1/.GIT/refs/remotes/origin/HEAD", body: ""}))
 	dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
 	require.NoError(t, err)
 	defer cleanup()
 	assert.DirExists(t, filepath.Join(dir, ".git"))
 	assert.NoFileExists(t, filepath.Join(dir, ".git", "config"))
+	assert.NoDirExists(t, filepath.Join(dir, ".GIT", "refs"), "a case variant is skipped too, as it is .git on macOS and Windows")
 }
 
 // A file and a directory with the same name, either way round, cannot both
@@ -507,4 +508,15 @@ func TestFetchReportsAnUnreachableRawHost(t *testing.T) {
 func TestGetJSONReportsAnUnreachableHost(t *testing.T) {
 	var out struct{}
 	assert.Error(t, getJSON(context.Background(), "http://127.0.0.1:1/x", "", &out))
+}
+
+func TestGetJSONStopsAtTheSizeLimit(t *testing.T) {
+	defer func(limit int64) { maxJSONBytes = limit }(maxJSONBytes)
+	maxJSONBytes = 8
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"default_branch": "main"}`))
+	}))
+	defer server.Close()
+	var out struct{}
+	assert.Error(t, getJSON(context.Background(), server.URL, "", &out))
 }

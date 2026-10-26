@@ -3,6 +3,7 @@
 package repofs
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -60,9 +61,6 @@ func WriteOutput(path string, data []byte, perm fs.FileMode) error {
 	if err != nil {
 		return err
 	}
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		return err
-	}
-	return f.Close()
+	_, err = f.Write(data)
+	return errors.Join(err, f.Close())
 }

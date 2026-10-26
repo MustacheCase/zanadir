@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/MustacheCase/zanadir/utils"
 )
 
 // Report is the result of checking a directory's skills.
@@ -52,7 +54,7 @@ func (r Report) WriteTable(w io.Writer) error {
 		_, err := io.WriteString(w, b.String())
 		return err
 	}
-	fmt.Fprintf(&b, "Found %d %s: %s\n", len(r.Skills), plural(len(r.Skills), "skill"), strings.Join(r.Skills, ", "))
+	fmt.Fprintf(&b, "Found %d %s: %s\n", len(r.Skills), plural(len(r.Skills), "skill"), utils.Printable(strings.Join(r.Skills, ", ")))
 	for _, category := range []string{Quality, Safety} {
 		var lines []string
 		for _, f := range r.Findings {
@@ -61,7 +63,7 @@ func (r Report) WriteTable(w io.Writer) error {
 				if f.Severity == Error {
 					mark = "✗"
 				}
-				lines = append(lines, fmt.Sprintf("  %s %s:%d  %s  [%s]\n", mark, f.File, f.Line, f.Message, f.Rule))
+				lines = append(lines, fmt.Sprintf("  %s %s:%d  %s  [%s]\n", mark, utils.Printable(f.File), f.Line, utils.Printable(f.Message), f.Rule))
 			}
 		}
 		if len(lines) > 0 {

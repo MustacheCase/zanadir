@@ -11,6 +11,7 @@ import (
 	"github.com/MustacheCase/zanadir/config"
 	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
+	"github.com/MustacheCase/zanadir/utils"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/renderer"
 	"github.com/olekukonko/tablewriter/tw"
@@ -246,7 +247,7 @@ func renderWeakened(w io.Writer, weaknesses []Weakness, colour bool) error {
 		return err
 	}
 	for _, weakness := range weaknesses {
-		if _, err := fmt.Fprintf(w, "  %s is %s (%s)%s\n", weakness.Category, weakness.Verdict, weakness.Location, weakness.because()); err != nil {
+		if _, err := fmt.Fprintf(w, "  %s is %s (%s)%s\n", weakness.Category, weakness.Verdict, utils.Printable(weakness.Location), weakness.because()); err != nil {
 			return err
 		}
 	}

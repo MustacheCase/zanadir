@@ -28,6 +28,7 @@ import (
 	"github.com/MustacheCase/zanadir/scanner"
 	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
+	"github.com/MustacheCase/zanadir/utils"
 )
 
 // debugFunc logs a step of the scan when --debug is on and does nothing
@@ -145,7 +146,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	debugf("Found %d artifacts", len(artifacts))
 	for _, a := range artifacts {
 		if a != nil && a.Skipped != "" {
-			_, _ = fmt.Fprintf(stderr, "Warning: skipped %s: %s\n", repoRelative(cfg.Dir, a.Location), a.Skipped)
+			_, _ = fmt.Fprintf(stderr, "Warning: skipped %s: %s\n", utils.Printable(repoRelative(cfg.Dir, a.Location)), utils.Printable(a.Skipped))
 		}
 	}
 

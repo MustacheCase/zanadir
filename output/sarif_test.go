@@ -216,3 +216,9 @@ func TestWeakenedHelpCoversEveryVerdict(t *testing.T) {
 		}
 	}
 }
+
+func TestSarifLocationIsAnEscapedURI(t *testing.T) {
+	log := buildSarif(nil, "", []Weakness{{Category: "SCA", Verdict: "advisory", Location: ".github/workflows/a b#?%.yml"}})
+
+	assert.Equal(t, ".github/workflows/a%20b%23%3F%25.yml", log.Runs[0].Results[0].Locations[0].PhysicalLocation.ArtifactLocation.URI)
+}

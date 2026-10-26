@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/wrapper"
@@ -19,6 +20,12 @@ func expand(t *testing.T, files map[string]string, script string) []string {
 		return nil
 	}
 	return strings.Split(out, "\n")
+}
+
+func TestALongScriptExpandsInLinearTime(t *testing.T) {
+	start := time.Now()
+	assert.Empty(t, expand(t, nil, strings.Repeat("if trivy fs .; then echo ok; fi\n", 2000)))
+	assert.Less(t, time.Since(start), 2*time.Second)
 }
 
 func TestMakeFollowsTargets(t *testing.T) {

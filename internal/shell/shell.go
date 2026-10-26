@@ -154,32 +154,65 @@ var (
 // re-raise anywhere after it. A script with no such command swallows nothing.
 func Swallowed(script string, runs func(command string) bool) bool {
 	found := false
-	lines := strings.Split(strings.ReplaceAll(script, "\\\n", " "), "\n")
-	for i, line := range lines {
-		start := 0
+	for _, s := range statements(script) {
+		if runs(s.command) {
+			if !s.swallowed {
+				return false
+			}
+			found = true
+		}
+	}
+	return found
+}
+
+type statement struct {
+	command   string
+	swallowed bool
+}
+
+// statements returns the script's statements that run something, each with
+// whether the script discards its failure there.
+func statements(script string) []statement {
+	var found []statement
+	text := strings.ReplaceAll(script, "\\\n", " ")
+	textReraise, lineStart := lastReraise(text), 0
+	for _, line := range strings.Split(text, "\n") {
+		lineReraise, start, or := lastReraise(line), 0, -1
 		for _, end := range append(statementEnd.FindAllStringIndex(line, -1), []int{len(line), len(line)}) {
-			statement := line[start:end[0]]
-			rest := line[start:]
-			later := line[end[0]:] + "\n" + strings.Join(lines[i+1:], "\n")
+			if or < start {
+				or = len(line)
+				if i := strings.Index(line[start:], "||"); i >= 0 {
+					or = start + i
+				}
+			}
+			handled := or < end[0]
+			command := line[start:min(or, end[0])]
+			later := lineStart + end[0]
 			start = end[1]
 
-			command, _, handled := strings.Cut(statement, "||")
 			words := Words(command)
 			conditional := false
 			for len(words) > 0 && conditions[words[0]] {
 				words, conditional = words[1:], true
 			}
-			if len(words) == 0 || strings.HasPrefix(words[0], "#") || Passive(words) || tests[words[0]] || !runs(strings.Join(words, " ")) {
+			if len(words) == 0 || strings.HasPrefix(words[0], "#") || Passive(words) || tests[words[0]] {
 				continue
 			}
-			found = true
-			_, afterOr, _ := strings.Cut(rest, "||")
-			if swallowed := conditional && !reraise.MatchString(later) || handled && !reraise.MatchString(afterOr); !swallowed {
-				return false
-			}
+			found = append(found, statement{strings.Join(words, " "),
+				conditional && textReraise < later || handled && lineReraise < or+2})
 		}
+		lineStart += len(line) + 1
 	}
 	return found
+}
+
+// lastReraise returns where the last re-raise in text starts, or -1.
+func lastReraise(text string) int {
+	matches := reraise.FindAllStringIndex(text, -1)
+	if len(matches) == 0 {
+		return -1
+	}
+	return matches[len(matches)-1][0]
 }
 
 // skipHeredoc returns where a heredoc's body ends: the end of the line that
@@ -230,12 +263,24 @@ func Invoked(words []string) []string {
 // SwallowedCommand reports whether script, one of whose Commands is command,
 // discards that command's failure wherever it appears.
 func SwallowedCommand(script, command string) bool {
-	words := Words(command)
-	for len(words) > 0 && conditions[words[0]] {
-		words = words[1:]
+	return SwallowedCommands(script)(command)
+}
+
+// SwallowedCommands reads script once and reports, for any of its Commands,
+// whether the script discards that command's failure wherever it appears.
+func SwallowedCommands(script string) func(command string) bool {
+	swallowed := map[string]bool{}
+	for _, s := range statements(script) {
+		all, seen := swallowed[s.command]
+		swallowed[s.command] = s.swallowed && (all || !seen)
 	}
-	target := strings.Join(words, " ")
-	return Swallowed(script, func(c string) bool { return c == target })
+	return func(command string) bool {
+		words := Words(command)
+		for len(words) > 0 && conditions[words[0]] {
+			words = words[1:]
+		}
+		return swallowed[strings.Join(words, " ")]
+	}
 }
 
 // Lines returns a script's command lines as written, || and all: line

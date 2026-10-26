@@ -17,6 +17,7 @@ import (
 	"github.com/MustacheCase/zanadir/mcpserver"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
+	"github.com/MustacheCase/zanadir/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -53,9 +54,18 @@ var fixCmd = &cobra.Command{
 	Run:   run(config.CreateFixConfig, fixRepo),
 }
 
+var skillsCmd = &cobra.Command{
+	Use:   "skills",
+	Args:  noArgs,
+	Short: "Checks a repository's agent skills for problems",
+	Long:  "The skills command finds every SKILL.md in a repository and reports skills that cannot load, will rarely trigger, link to missing files, or do something unsafe.",
+	Run:   run(config.CreateSkillsConfig, checkSkills),
+}
+
 // exit, stderr, fetchRepository and interrupts are replaced in tests.
 var (
 	exit                      = os.Exit
+	stdout          io.Writer = os.Stdout
 	stderr          io.Writer = os.Stderr
 	fetchRepository           = remote.FetchContext
 	serveMCP                  = mcpserver.Run
@@ -170,7 +180,7 @@ func addSharedFlags(cmd *cobra.Command) {
 
 // NewApp initializes the CLI application
 func NewApp() *cobra.Command {
-	rootCmd.AddCommand(scanCmd, fixCmd, mcpCmd)
+	rootCmd.AddCommand(scanCmd, fixCmd, mcpCmd, skillsCmd)
 	mcpCmd.Flags().StringP("dir", "d", "", "Repository the tools read when a call names none (optional; default: the working directory)")
 	rootCmd.Version = Version()
 
@@ -187,6 +197,10 @@ func NewApp() *cobra.Command {
 
 	addSharedFlags(fixCmd)
 	fixCmd.Flags().Bool("write", false, "Generate .github/workflows/zanadir-suggested.yml instead of printing (optional)")
+
+	skillsCmd.Flags().StringP("dir", "d", "", "Path to the repository directory (required)")
+	skillsCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json) (optional)")
+	skillsCmd.Flags().Bool("enforce", false, "Fails when any skill has an error-level problem (optional)")
 
 	return rootCmd
 }
@@ -217,4 +231,20 @@ func fixRepo(cfg *config.Config) error {
 		return err
 	}
 	return h.Fix(cfg, os.Stdout)
+}
+
+func checkSkills(cfg *config.Config) error {
+	report, err := skills.Run(cfg.Dir)
+	if err != nil {
+		return err
+	}
+	if cfg.Output == config.OutputJSON {
+		err = report.WriteJSON(stdout)
+	} else {
+		err = report.WriteTable(stdout)
+	}
+	if err == nil && cfg.Enforce && report.Errors() > 0 {
+		err = models.NewEnforceError(fmt.Sprintf("%d skill problems of error severity", report.Errors()))
+	}
+	return err
 }

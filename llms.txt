@@ -20,6 +20,7 @@ zanadir scan --repo github.com/owner/name
 zanadir scan --dir . --required-checks --fail-on-weakened
 zanadir fix --dir .
 zanadir fix --dir . --write   # writes .github/workflows/zanadir-suggested.yml
+zanadir skills --dir .        # checks the agent skills (SKILL.md) in a checkout
 ```
 
 Try without installing: `docker run --rm mustachecase/zanadir scan --repo github.com/owner/name`. Install: a prebuilt archive for Linux, macOS or Windows from https://github.com/MustacheCase/zanadir/releases/latest, `go install github.com/MustacheCase/zanadir@latest`, Homebrew (`brew tap --custom-remote MustacheCase/zanadir https://github.com/MustacheCase/zanadir.git && brew install mustachecase/zanadir/zanadir`), or the Docker image `mustachecase/zanadir`. In GitHub Actions, use `MustacheCase/zanadir-action`.
@@ -29,6 +30,7 @@ Try without installing: `docker run --rm mustachecase/zanadir scan --repo github
 - [README](https://github.com/MustacheCase/zanadir/blob/main/README.md): usage, output formats, configuration
 - [Effectiveness](https://github.com/MustacheCase/zanadir/blob/main/README.md#effectiveness): how controls are graded enforcing, partial, advisory or unknown
 - [zanadir fix](https://github.com/MustacheCase/zanadir/blob/main/README.md#zanadir-fix): CI configuration for the gaps
+- [zanadir skills](https://github.com/MustacheCase/zanadir/blob/main/README.md#zanadir-skills): problems in a repository's agent skills
 - [Custom rules](https://github.com/MustacheCase/zanadir/blob/main/README.md#custom-rules): teaching zanadir an in-house tool
 - [zanadir-action](https://github.com/MustacheCase/zanadir-action): running zanadir in GitHub Actions
 - [State of CI security 2026](https://mustachecase.github.io/state-of-ci/): what the CI of 1,000 of the most-starred GitHub repositories checks, and which checks cannot fail a build

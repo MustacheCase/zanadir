@@ -1,0 +1,24 @@
+name: Agent Skill Security
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions: {}
+
+jobs:
+  skill-scanner:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    # The step fixer/templates.yaml suggests, unchanged, so CI checks it too.
+    - name: Scan agent skills
+      run: pipx run --spec cisco-ai-skill-scanner==2.3.1 skill-scanner scan-all . --recursive --fail-on-severity high

@@ -90,3 +90,15 @@ func TestScope(t *testing.T) {
 	assert.Equal(t, "plugins/x/skills", (&Skill{Dir: "plugins/x/skills/a/skills-b"}).scope())
 	assert.Equal(t, "", (&Skill{Dir: "tools/a"}).scope())
 }
+
+func TestPresent(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "node_modules/pkg/skills/a/SKILL.md", good)
+	write(t, root, "tests/skills/b/SKILL.md", good)
+	assert.False(t, Present(root))
+
+	write(t, root, "plugins/acme/skills/c/SKILL.md", "")
+	assert.True(t, Present(root))
+
+	assert.False(t, Present(filepath.Join(root, "absent")))
+}

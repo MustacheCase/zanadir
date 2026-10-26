@@ -63,3 +63,36 @@ func TestWriteFileStaysInTheRepository(t *testing.T) {
 	assert.Error(t, WriteFile(repo, filepath.Join(base, "z.yml"), nil, 0o644))
 	assert.Error(t, WriteFile(filepath.Join(base, "missing"), filepath.Join(base, "missing", "z.yml"), nil, 0o644))
 }
+
+func TestReadFileRefusesALargeFile(t *testing.T) {
+	defer func(limit int64) { maxReadBytes = limit }(maxReadBytes)
+	maxReadBytes = 4
+	repo := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "small"), []byte("1234"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "large"), []byte("12345"), 0o600))
+
+	data, err := ReadFile(repo, filepath.Join(repo, "small"))
+	require.NoError(t, err)
+	assert.Equal(t, "1234", string(data))
+	_, err = ReadFile(repo, filepath.Join(repo, "large"))
+	assert.ErrorContains(t, err, "larger than 4 bytes")
+	_, err = ReadFile(repo, filepath.Join(repo, "missing"))
+	assert.Error(t, err)
+	_, err = ReadFile(repo, filepath.Join(t.TempDir(), "elsewhere"))
+	assert.Error(t, err)
+}
+
+func TestExistsStaysInTheRepository(t *testing.T) {
+	base := t.TempDir()
+	repo, outside := filepath.Join(base, "repo"), filepath.Join(base, "outside")
+	require.NoError(t, os.MkdirAll(repo, 0o755))
+	require.NoError(t, os.MkdirAll(outside, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "secret"), nil, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(repo, "here"), nil, 0o600))
+	require.NoError(t, os.Symlink(outside, filepath.Join(repo, "link")))
+
+	assert.True(t, Exists(repo, filepath.Join(repo, "here")))
+	assert.True(t, Exists(repo, filepath.Join(repo, "link")), "the link itself is in the repository")
+	assert.False(t, Exists(repo, filepath.Join(repo, "link", "secret")), "what it points at is not")
+	assert.False(t, Exists(repo, filepath.Join(base, "outside", "secret")))
+}

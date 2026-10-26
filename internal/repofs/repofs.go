@@ -4,6 +4,7 @@ package repofs
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -12,12 +13,43 @@ import (
 
 // ReadFile reads path.
 func ReadFile(root, path string) ([]byte, error) {
+	return ReadFileLimit(root, path, maxReadBytes)
+}
+
+// maxReadBytes is the largest file ReadFile returns. A variable so tests can
+// lower it.
+var maxReadBytes int64 = 16 << 20
+
+// ReadFileLimit reads a file of the repository, refusing one over limit bytes
+// without reading the rest of it.
+func ReadFileLimit(root, path string, limit int64) ([]byte, error) {
 	r, rel, err := open(root, path)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = r.Close() }()
-	return r.ReadFile(rel)
+	f, err := r.Open(rel)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err == nil && int64(len(data)) > limit {
+		err = fmt.Errorf("%s is larger than %d bytes", path, limit)
+	}
+	return data, err
+}
+
+// Exists reports whether path names anything inside the repository, without
+// following a symlink out of it.
+func Exists(root, path string) bool {
+	r, rel, err := open(root, path)
+	if err != nil {
+		return false
+	}
+	defer func() { _ = r.Close() }()
+	_, err = r.Lstat(rel)
+	return err == nil
 }
 
 // WriteFile writes path, creating its directory.

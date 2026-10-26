@@ -57,8 +57,11 @@ type gitlabInclude struct {
 type gitlabReader struct {
 	root        string
 	depth       int
+	reads       int
 	definitions map[string]*yaml.Node
 	included    []*models.Job
+	resolved    map[string]gitlabJob
+	resolving   map[string]bool
 }
 
 // Exists reports whether root has a .gitlab-ci.yml.
@@ -73,7 +76,7 @@ func (g *GitlabParser) Parse(root string) ([]*models.Artifact, error) {
 	if err != nil {
 		return skippedFile(path, err)
 	}
-	r := &gitlabReader{root: root, definitions: map[string]*yaml.Node{}}
+	r := &gitlabReader{root: root, definitions: map[string]*yaml.Node{}, resolved: map[string]gitlabJob{}, resolving: map[string]bool{}}
 	r.collect(config)
 	return []*models.Artifact{{
 		Name:     "GitLab CI/CD",
@@ -130,23 +133,30 @@ func (r *gitlabReader) jobs() []*models.Job {
 }
 
 // resolve merges a job over the jobs it extends, in order, each key replaced
-// whole, as GitLab does for anything but a mapping.
+// whole, as GitLab does for anything but a mapping. A job is resolved once,
+// and a cycle stops at the job that repeats.
 func (r *gitlabReader) resolve(name string, depth int) (gitlabJob, bool) {
+	if job, ok := r.resolved[name]; ok {
+		return job, true
+	}
 	var job gitlabJob
 	node, ok := r.definitions[name]
-	if !ok || depth > gitlabExtendsDepth {
+	if !ok || depth > gitlabExtendsDepth || r.resolving[name] {
 		return job, false
 	}
 	if node = resolve(node); node.Kind != yaml.MappingNode || node.Decode(&job) != nil {
 		return job, false
 	}
+	r.resolving[name] = true
+	defer delete(r.resolving, name)
 	var merged gitlabJob
 	for _, parent := range extended(&job.Extends) {
 		if base, ok := r.resolve(parent, depth+1); ok {
 			merged = overlay(merged, base)
 		}
 	}
-	return overlay(merged, job), true
+	r.resolved[name] = overlay(merged, job)
+	return r.resolved[name], true
 }
 
 func extended(node *yaml.Node) []string {
@@ -281,7 +291,7 @@ func componentCommand(component string, inputs map[string]yaml.Node) string {
 // the repository root and allows wildcards; a remote URL or a path built from a
 // variable cannot be read here.
 func (r *gitlabReader) local(pattern string) {
-	if strings.Contains(pattern, "://") || strings.Contains(pattern, "$") || r.depth >= gitlabIncludeDepth {
+	if strings.Contains(pattern, "://") || strings.Contains(pattern, "$") || r.depth >= gitlabIncludeDepth || r.reads >= maxNestedFiles {
 		return
 	}
 	matches, _ := filepath.Glob(filepath.Join(r.root, pattern))
@@ -289,9 +299,10 @@ func (r *gitlabReader) local(pattern string) {
 	r.depth++
 	defer func() { r.depth-- }()
 	for _, path := range matches {
-		if rel, err := filepath.Rel(r.root, path); err != nil || strings.HasPrefix(rel, "..") {
+		if rel, err := filepath.Rel(r.root, path); err != nil || strings.HasPrefix(rel, "..") || r.reads >= maxNestedFiles {
 			continue
 		}
+		r.reads++
 		if config, err := readGitlabConfig(r.root, path); err == nil {
 			r.collect(config)
 		}

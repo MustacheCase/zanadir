@@ -75,9 +75,10 @@ type azureContext struct {
 }
 
 type azureReader struct {
-	root  string
-	depth int
-	steps int
+	root      string
+	depth     int
+	steps     int
+	templates int
 }
 
 // maxAzureSteps bounds the steps read from one pipeline: insertions and
@@ -240,9 +241,10 @@ func insertions(items []*yaml.Node, ctx azureContext, visit func(*yaml.Node, azu
 // Its parameters are substituted from the call, or their defaults.
 func (r *azureReader) template(ref string, given *yaml.Node, dir string, ctx azureContext) []*models.Job {
 	ref = strings.TrimSuffix(ref, "@self")
-	if ref == "" || strings.Contains(ref, "@") || strings.Contains(ref, "${{") || r.depth >= azureTemplateDepth {
+	if ref == "" || strings.Contains(ref, "@") || strings.Contains(ref, "${{") || r.depth >= azureTemplateDepth || r.templates >= maxNestedFiles {
 		return nil
 	}
+	r.templates++
 	path := filepath.Join(dir, ref)
 	if strings.HasPrefix(ref, "/") {
 		path = filepath.Join(r.root, ref)
@@ -436,19 +438,28 @@ func parameterValues(declared, given *yaml.Node) map[string]string {
 	return values
 }
 
+// maxSubstituted bounds what substitution adds to a file: a value used
+// several times at each level of nesting grows exponentially. Past it, the
+// text is left as written.
+var maxSubstituted = 1 << 20
+
 // substitute puts known values into each ${{ }} expression, for the
 // references ref finds. One that is then a literal, or not() of one, becomes
 // its value; the rest stay expressions.
 func substitute(text string, ref *regexp.Regexp, values map[string]string) string {
-	return azureExpression.ReplaceAllStringFunc(text, func(expression string) string {
+	added := 0
+	substituted := azureExpression.ReplaceAllStringFunc(text, func(expression string) string {
 		known := true
 		body := ref.ReplaceAllStringFunc(strings.TrimSpace(azureExpression.FindStringSubmatch(expression)[1]), func(name string) string {
 			value, ok := values[ref.FindStringSubmatch(name)[1]]
 			known = known && ok
+			if added += len(value); added > maxSubstituted {
+				return ""
+			}
 			return value
 		})
 		switch match := negation.FindStringSubmatch(body); {
-		case !known:
+		case !known || added > maxSubstituted:
 			return expression
 		case match != nil:
 			return strconv.FormatBool(!strings.EqualFold(match[1], "true"))
@@ -457,6 +468,10 @@ func substitute(text string, ref *regexp.Regexp, values map[string]string) strin
 		}
 		return "${{ " + body + " }}"
 	})
+	if added > maxSubstituted {
+		return text
+	}
+	return substituted
 }
 
 // azureCondition drops succeeded(), the default every step has anyway. Any

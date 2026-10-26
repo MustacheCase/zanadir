@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -199,8 +198,7 @@ func localTarget(dir, link string) (string, bool) {
 }
 
 func exists(root, rel string) bool {
-	_, err := os.Lstat(filepath.Join(root, filepath.FromSlash(rel)))
-	return err == nil
+	return repofs.Exists(root, filepath.Join(root, filepath.FromSlash(rel)))
 }
 
 // checkFiles looks for unsafe content in every text file of the skill. A
@@ -208,8 +206,8 @@ func exists(root, rel string) bool {
 func checkFiles(root string, s *Skill) []Finding {
 	var findings []Finding
 	for _, rel := range skillFiles(root, s) {
-		data, err := repofs.ReadFile(root, filepath.Join(root, filepath.FromSlash(rel)))
-		if err != nil || len(data) > maxScannedFileBytes || bytes.IndexByte(data, 0) >= 0 {
+		data, err := repofs.ReadFileLimit(root, filepath.Join(root, filepath.FromSlash(rel)), maxScannedFileBytes)
+		if err != nil || bytes.IndexByte(data, 0) >= 0 {
 			continue
 		}
 		findings = append(findings, scanText(s, rel, string(data))...)

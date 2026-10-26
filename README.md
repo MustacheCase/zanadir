@@ -13,8 +13,9 @@ quality controls are missing, or wired so they cannot fail a build.
 
 ## What it answers
 
-- **What is my pipeline missing?** Twelve categories, from dependency
-  scanning and secrets detection to SBOMs and workflow hardening, each
+- **What is my pipeline missing?** Thirteen categories, from dependency
+  scanning and secrets detection to SBOMs, workflow hardening and agent
+  skill scanning, each
   checked against the tools that cover it, with suggestions that fit the
   repository's languages.
 - **Does my CI actually block on security findings?** A scanner with
@@ -101,7 +102,7 @@ different questions, and work well together.
 | | OpenSSF Scorecard | zanadir |
 | --- | --- | --- |
 | Question | How healthy are this project's security practices? | Which CI controls are missing, and can the ones present fail a build? |
-| Scope | 20 checks across the project: branch protection, code review, maintenance, pinned dependencies, token permissions, signed releases, known vulnerabilities, fuzzing and more | 12 categories of CI controls, each matched against the many tools that provide it |
+| Scope | 20 checks across the project: branch protection, code review, maintenance, pinned dependencies, token permissions, signed releases, known vulnerabilities, fuzzing and more | 13 categories of CI controls, each matched against the many tools that provide it |
 | Reads | The forge's API: GitHub and GitLab repositories, recent pull requests and check runs | The CI configuration: six CI platforms, the Makefiles, Taskfiles, tox, composite actions and templates its jobs call |
 | SAST, for example | Looks for CodeQL or SonarCloud; its docs note other tools may score low | Recognises Semgrep, CodeQL, gosec, Bandit, Brakeman, SonarQube and others, and grades whether each can fail the build |
 | Result | A 0-10 score per check and overall | Covered or not per category, graded enforcing, partial, advisory or unknown, with fixes |
@@ -213,6 +214,7 @@ case-insensitive):
 - 🏗️ **IaC Security**: Infrastructure-as-Code Misconfiguration Scanning
 - 🔗 **Supply Chain**: SBOM Generation, Signing and Provenance
 - 🧱 **Workflow Security**: Hardening of the pipeline definition itself
+- 🤖 **Agent Skill Security**: Scanning agent skills (`SKILL.md`) for prompt injection and malicious code
 
 ## Usage Examples
 
@@ -449,13 +451,16 @@ Three rules keep the number honest:
   repository needs it.
   ```
 
-  Two categories are ruled out this way. **IaC Security** needs
+  Three categories are ruled out this way. **IaC Security** needs
   infrastructure to scan, and the detection is deliberately broad — a
   directory called `infra`, `k8s` or `charts` is enough to keep it.
   **Workflow Security** needs GitHub Actions or GitLab CI, the formats its
   tools read. A GitLab project is pointed at glsec or poutine, a GitHub one at
   zizmor, actionlint, Scorecard or poutine, and a CircleCI-only repository is
-  not scored on it.
+  not scored on it. **Agent Skill Security** needs a `SKILL.md` outside
+  dependency and test directories; it is credited for Cisco Skill Scanner,
+  SkillSpector or Snyk Agent Scan run in CI. To check the skills themselves,
+  see [`zanadir skills`](#zanadir-skills).
 
   The rest apply to any codebase, and the ones that arguably do not — load
   testing a library, an SBOM for something that ships nothing — cannot be told

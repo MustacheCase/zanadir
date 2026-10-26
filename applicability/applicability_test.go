@@ -39,7 +39,7 @@ func TestIaCStaysApplicable(t *testing.T) {
 		"Dockerfile-dev",
 	} {
 		t.Run(file, func(t *testing.T) {
-			assert.Equal(t, []string{"Workflow Security"},
+			assert.Equal(t, []string{"Workflow Security", "Agent Skill Security"},
 				applicability.NotApplicable(testrepo.Touch(t, file), nil))
 		})
 	}
@@ -48,7 +48,7 @@ func TestIaCStaysApplicable(t *testing.T) {
 func TestIaCIsRuledOutWithoutInfrastructure(t *testing.T) {
 	dir := testrepo.Touch(t, "src/main.go", "go.mod", "README.md", "docs/guide.md", ".github/workflows/ci.yml")
 
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
+	assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 }
 
 // The tools in the Workflow Security category read GitHub Actions or GitLab
@@ -62,34 +62,34 @@ func TestWorkflowSecurityNeedsGithubOrGitlab(t *testing.T) {
 		{
 			name:     "github actions present",
 			files:    []string{"Dockerfile", ".github/workflows/ci.yml"},
-			expected: nil,
+			expected: []string{"Agent Skill Security"},
 		},
 		{
 			name:     "a yaml workflow by its other extension",
 			files:    []string{"Dockerfile", ".github/workflows/ci.yaml"},
-			expected: nil,
+			expected: []string{"Agent Skill Security"},
 		},
 		{
 			// glsec reads GitLab CI.
 			name:     "gitlab only",
 			files:    []string{"Dockerfile", ".gitlab-ci.yml"},
-			expected: nil,
+			expected: []string{"Agent Skill Security"},
 		},
 		{
 			name:     "circleci only",
 			files:    []string{"Dockerfile", ".circleci/config.yml"},
-			expected: []string{"Workflow Security"},
+			expected: []string{"Workflow Security", "Agent Skill Security"},
 		},
 		{
 			// The directory exists but holds nothing GitHub would run.
 			name:     "a workflows directory with no workflow in it",
 			files:    []string{"Dockerfile", ".github/workflows/README.md"},
-			expected: []string{"Workflow Security"},
+			expected: []string{"Workflow Security", "Agent Skill Security"},
 		},
 		{
 			name:     "no CI at all rules out both",
 			files:    []string{"go.mod"},
-			expected: []string{"IaC Security", "Workflow Security"},
+			expected: []string{"IaC Security", "Workflow Security", "Agent Skill Security"},
 		},
 	}
 
@@ -110,7 +110,7 @@ func TestIaCIgnoresVendoredDirectories(t *testing.T) {
 	} {
 		t.Run(vendored, func(t *testing.T) {
 			dir := testrepo.Touch(t, "go.mod", ".github/workflows/ci.yml", vendored)
-			assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
+			assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 		})
 	}
 }
@@ -121,7 +121,7 @@ func TestNotApplicableWithNoDirectory(t *testing.T) {
 
 // An empty repository has no infrastructure and no workflows either.
 func TestNotApplicableWithAnEmptyRepository(t *testing.T) {
-	assert.Equal(t, []string{"IaC Security", "Workflow Security"}, applicability.NotApplicable(t.TempDir(), nil))
+	assert.Equal(t, []string{"IaC Security", "Workflow Security", "Agent Skill Security"}, applicability.NotApplicable(t.TempDir(), nil))
 }
 
 // A directory it cannot read must not crash the walk, and must not be taken as
@@ -137,7 +137,7 @@ func TestIaCToleratesAnUnreadableDirectory(t *testing.T) {
 	assert.NoError(t, os.Chmod(locked, 0o000))
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
+	assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 }
 
 // cli/cli keeps a scripts directory inside .github/workflows, which is not a
@@ -145,10 +145,10 @@ func TestIaCToleratesAnUnreadableDirectory(t *testing.T) {
 func TestWorkflowSecurityIgnoresSubdirectories(t *testing.T) {
 	dir := testrepo.Touch(t, "Dockerfile", ".github/workflows/scripts/data.yml")
 
-	assert.Equal(t, []string{"Workflow Security"}, applicability.NotApplicable(dir, nil))
+	assert.Equal(t, []string{"Workflow Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 
 	withWorkflow := testrepo.Touch(t, "Dockerfile", ".github/workflows/scripts/data.yml", ".github/workflows/ci.yml")
-	assert.Empty(t, applicability.NotApplicable(withWorkflow, nil))
+	assert.Equal(t, []string{"Agent Skill Security"}, applicability.NotApplicable(withWorkflow, nil))
 }
 
 // CloudFormation, ARM templates and Kubernetes manifests are named anything,
@@ -165,7 +165,7 @@ func TestIaCRecognisesManifestsByContent(t *testing.T) {
 	} {
 		t.Run(file, func(t *testing.T) {
 			dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", file: content})
-			assert.Empty(t, applicability.NotApplicable(dir, nil))
+			assert.Equal(t, []string{"Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 		})
 	}
 }
@@ -187,7 +187,7 @@ func TestIaCIgnoresTestDataAndLookalikes(t *testing.T) {
 	} {
 		t.Run(file, func(t *testing.T) {
 			dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", file: content})
-			assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
+			assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 		})
 	}
 }
@@ -197,7 +197,7 @@ func TestIaCDoesNotFollowASymlinkedFile(t *testing.T) {
 	assert.NoError(t, os.WriteFile(outside, []byte("AWSTemplateFormatVersion: x\n"), 0o600))
 	dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n"})
 	assert.NoError(t, os.Symlink(outside, filepath.Join(dir, "template.yaml")))
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
+	assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 }
 
 func TestIaCToleratesAnUnreadableManifest(t *testing.T) {
@@ -208,7 +208,7 @@ func TestIaCToleratesAnUnreadableManifest(t *testing.T) {
 	dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", "template.yaml": "AWSTemplateFormatVersion: x\n"})
 	assert.NoError(t, os.Chmod(filepath.Join(dir, "template.yaml"), 0o000))
 
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
+	assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 }
 
 // The workflow fix --write generates is zanadir's, not the repository's.
@@ -216,9 +216,24 @@ func TestWorkflowSecurityIgnoresWhatItIsToldTo(t *testing.T) {
 	dir := testrepo.Touch(t, "go.mod", ".github/workflows/zanadir-suggested.yml")
 	generated := func(path string) bool { return filepath.Base(path) == "zanadir-suggested.yml" }
 
-	assert.Equal(t, []string{"IaC Security", "Workflow Security"}, applicability.NotApplicable(dir, generated))
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, nil))
+	assert.Equal(t, []string{"IaC Security", "Workflow Security", "Agent Skill Security"}, applicability.NotApplicable(dir, generated))
+	assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 
 	dir = testrepo.Touch(t, "go.mod", ".github/workflows/zanadir-suggested.yml", ".github/workflows/ci.yml")
-	assert.Equal(t, []string{"IaC Security"}, applicability.NotApplicable(dir, generated))
+	assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, generated))
+}
+
+// Agent Skill Security applies once a repository has a SKILL.md of its own,
+// found by name so that a fetched repository's empty files count.
+func TestAgentSkillSecurityNeedsASkill(t *testing.T) {
+	withSkill := testrepo.Touch(t, ".github/workflows/ci.yml", "main.tf", ".claude/skills/deploy/SKILL.md")
+	assert.Empty(t, applicability.NotApplicable(withSkill, nil))
+
+	for _, files := range [][]string{
+		{".github/workflows/ci.yml", "main.tf", "node_modules/pkg/skills/a/SKILL.md"},
+		{".github/workflows/ci.yml", "main.tf", "testdata/skills/a/SKILL.md"},
+		{".github/workflows/ci.yml", "main.tf", "skills/a/skill.md"},
+	} {
+		assert.Equal(t, []string{"Agent Skill Security"}, applicability.NotApplicable(testrepo.Touch(t, files...), nil), files)
+	}
 }

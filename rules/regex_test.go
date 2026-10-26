@@ -223,6 +223,42 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"poutine", "make poutine", "echo poutine recipe", "poutineries analyze", "boostsecurityio/poutines"},
 		},
 		{
+			ruleID: "skillspector-rule",
+			shouldMatch: []string{
+				"skillspector scan .claude/skills --no-llm --format sarif --output skills.sarif",
+				"uvx --from git+https://github.com/NVIDIA/skillspector.git@v2.13.1 skillspector scan ./skills",
+				"docker run --rm -v $PWD:/src skillspector:2.13.1 scan /src/skills",
+			},
+			shouldNotMatch: []string{
+				"uv run skillspector --version", "docker build -t skillspector .",
+				"uv tool install git+https://github.com/NVIDIA/skillspector.git", "skillspectors scan", "skillspector baseline ./skill",
+			},
+		},
+		{
+			ruleID: "cisco-skill-scanner-rule",
+			shouldMatch: []string{
+				"cisco-ai-defense/skill-scanner/.github/workflows/scan-skills.yml",
+				"skill-scanner scan-all ./skills --recursive --fail-on-severity high",
+				"skill-scanner scan ./skill",
+				"uvx --from cisco-ai-skill-scanner skill-scanner scan-repo owner/repo",
+				"pipx run --spec cisco-ai-skill-scanner==2.3.1 skill-scanner scan-all . --recursive",
+			},
+			shouldNotMatch: []string{
+				"npx skills add https://github.com/getsentry/skills --skill skill-scanner",
+				"skill-scanner",
+				"my-skill-scanner scan .",
+				"skill-scanner --version",
+			},
+		},
+		{
+			ruleID: "snyk-agent-scan-rule",
+			shouldMatch: []string{
+				"uvx snyk-agent-scan@0.6.9 --ci --dangerously-run-mcp-servers .claude/skills",
+				"snyk-agent-scan scan ./skills/deploy/SKILL.md",
+			},
+			shouldNotMatch: []string{"snyk test", "agent-scan", "snyk-agent-scanner"},
+		},
+		{
 			ruleID:         "actionlint-rule",
 			shouldMatch:    []string{"rhysd/actionlint", "reviewdog/action-actionlint", "actionlint -color"},
 			shouldNotMatch: []string{"actionlinter", "action lint"},
@@ -615,6 +651,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
+		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"unit-test-command-rule": {
 			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test",

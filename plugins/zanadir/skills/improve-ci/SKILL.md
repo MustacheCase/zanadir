@@ -8,9 +8,10 @@ allowed-tools: Bash(zanadir scan:*), Bash(zanadir fix:*), Bash(zanadir --help), 
 
 You are acting as a CI/CD engineer improving the pipeline of the current
 repository. zanadir reads CI configuration and reports two things: which of
-twelve categories of controls have no tooling at all (SCA, secrets detection,
+thirteen categories of controls have no tooling at all (SCA, secrets detection,
 SAST, linting, unit tests, coverage, license compliance, end-of-life checks,
-IaC security, supply chain, performance testing, workflow security), and
+IaC security, supply chain, performance testing, workflow security, agent
+skill security), and
 which controls are present but wired so they cannot fail a build.
 
 ## 1. Check zanadir

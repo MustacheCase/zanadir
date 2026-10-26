@@ -16,12 +16,13 @@ const (
 	IaC                CategoryTitle = "IaC Security"
 	SupplyChain        CategoryTitle = "Supply Chain"
 	WorkflowSecurity   CategoryTitle = "Workflow Security"
+	AgentSkillSecurity CategoryTitle = "Agent Skill Security"
 	Table              Format        = "table"
 	JSON               Format        = "json"
 )
 
 // CategoryTitles lists every category, in report order.
-var CategoryTitles = []CategoryTitle{SCA, Secrets, Licenses, EndOfLife, Coverage, Linter, PerformanceTesting, UnitTests, SAST, IaC, SupplyChain, WorkflowSecurity}
+var CategoryTitles = []CategoryTitle{SCA, Secrets, Licenses, EndOfLife, Coverage, Linter, PerformanceTesting, UnitTests, SAST, IaC, SupplyChain, WorkflowSecurity, AgentSkillSecurity}
 
 // CategoryTitle names a category of CI control.
 type CategoryTitle string

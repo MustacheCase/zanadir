@@ -2,7 +2,7 @@
 
 > zanadir is an open-source CLI that reads a repository's CI configuration and reports which security and quality controls are missing, or wired so they cannot fail a build. It answers "what is my pipeline missing?" and "does my CI actually block on security findings?", and prints the CI configuration to add.
 
-- Categories: SCA, Secrets Detection, SAST, Linter, Unit Tests, Coverage, License Compliance, End Of Life, IaC Security, Supply Chain (SBOM, signing, provenance), Workflow Security, Performance Testing.
+- Categories: SCA, Secrets Detection, SAST, Linter, Unit Tests, Coverage, License Compliance, End Of Life, IaC Security, Supply Chain (SBOM, signing, provenance), Workflow Security, Agent Skill Security (scanners for SKILL.md files), Performance Testing.
 - Each control found is graded: `enforcing` (can fail a merge), `partial` (runs, but not on every change, e.g. push-only), `advisory` (cannot fail: continue-on-error, `--exit-code 0`, `|| true`, allow_failure, soft-fail flags) or `unknown` (behind a condition the file cannot settle).
 - CI platforms: GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure Pipelines, Jenkins. It follows Makefiles, Taskfiles, tox, goreleaser, go-make, package.json scripts (npm, yarn, pnpm, bun, npm-run-all, turbo, lerna, nx), reusable workflows, local composite actions and CI templates into the commands they run.
 - Input: a checkout (`--dir`) or a GitHub repository without cloning (`--repo github.com/owner/name`). Output: table, JSON, SARIF, Markdown.

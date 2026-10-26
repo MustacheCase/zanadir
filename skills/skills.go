@@ -45,7 +45,7 @@ func Discover(dir string) ([]*Skill, error) {
 			return err
 		}
 		if d.IsDir() {
-			if path != dir && (utils.IsDependencyDir(d.Name()) || utils.IsTestDir(d.Name())) {
+			if path != dir && skipped(d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -62,6 +62,31 @@ func Discover(dir string) ([]*Skill, error) {
 		return nil
 	})
 	return found, err
+}
+
+// Present reports whether dir holds a skill. It looks at names alone, so it
+// also works on a fetched repository, whose other files are empty.
+func Present(dir string) bool {
+	found := false
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		switch {
+		case err != nil:
+			return nil
+		case d.IsDir():
+			if path != dir && skipped(d.Name()) {
+				return filepath.SkipDir
+			}
+		case d.Name() == FileName:
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
+}
+
+func skipped(name string) bool {
+	return utils.IsDependencyDir(name) || utils.IsTestDir(name)
 }
 
 // Parse reads a SKILL.md whose path, relative to the scanned directory, is path.

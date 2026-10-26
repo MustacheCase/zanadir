@@ -271,3 +271,19 @@ categories:
         repository: "https://github.com/boostsecurityio/poutine"
         description: "Finds vulnerabilities and misconfigurations in GitHub Actions and GitLab CI pipelines, such as injection from untrusted input, untrusted checkouts and unpinnable components."
         platforms: ["github", "gitlab"]
+
+  - id: "Agent Skill Security"
+    name: "Agent Skill Security"
+    description: "Tools that scan agent skills (SKILL.md files and their scripts) for prompt injection, data exfiltration, malicious code and over-broad permissions before an agent runs them."
+    suggestions:
+      - name: "Cisco Skill Scanner"
+        repository: "https://github.com/cisco-ai-defense/skill-scanner"
+        description: "Scans agent skills with static rules, dataflow analysis and an optional LLM judge, with SARIF output and a severity threshold to fail the build."
+
+      - name: "SkillSpector"
+        repository: "https://github.com/NVIDIA/skillspector"
+        description: "NVIDIA's scanner for vulnerabilities, malicious patterns and supply-chain risk in agent skills; gives each a 0-100 risk score and fails the build above 50."
+
+      - name: "Snyk Agent Scan"
+        repository: "https://github.com/snyk/agent-scan"
+        description: "Scans agent skills and MCP servers for prompt injection, tool poisoning and toxic flows; --ci fails the build on findings."

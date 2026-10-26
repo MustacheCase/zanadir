@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -101,6 +102,12 @@ func (g *Gate) Unproduced(jobs []*models.Job) {
 var (
 	apiBase = "https://api.github.com"
 	client  = &http.Client{Timeout: time.Minute}
+)
+
+// Limits on what the API may send back. Variables so tests can lower them.
+var (
+	maxJSONBytes int64 = 16 << 20
+	maxPages           = 50
 )
 
 var errNotFound = errors.New("not found")
@@ -229,7 +236,7 @@ func idleRulesets(base, token string) []string {
 // more than the default thirty rules would otherwise lose some.
 func getAll[T any](path, token string) ([]T, error) {
 	var all []T
-	for page := 1; ; page++ {
+	for page := 1; page <= maxPages; page++ {
 		var items []T
 		if err := get(fmt.Sprintf("%s?per_page=100&page=%d", path, page), token, &items); err != nil {
 			return nil, err
@@ -239,6 +246,7 @@ func getAll[T any](path, token string) ([]T, error) {
 			return all, nil
 		}
 	}
+	return nil, fmt.Errorf("GitHub returned more than %d pages for %s", maxPages, path)
 }
 
 func get(path, token string, out any) error {
@@ -262,7 +270,7 @@ func get(path, token string, out any) error {
 	case resp.StatusCode != http.StatusOK:
 		return fmt.Errorf("GitHub answered %s", resp.Status)
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	return json.NewDecoder(io.LimitReader(resp.Body, maxJSONBytes)).Decode(out)
 }
 
 func deref(id *int) int {

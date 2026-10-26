@@ -124,7 +124,10 @@ the one near-miss: it runs `skillspector --version` and builds an image of
 that name, so the rule credits only its `scan` command. The fix snippet uses
 Cisco's CLI, because it installs from PyPI at a pinned version and takes a
 severity threshold; SkillSpector installs from git, and Snyk Agent Scan
-covers MCP servers first.
+covers MCP servers first. `scan-all . --recursive` from a repository root
+finds skills under hidden directories such as `.claude/skills`, exits 0 on a
+clean skill and 1 on a HIGH finding. zanadir runs the same step on its own
+skill in `SkillSecurity.yml`.
 
 ## Fix
 

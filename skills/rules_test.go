@@ -167,3 +167,7 @@ func TestTemplatedCollectionsAreNotOverlaps(t *testing.T) {
 	}
 	assert.Empty(t, checkOne(t, files))
 }
+
+func TestARootSkillWithoutScripts(t *testing.T) {
+	assert.Empty(t, checkOne(t, map[string]string{"SKILL.md": skill("anything", use, "")}))
+}

@@ -15,7 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'pull_request' || 
-      (github.event_name == 'issue_comment' && contains(github.event.comment.html_url, '/pull/') && contains(github.event.comment.body, '#CR'))
+      (github.event_name == 'issue_comment' && contains(github.event.comment.html_url, '/pull/') && contains(github.event.comment.body, '#CR') &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
     steps:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -24,12 +25,11 @@ jobs:
       - name: Set Up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.9'
+          python-version: '3.12'
 
       - name: Install Dependencies
         run: |
-          pip install requests
-          pip install -q -U google-genai
+          pip install -q requests==2.34.2 google-genai==2.31.0
 
       - name: Run Code Review Script
         continue-on-error: true 

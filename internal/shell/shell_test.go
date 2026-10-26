@@ -3,6 +3,7 @@ package shell_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MustacheCase/zanadir/internal/shell"
 	"github.com/stretchr/testify/assert"
@@ -109,6 +110,23 @@ func TestSwallowedCommand(t *testing.T) {
 	assert.False(t, shell.SwallowedCommand("make lint || exit 1", "make lint"))
 	assert.False(t, shell.SwallowedCommand("make lint\nmake lint || true", "make lint"))
 	assert.False(t, shell.SwallowedCommand("make test || true", "make lint"))
+}
+
+func TestSwallowedReadsALongScriptOnce(t *testing.T) {
+	script := strings.Repeat("if trivy fs .; then echo ok; fi\n", 2000) + "trivy fs . || true"
+	start := time.Now()
+	swallowed, kept := shell.SwallowedCommands(script), 0
+	for _, command := range shell.Commands(script) {
+		if !swallowed(command) {
+			kept++
+		}
+	}
+	all := shell.Swallowed(script, func(c string) bool { return c == "trivy fs ." })
+	elapsed := time.Since(start)
+	assert.Equal(t, 4001, kept)
+	assert.True(t, all)
+	assert.False(t, shell.SwallowedCommands(script+"\nexit 1")("if trivy fs ."))
+	assert.Less(t, elapsed, 2*time.Second)
 }
 
 func TestLines(t *testing.T) {

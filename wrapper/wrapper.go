@@ -64,6 +64,7 @@ func (e *Expander) script(dir, script string) {
 	}
 	e.depth++
 	defer func() { e.depth-- }()
+	swallowed := shell.SwallowedCommands(script)
 	for _, command := range shell.Commands(script) {
 		words := unwrap(shell.Words(command))
 		if len(words) == 0 {
@@ -77,7 +78,7 @@ func (e *Expander) script(dir, script string) {
 			}
 			continue
 		}
-		e.ignored(shell.SwallowedCommand(script, command), func() { e.follow(dir, words) })
+		e.ignored(swallowed(command), func() { e.follow(dir, words) })
 	}
 }
 

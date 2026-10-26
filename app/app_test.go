@@ -241,6 +241,10 @@ func TestMCPCommandServesWithTheVersion(t *testing.T) {
 	assert.NoError(t, mcpCmd.Flags().Set("dir", "/repo"))
 	assert.NoError(t, mcpCmd.RunE(mcpCmd, nil))
 	assert.Equal(t, mcpserver.Options{Version: Version(), Dir: "/repo"}, served)
+	assert.NoError(t, mcpCmd.Flags().Set("repo-token", "true"))
+	t.Cleanup(func() { _ = mcpCmd.Flags().Set("repo-token", "false") })
+	assert.NoError(t, mcpCmd.RunE(mcpCmd, nil))
+	assert.True(t, served.RepoToken)
 	assert.NoError(t, mcpCmd.Args(mcpCmd, []string{""}), "an MCP client may pass empty arguments too")
 	assert.Error(t, mcpCmd.Args(mcpCmd, []string{"scan"}))
 }

@@ -42,7 +42,8 @@ var mcpCmd = &cobra.Command{
 	Long:  "The mcp command runs a Model Context Protocol server on stdin and stdout, offering scan and fix as tools to coding agents such as Claude Code and Cursor.",
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		dir, _ := cmd.Flags().GetString("dir")
-		return serveMCP(cmd.Context(), mcpserver.Options{Version: Version(), Dir: dir})
+		repoToken, _ := cmd.Flags().GetBool("repo-token")
+		return serveMCP(cmd.Context(), mcpserver.Options{Version: Version(), Dir: dir, RepoToken: repoToken})
 	},
 }
 
@@ -181,7 +182,8 @@ func addSharedFlags(cmd *cobra.Command) {
 // NewApp initializes the CLI application
 func NewApp() *cobra.Command {
 	rootCmd.AddCommand(scanCmd, fixCmd, mcpCmd, skillsCmd)
-	mcpCmd.Flags().StringP("dir", "d", "", "Repository the tools read when a call names none (optional; default: the working directory)")
+	mcpCmd.Flags().StringP("dir", "d", "", "Repository the tools read when a call names none, and the directory a call's dir must stay inside (optional; default: the working directory)")
+	mcpCmd.Flags().Bool("repo-token", false, "Let repo fetches use GITHUB_TOKEN or GH_TOKEN, so the tools can read private repositories (optional; default: anonymous)")
 	rootCmd.Version = Version()
 
 	addSharedFlags(scanCmd)

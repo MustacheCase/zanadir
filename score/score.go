@@ -4,8 +4,8 @@ package score
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/models"
 )
 
@@ -94,7 +94,7 @@ func Write(path string, s Score) error {
 	}
 
 	// 0644: the step that publishes it may run as another user.
-	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil { //nolint:gosec // operator-supplied path; a badge is world-readable by design
+	if err := repofs.WriteOutput(path, append(data, '\n'), 0o644); err != nil {
 		return fmt.Errorf("failed to write badge %s: %w", path, err)
 	}
 	return nil

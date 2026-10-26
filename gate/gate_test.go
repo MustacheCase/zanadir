@@ -264,3 +264,27 @@ func TestRemotesAreReadThroughGitLinks(t *testing.T) {
 	_, err := Origin(filepath.Join(base, "odd"))
 	assert.Error(t, err)
 }
+
+func TestReadStopsAfterTooManyPages(t *testing.T) {
+	defer func(pages int) { maxPages = pages }(maxPages)
+	maxPages = 1
+	var page1 []string
+	for i := range 100 {
+		page1 = append(page1, fmt.Sprintf(`{"type": "deletion", "ruleset_id": %d}`, i))
+	}
+	github(t, map[string]string{
+		"/repos/o/r": `{"default_branch": "main"}`,
+		"/repos/o/r/rules/branches/main?per_page=100&page=1": "[" + strings.Join(page1, ",") + "]",
+		"/repos/o/r/branches/main":                           `{}`,
+	})
+	_, err := Read(repo, "")
+	assert.ErrorContains(t, err, "more than 1 pages")
+}
+
+func TestReadStopsAtTheSizeLimit(t *testing.T) {
+	defer func(limit int64) { maxJSONBytes = limit }(maxJSONBytes)
+	maxJSONBytes = 8
+	github(t, map[string]string{"/repos/o/r": `{"default_branch": "main"}`})
+	_, err := Read(repo, "")
+	assert.Error(t, err)
+}

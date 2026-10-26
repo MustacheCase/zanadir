@@ -848,3 +848,13 @@ func TestResponseWritesToTheGivenWriter(t *testing.T) {
 		t.Error("the writer wins over the destination")
 	}
 }
+
+func TestRenderWeakenedEscapesControlCharacters(t *testing.T) {
+	var b bytes.Buffer
+	if err := renderWeakened(&b, []Weakness{{Category: "SCA", Verdict: "advisory", Location: "a\x1b[2Jb.yml"}}, false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(b.String(), "\x1b") || !strings.Contains(b.String(), `a\u001b[2Jb.yml`) {
+		t.Errorf("the location is not escaped: %q", b.String())
+	}
+}

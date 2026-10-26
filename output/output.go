@@ -9,8 +9,10 @@ import (
 	"strings"
 
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
+	"github.com/MustacheCase/zanadir/utils"
 	"github.com/olekukonko/tablewriter"
 	"github.com/olekukonko/tablewriter/renderer"
 	"github.com/olekukonko/tablewriter/tw"
@@ -246,7 +248,7 @@ func renderWeakened(w io.Writer, weaknesses []Weakness, colour bool) error {
 		return err
 	}
 	for _, weakness := range weaknesses {
-		if _, err := fmt.Fprintf(w, "  %s is %s (%s)%s\n", weakness.Category, weakness.Verdict, weakness.Location, weakness.because()); err != nil {
+		if _, err := fmt.Fprintf(w, "  %s is %s (%s)%s\n", weakness.Category, weakness.Verdict, utils.Printable(weakness.Location), weakness.because()); err != nil {
 			return err
 		}
 	}
@@ -276,7 +278,7 @@ func destination(path string) (io.Writer, func(), error) {
 	}
 	// 0644: the action runs as root and the next step, as another user, must
 	// read the report. It lists absent tooling, not secrets.
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644) //nolint:gosec // operator-supplied path; a report is world-readable by design
+	f, err := repofs.CreateOutput(path, 0o644)
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("failed to open output file %s: %w", path, err)
 	}

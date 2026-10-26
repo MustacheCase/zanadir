@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/suggester"
@@ -107,7 +108,7 @@ func locateAt(uri string) []sarifLocation {
 	}
 	return []sarifLocation{{
 		PhysicalLocation: sarifPhysicalLocation{
-			ArtifactLocation: sarifArtifactLocation{URI: uri},
+			ArtifactLocation: sarifArtifactLocation{URI: (&url.URL{Path: uri}).EscapedPath()},
 			Region:           sarifRegion{StartLine: 1},
 		},
 	}}

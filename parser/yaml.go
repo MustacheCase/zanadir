@@ -152,6 +152,9 @@ func decodeNext(decoder *yaml.Decoder, target any) error {
 	var doc yaml.Node
 	err := decoder.Decode(&doc)
 	if err == nil {
+		err = checkAliases(&doc)
+	}
+	if err == nil {
 		foldMergeKeys(&doc)
 		err = doc.Decode(target)
 	}
@@ -159,6 +162,39 @@ func decodeNext(decoder *yaml.Decoder, target any) error {
 		return invalidYAML{err}
 	}
 	return err
+}
+
+// maxYAMLNodes caps a document's size with its aliases expanded. A variable
+// so tests can lower it.
+var maxYAMLNodes = 1_000_000
+
+// checkAliases refuses what yaml.v3 only refuses when decoding into Go values:
+// an alias inside the node it names, and aliases that expand without bound.
+// The parsers walk yaml.Node trees themselves, following aliases.
+func checkAliases(root *yaml.Node) error {
+	expanded := 0
+	open := map[*yaml.Node]bool{}
+	var walk func(*yaml.Node) error
+	walk = func(node *yaml.Node) error {
+		if expanded++; expanded > maxYAMLNodes {
+			return fmt.Errorf("the document expands to more than %d nodes", maxYAMLNodes)
+		}
+		if open[node] {
+			return errors.New("an alias refers to a node that contains it")
+		}
+		open[node] = true
+		defer delete(open, node)
+		if node.Kind == yaml.AliasNode && node.Alias != nil {
+			return walk(node.Alias)
+		}
+		for _, child := range node.Content {
+			if err := walk(child); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return walk(root)
 }
 
 // foldMergeKeys turns repeated "<<" keys in a mapping into one merge of a

@@ -112,6 +112,7 @@ var (
 	maxFileBytes int64 = 4 << 20
 	maxKeptBytes int64 = 256 << 20
 	maxHeadBytes int64 = 64 << 20
+	maxJSONBytes int64 = 64 << 20
 )
 
 // headBytes is as much of a JSON file as IaC detection reads.
@@ -293,7 +294,7 @@ func getJSON(ctx context.Context, endpoint, token string, out any) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("GitHub answered %s", resp.Status)
 	}
-	return json.NewDecoder(resp.Body).Decode(out)
+	return json.NewDecoder(io.LimitReader(resp.Body, maxJSONBytes)).Decode(out)
 }
 
 func fetchFile(ctx context.Context, endpoint, token, target string, size int64) error {
@@ -381,7 +382,7 @@ func extract(r io.Reader, dir string) error {
 
 		// A repository's own .git would collide with the marker Fetch made.
 		_, name, _ := strings.Cut(header.Name, "/")
-		if name == "" || name == ".git" || strings.HasPrefix(name, ".git/") {
+		if first, _, _ := strings.Cut(name, "/"); name == "" || strings.EqualFold(first, ".git") {
 			continue
 		}
 		target, err := within(dir, name)

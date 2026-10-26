@@ -288,6 +288,7 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 		return unreadable(filePath, err), nil, nil
 	}
 
+	actions := &composites{root: root}
 	var jobs []*models.Job
 	for jobName, job := range wf.Jobs {
 		// A job calling a reusable workflow has no steps but still reports a
@@ -320,7 +321,7 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 				continue
 			}
 			if strings.HasPrefix(string(step.Uses), "./") {
-				jobs = append(jobs, compositeSteps(root, string(step.Uses), record, 0)...)
+				jobs = append(jobs, actions.steps(string(step.Uses), record, 0)...)
 			}
 			pkgName, version := parseStepUsageStatement(string(step.Uses))
 			if pkgName != "" {
@@ -359,20 +360,32 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 // Local composite actions nest; this bounds a chain that uses itself.
 const compositeDepth = 8
 
+// maxNestedFiles bounds the included files, templates or local actions one
+// configuration reads: each can name many, so depth alone allows work that
+// grows exponentially.
+var maxNestedFiles = 500
+
+type composites struct {
+	root  string
+	reads int
+}
+
 var inputRef = regexp.MustCompile(`\binputs\.([A-Za-z_][\w-]*)`)
 
 // wholeInputRef is an expression that is only an input, replaced by its
 // value verbatim even when that is a script.
 var wholeInputRef = regexp.MustCompile(`\$\{\{\s*inputs\.([A-Za-z_][\w-]*)\s*\}\}`)
 
-// compositeSteps reads a local composite action and returns its steps, run as
+// steps reads a local composite action and returns its steps, run as
 // part of the calling step: its job, triggers, condition and
 // continue-on-error carry over. Its inputs come from the caller's with:, or
 // their defaults. A Docker or JavaScript action has no steps to read.
-func compositeSteps(root, uses string, caller *models.Job, depth int) []*models.Job {
-	if depth >= compositeDepth {
+func (c *composites) steps(uses string, caller *models.Job, depth int) []*models.Job {
+	if depth >= compositeDepth || c.reads >= maxNestedFiles {
 		return nil
 	}
+	c.reads++
+	root := c.root
 	dir := filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(uses, "./")))
 	data, err := repofs.ReadFile(root, filepath.Join(dir, "action.yml"))
 	if err != nil {
@@ -413,7 +426,7 @@ func compositeSteps(root, uses string, caller *models.Job, depth int) []*models.
 		switch {
 		case step.Run != "":
 		case strings.HasPrefix(string(step.Uses), "./"):
-			jobs = append(jobs, compositeSteps(root, string(step.Uses), &record, depth+1)...)
+			jobs = append(jobs, c.steps(string(step.Uses), &record, depth+1)...)
 			fallthrough
 		case step.Uses != "":
 			record.Package, record.Version = parseStepUsageStatement(string(step.Uses))

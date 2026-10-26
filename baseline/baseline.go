@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/MustacheCase/zanadir/grading"
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"gopkg.in/yaml.v3"
 )
 
@@ -87,7 +88,7 @@ func Write(path string, categories []string, weakened map[string]string) error {
 		"# control that gets worse than its recorded verdict fails again.\n" +
 		"# Regenerate with: zanadir scan --dir . --write-baseline\n"
 
-	if err := os.WriteFile(path, []byte(header+string(data)), 0o600); err != nil {
+	if err := repofs.WriteOutput(path, []byte(header+string(data)), 0o600); err != nil {
 		return fmt.Errorf("failed to write baseline %s: %w", path, err)
 	}
 	return nil

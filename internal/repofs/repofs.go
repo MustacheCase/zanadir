@@ -3,6 +3,7 @@
 package repofs
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -42,4 +43,24 @@ func open(root, path string) (*os.Root, string, error) {
 	}
 	r, err := os.OpenRoot(root)
 	return r, rel, err
+}
+
+// CreateOutput opens a file zanadir writes for the operator, such as a report,
+// badge or baseline, refusing a symlink so a scanned repository cannot point
+// the write elsewhere.
+func CreateOutput(path string, perm fs.FileMode) (*os.File, error) {
+	if info, err := os.Lstat(path); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+		return nil, fmt.Errorf("%s is a symbolic link; refusing to write through it", path)
+	}
+	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, perm) //nolint:gosec // operator-supplied path, symlinks refused above
+}
+
+// WriteOutput writes data to path as CreateOutput opens it.
+func WriteOutput(path string, data []byte, perm fs.FileMode) error {
+	f, err := CreateOutput(path, perm)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	return errors.Join(err, f.Close())
 }

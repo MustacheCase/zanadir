@@ -63,6 +63,57 @@ own `scan` and `fix` tools, built from the source you are working on
 (`go run . mcp`). Approve the zanadir server when the session starts, then ask
 the agent to scan a repository, or this one, to see a change's effect.
 
+## Adding a Tool to the Catalogue
+
+zanadir's suggestions (`suggester/suggestions.yaml`) are read by people and,
+through `zanadir mcp` and the plugin, by AI agents that act on them. A tool in
+the catalogue is recommended to every repository missing its category, so
+every tool gets in the same way.
+
+### What a new tool needs
+
+- **It runs in CI unattended.** It installs and finishes without a person.
+- **It can fail the build**, by default or with a flag. zanadir asks whether a
+  control can stop a merge, and a tool that can only print findings cannot.
+- **It is free to use on a public repository.** Open source or a free tier
+  both count. A tool that needs a paid plan to try is not suggested.
+- **It is maintained.** Its source repository is public, not archived, and has
+  had a release in the last year. A weekly check (`tools/cataloguehealth`)
+  flags entries that stop meeting this.
+- **zanadir recognises it.** A rule in `rules/storage/` matches the forms the
+  tool is usually run in: its action, its image, its command. Without one,
+  zanadir keeps suggesting the tool to repositories that already run it. Add
+  regex tests for what should and should not match.
+- **Its fix snippet has been run.** A template in `fixer/templates.yaml` is
+  pinned to a release, and the PR says what happened when you ran it on a real
+  repository, including that a finding fails the build.
+
+### What does not count
+
+- **Payment, sponsorship or partnership.** There is no paid placement.
+- **Stars or popularity alone.**
+
+### Order
+
+`zanadir fix` pastes the first tool in a category that has a snippet for the
+repository's CI system, so order matters. It is decided by fit for the
+repositories that will see the suggestion, for example whether the tool needs
+an account, and every request to move a tool up is judged the same way.
+
+### If you work on the tool
+
+Maintainers adding their own tool are welcome; glsec arrived this way. Say so
+in the PR description. Open an issue first describing the tool and the
+categories it covers, so the fit is agreed before the code.
+
+### Removal
+
+A tool is removed when it stops meeting these criteria: its repository is gone
+or archived, it can no longer fail a build, or it has stopped being
+maintained. Entries flagged by the weekly check are reviewed by hand, not
+removed automatically. A tool's maintainers can ask for its removal at any
+time.
+
 ## Pull Request Process
 
 1. Update the README.md with details of changes if needed

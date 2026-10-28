@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"cmp"
 	"io/fs"
 	"path/filepath"
 	"regexp"
@@ -388,7 +389,16 @@ func (r *azureReader) step(node *yaml.Node, dir string, ctx azureContext) []*mod
 		if with["image"] != "" {
 			fallback = "image"
 		}
-		record.Run = trivyCommand(scanType(with["type"], fallback), with["scanners"], with["exitCode"], "", with["options"])
+		// Trivy@1 fails on findings unless exitCode says otherwise; Trivy@2
+		// only at failOnSeverityThreshold.
+		exitCode := cmp.Or(with["exitCode"], "1")
+		if !strings.HasPrefix(record.Version, "1") {
+			exitCode = ""
+			if with["failOnSeverityThreshold"] != "" {
+				exitCode = "1"
+			}
+		}
+		record.Run = trivyCommand(scanType(with["type"], fallback), with["scanners"], exitCode, "", with["options"])
 	}
 	return []*models.Job{record}
 }

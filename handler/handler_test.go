@@ -1114,3 +1114,28 @@ func TestHandler_ExecutePassesDetectedPlatforms(t *testing.T) {
 	report := h.OutputService.(*MockOutput).Calls[0].Arguments.Get(0).(output.Report)
 	assert.Equal(t, []string{parser.GitLab}, report.Platforms)
 }
+
+// A scanner that exits 0 on findings only reports, unless a config file the
+// repository holds may make it fail.
+func TestAnalyseGradesAToolThatOnlyReports(t *testing.T) {
+	h, err := Setup()
+	require.NoError(t, err)
+	silent := func(string, ...interface{}) {}
+
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".github", "workflows", "ci.yml"),
+		[]byte("on: pull_request\njobs:\n  scan:\n    runs-on: ubuntu-latest\n    steps:\n      - run: trivy fs .\n"), 0o600))
+
+	result, err := h.analyse(&config.Config{Dir: dir}, silent, nil)
+	require.NoError(t, err)
+	assert.Contains(t, result.weaknesses, output.Weakness{Category: string(models.SCA), Verdict: "advisory", Location: ".github/workflows/ci.yml"})
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "trivy.yaml"), []byte("exit-code: 1\n"), 0o600))
+	result, err = h.analyse(&config.Config{Dir: dir}, silent, nil)
+	require.NoError(t, err)
+	for _, weakness := range result.weaknesses {
+		assert.NotEqual(t, string(models.SCA), weakness.Category, "trivy.yaml may set the exit code")
+	}
+}

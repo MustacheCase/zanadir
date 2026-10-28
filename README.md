@@ -19,8 +19,9 @@ quality controls are missing, or wired so they cannot fail a build.
   checked against the tools that cover it, with suggestions that fit the
   repository's languages.
 - **Does my CI actually block on security findings?** A scanner with
-  `continue-on-error`, `--exit-code 0`, `|| true`, a push-only trigger or
-  `allow_failure` is present but cannot stop a merge. zanadir grades each
+  `continue-on-error`, `|| true`, a push-only trigger or `allow_failure`, or
+  one that only reports unless told to fail, like `trivy` without
+  `--exit-code 1`, is present but cannot stop a merge. zanadir grades each
   control *enforcing*, *partial*, *advisory* or *unknown* rather than just
   covered; see [Effectiveness](#effectiveness).
 - **Is that check required to merge?** With `--required-checks`, a control
@@ -653,9 +654,26 @@ to one tool, and a rule can say so:
 
 A check is either a regex over the step's shell command or one action input
 compared to a value - deliberately not an expression language. Covered today:
-`trivy --exit-code 0`, `gitleaks --exit-code 0`, `tfsec` and `checkov`
-`--soft-fail` / `soft_fail: true`, and `anchore/scan-action` with
-`fail-build: false`.
+`gitleaks --exit-code 0`, `tfsec` and `checkov` `--soft-fail` /
+`soft_fail: true`, and `anchore/scan-action` with `fail-build: false`.
+
+Some tools are the other way round: they exit 0 on findings unless told to
+fail. `trivy` without `--exit-code 1` (including `trivy-action` without
+`exit-code`), `grype` without `--fail-on`, `kubescape` without a threshold,
+`semgrep scan` without `--error` and `trufflehog` without `--fail` only report,
+so they are `advisory`. When the repository has a config file the tool reads
+by default, such as `trivy.yaml` or `.grype.yaml`, or the step names one with
+`--config`, the file may set it, and the control is `unknown`:
+
+```yaml
+    exitsZeroUnless:
+      runMatches: "--fail-on\\b"          # what makes it fail
+      unknownWhen: "--config\\b"          # what may, out of sight
+      configFiles: [".grype.yaml"]        # read from the repository by default
+```
+
+zanadir cannot see an exit code set in a workflow's `env:`, such as
+`TRIVY_EXIT_CODE`, so such a step reads as `advisory`.
 
 Two deliberate silences. An `if:` condition is never interpreted, because it
 can reference arbitrary context and reading one wrong is worse than admitting
@@ -951,6 +969,8 @@ rules:
     weakenedWhen:               # optional: configurations that cannot fail a build
       - runMatches: '--report-only'
         verdict: advisory       # advisory or partial
+    exitsZeroUnless:            # optional, for a tool that only reports by default
+      runMatches: '--fail'      # the flag that makes it fail
 ```
 
 A rule that also matches on `Artifact.Name` can take `unlessPackage`, a regex

@@ -340,7 +340,11 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 					}
 				case "aquasecurity/trivy-action":
 					with := record.With
-					record.Run = trivyCommand(scanType(with["scan-type"], "image"), with["scanners"], with["exit-code"], with["format"], "")
+					var config string
+					if with["trivy-config"] != "" {
+						config = "--config " + with["trivy-config"]
+					}
+					record.Run = trivyCommand(scanType(with["scan-type"], "image"), with["scanners"], with["exit-code"], with["format"], config)
 				case "github/codeql-action/init":
 					record.Run = codeqlCommand(record.With["languages"])
 				}

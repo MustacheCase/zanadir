@@ -3,6 +3,9 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bsemgrep\\b"
+    # semgrep ci fails on blocking findings; scan only with --error.
+    exitsZeroUnless:
+      runMatches: "\\bsemgrep\\s+ci\\b|--error\\b"
 
   # The CLI, the init action (parser/github.go turns it into the database it
   # creates) and Azure's tasks; not upload-sarif, which uploads any tool's

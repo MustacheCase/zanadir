@@ -6,6 +6,12 @@ rules:
     # the image anchore/test_images:grype-quality-dotnet, and grype-db only
     # builds the database.
     regex: "(?i)(?:^|[\\s/])grype(?:[\\s:@/]|$)"
+    # The CLI exits 0 on findings unless asked to fail; anchore/scan-action
+    # asks by default.
+    exitsZeroUnless:
+      runMatches: "--fail-on\\b|(?:^|\\s)-f[= ]+\\w|\\bGRYPE_FAIL_ON_SEVERITY=\\S"
+      unknownWhen: "(?:^|\\s)(?:-c|--config)(?:[= ]|$)|\\bGRYPE_CONFIG="
+      configFiles: [".grype.yaml", ".grype.yml", ".grype/config.yaml", ".grype/config.yml"]
 
   # What trivy checks depends on its sub-command and --scanners, so it is
   # matched on the command; parser/github.go turns trivy-action into one. These
@@ -16,12 +22,12 @@ rules:
     categories: ["SCA"]
     regex: "(?i)\\btrivy\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*(?:fs|filesystem|image|i|repo|repository|rootfs|vm|k8s|kubernetes|sbom)(?:\\s|$)"
     unless: "(?i)--(?:scanners|security-checks)[= ](?:secret|misconfig|config|license|rbac)(?:,(?:secret|misconfig|config|license|rbac))*(?:\\s|$)|\\s(?:--format|-f)[= ](?:cyclonedx|spdx|spdx-json)\\b"
-    weakenedWhen:
-      - runMatches: "--exit-code[= ]+0\\b"
-        verdict: "advisory"
-      - input: "exit-code"
-        equals: "0"
-        verdict: "advisory"
+    # trivy exits 0 on findings unless --exit-code, its env var or trivy.yaml
+    # says otherwise.
+    exitsZeroUnless:
+      runMatches: "--exit-code[= ]+0*[1-9]|\\bTRIVY_EXIT_CODE=0*[1-9]"
+      unknownWhen: "(?:^|\\s)(?:-c|--config)(?:[= ]|$)|\\bTRIVY_CONFIG="
+      configFiles: ["trivy.yaml"]
 
   - id: "snyk-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

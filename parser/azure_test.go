@@ -222,12 +222,15 @@ steps:
   - task: trivy@2
     inputs:
       type: $(scanType)
+  - task: trivy@2
+    inputs:
+      failOnSeverityThreshold: HIGH
 `})
 	var runs []string
 	for _, job := range artifact.Jobs {
 		runs = append(runs, job.Run)
 	}
-	assert.Equal(t, []string{"trivy filesystem", "trivy image --exit-code 0", "trivy repository --scanners misconfig --severity HIGH", "trivy filesystem"}, runs)
+	assert.Equal(t, []string{"trivy filesystem --exit-code 1", "trivy image --exit-code 0", "trivy repository --scanners misconfig --severity HIGH", "trivy filesystem", "trivy filesystem --exit-code 1"}, runs)
 }
 
 func TestAzureExistsAndErrors(t *testing.T) {

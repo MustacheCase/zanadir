@@ -123,6 +123,10 @@ func TestEmbeddedRulesCarryWeakenedChecks(t *testing.T) {
 	assert.Equal(t, []string{"trivy.yaml"}, trivy.ConfigFiles)
 	assert.False(t, byID["trufflehog-rule"].ExitsZero.RunMatches.MatchString("trufflehog git file://. --fail-on-scan-errors"))
 	assert.False(t, byID["kubescape-rule"].ExitsZero.RunMatches.MatchString("kubescape scan --compliance-threshold 0"))
+	kubescape := byID["kubescape-rule"].ExitsZero
+	assert.False(t, kubescape.RunMatches.MatchString("kubescape scan --fail-threshold 0 ."), "ignored by current kubescape")
+	assert.True(t, kubescape.UnknownWhen.MatchString("kubescape scan --fail-threshold 0 ."))
+	assert.True(t, kubescape.UnknownWhen.MatchString("kubescape scan -t 10 ."))
 
 	tfsec := byID["tfsec-rule"]
 	assert.NotNil(t, tfsec)

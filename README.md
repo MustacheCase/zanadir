@@ -659,7 +659,9 @@ compared to a value - deliberately not an expression language. Covered today:
 
 Some tools are the other way round: they exit 0 on findings unless told to
 fail. `trivy` without `--exit-code 1` (including `trivy-action` without
-`exit-code`), `grype` without `--fail-on`, `kubescape` without a threshold,
+`exit-code`), `grype` without `--fail-on`, `kubescape` without a severity or compliance
+threshold (its old `--fail-threshold` is ignored by current releases, so it is
+`unknown`),
 `semgrep scan` without `--error` and `trufflehog` without `--fail` only report,
 so they are `advisory`. When the repository has a config file the tool reads
 by default, such as `trivy.yaml` or `.grype.yaml`, or the step names one with

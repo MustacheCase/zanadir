@@ -696,7 +696,11 @@ zanadir reads the default branch's required checks from GitHub (public
 repositories need no token; `GITHUB_TOKEN` or `GH_TOKEN` is used if set). A
 GitHub Actions control that would be `enforcing` stays so only when its job's
 check is required, matrix (`build (ubuntu-latest)`) and reusable-workflow
-(`codeql / Analyze`) names included; otherwise it is `partial`:
+(`codeql / Analyze`) names included; otherwise it is `partial`. A ruleset
+that blocks merges on a tool's code scanning alerts counts too: a scanner that
+runs on every pull request and uploads to code scanning is `enforcing` even
+when its own step only reports, such as `trivy-action` writing SARIF without
+`exit-code`:
 
 ```
 2 covered categories are weakened:

@@ -32,9 +32,14 @@ type Assessment struct {
 	Reason string
 }
 
-// Required reports whether a job must succeed for a change to merge; nil when
-// the repository's merge settings were not read.
+// Required reports something about a job's place in a merge.
 type Required func(job *models.Job) bool
+
+// Merge is what a merge waits for, nil when unread: a job's check (Required),
+// or its tool's code scanning alerts whatever the job's result (Scanned).
+type Merge struct {
+	Required, Scanned Required
+}
 
 // NotRequired is the reason a control that runs on pull requests is partial.
 const NotRequired = "its check is not required to merge"
@@ -268,8 +273,16 @@ func gradeShipping(artifact *models.Artifact) Verdict {
 // gated holds a control that runs on pull requests to the merge settings: it
 // blocks a merge only if a check of its job is required. A match on the
 // workflow's name stands for every job in it.
-func gated(a Assessment, finding *matcher.Finding, required Required) Assessment {
-	if required == nil || a.Verdict != Enforcing || finding.Category == string(models.SupplyChain) {
+func gated(a Assessment, finding *matcher.Finding, merge *Merge) Assessment {
+	if merge == nil || finding.Category == string(models.SupplyChain) {
+		return a
+	}
+	if a.Verdict == Advisory && scannedOnPullRequests(finding, merge.Scanned) {
+		a.Verdict = Enforcing
+		return a
+	}
+	required := merge.Required
+	if required == nil || a.Verdict != Enforcing {
 		return a
 	}
 	jobs := finding.Artifact.Jobs
@@ -302,6 +315,18 @@ func gated(a Assessment, finding *matcher.Finding, required Required) Assessment
 // blocks reports whether a job holds back a merge itself or through a job
 // that needs it: a required gate job that waits on the real ones and fails
 // unless they all succeeded.
+// scannedOnPullRequests: alerts on every pull request block even a step that cannot fail.
+func scannedOnPullRequests(finding *matcher.Finding, scanned Required) bool {
+	if scanned == nil || gradeTriggers(finding.Artifact) != Enforcing {
+		return false
+	}
+	jobs := finding.Artifact.Jobs
+	if finding.Job != nil {
+		jobs = []*models.Job{finding.Job}
+	}
+	return slices.ContainsFunc(jobs, func(job *models.Job) bool { return !job.Manual && scanned(job) })
+}
+
 func blocks(job *models.Job, jobs []*models.Job, required Required, seen map[string]bool) bool {
 	if required(job) {
 		return true
@@ -331,13 +356,13 @@ func Weakened(verdict Verdict) bool {
 }
 
 // ByCategory keeps the strongest verdict for each category.
-func ByCategory(findings []*matcher.Finding, required Required) map[string]Assessment {
+func ByCategory(findings []*matcher.Finding, merge *Merge) map[string]Assessment {
 	best := make(map[string]Assessment)
 	for _, finding := range findings {
 		if finding == nil {
 			continue
 		}
-		candidate := gated(Assessment{Verdict: Grade(finding), Location: finding.Location}, finding, required)
+		candidate := gated(Assessment{Verdict: Grade(finding), Location: finding.Location}, finding, merge)
 		if current, seen := best[finding.Category]; seen && !stronger(candidate.Verdict, current.Verdict) {
 			continue
 		}

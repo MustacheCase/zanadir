@@ -23,7 +23,10 @@ rules:
     regex: "(?i)\\btrivy\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*(?:fs|filesystem|image|i|repo|repository|rootfs|vm|k8s|kubernetes|sbom)(?:\\s|$)"
     unless: "(?i)--(?:scanners|security-checks)[= ](?:secret|misconfig|config|license|rbac)(?:,(?:secret|misconfig|config|license|rbac))*(?:\\s|$)|\\s(?:--format|-f)[= ](?:cyclonedx|spdx|spdx-json)\\b"
     # trivy exits 0 on findings unless --exit-code, its env var or trivy.yaml
-    # says otherwise.
+    # says otherwise. A flag outranks the file, so an explicit 0 is final.
+    weakenedWhen:
+      - runMatches: "--exit-code[= ]+0+\\b|\\bTRIVY_EXIT_CODE=0+\\b"
+        verdict: "advisory"
     exitsZeroUnless:
       runMatches: "--exit-code[= ]+0*[1-9]|\\bTRIVY_EXIT_CODE=0*[1-9]"
       unknownWhen: "(?:^|\\s)(?:-c|--config)(?:[= ]|$)|\\bTRIVY_CONFIG="

@@ -202,6 +202,8 @@ func TestBlocks(t *testing.T) {
 	} {
 		assert.Equal(t, want, g.Blocks(job), job.Check)
 	}
+	assert.False(t, g.Scans(&models.Job{Check: "Unit tests"}), "a required check is not code scanning")
+	assert.True(t, g.Scans(&models.Job{Run: "zizmor --format sarif ."}))
 }
 
 // GitHub lists 30 items a page by default; a repository with more rules

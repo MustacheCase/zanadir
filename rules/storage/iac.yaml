@@ -52,7 +52,10 @@ rules:
     categories: ["IaC Security"]
     regex: "(?i)\\btrivy\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*(?:config|conf)(?:\\s|$)|\\btrivy\\b[^\\n]*--(?:scanners|security-checks)[= ](?:[\\w-]+,)*(?:misconfig|config)\\b"
     # trivy exits 0 on findings unless --exit-code, its env var or trivy.yaml
-    # says otherwise.
+    # says otherwise. A flag outranks the file, so an explicit 0 is final.
+    weakenedWhen:
+      - runMatches: "--exit-code[= ]+0+\\b|\\bTRIVY_EXIT_CODE=0+\\b"
+        verdict: "advisory"
     exitsZeroUnless:
       runMatches: "--exit-code[= ]+0*[1-9]|\\bTRIVY_EXIT_CODE=0*[1-9]"
       unknownWhen: "(?:^|\\s)(?:-c|--config)(?:[= ]|$)|\\bTRIVY_CONFIG="

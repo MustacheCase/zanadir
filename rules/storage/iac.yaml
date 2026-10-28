@@ -35,9 +35,11 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bkubescape\\b"
-    # kubescape fails only past a threshold; -t is the old --fail-threshold.
+    # kubescape fails only past a threshold. --fail-threshold (-t) gated in
+    # old releases; current ones accept it and ignore it.
     exitsZeroUnless:
-      runMatches: "--severity-threshold\\b|--compliance-threshold[= ]+(?:0*[1-9]|0*\\.\\d*[1-9])|--fail-threshold\\b|(?:^|\\s)-t[= ]+\\S"
+      runMatches: "--severity-threshold\\b|--compliance-threshold[= ]+(?:0*[1-9]|0*\\.\\d*[1-9])"
+      unknownWhen: "--fail-threshold\\b|(?:^|\\s)-t[= ]+\\S"
 
   # "snyk" alone is the SCA rule; only the iac sub-command scans infrastructure.
   - id: "snyk-iac-rule"

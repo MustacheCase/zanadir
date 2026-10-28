@@ -3,8 +3,6 @@ name: "Automated Code Review"
 on:
   pull_request:
     types: [opened]
-  issue_comment:                                     
-    types: [created, edited]
 
 permissions:
   contents: read
@@ -13,10 +11,6 @@ permissions:
 jobs:
   review:
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'pull_request' || 
-      (github.event_name == 'issue_comment' && contains(github.event.comment.html_url, '/pull/') && contains(github.event.comment.body, '#CR') &&
-      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
     steps:
       - name: Checkout Code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,5 +30,5 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: python .github/scripts/code_review.py

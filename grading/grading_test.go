@@ -548,7 +548,7 @@ func TestByCategoryHoldsPullRequestControlsToRequiredChecks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ByCategory([]*matcher.Finding{tt.finding}, tt.required)[tt.finding.Category]
+			got := ByCategory([]*matcher.Finding{tt.finding}, &Merge{Required: tt.required})[tt.finding.Category]
 			if got.Verdict != tt.want || got.Reason != tt.reason {
 				t.Errorf("got %q (%q), want %q (%q)", got.Verdict, got.Reason, tt.want, tt.reason)
 			}
@@ -662,6 +662,7 @@ func TestGradeToolThatExitsZeroUnlessToldToFail(t *testing.T) {
 		name     string
 		job      *models.Job
 		configs  map[string]bool
+		weakened bool
 		expected Verdict
 	}{
 		{name: "a bare call only reports", job: &models.Job{Run: "trivy fs ."}, expected: Advisory},
@@ -672,14 +673,60 @@ func TestGradeToolThatExitsZeroUnlessToldToFail(t *testing.T) {
 		{name: "an exit code set at run time may be either", job: &models.Job{Run: "trivy fs --exit-code ${{ inputs.code }} ."}, expected: Unknown},
 		{name: "the default config file in the repository may set it", job: &models.Job{Run: "trivy fs ."}, configs: map[string]bool{"trivy.yaml": true}, expected: Unknown},
 		{name: "another tool's config file does not", job: &models.Job{Run: "trivy fs ."}, configs: map[string]bool{".grype.yaml": true}, expected: Advisory},
+		{name: "an explicit zero outranks the config file", job: &models.Job{Run: "trivy fs --exit-code 0 ."}, configs: map[string]bool{"trivy.yaml": true}, weakened: true, expected: Advisory},
+		{name: "as does an explicit non-zero", job: &models.Job{Run: "trivy fs --exit-code 1 ."}, configs: map[string]bool{"trivy.yaml": true}, weakened: true, expected: Enforcing},
 		{name: "a step matched by its action is left to its inputs", job: &models.Job{Package: "aquasecurity/trivy-action"}, expected: Enforcing},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := finding([]models.Trigger{{Event: "pull_request"}}, tt.job)
 			f.Rule, f.Artifact.ToolConfigs = trivy, tt.configs
+			if tt.weakened {
+				rule := *trivy
+				rule.Weakened = []rules.WeakenedWhen{{RunMatches: regexp.MustCompile(`--exit-code[= ]+0+\b`), Verdict: "advisory"}}
+				f.Rule = &rule
+			}
 			if got := Grade(f); got != tt.expected {
 				t.Errorf("Grade() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+// A scanner whose code scanning alerts block the merge holds it back even
+// when its own step only reports.
+func TestByCategoryCountsCodeScanningMergeProtection(t *testing.T) {
+	trivy := &rules.Rule{
+		ID:        "trivy-rule",
+		Regex:     regexp.MustCompile(`\btrivy\s+fs\b`),
+		ExitsZero: &rules.ExitsZeroUnless{RunMatches: regexp.MustCompile(`--exit-code[= ]+0*[1-9]`)},
+	}
+	scanned := func(job *models.Job) bool { return regexp.MustCompile(`trivy`).MatchString(job.Run) }
+	reports := func(triggers []models.Trigger, job *models.Job) *matcher.Finding {
+		f := finding(triggers, job)
+		f.Rule = trivy
+		return f
+	}
+	pr := []models.Trigger{{Event: "pull_request"}}
+	pushOnly := []models.Trigger{{Event: "push", Branches: []string{"main"}}}
+
+	tests := []struct {
+		name    string
+		finding *matcher.Finding
+		merge   *Merge
+		want    Verdict
+	}{
+		{"alerts that block the merge make a report a gate", reports(pr, &models.Job{Run: "trivy fs --format sarif ."}), &Merge{Scanned: scanned}, Enforcing},
+		{"without the merge settings it only reports", reports(pr, &models.Job{Run: "trivy fs --format sarif ."}), nil, Advisory},
+		{"nor when another tool's alerts block", reports(pr, &models.Job{Run: "trivy fs ."}), &Merge{Scanned: func(*models.Job) bool { return false }}, Advisory},
+		{"nor when it never runs on a pull request", reports(pushOnly, &models.Job{Run: "trivy fs ."}), &Merge{Scanned: scanned}, Advisory},
+		{"nor when someone has to start it", reports(pr, &models.Job{Run: "trivy fs .", Manual: true}), &Merge{Scanned: scanned}, Advisory},
+		{"continue-on-error does not stop the alerts", reports(pr, &models.Job{Run: "trivy fs --exit-code 1 .", ContinueOnError: true}), &Merge{Scanned: scanned}, Enforcing},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ByCategory([]*matcher.Finding{tt.finding}, tt.merge)[tt.finding.Category].Verdict; got != tt.want {
+				t.Errorf("verdict = %v, want %v", got, tt.want)
 			}
 		})
 	}

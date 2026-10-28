@@ -43,9 +43,11 @@ type Gate struct {
 // Blocks reports whether a job holds back a merge: its check is required, or
 // it runs a tool whose code scanning alerts are.
 func (g *Gate) Blocks(job *models.Job) bool {
-	if g.Requires(job) {
-		return true
-	}
+	return g.Requires(job) || g.Scans(job)
+}
+
+// Scans reports whether a job's tool has code scanning alerts that block a merge.
+func (g *Gate) Scans(job *models.Job) bool {
 	text := strings.ToLower(job.Package + " " + job.Run)
 	return slices.ContainsFunc(g.Scanning, func(tool string) bool {
 		name, _, _ := strings.Cut(strings.ToLower(tool), " ")

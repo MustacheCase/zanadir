@@ -1138,4 +1138,36 @@ func TestAnalyseGradesAToolThatOnlyReports(t *testing.T) {
 	for _, weakness := range result.weaknesses {
 		assert.NotEqual(t, string(models.SCA), weakness.Category, "trivy.yaml may set the exit code")
 	}
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".github", "workflows", "ci.yml"),
+		[]byte("on: pull_request\njobs:\n  scan:\n    runs-on: ubuntu-latest\n    steps:\n      - run: trivy fs --exit-code 0 .\n"), 0o600))
+	result, err = h.analyse(&config.Config{Dir: dir}, silent, nil)
+	require.NoError(t, err)
+	assert.Contains(t, result.weaknesses, output.Weakness{Category: string(models.SCA), Verdict: "advisory", Location: ".github/workflows/ci.yml"},
+		"the flag outranks trivy.yaml")
+}
+
+// With --required-checks, a scanner that only reports still holds back a
+// merge when the ruleset blocks on its code scanning alerts.
+func TestAnalyseCountsCodeScanningMergeProtection(t *testing.T) {
+	h, err := Setup()
+	require.NoError(t, err)
+	silent := func(string, ...interface{}) {}
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, ".git"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".github", "workflows", "ci.yml"),
+		[]byte("on: pull_request\njobs:\n  scan:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: aquasecurity/trivy-action@v0.36.0\n        with:\n          scan-type: fs\n          format: sarif\n"), 0o600))
+	repo := &remote.Repository{Owner: "o", Name: "r"}
+	sca := output.Weakness{Category: string(models.SCA), Verdict: "advisory", Location: ".github/workflows/ci.yml"}
+
+	fakeGate(t, &gate.Gate{Branch: "main"}, nil)
+	result, err := h.analyse(&config.Config{Dir: dir, Repo: repo, RequiredChecks: true}, silent, nil)
+	require.NoError(t, err)
+	assert.Contains(t, result.weaknesses, sca)
+
+	fakeGate(t, &gate.Gate{Branch: "main", Scanning: []string{"Trivy"}}, nil)
+	result, err = h.analyse(&config.Config{Dir: dir, Repo: repo, RequiredChecks: true}, silent, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, result.weaknesses, sca, "Trivy's alerts block the merge")
 }

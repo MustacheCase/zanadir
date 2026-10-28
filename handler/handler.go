@@ -120,13 +120,13 @@ func toolConfigs(dir string, service rules.RuleService) map[string]bool {
 // weakened lists the covered categories whose tooling cannot fully protect the
 // repository. An excluded category is left out: the operator has said it does
 // not apply, and grading it anyway would argue with them.
-func weakened(excluded []string, dir string, findings []*matcher.Finding, required grading.Required, debugf debugFunc) []output.Weakness {
+func weakened(excluded []string, dir string, findings []*matcher.Finding, merge *grading.Merge, debugf debugFunc) []output.Weakness {
 	skip := make(map[string]bool, len(excluded))
 	for _, category := range excluded {
 		skip[category] = true
 	}
 
-	assessments := grading.ByCategory(findings, required)
+	assessments := grading.ByCategory(findings, merge)
 	list := make([]output.Weakness, 0, len(assessments))
 	for category, assessment := range assessments {
 		debugf("Category %s is %s", category, assessment.Verdict)
@@ -211,17 +211,17 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	debugf("Total suggestions: %d", len(suggestions))
 
 	merge := mergeGate(cfg, artifacts)
-	var required grading.Required
+	var waits *grading.Merge
 	defaultBranch := gate.DefaultBranch(cfg.Dir)
 	if merge != nil {
-		required, defaultBranch = merge.Blocks, cmp.Or(merge.Branch, defaultBranch)
+		waits, defaultBranch = &grading.Merge{Required: merge.Blocks, Scanned: merge.Scans}, cmp.Or(merge.Branch, defaultBranch)
 	}
 	debugf("Default branch: %q", defaultBranch)
 	configs := toolConfigs(cfg.Dir, h.RulesService)
 	for _, a := range artifacts {
 		a.DefaultBranch, a.ToolConfigs = defaultBranch, configs
 	}
-	weaknesses := weakened(skipped, cfg.Dir, findings, required, debugf)
+	weaknesses := weakened(skipped, cfg.Dir, findings, waits, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
 
 	return &scanResult{

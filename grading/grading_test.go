@@ -646,3 +646,41 @@ func TestGradeWithTheRealDefaultBranch(t *testing.T) {
 		})
 	}
 }
+
+func TestGradeToolThatExitsZeroUnlessToldToFail(t *testing.T) {
+	trivy := &rules.Rule{
+		ID:    "trivy-rule",
+		Regex: regexp.MustCompile(`\btrivy\s+(?:fs|image)\b`),
+		ExitsZero: &rules.ExitsZeroUnless{
+			RunMatches:  regexp.MustCompile(`--exit-code[= ]+0*[1-9]`),
+			UnknownWhen: regexp.MustCompile(`(?:^|\s)(?:-c|--config)(?:[= ]|$)`),
+			ConfigFiles: []string{"trivy.yaml"},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		job      *models.Job
+		configs  map[string]bool
+		expected Verdict
+	}{
+		{name: "a bare call only reports", job: &models.Job{Run: "trivy fs ."}, expected: Advisory},
+		{name: "an explicit zero only reports", job: &models.Job{Run: "trivy fs --exit-code 0 ."}, expected: Advisory},
+		{name: "a non-zero exit code fails the build", job: &models.Job{Run: "trivy fs --exit-code 1 ."}, expected: Enforcing},
+		{name: "one call that can fail is enough", job: &models.Job{Run: "trivy fs -f json -o out.json .\ntrivy fs --exit-code 1 ."}, expected: Enforcing},
+		{name: "a config file named on the command may set it", job: &models.Job{Run: "trivy fs --config ci/trivy.yaml ."}, expected: Unknown},
+		{name: "an exit code set at run time may be either", job: &models.Job{Run: "trivy fs --exit-code ${{ inputs.code }} ."}, expected: Unknown},
+		{name: "the default config file in the repository may set it", job: &models.Job{Run: "trivy fs ."}, configs: map[string]bool{"trivy.yaml": true}, expected: Unknown},
+		{name: "another tool's config file does not", job: &models.Job{Run: "trivy fs ."}, configs: map[string]bool{".grype.yaml": true}, expected: Advisory},
+		{name: "a step matched by its action is left to its inputs", job: &models.Job{Package: "aquasecurity/trivy-action"}, expected: Enforcing},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := finding([]models.Trigger{{Event: "pull_request"}}, tt.job)
+			f.Rule, f.Artifact.ToolConfigs = trivy, tt.configs
+			if got := Grade(f); got != tt.expected {
+				t.Errorf("Grade() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}

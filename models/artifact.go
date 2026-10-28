@@ -19,6 +19,8 @@ type Artifact struct {
 	Skipped string
 	// DefaultBranch is the repository's, when it could be read.
 	DefaultBranch string
+	// ToolConfigs are the config files named by rules that the repository has.
+	ToolConfigs map[string]bool
 }
 
 // Trigger is one event a CI configuration runs on, with its filters.

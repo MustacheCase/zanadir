@@ -76,7 +76,7 @@ func Grade(finding *matcher.Finding) Verdict {
 		if job.Manual {
 			return Advisory
 		}
-		if verdict, found := toolSpecific(finding.Rule, job); found {
+		if verdict, found := toolSpecific(finding.Rule, job, finding.Artifact.ToolConfigs); found {
 			return verdict
 		}
 		// An if: can reference arbitrary context, so it is never interpreted.
@@ -100,8 +100,8 @@ func Grade(finding *matcher.Finding) Verdict {
 // runtimeExpression is GitHub's ${{ }} or Azure's $( ) and $[ ].
 var runtimeExpression = regexp.MustCompile(`\$\{\{|\$\(|\$\[`)
 
-// toolSpecific applies a rule's weakenedWhen checks.
-func toolSpecific(rule *rules.Rule, job *models.Job) (Verdict, bool) {
+// toolSpecific applies a rule's weakenedWhen and exitsZeroUnless checks.
+func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (Verdict, bool) {
 	if rule == nil {
 		return "", false
 	}
@@ -109,8 +109,9 @@ func toolSpecific(rule *rules.Rule, job *models.Job) (Verdict, bool) {
 	// A step matched by its name or action, with no command of the tool's
 	// own, is read whole.
 	commands := []string{job.Run}
+	var matched []string
 	if rule.Regex != nil {
-		if matched := matcher.Commands(job.Run, rule); len(matched) > 0 {
+		if matched = matcher.Commands(job.Run, rule); len(matched) > 0 {
 			commands = matched
 		}
 	}
@@ -130,7 +131,20 @@ func toolSpecific(rule *rules.Rule, job *models.Job) (Verdict, bool) {
 			return Unknown, true
 		}
 	}
-	return "", false
+	return exitsZero(rule.ExitsZero, matched, configs)
+}
+
+func exitsZero(check *rules.ExitsZeroUnless, commands []string, configs map[string]bool) (Verdict, bool) {
+	if check == nil || len(commands) == 0 || slices.ContainsFunc(commands, check.RunMatches.MatchString) {
+		return "", false
+	}
+	unclear := func(command string) bool {
+		return runtimeExpression.MatchString(command) || check.UnknownWhen != nil && check.UnknownWhen.MatchString(command)
+	}
+	if slices.ContainsFunc(commands, unclear) || slices.ContainsFunc(check.ConfigFiles, func(name string) bool { return configs[name] }) {
+		return Unknown, true
+	}
+	return Advisory, true
 }
 
 func gradeTriggers(artifact *models.Artifact) Verdict {

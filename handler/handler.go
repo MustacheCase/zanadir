@@ -93,6 +93,30 @@ func sarifAnchor(dir string, artifacts []*models.Artifact) string {
 	return first
 }
 
+// toolConfigs reports which of the config files that rules name are in dir.
+func toolConfigs(dir string, service rules.RuleService) map[string]bool {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = root.Close() }()
+
+	found := make(map[string]bool)
+	for _, category := range models.CategoryTitles {
+		for _, rule := range service.GetCategoryRules(category) {
+			if rule.ExitsZero == nil {
+				continue
+			}
+			for _, name := range rule.ExitsZero.ConfigFiles {
+				if _, err := root.Lstat(name); err == nil {
+					found[name] = true
+				}
+			}
+		}
+	}
+	return found
+}
+
 // weakened lists the covered categories whose tooling cannot fully protect the
 // repository. An excluded category is left out: the operator has said it does
 // not apply, and grading it anyway would argue with them.
@@ -193,8 +217,9 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 		required, defaultBranch = merge.Blocks, cmp.Or(merge.Branch, defaultBranch)
 	}
 	debugf("Default branch: %q", defaultBranch)
+	configs := toolConfigs(cfg.Dir, h.RulesService)
 	for _, a := range artifacts {
-		a.DefaultBranch = defaultBranch
+		a.DefaultBranch, a.ToolConfigs = defaultBranch, configs
 	}
 	weaknesses := weakened(skipped, cfg.Dir, findings, required, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))

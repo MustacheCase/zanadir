@@ -6,6 +6,7 @@ import (
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetCategoryRules(t *testing.T) {
@@ -97,11 +98,31 @@ func TestEmbeddedRulesCarryWeakenedChecks(t *testing.T) {
 		}
 	}
 
-	trivy := byID["trivy-rule"]
-	assert.NotNil(t, trivy)
-	assert.NotEmpty(t, trivy.Weakened)
-	assert.True(t, trivy.Weakened[0].RunMatches.MatchString("trivy fs --exit-code 0 ."))
-	assert.False(t, trivy.Weakened[0].RunMatches.MatchString("trivy fs --exit-code 1 ."))
+	gitleaks := byID["gitleaks-rule"]
+	require.NotNil(t, gitleaks)
+	require.NotEmpty(t, gitleaks.Weakened)
+	assert.True(t, gitleaks.Weakened[0].RunMatches.MatchString("gitleaks detect --exit-code 0"))
+	assert.False(t, gitleaks.Weakened[0].RunMatches.MatchString("gitleaks detect --exit-code 1"))
+
+	for id, gate := range map[string]string{
+		"trivy-rule":        "trivy fs --exit-code 1 .",
+		"trivy-config-rule": "trivy config --exit-code 1 .",
+		"trivy-secret-rule": "trivy fs --scanners secret --exit-code 1 .",
+		"grype-rule":        "grype dir:. --fail-on high",
+		"kubescape-rule":    "kubescape scan --severity-threshold high .",
+		"semgrep-rule":      "semgrep ci",
+		"trufflehog-rule":   "trufflehog git file://. --fail",
+	} {
+		require.NotNil(t, byID[id], id)
+		require.NotNil(t, byID[id].ExitsZero, id)
+		assert.True(t, byID[id].ExitsZero.RunMatches.MatchString(gate), id)
+	}
+	trivy := byID["trivy-rule"].ExitsZero
+	assert.False(t, trivy.RunMatches.MatchString("trivy fs --exit-code 0 ."))
+	assert.True(t, trivy.UnknownWhen.MatchString("trivy fs -c ci/trivy.yaml ."))
+	assert.Equal(t, []string{"trivy.yaml"}, trivy.ConfigFiles)
+	assert.False(t, byID["trufflehog-rule"].ExitsZero.RunMatches.MatchString("trufflehog git file://. --fail-on-scan-errors"))
+	assert.False(t, byID["kubescape-rule"].ExitsZero.RunMatches.MatchString("kubescape scan --compliance-threshold 0"))
 
 	tfsec := byID["tfsec-rule"]
 	assert.NotNil(t, tfsec)
@@ -164,6 +185,22 @@ func TestCustomRulesAreChecked(t *testing.T) {
 		{"bad weakenedWhen", func(r *rules.FileRule) {
 			r.Weakened = []rules.FileWeakenedWhen{{RunMatches: "--dry-run", Verdict: "broken"}}
 		}, "verdict"},
+		{"exitsZeroUnless without commands", func(r *rules.FileRule) {
+			r.ApplyOn = []string{rules.FieldJobPackage}
+			r.ExitsZeroUnless = &rules.FileExitsZeroUnless{RunMatches: "--fail"}
+		}, "applyOn needs Job.Run"},
+		{"exitsZeroUnless without runMatches", func(r *rules.FileRule) {
+			r.ExitsZeroUnless = &rules.FileExitsZeroUnless{UnknownWhen: "--config"}
+		}, "needs runMatches"},
+		{"bad exitsZeroUnless regex", func(r *rules.FileRule) {
+			r.ExitsZeroUnless = &rules.FileExitsZeroUnless{RunMatches: "--fail", UnknownWhen: "--config("}
+		}, "exitsZeroUnless"},
+		{"config file outside the repository", func(r *rules.FileRule) {
+			r.ExitsZeroUnless = &rules.FileExitsZeroUnless{RunMatches: "--fail", ConfigFiles: []string{"../acme.yaml"}}
+		}, "not a path inside the repository"},
+		{"config file given absolutely", func(r *rules.FileRule) {
+			r.ExitsZeroUnless = &rules.FileExitsZeroUnless{RunMatches: "--fail", ConfigFiles: []string{"/etc/acme.yaml"}}
+		}, "not a path inside the repository"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

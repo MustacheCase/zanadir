@@ -4,6 +4,7 @@ package rules
 import (
 	"embed"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -37,15 +38,25 @@ type FileRule struct {
 	Unless string `yaml:"unless"`
 	// UnlessPackage stops an Artifact.Name match in a workflow with a step
 	// whose package matches it: the tool's own action shows what it does.
-	UnlessPackage string             `yaml:"unlessPackage"`
-	Weakened      []FileWeakenedWhen `yaml:"weakenedWhen"`
+	UnlessPackage   string               `yaml:"unlessPackage"`
+	Weakened        []FileWeakenedWhen   `yaml:"weakenedWhen"`
+	ExitsZeroUnless *FileExitsZeroUnless `yaml:"exitsZeroUnless"`
+}
+
+// FileExitsZeroUnless marks a tool that exits 0 on findings: its commands
+// are advisory unless one matches RunMatches, and unknown if one may set it
+// another way or the repository has a config file the tool reads.
+type FileExitsZeroUnless struct {
+	RunMatches  string   `yaml:"runMatches"`
+	UnknownWhen string   `yaml:"unknownWhen"`
+	ConfigFiles []string `yaml:"configFiles"`
 }
 
 // FileWeakenedWhen is one way a tool can be configured so that it cannot
 // protect anything. Deliberately only two shapes - a regex over the shell
 // command, or a single action input compared to a value - so that this stays a
 // narrow escape hatch for tool-specific flags rather than growing into an
-// expression language inside YAML. Everything that weakens any control,
+// expression language inside YAML; exitsZeroUnless is its inverse. Everything that weakens any control,
 // continue-on-error and the triggers, is handled generically in Go.
 type FileWeakenedWhen struct {
 	RunMatches string `yaml:"runMatches"`
@@ -83,6 +94,14 @@ type Rule struct {
 	UnlessPackage *regexp.Regexp
 	IsChecked     bool
 	Weakened      []WeakenedWhen
+	ExitsZero     *ExitsZeroUnless
+}
+
+// ExitsZeroUnless is a compiled FileExitsZeroUnless.
+type ExitsZeroUnless struct {
+	RunMatches  *regexp.Regexp
+	UnknownWhen *regexp.Regexp
+	ConfigFiles []string
 }
 
 // WeakenedWhen is a compiled FileWeakenedWhen.
@@ -118,6 +137,14 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 			weakened = append(weakened, check)
 		}
 
+		var exitsZero *ExitsZeroUnless
+		if e := r.ExitsZeroUnless; e != nil {
+			exitsZero = &ExitsZeroUnless{RunMatches: regexp.MustCompile(e.RunMatches), ConfigFiles: e.ConfigFiles}
+			if e.UnknownWhen != "" {
+				exitsZero.UnknownWhen = regexp.MustCompile(e.UnknownWhen)
+			}
+		}
+
 		var unless, unlessPackage *regexp.Regexp
 		if r.Unless != "" {
 			unless = regexp.MustCompile(r.Unless)
@@ -135,6 +162,7 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 			UnlessPackage: unlessPackage,
 			IsChecked:     false,
 			Weakened:      weakened,
+			ExitsZero:     exitsZero,
 		})
 	}
 	return convertedRules
@@ -169,6 +197,33 @@ func validateRules(fileRules []FileRule) error {
 		}
 		if err := validateWeakened(r); err != nil {
 			return err
+		}
+		if err := validateExitsZero(r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateExitsZero(r FileRule) error {
+	e := r.ExitsZeroUnless
+	if e == nil {
+		return nil
+	}
+	if !slices.Contains(r.ApplyOn, FieldJobRun) {
+		return fmt.Errorf("rule %q: exitsZeroUnless reads commands, so applyOn needs %s", r.ID, FieldJobRun)
+	}
+	if e.RunMatches == "" {
+		return fmt.Errorf("rule %q: exitsZeroUnless needs runMatches", r.ID)
+	}
+	for _, pattern := range []string{e.RunMatches, e.UnknownWhen} {
+		if _, err := regexp.Compile(pattern); err != nil {
+			return fmt.Errorf("rule %q: exitsZeroUnless %q: %w", r.ID, pattern, err)
+		}
+	}
+	for _, name := range e.ConfigFiles {
+		if !filepath.IsLocal(name) {
+			return fmt.Errorf("rule %q: exitsZeroUnless config file %q is not a path inside the repository", r.ID, name)
 		}
 	}
 	return nil

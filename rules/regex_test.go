@@ -409,6 +409,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"kicks", "nkics"},
 		},
 		{
+			ruleID:         "kube-score-rule",
+			shouldMatch:    []string{"kube-score score deploy/*.yaml", "helm template . | kube-score score -", "kube-score score --exit-one-on-warning k8s/", "docker run -v $PWD:/project zegl/kube-score score /project/k8s/*.yaml", "kube-score score"},
+			shouldNotMatch: []string{"kubectl score", "kube-scorecard", "kube-score version", "kube-score help score", "kube-score completion bash", "kube-scorecard score k8s/"},
+		},
+		{
 			// "snyk" alone is SCA; only the iac sub-command scans infrastructure.
 			ruleID:         "snyk-iac-rule",
 			shouldMatch:    []string{"snyk iac test", "snyk  iac  test ."},

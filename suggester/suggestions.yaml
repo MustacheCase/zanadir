@@ -12,7 +12,7 @@ categories:
         description: "A simple and comprehensive vulnerability scanner for containers, Kubernetes, and code repositories."
 
       - name: "Snyk"
-        repository: "https://github.com/snyk/snyk"
+        repository: "https://github.com/snyk/cli"
         description: "A developer-first security tool that finds and automatically fixes vulnerabilities in dependencies."
 
       - name: "govulncheck"
@@ -112,7 +112,7 @@ categories:
         repository: "https://github.com/artilleryio/artillery"
         description: "An easy-to-use load testing and functional testing toolkit for testing microservices and APIs with support for multiple protocols."
       - name: "BlazeMeter"
-        repository: "https://github.com/blazemeter/"
+        repository: "https://github.com/Blazemeter/taurus"
         description: "BlazeMeter is an AI-powered continuous testing platform designed for developers, QA, and DevOps teams to efficiently perform performance, functional, and API testing."
 
   - id: "Linter"
@@ -124,7 +124,7 @@ categories:
         description: "A pluggable linting utility for JavaScript and TypeScript."
         language: "JavaScript"
       - name: "Pylint"
-        repository: "https://github.com/PyCQA/pylint"
+        repository: "https://github.com/pylint-dev/pylint"
         description: "A linting tool for Python to enforce coding standards and detect errors."
         language: "Python"
       - name: "GolangCI-Lint"
@@ -152,7 +152,7 @@ categories:
     description: "Tools and frameworks for unit testing in CI pipelines."
     suggestions:
       - name: "JUnit"
-        repository: "https://github.com/junit-team/junit5"
+        repository: "https://github.com/junit-team/junit-framework"
         description: "A popular testing framework for Java applications."
         language: "Java"
       - name: "pytest"
@@ -231,7 +231,7 @@ categories:
         repository: "https://github.com/anchore/syft"
         description: "Generates an SBOM from container images and filesystems, in SPDX or CycloneDX format."
       - name: "CycloneDX"
-        repository: "https://github.com/CycloneDX/cdxgen"
+        repository: "https://github.com/cdxgen/cdxgen"
         description: "Generates CycloneDX bills of materials across many language ecosystems."
       - name: "Cosign"
         repository: "https://github.com/sigstore/cosign"
@@ -281,7 +281,7 @@ categories:
         description: "Scans agent skills with static rules, dataflow analysis and an optional LLM judge, with SARIF output and a severity threshold to fail the build."
 
       - name: "SkillSpector"
-        repository: "https://github.com/NVIDIA/skillspector"
+        repository: "https://github.com/NVIDIA/SkillSpector"
         description: "NVIDIA's scanner for vulnerabilities, malicious patterns and supply-chain risk in agent skills; gives each a 0-100 risk score and fails the build above 50."
 
       - name: "Snyk Agent Scan"

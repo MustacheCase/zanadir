@@ -340,6 +340,15 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"ab testing", "build ab", "grab a coffee"},
 		},
 		{
+			ruleID:      "blazemeter-rule",
+			shouldMatch: []string{"docker run blazemeter/taurus test.yml"},
+		},
+		{
+			ruleID:         "taurus-rule",
+			shouldMatch:    []string{"bzt load-test.yml", "bzt -o modules.jmeter.properties.threads=10 test.yml"},
+			shouldNotMatch: []string{"tar -xjf archive.tar.bz2"},
+		},
+		{
 			ruleID:         "semgrep-rule",
 			shouldMatch:    []string{"semgrep ci", "semgrep/semgrep-action", "semgrep scan --config auto"},
 			shouldNotMatch: []string{"semgreppy", "mysemgrep"},
@@ -659,6 +668,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",
 		},
 		"unit-test-rule": {"deploy-test", "publish-test-pypi", "report-test-failure", "tests-result", "set-test-package-matrix", "Snyk Test", "Test GitHub OIDC"},
+		"taurus-rule":    {"pip install bzt", "pip3 install bzt", "bzt --help", "bzt -h"},
 	} {
 		rule := findRule(t, rs, id)
 		for _, command := range excepted {

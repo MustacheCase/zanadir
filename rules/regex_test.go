@@ -106,6 +106,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"dependencyCheckBomName", "my-dependency-checker"},
 		},
 		{
+			ruleID:         "composer-audit-rule",
+			shouldMatch:    []string{"composer audit", "composer audit --locked --no-dev", "php composer.phar audit", "composer --no-interaction audit --format=json"},
+			shouldNotMatch: []string{"composer install", "composer update", "composer validate", "composer run-script audit", "composer audit-fix"},
+		},
+		{
 			ruleID:         "jenkins-record-issues-rule",
 			shouldMatch:    []string{"recordIssues"},
 			shouldNotMatch: []string{"recordIssuesLater"},

@@ -84,6 +84,11 @@ rules:
     categories: ["SCA"]
     regex: "(?i)\\bpip-audit\\b|pypa/gh-action-pip-audit"
 
+  - id: "cargo-audit-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\bcargo\\s+audit\\b|\\b(rustsec|actions-rs)/audit-check\\b"
+
   # The audit subcommand, not the word: "audit" alone is in half the workflow
   # names on GitHub. A trailing "|| true", the usual way this one gets
   # defanged, is graded advisory for every tool.

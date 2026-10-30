@@ -111,9 +111,9 @@ categories:
       - name: "Artillery"
         repository: "https://github.com/artilleryio/artillery"
         description: "An easy-to-use load testing and functional testing toolkit for testing microservices and APIs with support for multiple protocols."
-      - name: "BlazeMeter"
+      - name: "Taurus"
         repository: "https://github.com/Blazemeter/taurus"
-        description: "BlazeMeter is an AI-powered continuous testing platform designed for developers, QA, and DevOps teams to efficiently perform performance, functional, and API testing."
+        description: "Taurus is an open-source framework that runs JMeter, Gatling, Locust, and other load tests from YAML configuration. Configured pass/fail criteria can stop a run as failed; sample failures alone do not necessarily produce a non-zero exit code."
 
   - id: "Linter"
     name: "Linting Tools"

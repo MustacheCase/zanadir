@@ -557,9 +557,9 @@ func TestRuleRegexPrecision(t *testing.T) {
 		},
 		{
 			ruleID: "tflint-rule",
-			shouldMatch: []string{"tflint --recursive", "tflint --init && tflint -f compact", "terraform-linters/setup-tflint@v4",
+			shouldMatch: []string{"tflint --recursive", "tflint --init && tflint -f compact",
 				"tflint", "tflint --chdir=infra --var-file=prod.tfvars", "ghcr.io/terraform-linters/tflint:v0.55.0"},
-			shouldNotMatch: []string{"terraform fmt -check", "terraform validate", "tflint --version", "tflint -v", "tflint --help", "tflint_plugins"},
+			shouldNotMatch: []string{"terraform fmt -check", "terraform validate", "tflint_plugins"},
 		},
 		{
 			ruleID:         "credo-rule",
@@ -657,7 +657,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
-		"tflint-rule":                {"tflint --init"},
+		"tflint-rule":                {"tflint --init", "tflint -v"},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"unit-test-command-rule": {

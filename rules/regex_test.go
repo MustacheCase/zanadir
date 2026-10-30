@@ -409,6 +409,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"tfsecure", "mytfsec"},
 		},
 		{
+			ruleID:         "conftest-rule",
+			shouldMatch:    []string{"conftest test deploy/", "conftest test --policy policy/ k8s/*.yaml", "docker run openpolicyagent/conftest test .", "conftest --no-color test -o github main.tf", "helm template . | conftest test -"},
+			shouldNotMatch: []string{"go test ./...", "npm run conftest-docs", "conftest verify --policy policy/", "conftest pull oci://registry/policy", "conftest --version", "conftest testdata"},
+		},
+		{
 			ruleID:         "kics-rule",
 			shouldMatch:    []string{"kics scan -p .", "checkmarx/kics-github-action"},
 			shouldNotMatch: []string{"kicks", "nkics"},

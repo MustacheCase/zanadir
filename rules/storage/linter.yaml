@@ -134,11 +134,10 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bhadolint\\b"
 
-  # Match invocations, actions and images, but not a bare package in npm install.
   - id: "markdownlint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?im)(?:^[ \\t]*(?:(?:npx(?:[ \\t]+(?:-y|--yes|--no-install))?|pre-commit[ \\t]+run)[ \\t]+)?|(?:^|[ \\t])(?:[\\w.-]+/)+)markdownlint(?:-cli2?)?(?:[\\s:@]|$)|(?:^|[ \\t])DavidAnson/markdownlint-cli2-action(?:[\\s@]|$)"
+    regex: "(?i)\\bmarkdownlint(?:-cli2?)?\\b"
 
   - id: "credo-rule"
     applyOn: ["Job.Run"]

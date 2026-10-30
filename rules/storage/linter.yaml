@@ -134,6 +134,16 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bhadolint\\b"
 
+  # terraform-linters/setup-tflint only installs TFLint, but a workflow uses it
+  # to run tflint in a later step, so the action counts like the other linters'
+  # actions. `tflint --version`, `-v` and `--help` print and exit, and
+  # `tflint --init` only installs plugins, so none of them lint anything.
+  - id: "tflint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bterraform-linters/(?:setup-)?tflint\\b|\\btflint(?:$|[\\s;&|)]+(?:$|[^-\\s;&|]|-[^-vh\\s]|-[vh]\\S|--[^vh\\s]|--v[^e]|--h[^e]))"
+    unless: "(?i)^\\s*tflint\\s+--init\\s*$"
+
   - id: "credo-rule"
     applyOn: ["Job.Run"]
     categories: ["Linter"]

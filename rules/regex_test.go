@@ -143,6 +143,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"renovatebot/github-action", "renovate-config", "auto-renovate"},
 		},
 		{
+			ruleID:         "mix-audit-rule",
+			shouldMatch:    []string{"mix deps.audit", "mix hex.audit", "mix do deps.get, deps.audit", "mix do deps.get + hex.audit", "mix deps.audit --ignore-file .mix-audit-skips", "mix_audit"},
+			shouldNotMatch: []string{"mix deps.get", "mix test", "mix audit_log", "mix deps.auditor", "echo mix_audit_report"},
+		},
+		{
 			ruleID:         "bouncer-rule",
 			shouldMatch:    []string{"bouncer check ./...", ".tool/bouncer list", "github.com/wagoodman/go-bouncer"},
 			shouldNotMatch: []string{"bouncer", "deploy-bouncer-service", "bouncercheck"},

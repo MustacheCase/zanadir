@@ -630,6 +630,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"actions/dependency-review-action-fork", "my/actions/dependency-review-action"},
 		},
 		{
+			ruleID:         "audit-ci-rule",
+			shouldMatch:    []string{"npx audit-ci --high", "npx audit-ci@^7 --config audit-ci.jsonc", "yarn audit-ci --moderate", "pnpm dlx audit-ci@^7 --critical --report-type full", "audit-ci"},
+			shouldNotMatch: []string{"npm ci", "audit-cirrus", "git add audit-ci.jsonc", "npm audit --audit-level=high"},
+		},
+		{
 			ruleID:         "codeql-actions-rule",
 			shouldMatch:    []string{"codeql database create --language=actions", "codeql database create --language=go,actions,python"},
 			shouldNotMatch: []string{"codeql database create --language=go", "codeql database create", "codeql database create --language=github-actions"},

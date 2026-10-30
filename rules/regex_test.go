@@ -285,6 +285,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"pip-auditor", "pip install audit"},
 		},
 		{
+			ruleID:         "cargo-audit-rule",
+			shouldMatch:    []string{"cargo audit", "cargo audit --deny warnings", "rustsec/audit-check@v2", "actions-rs/audit-check@v1"},
+			shouldNotMatch: []string{"cargo auditable build", "cargo install cargo-auditable", "cargo build", "npm audit"},
+		},
+		{
 			// "audit" on its own is in half the workflow names on GitHub, so
 			// only the subcommand counts.
 			ruleID:         "npm-audit-rule",

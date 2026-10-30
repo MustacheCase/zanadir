@@ -7,9 +7,81 @@ import (
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
+	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMarkdownlintRecognition(t *testing.T) {
+	ruleService, err := rules.NewRulesService()
+	require.NoError(t, err)
+	var markdownlintRule *rules.Rule
+	for _, rule := range ruleService.GetCategoryRules(models.CategoryTitle("Linter")) {
+		if rule.ID == "markdownlint-rule" {
+			markdownlintRule = rule
+			break
+		}
+	}
+	require.NotNil(t, markdownlintRule, "the embedded Linter rules must recognise markdownlint")
+
+	suggestionService, err := suggester.NewSuggestionService()
+	require.NoError(t, err)
+	matchService := matcher.NewMatchService()
+
+	for _, tt := range []struct {
+		name         string
+		artifactName string
+		job          *models.Job
+		wantMatch    bool
+	}{
+		{name: "direct command", job: &models.Job{Run: "markdownlint README.md"}, wantMatch: true},
+		{name: "cli command", job: &models.Job{Run: "markdownlint-cli README.md"}, wantMatch: true},
+		{name: "cli2 command", job: &models.Job{Run: "markdownlint-cli2 README.md"}, wantMatch: true},
+		{name: "npx glob", job: &models.Job{Run: "npx markdownlint-cli2 '**/*.md'"}, wantMatch: true},
+		{name: "pre-commit hook", job: &models.Job{Run: "pre-commit run markdownlint --all-files"}, wantMatch: true},
+		{name: "versioned action", job: &models.Job{Package: "DavidAnson/markdownlint-cli2-action@v20"}, wantMatch: true},
+		{name: "normalized action", job: &models.Job{Package: "DavidAnson/markdownlint-cli2-action"}, wantMatch: true},
+		{name: "container image", job: &models.Job{Package: "davidanson/markdownlint-cli2:v1"}, wantMatch: true},
+		{name: "workflow name", artifactName: "Markdownlint", wantMatch: true},
+		{name: "install then execute", job: &models.Job{Run: "npm install markdownlint-cli2 && npx markdownlint-cli2 '**/*.md'"}, wantMatch: true},
+		{name: "later line", job: &models.Job{Run: "npm test\nmarkdownlint README.md"}, wantMatch: true},
+		{name: "semicolon chain", job: &models.Job{Run: "npm test; markdownlint README.md"}, wantMatch: true},
+		{name: "install only", job: &models.Job{Run: "npm install markdownlint"}},
+		{name: "dev dependency only", job: &models.Job{Run: "npm install --save-dev markdownlint-cli2"}},
+		{name: "other linter", job: &models.Job{Run: "remark-lint README.md"}},
+		{name: "link checker", job: &models.Job{Run: "markdown-link-check README.md"}},
+		{name: "similar executable", job: &models.Job{Run: "markdownlinter README.md"}},
+		{name: "configuration executable", job: &models.Job{Run: "markdownlint-config README.md"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			artifact := &models.Artifact{Name: "CI", Location: ".github/workflows/ci.yml"}
+			if tt.artifactName != "" {
+				artifact.Name = tt.artifactName
+			}
+			if tt.job != nil {
+				artifact.Jobs = []*models.Job{tt.job}
+			}
+			findings := matchService.Match([]*models.Artifact{artifact}, []*rules.Rule{markdownlintRule})
+			if !tt.wantMatch {
+				assert.Empty(t, findings)
+				return
+			}
+
+			require.Len(t, findings, 1)
+			assert.Equal(t, "markdownlint-rule", findings[0].RuleID)
+			assert.Equal(t, "Linter", findings[0].Category)
+			assert.Same(t, artifact, findings[0].Artifact)
+			if tt.job == nil {
+				assert.Nil(t, findings[0].Job, "workflow-name evidence has no matching step")
+			} else {
+				assert.Same(t, tt.job, findings[0].Job)
+			}
+			for _, suggestion := range suggestionService.FindSuggestions(findings, nil, nil, nil) {
+				assert.NotEqual(t, "Linter", suggestion.ID, "a markdownlint finding covers Linter")
+			}
+		})
+	}
+}
 
 func TestMatch(t *testing.T) {
 	svc := matcher.NewMatchService()

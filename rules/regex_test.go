@@ -290,6 +290,15 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"cargo auditable build", "cargo install cargo-auditable", "cargo build", "npm audit"},
 		},
 		{
+			// "retire" is an ordinary word, so only a command that runs it.
+			ruleID: "retire-js-rule",
+			shouldMatch: []string{
+				"npx retire", "retire --path dist/ --severity high", "retire --outputformat json --exitwith 1",
+				"npx --yes retire@5", "pnpm dlx retire", "node_modules/.bin/retire --path .", "lint\nretire",
+			},
+			shouldNotMatch: []string{"retired", "npm run retire-old-builds", "git rm retire.txt", "echo retire", "retire-js"},
+		},
+		{
 			// "audit" on its own is in half the workflow names on GitHub, so
 			// only the subcommand counts.
 			ruleID:         "npm-audit-rule",

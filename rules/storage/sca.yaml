@@ -89,6 +89,17 @@ rules:
     categories: ["SCA"]
     regex: "(?i)\\bcargo\\s+audit\\b|\\b(rustsec|actions-rs)/audit-check\\b"
 
+  # "retire" is an ordinary word, so only the program counts: a command that
+  # starts with it, directly, by path or through npx and the like. It exits 13
+  # on findings unless --exitwith says otherwise.
+  - id: "retire-js-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm\\s+dlx|yarn\\s+dlx|npm\\s+exec)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?retire(?:@\\S+)?(?:\\s|$)"
+    weakenedWhen:
+      - runMatches: "--exitwith[= ]+0+\\b"
+        verdict: "advisory"
+
   # The audit subcommand, not the word: "audit" alone is in half the workflow
   # names on GitHub. A trailing "|| true", the usual way this one gets
   # defanged, is graded advisory for every tool.

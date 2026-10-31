@@ -140,4 +140,4 @@ rules:
   - id: "mix-audit-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)\bmix\b[^\n]*\b(?:deps|hex)\.audit(?:[\s,+]|$)|(?:^|[\s/])mix_audit(?:\s|$)"
+    regex: "(?i)\\bmix\\b[^\\n]*\\b(?:deps|hex)\\.audit(?:[\\s,+]|$)|(?:^|[\\s/])mix_audit(?:\\s|$)"

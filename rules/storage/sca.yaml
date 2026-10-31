@@ -118,6 +118,13 @@ rules:
     categories: ["SCA"]
     regex: "(?i)\\bdependency-check(?:\\.sh|\\.bat)?\\b|^dependencycheck(?:publisher)?$"
 
+  # IBM's audit-ci, which fails when npm, yarn or pnpm audit reports above a
+  # threshold. The program, optionally pinned, not its audit-ci.jsonc config.
+  - id: "audit-ci-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\baudit-ci(?:@\\S*)?(?:\\s|$)"
+
   # Fails a pull request that adds a dependency with a known vulnerability.
   - id: "dependency-review-rule"
     applyOn: ["Job.Package"]

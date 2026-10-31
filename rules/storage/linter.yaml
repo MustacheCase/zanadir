@@ -147,6 +147,11 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bhadolint\\b"
 
+  - id: "chart-testing-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bct\\s+lint(?:-and-install)?\\b"
+
   - id: "markdownlint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]

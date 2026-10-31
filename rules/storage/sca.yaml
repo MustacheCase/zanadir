@@ -126,6 +126,9 @@ rules:
     applyOn: ["Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\b(npm|yarn|pnpm)\\s+audit\\b"
+    # `npm audit signatures` verifies registry signatures and provenance;
+    # it is a supply-chain check (npm-audit-signatures-rule), not SCA.
+    unless: "(?i)\\b(?:npm|yarn|pnpm)\\s+audit\\s+signatures\\b"
     weakenedWhen:
       - runMatches: "(?i)--audit-level[= ]+none\\b"
         verdict: "advisory"

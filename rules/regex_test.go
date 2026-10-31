@@ -330,6 +330,12 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"snyking"},
 		},
 		{
+			// Verifying registry signatures is a supply-chain check, not SCA.
+			ruleID:         "npm-audit-signatures-rule",
+			shouldMatch:    []string{"npm audit signatures", "npm audit signatures --omit=dev"},
+			shouldNotMatch: []string{"npm audit", "npm audit --audit-level=high", "npm audit fix", "npm audit signature"},
+		},
+		{
 			ruleID:         "gitleaks-rule",
 			shouldMatch:    []string{"gitleaks detect --source .", "gitleaks/gitleaks-action"},
 			shouldNotMatch: []string{"gitleaksy"},
@@ -725,6 +731,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
+		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},

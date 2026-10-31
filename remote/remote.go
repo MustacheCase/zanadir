@@ -150,8 +150,11 @@ func FetchContext(ctx context.Context, repo Repository, token string) (string, f
 	err = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
 	if err == nil {
 		recordDefaultBranch(ctx, repo, token, dir)
-		if fetchFiles(ctx, repo, token, dir) != nil {
+		if listErr := fetchFiles(ctx, repo, token, dir); listErr != nil {
 			err = resetTo(dir)
+			if !archiveFallback {
+				err = fmt.Errorf("reading %s: %w", repo, listErr)
+			}
 			if err == nil {
 				err = download(ctx, repo, token, dir)
 			}
@@ -186,7 +189,12 @@ func resetTo(dir string) error {
 }
 
 // Above this many downloads a repository is fetched as one archive instead.
-var maxFetches = 1000
+// A web page cannot fetch the archive (codeload sends it no CORS header), so
+// remote_js.go turns the fallback off.
+var (
+	maxFetches      = 1000
+	archiveFallback = true
+)
 
 const fetchWorkers = 32
 

@@ -30,3 +30,6 @@ go.work.sum
 **/.DS_Store
 # Local results of tools/stateofci, which name projects
 .stateofci/
+
+# make web
+dist/

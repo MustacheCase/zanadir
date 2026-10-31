@@ -698,3 +698,14 @@ func TestFetchSendsTheTokenToEveryHost(t *testing.T) {
 	assert.Equal(t, "Bearer secret", auth["/raw/o/r/"+sha+"/ci.yml"])
 	assert.Equal(t, "Bearer secret", auth["/repos/o/r/git/trees/"+sha])
 }
+
+// In a browser there is no archive to fall back to, so the reason the file
+// list failed is the error.
+func TestFetchWithoutTheArchive(t *testing.T) {
+	defer func() { archiveFallback = true }()
+	archiveFallback = false
+	asked := fileList(t, "HEAD", `{"tree":[],"truncated":true}`, nil, nil)
+	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	assert.EqualError(t, err, "reading github.com/o/r: the file list is truncated")
+	assert.NotContains(t, *asked, "/repos/o/r/tarball")
+}

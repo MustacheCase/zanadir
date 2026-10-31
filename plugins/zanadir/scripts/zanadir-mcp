@@ -9,7 +9,7 @@ if command -v zanadir >/dev/null 2>&1 && zanadir mcp --help 2>/dev/null | grep -
 fi
 if command -v docker >/dev/null 2>&1; then
   exec docker run -i --rm --mount "type=bind,src=$dir,dst=/workspace,readonly" --workdir /workspace \
-    mustachecase/zanadir:0.26.0@sha256:75f78b711daf8cc83d8ec7c4d4b7fe36c22c97bbf1ece08dff6c226bf999bc87 mcp
+    mustachecase/zanadir:0.26.1@sha256:28a074ee8232049a75b646d23d21f2c026419667766012359c015be314bcf807 mcp
 fi
-echo "zanadir: install zanadir 0.26.0 or later (https://github.com/MustacheCase/zanadir#installation), or Docker, to use these tools" >&2
+echo "zanadir: install zanadir 0.26.1 or later (https://github.com/MustacheCase/zanadir#installation), or Docker, to use these tools" >&2
 exit 1

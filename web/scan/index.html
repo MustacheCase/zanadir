@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scan a repository: zanadir</title>
+<meta name="description" content="Grade a GitHub repository's CI in your browser: which security and quality checks are missing, and which can't fail the build. Nothing to install.">
+<style>
+  :root {
+    --bg: #fbfaf7; --surface: #ffffff; --text: #1c1b19; --muted: #5d5a53;
+    --line: #e4e0d8; --accent: #b4441f; --code-bg: #f2efe8;
+    --enforcing: #2f6f3e; --partial: #8a6a12; --advisory: #b4441f; --unknown: #5d5a53;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151413; --surface: #1d1c1a; --text: #ece9e2; --muted: #a39f96;
+      --line: #33312d; --accent: #e7845c; --code-bg: #24221f;
+      --enforcing: #7cc28c; --partial: #d9b453; --advisory: #e7845c; --unknown: #a39f96;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 16px 72px; }
+  .home { font-size: 0.95rem; }
+  h1 { font-size: 2.4rem; line-height: 1.1; margin: 20px 0 12px; letter-spacing: -0.02em; }
+  h1 span { color: var(--accent); }
+  h2 { font-size: 1.15rem; margin: 40px 0 6px; }
+  h2 + p.hint { margin-top: 0; }
+  p.lede { font-size: 1.15rem; color: var(--muted); margin: 0 0 24px; }
+  a { color: var(--accent); }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; margin: 0 0 12px;
+  }
+  form { display: flex; gap: 8px; flex-wrap: wrap; }
+  input[type=text] {
+    flex: 1 1 260px; min-width: 0; font: inherit; color: var(--text); background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+  }
+  input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0;
+    border-radius: 8px; padding: 10px 20px; cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: progress; }
+  button.quiet { color: var(--accent); background: transparent; border: 1px solid var(--line); font-weight: 500; padding: 6px 12px; }
+  .hint { color: var(--muted); font-size: 0.9rem; margin: 10px 0 0; }
+  #status { min-height: 1.6em; margin: 16px 0 0; color: var(--muted); }
+  #status.error { color: var(--advisory); }
+  .summary {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin-top: 24px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px;
+  }
+  .score { font-size: 2.2rem; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+  .score small { font-size: 1rem; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+  .summary .meta { flex: 1 1 240px; color: var(--muted); font-size: 0.95rem; }
+  .summary .meta b { color: var(--text); font-weight: 600; }
+  ul.rows { list-style: none; padding: 0; margin: 8px 0 0; border-top: 1px solid var(--line); }
+  ul.rows > li { padding: 10px 0; border-bottom: 1px solid var(--line); margin: 0; }
+  .row-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .row-head b { font-weight: 600; }
+  .verdict {
+    font-size: 0.8rem; font-weight: 600; border: 1px solid currentColor; border-radius: 999px;
+    padding: 0 8px; line-height: 1.5;
+  }
+  .verdict.enforcing { color: var(--enforcing); } .verdict.partial { color: var(--partial); }
+  .verdict.advisory { color: var(--advisory); } .verdict.unknown { color: var(--unknown); }
+  .detail { color: var(--muted); font-size: 0.92rem; margin: 2px 0 0; overflow-wrap: anywhere; }
+  details { margin-top: 4px; font-size: 0.92rem; }
+  summary { cursor: pointer; color: var(--accent); }
+  details ul { margin: 6px 0 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 0.9rem; }
+  .chip.weak { border-color: var(--partial); }
+  footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <a class="home" href="/">&larr; zanadir</a>
+  <h1>Does this repo's CI <span>actually block</span>?</h1>
+  <p class="lede">Enter a public GitHub repository. zanadir reads its CI configuration and reports which security and quality checks are missing, and which are there but can't fail the build.</p>
+
+  <form id="form">
+    <label for="repo" hidden>Repository</label>
+    <input id="repo" type="text" name="repo" placeholder="owner/name or https://github.com/owner/name"
+      autocomplete="off" autocapitalize="off" spellcheck="false" required>
+    <button id="scan" type="submit">Scan</button>
+  </form>
+  <p class="hint">Runs in your browser. zanadir fetches the repository's files from GitHub and sends them nowhere else. Each scan uses 3 of the 60 requests an hour GitHub allows without signing in.</p>
+  <p id="status" role="status" aria-live="polite"></p>
+
+  <section id="result" hidden>
+    <div class="summary">
+      <div class="score"><span id="covered"></span><small> / <span id="total"></span> categories covered</small></div>
+      <div class="meta"><b id="repo-name"></b><br><span id="platforms"></span></div>
+      <button id="share" class="quiet" type="button">Copy link</button>
+    </div>
+
+    <div id="weakened-block">
+      <h2>Present, but can't block</h2>
+      <p class="hint">A check here runs, yet a failure doesn't stop the change.</p>
+      <ul class="rows" id="weakened"></ul>
+    </div>
+
+    <div id="uncovered-block">
+      <h2>Missing</h2>
+      <p class="hint">No check for these anywhere in the CI configuration.</p>
+      <ul class="rows" id="uncovered"></ul>
+    </div>
+
+    <div id="covered-block">
+      <h2>Covered</h2>
+      <div class="chips" id="covered-list"></div>
+    </div>
+
+    <div id="na-block">
+      <h2>Not applicable</h2>
+      <p class="hint">The repository has nothing for these to check.</p>
+      <div class="chips" id="na-list"></div>
+    </div>
+
+    <h2>Keep it graded</h2>
+    <p>Run zanadir on every pull request with the <a href="https://github.com/MustacheCase/zanadir-action">GitHub Action</a>:</p>
+    <pre><code>- uses: actions/checkout@v4
+- uses: mustachecase/zanadir-action@v1.33
+  with:
+    dir: .</code></pre>
+    <p>Or get ready-to-paste configuration for the gaps with the <a href="https://github.com/MustacheCase/zanadir#installation">CLI</a>: <code id="fix-cmd">zanadir fix --repo owner/name</code></p>
+  </section>
+
+  <footer>zanadir <span id="version"></span> is open source, by <a href="https://github.com/MustacheCase">MustacheCase</a>. Settings that live outside the repository, such as GitHub's own secret scanning or CodeQL default setup, can't be seen from its files.</footer>
+</main>
+
+<script src="memfs.js"></script>
+<script src="wasm_exec.js"></script>
+<script>
+"use strict";
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const form = $("form"), input = $("repo"), button = $("scan"), status = $("status");
+
+  const say = (text, isError) => {
+    status.textContent = text;
+    status.classList.toggle("error", Boolean(isError));
+  };
+  const el = (tag, text, className) => {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  };
+  const link = (href, text) => {
+    const a = el("a", text);
+    if (/^https?:\/\//.test(href)) a.href = href;
+    return a;
+  };
+
+  const go = new Go();
+  const loading = (WebAssembly.instantiateStreaming
+      ? WebAssembly.instantiateStreaming(fetch("zanadir.wasm"), go.importObject)
+      : fetch("zanadir.wasm").then((r) => r.arrayBuffer()).then((b) => WebAssembly.instantiate(b, go.importObject)))
+    .then(({ instance }) => {
+      go.run(instance);
+      $("version").textContent = globalThis.zanadir.version;
+    });
+
+  // owner/name from what was typed, or null; zanadir checks it properly.
+  const repoOf = (text) => {
+    const m = text.trim().match(/^(?:https?:\/\/)?(?:www\.)?(?:github\.com\/)?([A-Za-z0-9-]+\/[A-Za-z0-9._-]+?)(?:\.git)?(?:[/?#].*)?$/);
+    return m ? m[1] : null;
+  };
+
+  const explain = (message) => {
+    if (/ 404 /.test(message)) return "That repository wasn't found. The page reads public repositories only.";
+    if (/ (403|429) /.test(message)) return "GitHub's limit of 60 requests an hour without signing in is used up. Try again later, or run the CLI with a token.";
+    if (/truncated|more than \d+ files/.test(message)) return "This repository is too large to scan in the browser. The CLI can scan it: zanadir scan --repo " + input.value.trim();
+    if (/Failed to fetch|fetch\(\) failed/.test(message)) return "Couldn't reach GitHub. Check your connection and try again.";
+    return message;
+  };
+
+  const render = (repo, report) => {
+    const all = globalThis.zanadir.categories;
+    const uncovered = new Set(report.uncovered.map((c) => c.id));
+    const na = new Set(report.notApplicable);
+    const weak = new Set(report.weakened.map((w) => w.category));
+
+    $("covered").textContent = report.score.covered;
+    $("total").textContent = report.score.total;
+    $("repo-name").textContent = repo;
+    $("platforms").textContent = report.platforms.length
+      ? "CI read: " + report.platforms.join(", ")
+      : "No CI configuration found";
+    $("fix-cmd").textContent = "zanadir fix --repo " + repo;
+
+    const weakened = $("weakened");
+    weakened.replaceChildren();
+    for (const w of report.weakened) {
+      const li = el("li");
+      const head = el("div", undefined, "row-head");
+      head.append(el("b", w.category), el("span", w.verdict, "verdict " + w.verdict));
+      li.append(head);
+      if (w.location) {
+        const where = el("p", undefined, "detail");
+        const path = w.location.split("/").map(encodeURIComponent).join("/");
+        where.append(link("https://github.com/" + repo + "/blob/HEAD/" + path, w.location));
+        li.append(where);
+      }
+      if (w.reason) li.append(el("p", w.reason, "detail"));
+      weakened.append(li);
+    }
+    $("weakened-block").hidden = report.weakened.length === 0;
+
+    const missing = $("uncovered");
+    missing.replaceChildren();
+    for (const c of report.uncovered) {
+      const li = el("li");
+      const head = el("div", undefined, "row-head");
+      head.append(el("b", c.id));
+      li.append(head, el("p", c.description, "detail"));
+      if (c.suggestions && c.suggestions.length) {
+        const more = el("details");
+        more.append(el("summary", "Tools that cover it"));
+        const list = el("ul");
+        for (const s of c.suggestions.slice(0, 6)) {
+          const item = el("li");
+          item.append(link(s.repository, s.name), document.createTextNode(": " + s.description));
+          list.append(item);
+        }
+        more.append(list);
+        li.append(more);
+      }
+      missing.append(li);
+    }
+    $("uncovered-block").hidden = report.uncovered.length === 0;
+
+    const covered = all.filter((name) => !uncovered.has(name) && !na.has(name));
+    $("covered-list").replaceChildren(...covered.map((name) =>
+      el("span", weak.has(name) ? name + " (can't block)" : name, weak.has(name) ? "chip weak" : "chip")));
+    $("covered-block").hidden = covered.length === 0;
+    $("na-list").replaceChildren(...[...na].map((name) => el("span", name, "chip")));
+    $("na-block").hidden = na.size === 0;
+
+    $("result").hidden = false;
+  };
+
+  const scan = async (text) => {
+    const repo = repoOf(text);
+    if (!repo) {
+      say("Enter a repository as owner/name, for example MustacheCase/zanadir.", true);
+      return;
+    }
+    button.disabled = true;
+    $("result").hidden = true;
+    const started = performance.now();
+    say("Loading zanadir…");
+    try {
+      await loading;
+      say("Reading " + repo + " from GitHub…");
+      const report = JSON.parse(await globalThis.zanadirScan(repo, "json"));
+      render(repo, report);
+      say("Scanned in " + ((performance.now() - started) / 1000).toFixed(1) + " s.");
+      // repoOf allows only characters that need no escaping, slash included.
+      history.replaceState(null, "", location.pathname + "?repo=" + repo);
+    } catch (err) {
+      say(explain(String(err && err.message || err)), true);
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    scan(input.value);
+  });
+  $("share").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      say("Link copied.");
+    } catch {
+      say("Copy the address bar to share this result.");
+    }
+  });
+
+  const asked = new URLSearchParams(location.search).get("repo");
+  if (asked) {
+    input.value = asked;
+    scan(asked);
+  }
+})();
+</script>
+</body>
+</html>

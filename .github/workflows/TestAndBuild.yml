@@ -41,7 +41,12 @@ jobs:
           
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.txt ./...
-        
+
+      # The browser build on the page's in-memory file system, under the
+      # runner's Node.
+      - name: Test the browser build
+        run: make web-test
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:

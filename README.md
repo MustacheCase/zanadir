@@ -244,14 +244,16 @@ zanadir scan --repo owner/name@v2.0.0     # a branch, tag or commit
 zanadir fix --repo owner/name
 ```
 
-`--repo` downloads the repository's archive into a temporary directory, scans
-it exactly as a checkout, and removes it. Only the files zanadir reads keep
-their contents. GitHub's archive leaves out whatever `.gitattributes` marks
-`export-ignore`, which often includes `.github`, so zanadir fetches those
-files separately rather than report a repository with no CI. Public
-repositories need no token; set `GITHUB_TOKEN` (or `GH_TOKEN`) to reach
-private ones or raise GitHub's rate limit. GitLab and Bitbucket repositories
-still need a clone.
+`--repo` lists the repository's files at one commit and downloads only the
+ones zanadir reads (CI and build files, plus the start of JSON files for
+infrastructure detection) into a temporary directory. Every other file is an
+empty placeholder, since only its name matters. It then scans the directory
+exactly as a checkout and removes it. That is three GitHub API requests per
+scan, however large the repository. A repository too large to list in one
+request is downloaded as an archive instead. Public repositories need no
+token; set `GITHUB_TOKEN` (or `GH_TOKEN`) to reach private ones or raise
+GitHub's rate limit of 60 requests an hour without one. GitLab and Bitbucket
+repositories still need a clone.
 
 ### Output Formats
 

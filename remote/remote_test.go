@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -444,7 +445,7 @@ func TestFetchWithNothingLeftOut(t *testing.T) {
 	_, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
 	require.NoError(t, err)
 	cleanup()
-	assert.Equal(t, []string{"/repos/o/r", "/repos/o/r/tarball"}, *asked, "the default branch, then no export-ignore, nothing more to fetch")
+	assert.Equal(t, []string{"/repos/o/r", "/repos/o/r/commits/HEAD", "/repos/o/r/tarball"}, *asked, "the default branch, no file list, then no export-ignore, nothing more to fetch")
 }
 
 func TestFetchReportsFilesItCannotRestore(t *testing.T) {
@@ -519,4 +520,181 @@ func TestGetJSONStopsAtTheSizeLimit(t *testing.T) {
 	defer server.Close()
 	var out struct{}
 	assert.Error(t, getJSON(context.Background(), server.URL, "", &out))
+}
+
+const sha = "0123456789abcdef0123456789abcdef01234567"
+
+// fileList serves a repository through the commit, tree and raw endpoints,
+// honouring Range as raw.githubusercontent.com does, and records what was
+// asked with which Range.
+func fileList(t *testing.T, ref, tree string, files map[string]string, extra map[string]string) *[]string {
+	t.Helper()
+	var mu sync.Mutex
+	var asked []string
+	github(t, func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		asked = append(asked, strings.TrimSpace(r.URL.Path+" "+r.Header.Get("Range")))
+		mu.Unlock()
+		switch {
+		case r.URL.Path == "/repos/o/r/commits/"+ref && r.Header.Get("Accept") == "application/vnd.github.sha":
+			_, _ = w.Write([]byte(sha))
+		case r.URL.Path == "/repos/o/r/git/trees/"+sha && r.URL.Query().Get("recursive") == "1":
+			_, _ = w.Write([]byte(tree))
+		case strings.HasPrefix(r.URL.Path, "/raw/o/r/"+sha+"/"):
+			body, ok := files[strings.TrimPrefix(r.URL.Path, "/raw/o/r/"+sha+"/")]
+			if !ok {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			var end int
+			if _, err := fmt.Sscanf(r.Header.Get("Range"), "bytes=0-%d", &end); err == nil && end+1 < len(body) {
+				w.WriteHeader(http.StatusPartialContent)
+				body = body[:end+1]
+			}
+			_, _ = w.Write([]byte(body))
+		default:
+			answer, ok := extra[r.URL.Path]
+			if !ok {
+				http.NotFound(w, r)
+				return
+			}
+			status, body, _ := strings.Cut(answer, " ")
+			code, _ := strconv.Atoi(status)
+			w.WriteHeader(code)
+			_, _ = w.Write([]byte(body))
+		}
+	})
+	return &asked
+}
+
+func TestFetchDownloadsOnlyWhatZanadirReads(t *testing.T) {
+	stack := `{"AWSTemplateFormatVersion": "2010-09-09"}` + strings.Repeat(" ", headBytes)
+	asked := fileList(t, "release/1.0", `{"tree":[
+		{"path":".github","type":"tree"},
+		{"path":".github/workflows/ci.yml","mode":"100644","type":"blob","size":9},
+		{"path":"scripts/lint.sh","mode":"100755","type":"blob","size":18},
+		{"path":"cmd/main.go","mode":"100644","type":"blob","size":13},
+		{"path":"infra/stack.json","mode":"100644","type":"blob","size":`+strconv.Itoa(len(stack))+`},
+		{"path":"tests/fixtures/stack.json","mode":"100644","type":"blob","size":40},
+		{"path":".vscode/settings.json","mode":"100644","type":"blob","size":40},
+		{"path":"big.yml","mode":"100644","type":"blob","size":99999999},
+		{"path":"empty.yml","mode":"100644","type":"blob","size":0},
+		{"path":"link.yml","mode":"120000","type":"blob","size":11},
+		{"path":"vendor/lib","mode":"160000","type":"commit"},
+		{"path":".GIT/config","mode":"100644","type":"blob","size":3}
+	],"truncated":false}`, map[string]string{
+		".github/workflows/ci.yml": "on: push\n",
+		"scripts/lint.sh":          "golangci-lint run\n",
+		"infra/stack.json":         stack,
+	}, nil)
+
+	dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r", Ref: "release/1.0"}, "")
+	require.NoError(t, err)
+	defer cleanup()
+	read := func(rel string) string {
+		data, err := os.ReadFile(filepath.Join(dir, rel))
+		require.NoError(t, err, rel)
+		return string(data)
+	}
+	assert.Equal(t, "on: push\n", read(".github/workflows/ci.yml"))
+	assert.Equal(t, "golangci-lint run\n", read("scripts/lint.sh"))
+	assert.Empty(t, read("cmd/main.go"), "only the name matters")
+	assert.Equal(t, stack[:headBytes], read("infra/stack.json"), "only the head IaC detection reads")
+	assert.Empty(t, read("tests/fixtures/stack.json"), "IaC detection skips test directories")
+	assert.Empty(t, read(".vscode/settings.json"), "and hidden ones")
+	assert.Empty(t, read("big.yml"), "a file over the per-file limit is a placeholder")
+	assert.Empty(t, read("empty.yml"))
+	for _, rel := range []string{"link.yml", "vendor/lib", ".GIT/config"} {
+		_, err := os.Lstat(filepath.Join(dir, rel))
+		assert.True(t, os.IsNotExist(err), rel)
+	}
+
+	assert.ElementsMatch(t, []string{
+		"/repos/o/r",
+		"/repos/o/r/commits/release/1.0",
+		"/repos/o/r/git/trees/" + sha,
+		"/raw/o/r/" + sha + "/.github/workflows/ci.yml bytes=0-8",
+		"/raw/o/r/" + sha + "/scripts/lint.sh bytes=0-17",
+		"/raw/o/r/" + sha + "/infra/stack.json bytes=0-" + strconv.Itoa(headBytes-1),
+	}, *asked, "no archive, and every file from the one commit")
+}
+
+func TestFetchFallsBackToTheArchive(t *testing.T) {
+	defer func(fetches, files int, kept int64) {
+		maxFetches, maxFiles, maxKeptBytes = fetches, files, kept
+	}(maxFetches, maxFiles, maxKeptBytes)
+	archive := "200 " + string(tarball(t,
+		entry{name: "o-r-1/.gitattributes", body: "* text=auto"},
+		entry{name: "o-r-1/from-archive.yml", body: "x: 1\n"},
+	))
+	twoFiles := `{"tree":[{"path":"a.yml","type":"blob","size":2},{"path":"b.yml","type":"blob","size":2}]}`
+	both := map[string]string{"a.yml": "a\n", "b.yml": "b\n"}
+
+	for name, tt := range map[string]struct {
+		tree  string
+		files map[string]string
+		setup func()
+	}{
+		"truncated file list":    {`{"tree":[],"truncated":true}`, nil, nil},
+		"unreadable file list":   {`not json`, nil, nil},
+		"too many downloads":     {twoFiles, both, func() { maxFetches = 1 }},
+		"too much configuration": {`{"tree":[{"path":"a.yml","type":"blob","size":20},{"path":"b.yml","type":"blob","size":20}]}`, nil, func() { maxKeptBytes = 30 }},
+		"a download that fails":  {twoFiles, map[string]string{"a.yml": "a\n"}, nil},
+		"an unreachable host":    {twoFiles, both, func() { rawBase = "http://127.0.0.1:1" }},
+		"an entry outside":       {`{"tree":[{"path":"../x.yml","type":"blob","size":2}]}`, nil, nil},
+		"a file and a directory": {`{"tree":[{"path":"a.yml","type":"blob","size":0},{"path":"a.yml/b.go","type":"blob","size":1}]}`, nil, nil},
+	} {
+		maxFetches, maxFiles, maxKeptBytes = 1000, 200_000, 256<<20
+		asked := fileList(t, "HEAD", tt.tree, tt.files, map[string]string{"/repos/o/r/tarball": archive})
+		if tt.setup != nil {
+			tt.setup()
+		}
+		dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+		require.NoError(t, err, name)
+		assert.FileExists(t, filepath.Join(dir, "from-archive.yml"), name)
+		assert.NoFileExists(t, filepath.Join(dir, "a.yml"), name+": nothing half-written is left")
+		assert.DirExists(t, filepath.Join(dir, ".git"), name)
+		assert.Contains(t, *asked, "/repos/o/r/tarball", name)
+		cleanup()
+	}
+
+	maxFiles = 1
+	asked := fileList(t, "HEAD", twoFiles, both, map[string]string{"/repos/o/r/tarball": archive})
+	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	assert.ErrorContains(t, err, "the archive has more than 1 files", "the archive has the same limit, and reports it")
+	assert.Contains(t, *asked, "/repos/o/r/tarball")
+}
+
+func TestResetTo(t *testing.T) {
+	assert.Error(t, resetTo(filepath.Join(t.TempDir(), "missing")))
+
+	dir := t.TempDir()
+	locked := filepath.Join(dir, "locked")
+	require.NoError(t, os.MkdirAll(filepath.Join(locked, "sub"), 0o755))
+	require.NoError(t, os.Chmod(locked, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+	assert.Error(t, resetTo(dir), "a directory it cannot empty")
+}
+
+func TestFetchSendsTheTokenToEveryHost(t *testing.T) {
+	var mu sync.Mutex
+	auth := map[string]string{}
+	github(t, func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		auth[r.URL.Path] = r.Header.Get("Authorization")
+		mu.Unlock()
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/commits/HEAD"):
+			_, _ = w.Write([]byte(sha))
+		case strings.Contains(r.URL.Path, "/git/trees/"):
+			_, _ = w.Write([]byte(`{"tree":[{"path":"ci.yml","type":"blob","size":2}]}`))
+		default:
+			_, _ = w.Write([]byte("x\n"))
+		}
+	})
+	_, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "secret")
+	require.NoError(t, err)
+	defer cleanup()
+	assert.Equal(t, "Bearer secret", auth["/raw/o/r/"+sha+"/ci.yml"])
+	assert.Equal(t, "Bearer secret", auth["/repos/o/r/git/trees/"+sha])
 }

@@ -24,6 +24,17 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bgolangci-lint\\b"
 
+  # "revive" is also a plain word (revive-db.sh, revived), so it is matched as a
+  # whole path segment. revive exits 0 on findings unless -set_exit_status is
+  # given; a -config file can set error-code / warning-code instead.
+  - id: "revive-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])revive(?:[\\s:@/]|$)"
+    exitsZeroUnless:
+      runMatches: "(?:^|\\s)--?set_exit_status\\b"
+      unknownWhen: "(?:^|\\s)--?config(?:[= ]|$)"
+
   - id: "rubocop-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]

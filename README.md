@@ -87,7 +87,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: mustachecase/zanadir-action@v1.33
+      - uses: mustachecase/zanadir-action@v1.34
         with:
           dir: .
 ```

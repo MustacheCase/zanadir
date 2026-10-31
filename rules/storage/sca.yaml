@@ -100,6 +100,13 @@ rules:
       - runMatches: "(?i)--audit-level[= ]+none\\b"
         verdict: "advisory"
 
+  # Composer's audit sub-command, options may come first; not a project's own
+  # script that happens to be called audit (composer run-script audit).
+  - id: "composer-audit-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\bcomposer(?:\\.phar)?\\s+(?:-\\S+\\s+)*audit(?:\\s|$)"
+
   # GitHub Advanced Security for Azure DevOps.
   - id: "azure-dependency-scanning-rule"
     applyOn: ["Job.Package"]

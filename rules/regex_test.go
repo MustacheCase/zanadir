@@ -404,6 +404,12 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"semgreppy", "mysemgrep"},
 		},
 		{
+			ruleID: "flawfinder-rule",
+			shouldMatch: []string{"flawfinder --error-level=4 src/", "flawfinder --minlevel 3 --sarif . > flawfinder.sarif",
+				"pipx run flawfinder --error-level 1 lib/"},
+			shouldNotMatch: []string{"cppcheck src/", "./scripts/find-flaws.sh", "flawfinders"},
+		},
+		{
 			ruleID: "codeql-rule",
 			shouldMatch: []string{"codeql database create --language=go,actions", "codeql database create",
 				"codeql database analyze db --format=sarif-latest", "AdvancedSecurity-Codeql-Init@1"},

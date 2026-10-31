@@ -179,3 +179,9 @@ rules:
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bvp\\s+lint\\b"
+
+  # Helm's lint subcommand validates charts; other helm subcommands do not.
+  - id: "helm-lint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bhelm\\s+lint\\b"

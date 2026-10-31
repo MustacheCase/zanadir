@@ -92,13 +92,14 @@ rules:
     categories: ["SCA"]
     regex: "(?i)\\bpip-audit\\b|pypa/gh-action-pip-audit"
 
-  # "safety" is a common word, so only its check and scan sub-commands, or
+  # "safety" is a common word, so only its check and scan sub-commands, in
+  # lower case so a workflow named "Safety Check" is not taken for it, or
   # pyupio's action and image. safety check fails on findings unless told to
   # --continue-on-error.
   - id: "safety-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?im)(?:^|[\\s/])safety\\s+(?:--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?\\s+)*(?:check|scan)\\b|\\bpyupio/safety\\b"
+    regex: "(?m)(?:^|[\\s/])safety\\s+(?:--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?\\s+)*(?:check|scan)\\b|\\bpyupio/safety\\b"
     weakenedWhen:
       - runMatches: "--continue-on-error\\b"
         verdict: "advisory"

@@ -32,7 +32,7 @@ rules:
   - id: "taurus-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Performance Testing" ]
-    regex: "(?i)\\bbzt\\b"
+    regex: "(?i)(?:^|[\\s/])bzt(?:\\s|$)"
     unless: "(?i)\\bpip(?:3)?\\s+install\\b[^\\n]*\\bbzt\\b|\\bbzt\\s+(?:--help|-h)(?:\\s|$)"
 
   # GitLab's own templates and CI/CD components, recorded by name from include:.

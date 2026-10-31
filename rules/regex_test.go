@@ -306,7 +306,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"safety check -r requirements.txt", "safety scan", "pyupio/safety-action@v1",
 				"python -m safety check", "safety --key $SAFETY_API_KEY scan", "safety --disable-optional-telemetry check --full-report",
 			},
-			shouldNotMatch: []string{"tox -e safety", "type-safety", "safety-first", "type-safety check", "pip install safety", "safety --version"},
+			shouldNotMatch: []string{"tox -e safety", "type-safety", "safety-first", "type-safety check", "pip install safety", "safety --version", "PR Tooling Safety Check", "Safety Check"},
 		},
 		{
 			ruleID:         "cargo-audit-rule",
@@ -389,8 +389,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 		},
 		{
 			ruleID:         "taurus-rule",
-			shouldMatch:    []string{"bzt load-test.yml", "bzt -o modules.jmeter.properties.threads=10 test.yml"},
-			shouldNotMatch: []string{"tar -xjf archive.tar.bz2"},
+			shouldMatch:    []string{"bzt load-test.yml", "bzt -o modules.jmeter.properties.threads=10 test.yml", "python -m bzt test.yml", "~/.local/bin/bzt", "bzt"},
+			shouldNotMatch: []string{"tar -xjf archive.tar.bz2", "coverage run --source=bzt -m nose2", "bzt.yml"},
 		},
 		{
 			ruleID:         "semgrep-rule",

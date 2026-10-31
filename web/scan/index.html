@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; img-src https://img.shields.io; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Scan a repository: zanadir</title>
 <meta name="description" content="Grade a GitHub repository's CI in your browser: which security and quality checks are missing, and which can't fail the build. Nothing to install.">
@@ -31,6 +31,10 @@
   h1 span { color: var(--accent); }
   h2 { font-size: 1.15rem; margin: 40px 0 6px; }
   h2 + p.hint { margin-top: 0; }
+  h3 { font-size: 1rem; margin: 24px 0 4px; }
+  .snippet { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-bottom: 12px; }
+  .snippet pre { align-self: stretch; margin: 0; }
+  img.badge { height: 20px; vertical-align: middle; }
   p.lede { font-size: 1.15rem; color: var(--muted); margin: 0 0 24px; }
   a { color: var(--accent); }
   code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; }
@@ -127,13 +131,21 @@
       <div class="chips" id="na-list"></div>
     </div>
 
-    <h2>Keep it graded</h2>
-    <p>Run zanadir on every pull request with the <a href="https://github.com/MustacheCase/zanadir-action">GitHub Action</a>:</p>
-    <pre><code>- uses: actions/checkout@v4
-- uses: mustachecase/zanadir-action@v1.35
-  with:
-    dir: .</code></pre>
-    <p>Or get ready-to-paste configuration for the gaps with the <a href="https://github.com/MustacheCase/zanadir#installation">CLI</a>: <code id="fix-cmd">zanadir fix --repo owner/name</code></p>
+    <h2>Add a badge to the README</h2>
+
+    <h3>Link badge</h3>
+    <p>No setup, and never out of date: anyone who clicks it gets a fresh scan. <img class="badge" id="link-badge" alt="zanadir: scan this CI"></p>
+    <div class="snippet"><button class="quiet copy" type="button" data-copy="link-md">Copy</button><pre><code id="link-md"></code></pre></div>
+
+    <h3>Live score</h3>
+    <p>Shows the score, kept current by the <a href="https://github.com/MustacheCase/zanadir-action">GitHub Action</a>. Save this as <code>.github/workflows/zanadir.yml</code>. It grades every push and pull request, and on the default branch publishes the score to a <code>badges</code> branch that holds only the badge file.</p>
+    <div class="snippet"><button class="quiet copy" type="button" data-copy="workflow">Copy</button><pre><code id="workflow"></code></pre></div>
+    <p>Then add the badge. Today it would read <img class="badge" id="score-badge" alt="">; it appears once the workflow has run on the default branch.</p>
+    <div class="snippet"><button class="quiet copy" type="button" data-copy="score-md">Copy</button><pre><code id="score-md"></code></pre></div>
+    <p class="hint">If a ruleset covers every branch rather than only the default one, exclude <code>badges</code> from it.</p>
+
+    <h2>Close the gaps</h2>
+    <p>Get ready-to-paste configuration for them with the <a href="https://github.com/MustacheCase/zanadir#installation">CLI</a>: <code id="fix-cmd">zanadir fix --repo owner/name</code></p>
   </section>
 
   <footer>zanadir <span id="version"></span> is open source, by <a href="https://github.com/MustacheCase">MustacheCase</a>. Settings that live outside the repository, such as GitHub's own secret scanning or CodeQL default setup, can't be seen from its files.</footer>

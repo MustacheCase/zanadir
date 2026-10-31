@@ -21,6 +21,68 @@
 
   // The module ships gzipped (4 MB rather than 17), since GitHub Pages may
   // not compress it. A server that already decoded it sends plain wasm.
+  // Bumped with each zanadir-action release.
+  const ACTION = "mustachecase/zanadir-action@v1.35";
+  const WORKFLOW = `name: zanadir
+
+on:
+  push:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ${ACTION}
+        with:
+          dir: .
+
+  # Publishes the score for the README badge, from the default branch only.
+  badge:
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ${ACTION}
+        with:
+          dir: .
+          badge: zanadir-badge.json
+      - name: Publish the badge when it moved
+        run: |
+          set -euo pipefail
+          cp zanadir-badge.json "$RUNNER_TEMP/zanadir-badge.json"
+          rm -f zanadir-badge.json
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          if git fetch --depth=1 origin badges 2>/dev/null; then
+            git switch --discard-changes -C badges FETCH_HEAD
+          else
+            git switch --orphan badges
+          fi
+          cp "$RUNNER_TEMP/zanadir-badge.json" zanadir-badge.json
+          git add zanadir-badge.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "chore: update the zanadir badge"
+          git push origin badges
+`;
+
+  // The colours zanadir --badge writes, so the preview matches the badge.
+  const colourOf = ({ covered, total }) => {
+    if (total === 0) return "lightgrey";
+    if (covered === total) return "brightgreen";
+    const percent = Math.floor((covered * 100) / total);
+    return percent >= 80 ? "green" : percent >= 60 ? "yellow" : percent >= 40 ? "orange" : "red";
+  };
+
   const go = new Go();
   const loading = (async () => {
     const response = await fetch("zanadir.wasm.gz");
@@ -62,6 +124,18 @@
       ? "CI read: " + report.platforms.join(", ")
       : "No CI configuration found";
     $("fix-cmd").textContent = "zanadir fix --repo " + repo;
+
+    const resultURL = location.origin + location.pathname + "?repo=" + repo;
+    const linkBadge = "https://img.shields.io/badge/zanadir-scan_this_CI-b4441f";
+    $("link-badge").src = linkBadge;
+    $("link-md").textContent = "[![zanadir](" + linkBadge + ")](" + resultURL + ")";
+    $("workflow").textContent = WORKFLOW;
+    const score = report.score;
+    $("score-badge").src = "https://img.shields.io/badge/zanadir-" +
+      encodeURIComponent(score.covered + "/" + score.total) + "-" + colourOf(score);
+    $("score-badge").alt = "zanadir " + score.covered + "/" + score.total;
+    $("score-md").textContent = "[![zanadir](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/" +
+      repo + "/badges/zanadir-badge.json)](" + resultURL + ")";
 
     const weakened = $("weakened");
     weakened.replaceChildren();
@@ -143,6 +217,18 @@
     event.preventDefault();
     scan(input.value);
   });
+  for (const copy of document.querySelectorAll("button.copy")) {
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText($(copy.dataset.copy).textContent);
+        copy.textContent = "Copied";
+      } catch {
+        copy.textContent = "Select and copy";
+      }
+      setTimeout(() => { copy.textContent = "Copy"; }, 2000);
+    });
+  }
+
   $("share").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(location.href);

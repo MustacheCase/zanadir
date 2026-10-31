@@ -630,6 +630,20 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"hadolints"},
 		},
 		{
+			ruleID: "chart-testing-rule",
+			shouldMatch: []string{
+				"ct lint --target-branch ${{ github.event.repository.default_branch }}",
+				"ct lint --config ct.yaml --all",
+				"ct lint-and-install --chart-dirs charts",
+			},
+			shouldNotMatch: []string{
+				"ct install --target-branch main",
+				"ct list-changed --target-branch main",
+				"helm/chart-testing-action@v2.8.0",
+				"react lint",
+			},
+		},
+		{
 			ruleID: "markdownlint-rule",
 			shouldMatch: []string{
 				`npx markdownlint-cli2 "**/*.md"`, "markdownlint '**/*.md' --ignore node_modules",

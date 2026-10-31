@@ -134,6 +134,11 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bhadolint\\b"
 
+  - id: "markdownlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bmarkdownlint(?:-cli2?)?\\b"
+
   # `tflint --init` only installs plugins and `tflint -v` prints the version,
   # so neither lints anything.
   - id: "tflint-rule"

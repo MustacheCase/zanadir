@@ -608,6 +608,16 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"hadolints"},
 		},
 		{
+			ruleID: "markdownlint-rule",
+			shouldMatch: []string{
+				`npx markdownlint-cli2 "**/*.md"`, "markdownlint '**/*.md' --ignore node_modules",
+				"DavidAnson/markdownlint-cli2-action@v20", "pre-commit run markdownlint --all-files",
+				"Lint markdown with markdownlint", "pnpm exec markdownlint-cli2 README.md", "pnpm dlx markdownlint-cli2 README.md",
+				"yarn markdownlint-cli2 README.md", "bunx markdownlint-cli2 README.md", "articulate/actions-markdownlint@v1",
+			},
+			shouldNotMatch: []string{"remark-lint", "markdown-link-check README.md", "mymarkdownlint", "markdownlinter"},
+		},
+		{
 			ruleID: "tflint-rule",
 			shouldMatch: []string{"tflint --recursive", "tflint --init && tflint -f compact",
 				"tflint", "tflint --chdir=infra --var-file=prod.tfvars", "ghcr.io/terraform-linters/tflint:v0.55.0"},

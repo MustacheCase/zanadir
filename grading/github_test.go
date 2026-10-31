@@ -24,6 +24,25 @@ jobs:
 	assert.Equal(t, Advisory, verdicts["SAST"])
 }
 
+// revive exits 0 on findings unless -set_exit_status is given, and a -config
+// file can set the exit code some other way.
+func TestReviveExitsZeroUnlessSetExitStatus(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"revive -set_exit_status ./...":                    Enforcing,
+		"revive ./...":                                     Advisory,
+		"revive -config revive.toml -formatter json ./...": Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 // Retire.js fails on findings unless --exitwith 0 tells it not to.
 func TestRetireJSExitWithZeroGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{

@@ -106,6 +106,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"dependencyCheckBomName", "my-dependency-checker"},
 		},
 		{
+			ruleID:         "composer-audit-rule",
+			shouldMatch:    []string{"composer audit", "composer audit --locked --no-dev", "php composer.phar audit", "composer --no-interaction audit --format=json"},
+			shouldNotMatch: []string{"composer install", "composer update", "composer validate", "composer run-script audit", "composer audit-fix"},
+		},
+		{
 			ruleID:         "jenkins-record-issues-rule",
 			shouldMatch:    []string{"recordIssues"},
 			shouldNotMatch: []string{"recordIssuesLater"},
@@ -275,6 +280,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"govulncheckers", "mygovulncheck"},
 		},
 		{
+			ruleID:         "bundler-audit-rule",
+			shouldMatch:    []string{"bundle-audit check --update", "bundle exec bundle-audit", "bundle audit check", "bundler-audit", "bundle exec rake bundle:audit"},
+			shouldNotMatch: []string{"bundle install", "bundle exec rspec", "bundle exec rubocop --audit-log x"},
+		},
+		{
 			ruleID:         "osv-scanner-rule",
 			shouldMatch:    []string{"osv-scanner -r .", "google/osv-scanner-action"},
 			shouldNotMatch: []string{"osv-scannerx", "osv database"},
@@ -283,6 +293,29 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID:         "pip-audit-rule",
 			shouldMatch:    []string{"pip-audit -r requirements.txt", "pypa/gh-action-pip-audit"},
 			shouldNotMatch: []string{"pip-auditor", "pip install audit"},
+		},
+		{
+			// "safety" is a common word, so only its sub-commands and action.
+			ruleID: "safety-rule",
+			shouldMatch: []string{
+				"safety check -r requirements.txt", "safety scan", "pyupio/safety-action@v1",
+				"python -m safety check", "safety --key $SAFETY_API_KEY scan", "safety --disable-optional-telemetry check --full-report",
+			},
+			shouldNotMatch: []string{"tox -e safety", "type-safety", "safety-first", "type-safety check", "pip install safety", "safety --version"},
+		},
+		{
+			ruleID:         "cargo-audit-rule",
+			shouldMatch:    []string{"cargo audit", "cargo audit --deny warnings", "rustsec/audit-check@v2", "actions-rs/audit-check@v1"},
+			shouldNotMatch: []string{"cargo auditable build", "cargo install cargo-auditable", "cargo build", "npm audit"},
+		},
+		{
+			// "retire" is an ordinary word, so only a command that runs it.
+			ruleID: "retire-js-rule",
+			shouldMatch: []string{
+				"npx retire", "retire --path dist/ --severity high", "retire --outputformat json --exitwith 1",
+				"npx --yes retire@5", "pnpm dlx retire", "node_modules/.bin/retire --path .", "lint\nretire",
+			},
+			shouldNotMatch: []string{"retired", "npm run retire-old-builds", "git rm retire.txt", "echo retire", "retire-js"},
 		},
 		{
 			// "audit" on its own is in half the workflow names on GitHub, so
@@ -340,6 +373,15 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"ab testing", "build ab", "grab a coffee"},
 		},
 		{
+			ruleID:      "blazemeter-rule",
+			shouldMatch: []string{"docker run blazemeter/taurus test.yml"},
+		},
+		{
+			ruleID:         "taurus-rule",
+			shouldMatch:    []string{"bzt load-test.yml", "bzt -o modules.jmeter.properties.threads=10 test.yml"},
+			shouldNotMatch: []string{"tar -xjf archive.tar.bz2"},
+		},
+		{
 			ruleID:         "semgrep-rule",
 			shouldMatch:    []string{"semgrep ci", "semgrep/semgrep-action", "semgrep scan --config auto"},
 			shouldNotMatch: []string{"semgreppy", "mysemgrep"},
@@ -395,9 +437,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"tfsecure", "mytfsec"},
 		},
 		{
+			ruleID:         "conftest-rule",
+			shouldMatch:    []string{"conftest test deploy/", "conftest test --policy policy/ k8s/*.yaml", "docker run openpolicyagent/conftest test .", "conftest --no-color test -o github main.tf", "helm template . | conftest test -"},
+			shouldNotMatch: []string{"go test ./...", "npm run conftest-docs", "conftest verify --policy policy/", "conftest pull oci://registry/policy", "conftest --version", "conftest testdata"},
+		},
+		{
 			ruleID:         "kics-rule",
 			shouldMatch:    []string{"kics scan -p .", "checkmarx/kics-github-action"},
 			shouldNotMatch: []string{"kicks", "nkics"},
+		},
+		{
+			ruleID:         "kube-score-rule",
+			shouldMatch:    []string{"kube-score score deploy/*.yaml", "helm template . | kube-score score -", "kube-score score --exit-one-on-warning k8s/", "docker run -v $PWD:/project zegl/kube-score score /project/k8s/*.yaml", "kube-score score"},
+			shouldNotMatch: []string{"kubectl score", "kube-scorecard", "kube-score version", "kube-score help score", "kube-score completion bash", "kube-scorecard score k8s/"},
 		},
 		{
 			// "snyk" alone is SCA; only the iac sub-command scans infrastructure.
@@ -566,6 +618,12 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"remark-lint", "markdown-link-check README.md", "mymarkdownlint", "markdownlinter"},
 		},
 		{
+			ruleID: "tflint-rule",
+			shouldMatch: []string{"tflint --recursive", "tflint --init && tflint -f compact",
+				"tflint", "tflint --chdir=infra --var-file=prod.tfvars", "ghcr.io/terraform-linters/tflint:v0.55.0"},
+			shouldNotMatch: []string{"terraform fmt -check", "terraform validate", "tflint_plugins"},
+		},
+		{
 			ruleID:         "credo-rule",
 			shouldMatch:    []string{"mix credo --strict"},
 			shouldNotMatch: []string{"credo", "mix test"},
@@ -621,6 +679,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"actions/dependency-review-action-fork", "my/actions/dependency-review-action"},
 		},
 		{
+			ruleID:         "audit-ci-rule",
+			shouldMatch:    []string{"npx audit-ci --high", "npx audit-ci@^7 --config audit-ci.jsonc", "yarn audit-ci --moderate", "pnpm dlx audit-ci@^7 --critical --report-type full", "audit-ci"},
+			shouldNotMatch: []string{"npm ci", "audit-cirrus", "git add audit-ci.jsonc", "npm audit --audit-level=high"},
+		},
+		{
 			ruleID:         "codeql-actions-rule",
 			shouldMatch:    []string{"codeql database create --language=actions", "codeql database create --language=go,actions,python"},
 			shouldNotMatch: []string{"codeql database create --language=go", "codeql database create", "codeql database create --language=github-actions"},
@@ -658,9 +721,11 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
+		"bundler-audit-rule":         {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
+		"tflint-rule":                {"tflint --init", "tflint -v"},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"unit-test-command-rule": {
@@ -669,6 +734,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",
 		},
 		"unit-test-rule": {"deploy-test", "publish-test-pypi", "report-test-failure", "tests-result", "set-test-package-matrix", "Snyk Test", "Test GitHub OIDC"},
+		"taurus-rule":    {"pip install bzt", "pip3 install bzt", "bzt --help", "bzt -h"},
 	} {
 		rule := findRule(t, rs, id)
 		for _, command := range excepted {

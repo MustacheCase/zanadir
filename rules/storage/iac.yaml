@@ -41,6 +41,22 @@ rules:
       runMatches: "--severity-threshold\\b|--compliance-threshold[= ]+(?:0*[1-9]|0*\\.\\d*[1-9])"
       unknownWhen: "--fail-threshold\\b|(?:^|\\s)-t[= ]+\\S"
 
+  # kube-score exits 1 on a critical finding by default, so it needs no
+  # exitsZeroUnless. Only the score sub-command checks manifests; version,
+  # help and completion check nothing.
+  - id: "kube-score-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\bkube-score\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*score(?:\\s|$)"
+
+  # Conftest fails on a policy violation by default, so it needs no
+  # exitsZeroUnless. Only the test sub-command checks configuration: verify
+  # runs the Rego unit tests, and pull, push, fmt and parse check nothing.
+  - id: "conftest-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)\\bconftest\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*test(?:\\s|$)"
+
   # "snyk" alone is the SCA rule; only the iac sub-command scans infrastructure.
   - id: "snyk-iac-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

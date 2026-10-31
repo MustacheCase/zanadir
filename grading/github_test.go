@@ -23,3 +23,21 @@ jobs:
 	assert.Equal(t, Unknown, verdicts["Secrets Detection"])
 	assert.Equal(t, Advisory, verdicts["SAST"])
 }
+
+// Retire.js fails on findings unless --exitwith 0 tells it not to.
+func TestRetireJSExitWithZeroGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx retire --path dist/":              Enforcing,
+		"npx retire --exitwith 1":              Enforcing,
+		"npx retire --path dist/ --exitwith 0": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["SCA"], run)
+	}
+}

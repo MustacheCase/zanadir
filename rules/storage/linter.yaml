@@ -139,6 +139,14 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bmarkdownlint(?:-cli2?)?\\b"
 
+  # `tflint --init` only installs plugins and `tflint -v` prints the version,
+  # so neither lints anything.
+  - id: "tflint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\btflint\\b"
+    unless: "(?i)^\\S*tflint\\s+(?:--init|-v)$"
+
   - id: "credo-rule"
     applyOn: ["Job.Run"]
     categories: ["Linter"]

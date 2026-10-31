@@ -74,6 +74,14 @@ rules:
     categories: ["SCA"]
     regex: "(?i)\\bgovulncheck\\b"
 
+  # bundle-audit, bundler-audit, "bundle audit" and the rake task. Updating
+  # the advisory database, or asking for the version, scans nothing.
+  - id: "bundler-audit-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\bbundler?[\\s:-]audit\\b"
+    unless: "(?i)\\bbundler?[\\s:-]audit(?::|\\s+)(?:update|version|help)\\s*$"
+
   - id: "osv-scanner-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
@@ -83,6 +91,33 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bpip-audit\\b|pypa/gh-action-pip-audit"
+
+  # "safety" is a common word, so only its check and scan sub-commands, or
+  # pyupio's action and image. safety check fails on findings unless told to
+  # --continue-on-error.
+  - id: "safety-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?im)(?:^|[\\s/])safety\\s+(?:--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?\\s+)*(?:check|scan)\\b|\\bpyupio/safety\\b"
+    weakenedWhen:
+      - runMatches: "--continue-on-error\\b"
+        verdict: "advisory"
+
+  - id: "cargo-audit-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\bcargo\\s+audit\\b|\\b(rustsec|actions-rs)/audit-check\\b"
+
+  # "retire" is an ordinary word, so only the program counts: a command that
+  # starts with it, directly, by path or through npx and the like. It exits 13
+  # on findings unless --exitwith says otherwise.
+  - id: "retire-js-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm\\s+dlx|yarn\\s+dlx|npm\\s+exec)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?retire(?:@\\S+)?(?:\\s|$)"
+    weakenedWhen:
+      - runMatches: "--exitwith[= ]+0+\\b"
+        verdict: "advisory"
 
   # The audit subcommand, not the word: "audit" alone is in half the workflow
   # names on GitHub. A trailing "|| true", the usual way this one gets
@@ -94,6 +129,13 @@ rules:
     weakenedWhen:
       - runMatches: "(?i)--audit-level[= ]+none\\b"
         verdict: "advisory"
+
+  # Composer's audit sub-command, options may come first; not a project's own
+  # script that happens to be called audit (composer run-script audit).
+  - id: "composer-audit-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\bcomposer(?:\\.phar)?\\s+(?:-\\S+\\s+)*audit(?:\\s|$)"
 
   # GitHub Advanced Security for Azure DevOps.
   - id: "azure-dependency-scanning-rule"
@@ -112,6 +154,13 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bdependency-check(?:\\.sh|\\.bat)?\\b|^dependencycheck(?:publisher)?$"
+
+  # IBM's audit-ci, which fails when npm, yarn or pnpm audit reports above a
+  # threshold. The program, optionally pinned, not its audit-ci.jsonc config.
+  - id: "audit-ci-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\baudit-ci(?:@\\S*)?(?:\\s|$)"
 
   # Fails a pull request that adds a dependency with a known vulnerability.
   - id: "dependency-review-rule"

@@ -21,6 +21,14 @@ rules:
     categories: ["Supply Chain"]
     regex: "(?i)\\bcosign\\b"
 
+  # Registry signature and provenance verification: proves installed
+  # packages were not tampered with. npm-audit-rule excepts this command
+  # so it is not also counted as SCA.
+  - id: "npm-audit-signatures-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)\\b(?:npm|yarn|pnpm)\\s+audit\\s+signatures\\b"
+
   - id: "slsa-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]

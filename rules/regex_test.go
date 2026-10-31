@@ -590,6 +590,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"stylelinter"},
 		},
 		{
+			ruleID:         "helm-lint-rule",
+			shouldMatch:    []string{"helm lint ./charts/app", "helm lint charts/* --strict", "helm lint . -f values-prod.yaml --with-subcharts"},
+			shouldNotMatch: []string{"helm template ./charts/app", "helm install app ./chart --dry-run", "helm package charts/app", "helm repo add bitnami https://charts.bitnami.com/bitnami"},
+		},
+		{
 			ruleID:         "go-vet-rule",
 			shouldMatch:    []string{"go vet ./...", "go  vet -tags integration ./..."},
 			shouldNotMatch: []string{"go test ./...", "govet", "cargo vet"},

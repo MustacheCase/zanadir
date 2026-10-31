@@ -6,6 +6,8 @@
   <a href="#coverage-score"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/MustacheCase/zanadir/badges/zanadir-badge.json" alt="zanadir coverage"></a>
   <a href="https://pkg.go.dev/github.com/MustacheCase/zanadir"><img src="https://pkg.go.dev/badge/github.com/MustacheCase/zanadir.svg" alt="Go Reference"></a>
   <a href="https://codecov.io/gh/MustacheCase/zanadir"><img src="https://codecov.io/gh/MustacheCase/zanadir/branch/main/graph/badge.svg" alt="Test coverage"></a>
+  <a href="https://github.com/MustacheCase/zanadir/releases/latest"><img src="https://img.shields.io/github/v/release/MustacheCase/zanadir" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/MustacheCase/zanadir" alt="License: MIT"></a>
 </p>
 
 zanadir reads a repository's CI configuration and reports which security and

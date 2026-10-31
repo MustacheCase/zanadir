@@ -370,7 +370,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 			// "revive" is an English word; \b alone matches revive-db.sh.
 			ruleID:         "revive-rule",
 			shouldMatch:    []string{"revive -set_exit_status ./...", "revive -config revive.toml -formatter friendly ./...", "go run github.com/mgechev/revive@latest ./...", "mgechev/revive"},
-			shouldNotMatch: []string{"golangci-lint run", "./scripts/revive-db.sh", "revived"},
+			shouldNotMatch: []string{"golangci-lint run", "./scripts/revive-db.sh", "revived", "Revive stale issues"},
 		},
 		{
 			ruleID:         "eslint-rule",

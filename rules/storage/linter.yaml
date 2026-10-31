@@ -30,7 +30,9 @@ rules:
   - id: "revive-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)(?:^|[\\s/])revive(?:[\\s:@/]|$)"
+    # Case-sensitive: Artifact.Name is the workflow name, and "Revive stale
+    # issues" is not a Go linter. The revive CLI is always lower case.
+    regex: "(?:^|[\\s/])revive(?:[\\s:@/]|$)"
     exitsZeroUnless:
       runMatches: "(?:^|\\s)--?set_exit_status\\b"
       unknownWhen: "(?:^|\\s)--?config(?:[= ]|$)"

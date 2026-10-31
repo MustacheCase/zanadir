@@ -295,6 +295,15 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"pip-auditor", "pip install audit"},
 		},
 		{
+			// "safety" is a common word, so only its sub-commands and action.
+			ruleID: "safety-rule",
+			shouldMatch: []string{
+				"safety check -r requirements.txt", "safety scan", "pyupio/safety-action@v1",
+				"python -m safety check", "safety --key $SAFETY_API_KEY scan", "safety --disable-optional-telemetry check --full-report",
+			},
+			shouldNotMatch: []string{"tox -e safety", "type-safety", "safety-first", "type-safety check", "pip install safety", "safety --version"},
+		},
+		{
 			ruleID:         "cargo-audit-rule",
 			shouldMatch:    []string{"cargo audit", "cargo audit --deny warnings", "rustsec/audit-check@v2", "actions-rs/audit-check@v1"},
 			shouldNotMatch: []string{"cargo auditable build", "cargo install cargo-auditable", "cargo build", "npm audit"},

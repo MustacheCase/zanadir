@@ -11,6 +11,8 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bflawfinder\\b"
+    unless: "(?i)^david-a-wheeler/flawfinder"
+    unlessPackage: "(?i)^david-a-wheeler/flawfinder"
     # flawfinder exits 0 on findings; it fails only with --error-level.
     exitsZeroUnless:
       runMatches: "--error-level\\b"

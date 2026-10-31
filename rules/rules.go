@@ -43,11 +43,13 @@ type FileRule struct {
 	ExitsZeroUnless *FileExitsZeroUnless `yaml:"exitsZeroUnless"`
 }
 
-// FileExitsZeroUnless marks a tool that exits 0 on findings: its commands
-// are advisory unless one matches RunMatches, and unknown if one may set it
+// FileExitsZeroUnless marks a tool that exits 0 on findings: its commands,
+// or Input on a step matched by its package with no matching command, are
+// advisory unless one matches RunMatches, and unknown if one may set it
 // another way or the repository has a config file the tool reads.
 type FileExitsZeroUnless struct {
 	RunMatches  string   `yaml:"runMatches"`
+	Input       string   `yaml:"input"`
 	UnknownWhen string   `yaml:"unknownWhen"`
 	ConfigFiles []string `yaml:"configFiles"`
 }
@@ -100,6 +102,7 @@ type Rule struct {
 // ExitsZeroUnless is a compiled FileExitsZeroUnless.
 type ExitsZeroUnless struct {
 	RunMatches  *regexp.Regexp
+	Input       string
 	UnknownWhen *regexp.Regexp
 	ConfigFiles []string
 }
@@ -139,7 +142,7 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 
 		var exitsZero *ExitsZeroUnless
 		if e := r.ExitsZeroUnless; e != nil {
-			exitsZero = &ExitsZeroUnless{RunMatches: regexp.MustCompile(e.RunMatches), ConfigFiles: e.ConfigFiles}
+			exitsZero = &ExitsZeroUnless{RunMatches: regexp.MustCompile(e.RunMatches), Input: e.Input, ConfigFiles: e.ConfigFiles}
 			if e.UnknownWhen != "" {
 				exitsZero.UnknownWhen = regexp.MustCompile(e.UnknownWhen)
 			}
@@ -210,7 +213,10 @@ func validateExitsZero(r FileRule) error {
 	if e == nil {
 		return nil
 	}
-	if !slices.Contains(r.ApplyOn, FieldJobRun) {
+	if e.Input != "" && !slices.Contains(r.ApplyOn, FieldJobPackage) {
+		return fmt.Errorf("rule %q: exitsZeroUnless input needs %s in applyOn", r.ID, FieldJobPackage)
+	}
+	if e.Input == "" && !slices.Contains(r.ApplyOn, FieldJobRun) {
 		return fmt.Errorf("rule %q: exitsZeroUnless reads commands, so applyOn needs %s", r.ID, FieldJobRun)
 	}
 	if e.RunMatches == "" {

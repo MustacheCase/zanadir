@@ -682,6 +682,21 @@ by default, such as `trivy.yaml` or `.grype.yaml`, or the step names one with
       configFiles: [".grype.yaml"]        # read from the repository by default
 ```
 
+For actions that take flags through an input, `exitsZeroUnless` can name it.
+The flawfinder action, for example, uses:
+
+```yaml
+    exitsZeroUnless:
+      input: "arguments"
+      runMatches: "--error-level\\b"
+```
+
+Matched shell commands are checked first. If none match and the step matches
+by its action, the named input is checked instead. Flawfinder with missing or
+empty `arguments`, or with only `--sarif ./`, is `advisory`; `--error-level=4`
+lets the normal triggers decide its grade. An input set by an expression such
+as `${{ inputs.args }}` is `unknown`, even if the expression mentions the flag.
+
 zanadir cannot see an exit code set in a workflow's `env:`, such as
 `TRIVY_EXIT_CODE`, so such a step reads as `advisory`.
 
@@ -990,6 +1005,10 @@ rules:
 A rule that also matches on `Artifact.Name` can take `unlessPackage`, a regex
 over the workflow's actions: when one matches, the workflow's steps decide and
 its name does not count (`unlessPackage: '^acme/scan-action'`).
+
+An `exitsZeroUnless` with `input` requires `Job.Package` in `applyOn`; it may
+also include `Job.Run` to grade direct commands. Without `input`, it requires
+`Job.Run`. The `runMatches` regex is required in either case.
 
 Custom rules add to the catalogue and never replace a built-in rule, so an
 `id` that is already taken is an error, as is a regex that does not compile or

@@ -406,7 +406,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 		{
 			ruleID: "flawfinder-rule",
 			shouldMatch: []string{"flawfinder --error-level=4 src/", "flawfinder --minlevel 3 --sarif . > flawfinder.sarif",
-				"pipx run flawfinder --error-level 1 lib/"},
+				"pipx run flawfinder --error-level 1 lib/", "david-a-wheeler/flawfinder"},
 			shouldNotMatch: []string{"cppcheck src/", "./scripts/find-flaws.sh", "flawfinders"},
 		},
 		{

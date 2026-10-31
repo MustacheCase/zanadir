@@ -693,6 +693,65 @@ func TestGradeToolThatExitsZeroUnlessToldToFail(t *testing.T) {
 	}
 }
 
+func TestGradeExitsZeroActionInput(t *testing.T) {
+	rule := &rules.Rule{
+		ID:      "acme",
+		ApplyOn: []string{rules.FieldJobName, rules.FieldJobPackage, rules.FieldJobRun},
+		Regex:   regexp.MustCompile(`\bacme\b`),
+		Unless:  regexp.MustCompile(`^acme/excluded$`),
+		Weakened: []rules.WeakenedWhen{
+			{Input: "soft_fail", Equals: "true", Verdict: "advisory"},
+		},
+		ExitsZero: &rules.ExitsZeroUnless{
+			Input:       "arguments",
+			RunMatches:  regexp.MustCompile(`--fail\b`),
+			UnknownWhen: regexp.MustCompile(`--config\b`),
+			ConfigFiles: []string{"acme.yaml"},
+		},
+	}
+	tests := []struct {
+		name     string
+		job      models.Job
+		applyOn  []string
+		configs  map[string]bool
+		expected Verdict
+	}{
+		{name: "missing input", job: models.Job{Package: "acme/action"}, expected: Advisory},
+		{name: "package-only rule", job: models.Job{Package: "acme/action"}, applyOn: []string{rules.FieldJobPackage}, expected: Advisory},
+		{name: "empty input", job: models.Job{Package: "acme/action", With: map[string]string{"arguments": ""}}, expected: Advisory},
+		{name: "literal flag", job: models.Job{Package: "acme/action", With: map[string]string{"arguments": "--fail"}}, expected: Enforcing},
+		{name: "unrelated input", job: models.Job{Package: "acme/action", With: map[string]string{"other": "--fail"}}, expected: Advisory},
+		{name: "GitHub expression", job: models.Job{Package: "acme/action", With: map[string]string{"arguments": "${{ inputs.args }}"}}, expected: Unknown},
+		{name: "Azure macro", job: models.Job{Package: "acme/action", With: map[string]string{"arguments": "$(args)"}}, expected: Unknown},
+		{name: "Azure expression", job: models.Job{Package: "acme/action", With: map[string]string{"arguments": "$[variables.args]"}}, expected: Unknown},
+		{name: "flag inside expression", job: models.Job{Package: "acme/action", With: map[string]string{"arguments": "${{ inputs.fail && '--fail' || '' }}"}}, expected: Unknown},
+		{name: "unknown flag", job: models.Job{Package: "acme/action", With: map[string]string{"arguments": "--config custom.yaml"}}, expected: Unknown},
+		{name: "repository config", job: models.Job{Package: "acme/action"}, configs: map[string]bool{"acme.yaml": true}, expected: Unknown},
+		{name: "flag outranks config", job: models.Job{Package: "acme/action", With: map[string]string{"arguments": "--fail"}}, configs: map[string]bool{"acme.yaml": true}, expected: Enforcing},
+		{name: "weakening wins", job: models.Job{Package: "acme/action", With: map[string]string{"arguments": "--fail", "soft_fail": "true"}}, expected: Advisory},
+		{name: "matched command wins over input flag", job: models.Job{Package: "acme/action", Run: "acme scan .", With: map[string]string{"arguments": "--fail"}}, expected: Advisory},
+		{name: "matched command wins over input expression", job: models.Job{Package: "acme/action", Run: "acme --fail .", With: map[string]string{"arguments": "${{ inputs.args }}"}}, expected: Enforcing},
+		{name: "unrelated command does not supply a flag", job: models.Job{Package: "acme/action", Run: "echo --fail"}, expected: Advisory},
+		{name: "name match has no package", job: models.Job{Name: "acme"}, expected: Enforcing},
+		{name: "unrelated package does not use input fallback", job: models.Job{Name: "acme", Package: "org/other"}, expected: Enforcing},
+		{name: "excluded package does not use input fallback", job: models.Job{Name: "acme", Package: "acme/excluded"}, expected: Enforcing},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := finding([]models.Trigger{{Event: "pull_request"}}, &tt.job)
+			f.Rule, f.Artifact.ToolConfigs = rule, tt.configs
+			if tt.applyOn != nil {
+				copy := *rule
+				copy.ApplyOn = tt.applyOn
+				f.Rule = &copy
+			}
+			if got := Grade(f); got != tt.expected {
+				t.Errorf("Grade() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 // A scanner whose code scanning alerts block the merge holds it back even
 // when its own step only reports.
 func TestByCategoryCountsCodeScanningMergeProtection(t *testing.T) {

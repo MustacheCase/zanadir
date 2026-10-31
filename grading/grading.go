@@ -136,7 +136,19 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 			return Unknown, true
 		}
 	}
-	return exitsZero(rule.ExitsZero, matched, configs)
+	check := rule.ExitsZero
+	if check != nil && check.Input != "" && len(matched) == 0 &&
+		slices.Contains(rule.ApplyOn, rules.FieldJobPackage) && job.Package != "" &&
+		rule.Regex != nil && rule.Regex.MatchString(job.Package) &&
+		(rule.Unless == nil || !rule.Unless.MatchString(job.Package)) {
+		value := job.With[check.Input]
+		// Even a flag written inside an expression may not reach the action.
+		if runtimeExpression.MatchString(value) {
+			return Unknown, true
+		}
+		matched = []string{value}
+	}
+	return exitsZero(check, matched, configs)
 }
 
 func exitsZero(check *rules.ExitsZeroUnless, commands []string, configs map[string]bool) (Verdict, bool) {

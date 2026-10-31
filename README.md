@@ -33,7 +33,8 @@ quality controls are missing, or wired so they cannot fail a build.
 
 It reads GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure
 Pipelines and Jenkins, from a checkout (`--dir`) or straight from GitHub
-(`--repo`), and reports as a table, JSON, SARIF or Markdown.
+(`--repo`), and reports as a table, JSON, SARIF or Markdown. To see it on a
+public repository first, [scan it in your browser](https://mustachecase.github.io/scan/).
 
 How common are these gaps? The [State of CI security 2026](https://mustachecase.github.io/state-of-ci/)
 scanned 1,000 of the most-starred GitHub repositories: 511 declare no
@@ -48,7 +49,10 @@ zanadir fix --dir .
 
 ## Installation
 
-Try it on any public repository without installing anything:
+Try it on any public repository without installing anything, in your
+browser at [mustachecase.github.io/scan](https://mustachecase.github.io/scan/)
+(zanadir runs there as WebAssembly, and the repository's files never leave
+your browser), or with Docker:
 
 ```sh
 docker run --rm mustachecase/zanadir scan --repo github.com/owner/name

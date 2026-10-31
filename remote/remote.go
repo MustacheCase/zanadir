@@ -20,6 +20,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/MustacheCase/zanadir/utils"
@@ -149,16 +150,172 @@ func FetchContext(ctx context.Context, repo Repository, token string) (string, f
 	err = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
 	if err == nil {
 		recordDefaultBranch(ctx, repo, token, dir)
-		err = download(ctx, repo, token, dir)
-	}
-	if err == nil {
-		err = restoreExportIgnored(ctx, repo, token, dir)
+		if fetchFiles(ctx, repo, token, dir) != nil {
+			err = resetTo(dir)
+			if err == nil {
+				err = download(ctx, repo, token, dir)
+			}
+			if err == nil {
+				err = restoreExportIgnored(ctx, repo, token, dir)
+			}
+		}
 	}
 	if err != nil {
 		cleanup()
 		return "", nil, err
 	}
 	return dir, cleanup, nil
+}
+
+// resetTo empties dir but for the .git marker, so the archive can be
+// unpacked over whatever fetchFiles left half-written.
+func resetTo(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.Name() == ".git" {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Above this many downloads a repository is fetched as one archive instead.
+var maxFetches = 1000
+
+const fetchWorkers = 32
+
+var commitSHA = regexp.MustCompile(`^[0-9a-f]{40}(?:[0-9a-f]{24})?$`)
+
+type treeEntry struct {
+	Path string `json:"path"`
+	Mode string `json:"mode"`
+	Type string `json:"type"`
+	Size int64  `json:"size"`
+}
+
+type fetch struct {
+	path, target string
+	size         int64
+}
+
+// fetchFiles lists the repository's files with one API call and downloads
+// only the contents zanadir reads, pinned to one commit. Any failure leaves
+// the archive to do the job.
+func fetchFiles(ctx context.Context, repo Repository, token, dir string) error {
+	sha, err := resolveCommit(ctx, repo, token)
+	if err != nil {
+		return err
+	}
+	var tree struct {
+		Tree      []treeEntry `json:"tree"`
+		Truncated bool        `json:"truncated"`
+	}
+	if err := getJSON(ctx, fmt.Sprintf("%s/repos/%s/%s/git/trees/%s?recursive=1", apiBase, repo.Owner, repo.Name, sha), token, &tree); err != nil {
+		return err
+	}
+	if tree.Truncated {
+		return errors.New("the file list is truncated")
+	}
+
+	var fetches []fetch
+	files, kept, heads := 0, int64(0), int64(0)
+	for _, entry := range tree.Tree {
+		first, _, _ := strings.Cut(entry.Path, "/")
+		if entry.Type != "blob" || entry.Mode == "120000" || strings.EqualFold(first, ".git") {
+			continue
+		}
+		target, err := within(dir, entry.Path)
+		if err != nil {
+			return err
+		}
+		if files++; files > maxFiles {
+			return fmt.Errorf("more than %d files", maxFiles)
+		}
+		var size int64
+		switch contentOf(entry.Path) {
+		case whole:
+			if entry.Size <= maxFileBytes {
+				size = entry.Size
+			}
+			if kept += size; kept > maxKeptBytes {
+				return fmt.Errorf("configuration files exceed %d bytes", maxKeptBytes)
+			}
+		case head:
+			// IaC detection skips these directories, so their heads go unread.
+			if heads < maxHeadBytes && !skippedByWalk(entry.Path) {
+				size = min(entry.Size, headBytes)
+				heads += size
+			}
+		}
+		if size == 0 {
+			if err := writeFile(target, nil, 0); err != nil {
+				return err
+			}
+			continue
+		}
+		if fetches = append(fetches, fetch{entry.Path, target, size}); len(fetches) > maxFetches {
+			return fmt.Errorf("more than %d files to download", maxFetches)
+		}
+	}
+	return downloadFiles(ctx, repo, token, sha, fetches)
+}
+
+func skippedByWalk(name string) bool {
+	parts := strings.Split(name, "/")
+	return slices.ContainsFunc(parts[:len(parts)-1], func(part string) bool {
+		return strings.HasPrefix(part, ".") || utils.IsDependencyDir(part) || utils.IsTestDir(part)
+	})
+}
+
+func resolveCommit(ctx context.Context, repo Repository, token string) (string, error) {
+	ref := (&url.URL{Path: cmp.Or(repo.Ref, "HEAD")}).EscapedPath()
+	resp, err := request(ctx, fmt.Sprintf("%s/repos/%s/%s/commits/%s", apiBase, repo.Owner, repo.Name, ref), token, "application/vnd.github.sha", "")
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 128))
+	if err != nil {
+		return "", err
+	}
+	if sha := strings.TrimSpace(string(body)); resp.StatusCode == http.StatusOK && commitSHA.MatchString(sha) {
+		return sha, nil
+	}
+	return "", fmt.Errorf("resolving %s: GitHub answered %s", repo, resp.Status)
+}
+
+// downloadFiles runs the downloads side by side and stops at the first
+// failure.
+func downloadFiles(ctx context.Context, repo Repository, token, sha string, fetches []fetch) error {
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	jobs := make(chan fetch)
+	var wg sync.WaitGroup
+	for range min(fetchWorkers, len(fetches)) {
+		wg.Go(func() {
+			for f := range jobs {
+				endpoint := fmt.Sprintf("%s/%s/%s/%s/%s", rawBase, repo.Owner, repo.Name, sha, (&url.URL{Path: f.path}).EscapedPath())
+				if err := fetchRange(ctx, endpoint, token, f.target, f.size); err != nil {
+					cancel(err)
+				}
+			}
+		})
+	}
+	for _, f := range fetches {
+		select {
+		case jobs <- f:
+		case <-ctx.Done():
+		}
+	}
+	close(jobs)
+	wg.Wait()
+	return context.Cause(ctx)
 }
 
 // recordDefaultBranch writes origin/HEAD as git clone would, so grading reads
@@ -211,12 +368,19 @@ func downloadFailed(repo Repository, err error) error {
 }
 
 func get(ctx context.Context, endpoint, token string) (*http.Response, error) {
+	return request(ctx, endpoint, token, "application/vnd.github+json", "")
+}
+
+func request(ctx context.Context, endpoint, token, accept, byteRange string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Accept", accept)
 	req.Header.Set("User-Agent", "zanadir")
+	if byteRange != "" {
+		req.Header.Set("Range", byteRange)
+	}
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
@@ -304,6 +468,19 @@ func fetchFile(ctx context.Context, endpoint, token, target string, size int64) 
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("GitHub answered %s for %s", resp.Status, endpoint)
+	}
+	return writeFile(target, resp.Body, size)
+}
+
+// fetchRange downloads the first size bytes of a file.
+func fetchRange(ctx context.Context, endpoint, token, target string, size int64) error {
+	resp, err := request(ctx, endpoint, token, "*/*", fmt.Sprintf("bytes=0-%d", size-1))
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		return fmt.Errorf("GitHub answered %s for %s", resp.Status, endpoint)
 	}
 	return writeFile(target, resp.Body, size)

@@ -74,6 +74,14 @@ rules:
     categories: ["SCA"]
     regex: "(?i)\\bgovulncheck\\b"
 
+  # bundle-audit, bundler-audit, "bundle audit" and the rake task. Updating
+  # the advisory database, or asking for the version, scans nothing.
+  - id: "bundler-audit-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?i)\\bbundler?[\\s:-]audit\\b"
+    unless: "(?i)\\bbundler?[\\s:-]audit(?::|\\s+)(?:update|version|help)\\s*$"
+
   - id: "osv-scanner-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]

@@ -280,6 +280,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"govulncheckers", "mygovulncheck"},
 		},
 		{
+			ruleID:         "bundler-audit-rule",
+			shouldMatch:    []string{"bundle-audit check --update", "bundle exec bundle-audit", "bundle audit check", "bundler-audit", "bundle exec rake bundle:audit"},
+			shouldNotMatch: []string{"bundle install", "bundle exec rspec", "bundle exec rubocop --audit-log x"},
+		},
+		{
 			ruleID:         "osv-scanner-rule",
 			shouldMatch:    []string{"osv-scanner -r .", "google/osv-scanner-action"},
 			shouldNotMatch: []string{"osv-scannerx", "osv database"},
@@ -677,6 +682,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
+		"bundler-audit-rule":         {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},

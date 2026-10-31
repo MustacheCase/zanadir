@@ -25,7 +25,7 @@ test:
 WEB_VERSION ?= dev
 web:
 	rm -rf dist/scan && mkdir -p dist/scan
-	cp web/scan/index.html web/scan/memfs.js dist/scan/
+	cp web/scan/index.html web/scan/memfs.js web/scan/scan.js dist/scan/
 	cp "$$($(GOCMD) env GOROOT)/lib/wasm/wasm_exec.js" dist/scan/
 	GOOS=js GOARCH=wasm $(GOBUILD) -trimpath -ldflags "-s -w -X github.com/MustacheCase/zanadir/app.version=$(WEB_VERSION)" -o dist/zanadir.wasm ./wasm
 	gzip -9 -n -c dist/zanadir.wasm > dist/scan/zanadir.wasm.gz

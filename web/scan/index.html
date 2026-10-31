@@ -161,14 +161,21 @@
     return a;
   };
 
+  // The module ships gzipped (4 MB rather than 17), since GitHub Pages may
+  // not compress it. A server that already decoded it sends plain wasm.
   const go = new Go();
-  const loading = (WebAssembly.instantiateStreaming
-      ? WebAssembly.instantiateStreaming(fetch("zanadir.wasm"), go.importObject)
-      : fetch("zanadir.wasm").then((r) => r.arrayBuffer()).then((b) => WebAssembly.instantiate(b, go.importObject)))
-    .then(({ instance }) => {
-      go.run(instance);
-      $("version").textContent = globalThis.zanadir.version;
-    });
+  const loading = (async () => {
+    const response = await fetch("zanadir.wasm.gz");
+    if (!response.ok) throw new Error("Couldn't load zanadir (" + response.status + ").");
+    let bytes = new Uint8Array(await response.arrayBuffer());
+    if (!(bytes[0] === 0 && bytes[1] === 0x61 && bytes[2] === 0x73 && bytes[3] === 0x6d)) {
+      const plain = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+      bytes = new Uint8Array(await new Response(plain).arrayBuffer());
+    }
+    const { instance } = await WebAssembly.instantiate(bytes, go.importObject);
+    go.run(instance);
+    $("version").textContent = globalThis.zanadir.version;
+  })();
 
   // owner/name from what was typed, or null; zanadir checks it properly.
   const repoOf = (text) => {
@@ -258,7 +265,7 @@
     button.disabled = true;
     $("result").hidden = true;
     const started = performance.now();
-    say("Loading zanadir…");
+    say("Loading zanadir (4 MB, once)…");
     try {
       await loading;
       say("Reading " + repo + " from GitHub…");

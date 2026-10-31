@@ -290,30 +290,23 @@ func resolveCommit(ctx context.Context, repo Repository, token string) (string, 
 	return "", fmt.Errorf("resolving %s: GitHub answered %s", repo, resp.Status)
 }
 
-// downloadFiles runs the downloads side by side and stops at the first
-// failure.
+// downloadFiles runs the downloads side by side. The first failure cancels
+// the rest, which then fail at once.
 func downloadFiles(ctx context.Context, repo Repository, token, sha string, fetches []fetch) error {
 	ctx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
-	jobs := make(chan fetch)
+	slots := make(chan struct{}, fetchWorkers)
 	var wg sync.WaitGroup
-	for range min(fetchWorkers, len(fetches)) {
+	for _, f := range fetches {
+		slots <- struct{}{}
 		wg.Go(func() {
-			for f := range jobs {
-				endpoint := fmt.Sprintf("%s/%s/%s/%s/%s", rawBase, repo.Owner, repo.Name, sha, (&url.URL{Path: f.path}).EscapedPath())
-				if err := fetchRange(ctx, endpoint, token, f.target, f.size); err != nil {
-					cancel(err)
-				}
+			defer func() { <-slots }()
+			endpoint := fmt.Sprintf("%s/%s/%s/%s/%s", rawBase, repo.Owner, repo.Name, sha, (&url.URL{Path: f.path}).EscapedPath())
+			if err := fetchRange(ctx, endpoint, token, f.target, f.size); err != nil {
+				cancel(err)
 			}
 		})
 	}
-	for _, f := range fetches {
-		select {
-		case jobs <- f:
-		case <-ctx.Done():
-		}
-	}
-	close(jobs)
 	wg.Wait()
 	return context.Cause(ctx)
 }

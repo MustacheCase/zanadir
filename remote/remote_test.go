@@ -620,23 +620,35 @@ func TestFetchDownloadsOnlyWhatZanadirReads(t *testing.T) {
 }
 
 func TestFetchFallsBackToTheArchive(t *testing.T) {
-	defer func(fetches int) { maxFetches = fetches }(maxFetches)
-	archive := "200 " + string(tarball(t, entry{name: "o-r-1/from-archive.yml", body: "x: 1\n"}))
+	defer func(fetches, files int, kept int64) {
+		maxFetches, maxFiles, maxKeptBytes = fetches, files, kept
+	}(maxFetches, maxFiles, maxKeptBytes)
+	archive := "200 " + string(tarball(t,
+		entry{name: "o-r-1/.gitattributes", body: "* text=auto"},
+		entry{name: "o-r-1/from-archive.yml", body: "x: 1\n"},
+	))
 	twoFiles := `{"tree":[{"path":"a.yml","type":"blob","size":2},{"path":"b.yml","type":"blob","size":2}]}`
+	both := map[string]string{"a.yml": "a\n", "b.yml": "b\n"}
 
 	for name, tt := range map[string]struct {
-		tree     string
-		files    map[string]string
-		maxFetch int
+		tree  string
+		files map[string]string
+		setup func()
 	}{
-		"truncated file list":   {`{"tree":[],"truncated":true}`, nil, 1000},
-		"unreadable file list":  {`not json`, nil, 1000},
-		"too many downloads":    {twoFiles, map[string]string{"a.yml": "a\n", "b.yml": "b\n"}, 1},
-		"a download that fails": {twoFiles, map[string]string{"a.yml": "a\n"}, 1000},
-		"an entry outside":      {`{"tree":[{"path":"../x.yml","type":"blob","size":2}]}`, nil, 1000},
+		"truncated file list":    {`{"tree":[],"truncated":true}`, nil, nil},
+		"unreadable file list":   {`not json`, nil, nil},
+		"too many downloads":     {twoFiles, both, func() { maxFetches = 1 }},
+		"too much configuration": {`{"tree":[{"path":"a.yml","type":"blob","size":20},{"path":"b.yml","type":"blob","size":20}]}`, nil, func() { maxKeptBytes = 30 }},
+		"a download that fails":  {twoFiles, map[string]string{"a.yml": "a\n"}, nil},
+		"an unreachable host":    {twoFiles, both, func() { rawBase = "http://127.0.0.1:1" }},
+		"an entry outside":       {`{"tree":[{"path":"../x.yml","type":"blob","size":2}]}`, nil, nil},
+		"a file and a directory": {`{"tree":[{"path":"a.yml","type":"blob","size":0},{"path":"a.yml/b.go","type":"blob","size":1}]}`, nil, nil},
 	} {
-		maxFetches = tt.maxFetch
+		maxFetches, maxFiles, maxKeptBytes = 1000, 200_000, 256<<20
 		asked := fileList(t, "HEAD", tt.tree, tt.files, map[string]string{"/repos/o/r/tarball": archive})
+		if tt.setup != nil {
+			tt.setup()
+		}
 		dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
 		require.NoError(t, err, name)
 		assert.FileExists(t, filepath.Join(dir, "from-archive.yml"), name)
@@ -645,6 +657,23 @@ func TestFetchFallsBackToTheArchive(t *testing.T) {
 		assert.Contains(t, *asked, "/repos/o/r/tarball", name)
 		cleanup()
 	}
+
+	maxFiles = 1
+	asked := fileList(t, "HEAD", twoFiles, both, map[string]string{"/repos/o/r/tarball": archive})
+	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	assert.ErrorContains(t, err, "the archive has more than 1 files", "the archive has the same limit, and reports it")
+	assert.Contains(t, *asked, "/repos/o/r/tarball")
+}
+
+func TestResetTo(t *testing.T) {
+	assert.Error(t, resetTo(filepath.Join(t.TempDir(), "missing")))
+
+	dir := t.TempDir()
+	locked := filepath.Join(dir, "locked")
+	require.NoError(t, os.MkdirAll(filepath.Join(locked, "sub"), 0o755))
+	require.NoError(t, os.Chmod(locked, 0o500))
+	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+	assert.Error(t, resetTo(dir), "a directory it cannot empty")
 }
 
 func TestFetchSendsTheTokenToEveryHost(t *testing.T) {

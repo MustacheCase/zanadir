@@ -60,3 +60,20 @@ jobs:
 		assert.Equal(t, expected, verdicts["SCA"], run)
 	}
 }
+
+func TestFlawfinderExitsZeroUnlessErrorLevel(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"flawfinder --error-level=4 src/":                      Enforcing,
+		"pipx run flawfinder --error-level 1 lib/":             Enforcing,
+		"flawfinder --minlevel 3 --sarif . > flawfinder.sarif": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["SAST"], run)
+	}
+}

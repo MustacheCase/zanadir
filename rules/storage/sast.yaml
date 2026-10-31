@@ -7,6 +7,14 @@ rules:
     exitsZeroUnless:
       runMatches: "\\bsemgrep\\s+ci\\b|--error\\b"
 
+  - id: "flawfinder-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bflawfinder\\b"
+    # flawfinder exits 0 on findings; it fails only with --error-level.
+    exitsZeroUnless:
+      runMatches: "--error-level\\b"
+
   # The CLI, the init action (parser/github.go turns it into the database it
   # creates) and Azure's tasks; not upload-sarif, which uploads any tool's
   # SARIF. CodeQL on actions alone checks workflows, not code.

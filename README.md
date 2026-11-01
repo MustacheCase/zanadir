@@ -613,6 +613,19 @@ A manual run may be the release itself, which the file cannot tell, so it is
 and `continue-on-error` is `advisory` here as everywhere: a signing step that
 can fail silently publishes unsigned artifacts.
 
+SCA is also held to what it can see. A dependency scanner looks packages up
+by name and version, so one that `uv.lock` installs from a git repository or a
+direct URL is invisible to every scanner, and an enforcing SCA control in a
+repository with such a package is `partial`, with the packages named:
+
+```
+  SCA is partial (.github/workflows/ci.yml): uv.lock installs en-core-web-sm from a git or URL source, which no dependency scanner can look up
+```
+
+A registry other than PyPI does not count, since a mirror or proxy serves
+PyPI's packages under the same names, and `path`, `directory` and `editable`
+sources are the repository's own code.
+
 A weakened control does not fail a scan unless you ask it to. `--enforce` and
 `--fail-on` act only on categories with no tooling; `--fail-on-weakened` is
 what turns a weak control into a failure:

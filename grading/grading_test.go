@@ -790,3 +790,38 @@ func TestByCategoryCountsCodeScanningMergeProtection(t *testing.T) {
 		})
 	}
 }
+
+// A dependency scanner that cannot look up some of the lockfile is partial,
+// and the reason names what it misses. A weaker verdict is left alone: it
+// already says less than this would.
+func TestUnauditedGradesEnforcingDependencyScanningPartial(t *testing.T) {
+	enforcing := Assessment{Verdict: Enforcing, Location: "ci.yml"}
+	tests := []struct {
+		name     string
+		in       Assessment
+		packages []string
+		want     Assessment
+	}{
+		{"enforcing with an unauditable package", enforcing, []string{"en-core-web-sm"},
+			Assessment{Verdict: Partial, Location: "ci.yml", Reason: "uv.lock installs en-core-web-sm from a git or URL source, which no dependency scanner can look up"}},
+		{"enforcing with none", enforcing, nil, enforcing},
+		{"advisory stays advisory", Assessment{Verdict: Advisory}, []string{"forked"}, Assessment{Verdict: Advisory}},
+		{"unknown stays unknown", Assessment{Verdict: Unknown}, []string{"forked"}, Assessment{Verdict: Unknown}},
+		{"a required-check reason is kept", Assessment{Verdict: Partial, Reason: NotRequired}, []string{"forked"}, Assessment{Verdict: Partial, Reason: NotRequired}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Unaudited(tt.in, "uv.lock", tt.packages); got != tt.want {
+				t.Errorf("Unaudited() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUnauditedReasonCountsPastThreeNames(t *testing.T) {
+	got := Unaudited(Assessment{Verdict: Enforcing}, "uv.lock", []string{"a", "b", "c", "d", "e"}).Reason
+	want := "uv.lock installs a, b, c and 2 more from a git or URL source, which no dependency scanner can look up"
+	if got != want {
+		t.Errorf("reason = %q, want %q", got, want)
+	}
+}

@@ -509,8 +509,8 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// contentOf says how much of a file zanadir reads: CI and build files
-// whole, the head of other JSON for IaC detection, else only the name.
+// contentOf says how much of a file zanadir reads: CI and build files and
+// uv.lock whole, the head of other JSON for IaC detection, else only the name.
 func contentOf(name string) content {
 	if keepContent(name) {
 		return whole
@@ -531,7 +531,7 @@ func keepContent(name string) bool {
 		return true
 	}
 	switch base {
-	case ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5", "tox.ini", ".gitattributes", "package.json":
+	case ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5", "tox.ini", ".gitattributes", "package.json", "uv.lock":
 		return true
 	}
 	// Makefile.common and the like are included by the Makefile.

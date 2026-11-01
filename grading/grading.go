@@ -3,6 +3,7 @@
 package grading
 
 import (
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -43,6 +44,27 @@ type Merge struct {
 
 // NotRequired is the reason a control that runs on pull requests is partial.
 const NotRequired = "its check is not required to merge"
+
+// Unaudited grades a dependency scanning control partial when the lockfile
+// installs packages that no scanner can look up, and names them.
+func Unaudited(a Assessment, lockfile string, packages []string) Assessment {
+	if a.Verdict != Enforcing || len(packages) == 0 {
+		return a
+	}
+	a.Verdict, a.Reason = Partial, unauditedReason(lockfile, packages)
+	return a
+}
+
+// unauditedNames is how many packages a reason names before it counts the rest.
+const unauditedNames = 3
+
+func unauditedReason(lockfile string, packages []string) string {
+	names := strings.Join(packages[:min(len(packages), unauditedNames)], ", ")
+	if rest := len(packages) - unauditedNames; rest > 0 {
+		names = fmt.Sprintf("%s and %d more", names, rest)
+	}
+	return fmt.Sprintf("%s installs %s from a git or URL source, which no dependency scanner can look up", lockfile, names)
+}
 
 var gatingEvents = map[string]bool{
 	"pull_request":        true,

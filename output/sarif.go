@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/grading"
 	"github.com/MustacheCase/zanadir/suggester"
 )
 
@@ -166,7 +167,7 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weak
 			Name:                 weakness.Category,
 			ShortDescription:     sarifMessage{Text: fmt.Sprintf("Weakened CI/CD control: %s", weakness.Category)},
 			FullDescription:      sarifMessage{Text: fmt.Sprintf("%s tooling is present but cannot fully protect this repository.", weakness.Category)},
-			Help:                 sarifMessage{Text: weakenedHelp(weakness.Verdict)},
+			Help:                 sarifMessage{Text: weakenedHelp(weakness)},
 			DefaultConfiguration: sarifRuleConfig{Level: "note"},
 			Properties:           sarifRuleProperty{Tags: []string{"ci-cd", "coverage", "effectiveness"}},
 		})
@@ -200,22 +201,28 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weak
 }
 
 // weakenedHelp explains a verdict in terms of what it fails to stop.
-func weakenedHelp(verdict string) string {
-	switch verdict {
-	case "advisory":
+func weakenedHelp(w Weakness) string {
+	switch {
+	case w.Verdict == "advisory":
 		return "it runs but cannot fail the build, so nothing it finds blocks a change."
-	case "partial":
+	case w.Verdict == "partial" && (w.Reason == "" || w.Reason == grading.NotRequired):
 		return "it can fail a build, but not on the path that gates a change, so pull requests go unchecked."
+	case w.Verdict == "partial":
+		return "it can fail a build, but cannot see part of what it is meant to check."
 	default:
 		return "it provides less protection than its presence suggests."
 	}
 }
 
 func weakenedMessage(w Weakness) string {
-	if w.Reason != "" {
+	switch w.Reason {
+	case "":
+		return fmt.Sprintf("%s tooling is present but %s: %s", w.Category, w.Verdict, weakenedHelp(w))
+	case grading.NotRequired:
 		return fmt.Sprintf("%s tooling is present but %s: %s, so a failing run does not block a pull request.", w.Category, w.Verdict, w.Reason)
+	default:
+		return fmt.Sprintf("%s tooling is present but %s: %s.", w.Category, w.Verdict, w.Reason)
 	}
-	return fmt.Sprintf("%s tooling is present but %s: %s", w.Category, w.Verdict, weakenedHelp(w.Verdict))
 }
 
 func renderSarif(w io.Writer, suggestions []*suggester.CategorySuggestion, anchor string, weaknesses []Weakness) error {

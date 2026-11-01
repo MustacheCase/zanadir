@@ -190,3 +190,9 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bhelm\\s+lint\\b"
+
+  # buf is also used for generation and publishing; only lint and its CI actions count.
+  - id: "buf-lint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:\\bbuf\\s+lint\\b|bufbuild/buf(?:-lint)?-action)"

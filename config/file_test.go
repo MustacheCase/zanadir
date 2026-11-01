@@ -123,18 +123,24 @@ func TestConfigFileCarriesCustomRules(t *testing.T) {
 	path := writeConfig(t, `
 rules:
   - id: acme-scan
-    applyOn: [Job.Run]
+    applyOn: [Job.Package, Job.Run]
     categories: [SAST]
     regex: '\bacme-scan\b'
     weakenedWhen:
       - runMatches: '--report-only'
         verdict: advisory
+    exitsZeroUnless:
+      input: arguments
+      runMatches: '--fail'
 `)
 	scan, err := CreateConfig(withConfig(newScanCmd(t.TempDir(), nil), path))
 	require.NoError(t, err)
 	require.Len(t, scan.Rules, 1)
 	assert.Equal(t, "acme-scan", scan.Rules[0].ID)
 	assert.Equal(t, "advisory", scan.Rules[0].Weakened[0].Verdict)
+	require.NotNil(t, scan.Rules[0].ExitsZeroUnless)
+	assert.Equal(t, "arguments", scan.Rules[0].ExitsZeroUnless.Input)
+	assert.Equal(t, "--fail", scan.Rules[0].ExitsZeroUnless.RunMatches)
 
 	fix, err := CreateFixConfig(withConfig(newFixCmd(t.TempDir()), path))
 	require.NoError(t, err)

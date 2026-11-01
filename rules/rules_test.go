@@ -121,6 +121,14 @@ func TestEmbeddedRulesCarryWeakenedChecks(t *testing.T) {
 	assert.False(t, trivy.RunMatches.MatchString("trivy fs --exit-code 0 ."))
 	assert.True(t, trivy.UnknownWhen.MatchString("trivy fs -c ci/trivy.yaml ."))
 	assert.Equal(t, []string{"trivy.yaml"}, trivy.ConfigFiles)
+	flawfinder := byID["flawfinder-rule"]
+	require.NotNil(t, flawfinder)
+	require.NotNil(t, flawfinder.ExitsZero)
+	assert.Equal(t, "arguments", flawfinder.ExitsZero.Input)
+	assert.True(t, flawfinder.ExitsZero.RunMatches.MatchString("--error-level=4 --sarif ./"))
+	assert.Nil(t, flawfinder.Unless)
+	require.NotNil(t, flawfinder.UnlessPackage)
+	assert.True(t, flawfinder.UnlessPackage.MatchString("david-a-wheeler/flawfinder"))
 	assert.False(t, byID["trufflehog-rule"].ExitsZero.RunMatches.MatchString("trufflehog git file://. --fail-on-scan-errors"))
 	assert.False(t, byID["kubescape-rule"].ExitsZero.RunMatches.MatchString("kubescape scan --compliance-threshold 0"))
 	kubescape := byID["kubescape-rule"].ExitsZero
@@ -196,6 +204,9 @@ func TestCustomRulesAreChecked(t *testing.T) {
 		{"exitsZeroUnless without runMatches", func(r *rules.FileRule) {
 			r.ExitsZeroUnless = &rules.FileExitsZeroUnless{UnknownWhen: "--config"}
 		}, "needs runMatches"},
+		{"exitsZeroUnless input without packages", func(r *rules.FileRule) {
+			r.ExitsZeroUnless = &rules.FileExitsZeroUnless{RunMatches: "--fail", Input: "arguments"}
+		}, "input needs Job.Package in applyOn"},
 		{"bad exitsZeroUnless regex", func(r *rules.FileRule) {
 			r.ExitsZeroUnless = &rules.FileExitsZeroUnless{RunMatches: "--fail", UnknownWhen: "--config("}
 		}, "exitsZeroUnless"},
@@ -220,4 +231,23 @@ func TestCustomRuleIDsMustBeUnique(t *testing.T) {
 	r := rules.FileRule{ID: "acme", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SAST"}, Regex: "acme"}
 	_, err := rules.NewRulesService(r, r)
 	assert.ErrorContains(t, err, "already taken")
+}
+
+func TestCustomRuleExitsZeroInput(t *testing.T) {
+	for name, fields := range map[string][]string{
+		"package only":        {rules.FieldJobPackage},
+		"package and command": {rules.FieldJobPackage, rules.FieldJobRun},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rs, err := rules.NewRulesService(rules.FileRule{
+				ID: "acme", ApplyOn: fields, Categories: []string{"SAST"}, Regex: "acme",
+				ExitsZeroUnless: &rules.FileExitsZeroUnless{RunMatches: "--fail", Input: "arguments"},
+			})
+			require.NoError(t, err)
+			rule := findRule(t, rs, "acme")
+			require.NotNil(t, rule.ExitsZero)
+			assert.Equal(t, "arguments", rule.ExitsZero.Input)
+			assert.True(t, rule.ExitsZero.RunMatches.MatchString("--fail"))
+		})
+	}
 }

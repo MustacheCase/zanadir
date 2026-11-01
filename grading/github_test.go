@@ -78,10 +78,9 @@ jobs:
 	}
 }
 
-// The flawfinder action takes its flags through arguments, which
-// exitsZeroUnless can't read, so it must not claim a gate: neither on its own
-// nor in GitHub's starter workflow, which is also named flawfinder.
-func TestFlawfinderActionGradesNoSAST(t *testing.T) {
+// The action only reports without --error-level, even in the starter workflow
+// named flawfinder: neither the workflow name nor the SARIF upload is a gate.
+func TestFlawfinderActionWithoutErrorLevelGradesAdvisory(t *testing.T) {
 	for path, workflow := range map[string]string{
 		".github/workflows/ci.yml": `
 name: ci
@@ -120,6 +119,39 @@ jobs:
 `,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), path, workflow)
-		assert.NotContains(t, verdicts, "SAST", path)
+		assert.Equal(t, Advisory, verdicts["SAST"], path)
+	}
+}
+
+func TestFlawfinderActionArguments(t *testing.T) {
+	tests := []struct {
+		name     string
+		event    string
+		options  string
+		expected Verdict
+	}{
+		{"error level with equals", "pull_request", "        with:\n          arguments: '--error-level=4 --sarif ./'\n", Enforcing},
+		{"error level with space", "pull_request", "        with:\n          arguments: '--error-level 4 --sarif ./'\n", Enforcing},
+		{"no arguments", "pull_request", "", Advisory},
+		{"empty arguments", "pull_request", "        with:\n          arguments: ''\n", Advisory},
+		{"another input", "pull_request", "        with:\n          output: '--error-level=4.sarif'\n", Advisory},
+		{"expression", "pull_request", "        with:\n          arguments: ${{ inputs.args }}\n", Unknown},
+		{"conditional flag", "pull_request", "        with:\n          arguments: ${{ inputs.fail && '--error-level=4' || '--sarif ./' }}\n", Unknown},
+		{"push only", "push", "        with:\n          arguments: '--error-level=4'\n", Partial},
+		{"continue on error", "pull_request", "        continue-on-error: true\n        with:\n          arguments: '--error-level=4'\n", Advisory},
+		{"condition", "pull_request", "        if: github.event_name == 'pull_request'\n        with:\n          arguments: '--error-level=4'\n", Unknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/flawfinder.yml", `
+name: flawfinder
+on: `+tt.event+`
+jobs:
+  scan:
+    steps:
+      - uses: david-a-wheeler/flawfinder@8e4a779ad59dbfaee5da586aa9210853b701959c
+`+tt.options)
+			assert.Equal(t, tt.expected, verdicts["SAST"])
+		})
 	}
 }

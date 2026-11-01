@@ -81,6 +81,16 @@ categories:
     name: "Code Coverage Tools"
     description: "Tools for measuring code coverage to ensure testing completeness and software quality."
     suggestions:
+      - name: "pytest-cov"
+        repository: "https://github.com/pytest-dev/pytest-cov"
+        description: "Measures coverage of a pytest run; --cov-fail-under fails the build below a set floor."
+        language: "Python"
+
+      - name: "go-test-coverage"
+        repository: "https://github.com/vladopajic/go-test-coverage"
+        description: "Checks the coverage profile of go test against a total, package or file threshold and fails below it."
+        language: "Go"
+
       - name: "Codecov"
         repository: "https://github.com/codecov/codecov-action"
         description: "A GitHub Action for integrating Codecov, a tool for measuring and analyzing code coverage."

@@ -182,6 +182,8 @@ templates:
   - tool: "Trivy"
     platform: "github"
     category: "End Of Life"
+    requires: ["Dockerfile"]
+    missing: "Trivy checks a container image, and there is no Dockerfile at the repository root to build one"
     step: |
       - name: Build the image to check
         run: docker build -t local/eol-scan .
@@ -201,13 +203,31 @@ templates:
           tar -xzf grant.tar.gz grant
           ./grant check dir:.
 
-  - tool: "Codecov"
+  # A floor the test run enforces itself, with no account or token to set up.
+  - tool: "pytest-cov"
     platform: "github"
     step: |
-      - name: Upload coverage
-        uses: codecov/codecov-action@v7
+      # Set the floor to today's coverage, which pytest prints, so the build
+      # fails when it drops. Install your project's dependencies first.
+      - name: Test with a coverage floor
+        run: |
+          pip install pytest pytest-cov
+          pytest --cov --cov-fail-under=50
+
+  - tool: "go-test-coverage"
+    platform: "github"
+    step: |
+      - uses: actions/setup-go@v7
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          go-version-file: go.mod
+      - name: Test with coverage
+        run: go test -coverprofile=cover.out ./...
+      # Set the floor to today's total coverage, so the build fails when it drops.
+      - name: Check the coverage floor
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          profile: cover.out
+          threshold-total: 50
 
   - tool: "GolangCI-Lint"
     platform: "github"
@@ -217,6 +237,12 @@ templates:
         with:
           args: --timeout=5m
 
+  - tool: "Ruff"
+    platform: "github"
+    step: |
+      - name: Lint
+        run: pipx run ruff==0.17.3 check .
+
   - tool: "ESLint"
     platform: "github"
     step: |
@@ -225,15 +251,18 @@ templates:
           npm ci
           npx eslint .
 
+  # A load test needs a script written for the service and the service
+  # running in CI; neither can be generated.
   - tool: "k6"
     platform: "github"
+    requires: ["load-test.js"]
+    missing: "k6 needs a load test script, load-test.js, for a service started in CI"
     step: |
       - name: Set up k6
         uses: grafana/setup-k6-action@v1
+      # Start the service first. Thresholds in the script fail the build.
       - name: Load test
-        uses: grafana/run-k6-action@v1
-        with:
-          path: load-test.js
+        run: k6 run load-test.js
 
   # Cosign and the attestation actions need id-token and attestations
   # permissions, which the generated standalone workflow does not grant, so

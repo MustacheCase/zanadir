@@ -280,7 +280,7 @@ func Workflow(plan Plan) string {
 	b.WriteString("\njobs:\n  suggested:\n    runs-on: ubuntu-latest\n    steps:\n")
 	// Without persist-credentials: false, zizmor reports the checkout as
 	// leaving the token on disk.
-	b.WriteString("      - uses: actions/checkout@v7\n        with:\n          persist-credentials: false\n")
+	b.WriteString("      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n")
 
 	for _, s := range plan.Snippets {
 		fmt.Fprintf(&b, "\n      # %s\n", s.Category)

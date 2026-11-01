@@ -2,10 +2,11 @@
 # platform. Tool names must match suggestions.yaml exactly; NewFixService
 # rejects any that do not.
 #
-# Actions are pinned to a major tag where the action publishes one, and to a
-# release where it does not; never to a branch. A downloaded binary is pinned
-# to a release and checked against its published sha256, never piped to sh. Revisit them when a tool cuts
-# a new major, or archives the action.
+# Actions are pinned to a commit with its release in a comment, so the
+# generated workflow passes zizmor's unpinned-uses audit; never a branch.
+# Images, pip packages and downloaded binaries are pinned to a release, and a
+# binary is checked against its published sha256, never piped to sh. The
+# weekly catalogue health check flags a pin a new major has passed.
 templates:
   - tool: "Gitleaks"
     platform: "github"
@@ -17,7 +18,7 @@ templates:
           curl -sSfLo gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
           echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
-          ./gitleaks detect --source . --verbose
+          ./gitleaks git --verbose .
 
   - tool: "Gitleaks"
     platform: "gitlab"
@@ -25,19 +26,19 @@ templates:
       secret_detection:
         stage: .pre
         image:
-          name: zricethezav/gitleaks
+          name: zricethezav/gitleaks:v8.30.1
           entrypoint: [""]
         script:
-          - gitleaks detect --source . --verbose
+          - gitleaks git --verbose .
 
   - tool: "Gitleaks"
     platform: "bitbucket"
     step: |
       - step:
           name: Secret detection
-          image: zricethezav/gitleaks
+          image: zricethezav/gitleaks:v8.30.1
           script:
-            - gitleaks detect --source . --verbose
+            - gitleaks git --verbose .
 
   - tool: "Gitleaks"
     platform: "azure"
@@ -46,7 +47,7 @@ templates:
           curl -sSfLo gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
           echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum -c -
           tar -xzf gitleaks.tar.gz gitleaks
-          ./gitleaks detect --source . --verbose
+          ./gitleaks git --verbose .
         displayName: Secret detection
 
   - tool: "Gitleaks"
@@ -58,7 +59,7 @@ templates:
                   curl -sSfLo gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
                   echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz" | sha256sum -c -
                   tar -xzf gitleaks.tar.gz gitleaks
-                  ./gitleaks detect --source . --verbose
+                  ./gitleaks git --verbose .
               '''
           }
       }
@@ -67,7 +68,7 @@ templates:
     platform: "github"
     step: |
       - name: Detect secrets
-        uses: trufflesecurity/trufflehog@v3.99.2
+        uses: trufflesecurity/trufflehog@31ce31ee1abbcc7dc8eee5764c17121c3044c8b2 # v3.99.7
         with:
           extra_args: --results=verified,unknown
 
@@ -75,7 +76,7 @@ templates:
     platform: "github"
     step: |
       - name: Scan dependencies
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scanners: vuln
@@ -87,7 +88,7 @@ templates:
       dependency_scanning:
         stage: .pre
         image:
-          name: aquasec/trivy
+          name: aquasec/trivy:0.76.1
           entrypoint: [""]
         script:
           - trivy fs --exit-code 1 .
@@ -97,7 +98,7 @@ templates:
     step: |
       - step:
           name: Dependency scanning
-          image: aquasec/trivy
+          image: aquasec/trivy:0.76.1
           script:
             - trivy fs --exit-code 1 .
 
@@ -120,7 +121,7 @@ templates:
     platform: "github"
     step: |
       - name: Scan dependencies
-        uses: anchore/scan-action@v7
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
           path: .
           fail-build: true
@@ -130,7 +131,7 @@ templates:
     step: |
       # semgrep-action is archived; the CLI is what Semgrep documents now.
       - name: Static analysis
-        run: pipx run semgrep scan --config auto --error
+        run: pipx run semgrep==1.183.0 scan --config auto --error
 
   - tool: "CodeQL"
     platform: "github"
@@ -138,17 +139,17 @@ templates:
       # CodeQL needs its own job; see
       # https://github.com/github/codeql-action for the full workflow.
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           languages: go
       - name: Analyze
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
 
   - tool: "gosec"
     platform: "github"
     step: |
       - name: Static analysis
-        uses: securego/gosec@v2.29.0
+        uses: securego/gosec@5eb1d104ef85ff2c905c877eb600e8c1dee33a22 # v2.30.0
         with:
           args: ./...
 
@@ -156,15 +157,13 @@ templates:
     platform: "github"
     step: |
       - name: Static analysis
-        run: |
-          pip install bandit
-          bandit -r .
+        run: pipx run bandit==1.9.4 -r .
 
   - tool: "Checkov"
     platform: "github"
     step: |
       - name: Scan infrastructure as code
-        uses: bridgecrewio/checkov-action@v12
+        uses: bridgecrewio/checkov-action@c10e2438743528f9e4549758fad8b7a62052541d # v12.3136.0
         with:
           directory: .
 
@@ -174,7 +173,7 @@ templates:
     category: "IaC Security"
     step: |
       - name: Set up Trivy
-        uses: aquasecurity/setup-trivy@v0.3.1
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
       - name: Scan infrastructure as code
         run: trivy config --exit-code 1 .
 
@@ -188,20 +187,27 @@ templates:
       - name: Build the image to check
         run: docker build -t local/eol-scan .
       - name: Set up Trivy
-        uses: aquasecurity/setup-trivy@v0.3.1
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
       - name: Check for end-of-life components
         run: trivy image --exit-on-eol 1 local/eol-scan
 
   - tool: "Grant"
     platform: "github"
     step: |
-      # Grant has no action of its own.
+      # Grant has no action of its own, and denies every licence without a
+      # policy. This one allows permissive licences; edit the list to yours.
+      # Install dependencies first where grant reads licences from them
+      # (go mod download, pip install).
       - name: Check licences
         run: |
           curl -sSfLo grant.tar.gz https://github.com/anchore/grant/releases/download/v0.6.8/grant_0.6.8_linux_amd64.tar.gz
           echo "6500f8bbf0f20fb993de8084686e199f0ba1eb494769ff75454286d5ef63f919  grant.tar.gz" | sha256sum -c -
           tar -xzf grant.tar.gz grant
-          ./grant check dir:.
+          cat > "$RUNNER_TEMP/grant.yaml" <<'EOF'
+          require-license: false
+          allow: [Apache.*, MIT.*, BSD.*, ISC, 0BSD, MPL.*, PSF.*, Python.*, Unlicense, CC0.*, Zlib, BSL-1.0]
+          EOF
+          ./grant check -c "$RUNNER_TEMP/grant.yaml" dir:.
 
   # A floor the test run enforces itself, with no account or token to set up.
   - tool: "pytest-cov"
@@ -217,14 +223,14 @@ templates:
   - tool: "go-test-coverage"
     platform: "github"
     step: |
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Test with coverage
         run: go test -coverprofile=cover.out ./...
       # Set the floor to today's total coverage, so the build fails when it drops.
       - name: Check the coverage floor
-        uses: vladopajic/go-test-coverage@v2
+        uses: vladopajic/go-test-coverage@249eda999ac7e91238727277beec9b32b28a19b0 # v2.21.0
         with:
           profile: cover.out
           threshold-total: 50
@@ -233,7 +239,7 @@ templates:
     platform: "github"
     step: |
       - name: Lint
-        uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           args: --timeout=5m
 
@@ -259,7 +265,7 @@ templates:
     missing: "k6 needs a load test script, load-test.js, for a service started in CI"
     step: |
       - name: Set up k6
-        uses: grafana/setup-k6-action@v1
+        uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1 # v1.2.2
       # Start the service first. Thresholds in the script fail the build.
       - name: Load test
         run: k6 run load-test.js
@@ -271,7 +277,7 @@ templates:
     platform: "github"
     step: |
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           format: spdx-json
           artifact-name: sbom.spdx.json
@@ -282,7 +288,7 @@ templates:
       # advanced-security: false fails the job on findings instead of
       # uploading them, which would need security-events: write.
       - name: Check workflows for security problems
-        uses: zizmorcore/zizmor-action@v0.7.1
+        uses: zizmorcore/zizmor-action@53290badfa369cb0bf7ad16342cb62c2fa47ac7b # v0.8.0
         with:
           advanced-security: false
 

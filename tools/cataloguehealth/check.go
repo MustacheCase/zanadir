@@ -28,7 +28,8 @@ type finding struct {
 
 var (
 	githubRepository = regexp.MustCompile(`^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/?$`)
-	pinnedAction     = regexp.MustCompile(`uses:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?:/[^@\s]*)?@([^\s\\"]+)`)
+	pinnedAction     = regexp.MustCompile(`uses:\s*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)(?:/[^@\s]*)?@([^\s\\"]+)(?:[ \t]+#[ \t]*([^\s\\"]+))?`)
+	commitPin        = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	semver           = regexp.MustCompile(`^v?\d+(?:\.\d+)*$`)
 )
 
@@ -76,7 +77,7 @@ func check(root, token string, now time.Time) ([]finding, error) {
 	}
 	for _, t := range templates.Templates {
 		for _, pin := range pinnedAction.FindAllStringSubmatch(t.Step, -1) {
-			pins, err := gh.pin(pin[1], pin[2], now)
+			pins, err := gh.pin(pin[1], pin[2], pin[3], now)
 			if err != nil {
 				return nil, err
 			}
@@ -93,7 +94,7 @@ func check(root, token string, now time.Time) ([]finding, error) {
 		return nil, err
 	}
 	for _, pin := range pinnedAction.FindAllStringSubmatch(string(skeleton), -1) {
-		pins, err := gh.pin(pin[1], pin[2], now)
+		pins, err := gh.pin(pin[1], pin[2], pin[3], now)
 		if err != nil {
 			return nil, err
 		}
@@ -125,8 +126,9 @@ func (r *repository) health(now time.Time) []finding {
 }
 
 // pin judges a template's action pin: the repository, the ref being a tag
-// that exists, and a newer major being out.
-func (gh *github) pin(name, ref string, now time.Time) ([]finding, error) {
+// that exists - for a commit, the tag in its comment, at that commit - and a
+// newer major being out.
+func (gh *github) pin(name, ref, comment string, now time.Time) ([]finding, error) {
 	repo, err := gh.repository(name)
 	if err != nil {
 		return nil, err
@@ -134,6 +136,19 @@ func (gh *github) pin(name, ref string, now time.Time) ([]finding, error) {
 	findings := repo.health(now)
 	if repo.Missing || repo.Archived {
 		return findings, nil
+	}
+	if commitPin.MatchString(ref) {
+		if !repo.Tags[comment] {
+			return append(findings, finding{Broken: true, Repo: name, Detail: fmt.Sprintf("@%s is not labelled with a tag", ref[:7])}), nil
+		}
+		at, err := gh.commitOf(name, comment)
+		if err != nil {
+			return nil, err
+		}
+		if at != ref {
+			return append(findings, finding{Broken: true, Repo: name, Detail: fmt.Sprintf("@%s is not %s", ref[:7], comment)}), nil
+		}
+		ref = comment
 	}
 	if !repo.Tags[ref] {
 		return append(findings, finding{Broken: true, Repo: name, Detail: fmt.Sprintf("@%s is not a tag", ref)}), nil

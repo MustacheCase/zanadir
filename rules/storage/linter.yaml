@@ -81,6 +81,11 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bshellcheck\\b"
 
+  - id: "yamllint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\byamllint\\b"
+
   - id: "clippy-rule"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]

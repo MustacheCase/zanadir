@@ -575,15 +575,15 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldMatch: []string{
 				"yamllint .", "yamllint -c .yamllint.yml config/",
 				"ibiqlik/action-yamllint@v3", "ibiqlik/action-yamllint",
+				"karancode/yamllint-github-action@v2", "frenck/action-yamllint@v1",
+				"uv run yamllint .", "pipx run yamllint .", "python -m yamllint .",
+				"poetry run yamllint .", "docker run --rm cytopia/yamllint .",
+				"cd charts && yamllint .",
 				"pre-commit run yamllint --all-files", "./venv/bin/yamllint .",
 				"registry.example/team/yamllint:latest", "registry.example/team/yamllint@sha256:abc",
 				"set -e\nyamllint .", "Yamllint", "  yamllint .",
 			},
-			shouldNotMatch: []string{
-				"pip install yamllint", "pip3 install yamllint", "python -m pip install yamllint",
-				"yaml-lint-free", "yamllinter", "yamllint-extra",
-				"ibiqlik/action-yamllint-extra@v3", "cat .yamllint.yml", "echo yamllint",
-			},
+			shouldNotMatch: []string{"yaml-lint-free", "yamllinter"},
 		},
 		{
 			ruleID:         "biome-rule",

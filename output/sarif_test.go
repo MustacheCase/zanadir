@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MustacheCase/zanadir/grading"
 	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
 )
@@ -211,7 +212,7 @@ func TestSarifWeakenedResultWithNoLocation(t *testing.T) {
 
 func TestWeakenedHelpCoversEveryVerdict(t *testing.T) {
 	for _, verdict := range []string{"advisory", "partial", "unknown", ""} {
-		if weakenedHelp(verdict) == "" {
+		if weakenedHelp(Weakness{Verdict: verdict}) == "" {
 			t.Errorf("no help text for %q", verdict)
 		}
 	}
@@ -221,4 +222,16 @@ func TestSarifLocationIsAnEscapedURI(t *testing.T) {
 	log := buildSarif(nil, "", []Weakness{{Category: "SCA", Verdict: "advisory", Location: ".github/workflows/a b#?%.yml"}})
 
 	assert.Equal(t, ".github/workflows/a%20b%23%3F%25.yml", log.Runs[0].Results[0].Locations[0].PhysicalLocation.ArtifactLocation.URI)
+}
+
+// A control that cannot see some dependencies does block a pull request, so
+// its message and help must not say it does not.
+func TestWeakenedMessageFollowsTheReason(t *testing.T) {
+	unaudited := Weakness{Category: "SCA", Verdict: "partial", Reason: "uv.lock installs forked from a git or URL source, which no dependency scanner can look up"}
+	assert.Equal(t, "SCA tooling is present but partial: uv.lock installs forked from a git or URL source, which no dependency scanner can look up.", weakenedMessage(unaudited))
+	assert.NotContains(t, weakenedHelp(unaudited), "pull requests")
+
+	notRequired := Weakness{Category: "SAST", Verdict: "partial", Reason: grading.NotRequired}
+	assert.Contains(t, weakenedMessage(notRequired), "so a failing run does not block a pull request.")
+	assert.Contains(t, weakenedHelp(notRequired), "pull requests go unchecked")
 }

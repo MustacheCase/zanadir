@@ -18,6 +18,7 @@ import (
 	"github.com/MustacheCase/zanadir/gate"
 	"github.com/MustacheCase/zanadir/grading"
 	"github.com/MustacheCase/zanadir/language"
+	"github.com/MustacheCase/zanadir/lockfile"
 	"github.com/MustacheCase/zanadir/logger"
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
@@ -127,6 +128,9 @@ func weakened(excluded []string, dir string, findings []*matcher.Finding, merge 
 	}
 
 	assessments := grading.ByCategory(findings, merge)
+	if sca, covered := assessments[string(models.SCA)]; covered {
+		assessments[string(models.SCA)] = grading.Unaudited(sca, lockfile.UV, lockfile.Unauditable(dir))
+	}
 	list := make([]output.Weakness, 0, len(assessments))
 	for category, assessment := range assessments {
 		debugf("Category %s is %s", category, assessment.Verdict)

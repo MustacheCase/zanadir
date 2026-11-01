@@ -1204,3 +1204,25 @@ func TestAnalyseCountsCodeScanningMergeProtection(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, result.weaknesses, sca, "Trivy's alerts block the merge")
 }
+
+// The lockfile is read from the scan directory, and only dependency scanning
+// answers for it.
+func TestWeakenedGradesUnauditableDependenciesPartial(t *testing.T) {
+	dir := t.TempDir()
+	lock := "[[package]]\nname = \"forked\"\nversion = \"0.1.0\"\nsource = { git = \"https://github.com/example/forked?rev=a#a\" }\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "uv.lock"), []byte(lock), 0o600))
+	ci := filepath.Join(dir, ".github", "workflows", "ci.yml")
+
+	weaknesses := weakened(nil, dir, []*matcher.Finding{
+		weakFinding("SCA", ci, &models.Job{}),
+		weakFinding("SAST", ci, &models.Job{}),
+	}, nil, func(string, ...interface{}) {})
+
+	require.Len(t, weaknesses, 1)
+	assert.Equal(t, output.Weakness{
+		Category: "SCA",
+		Verdict:  "partial",
+		Location: ".github/workflows/ci.yml",
+		Reason:   "uv.lock installs forked from a git or URL source, which no dependency scanner can look up",
+	}, weaknesses[0])
+}

@@ -576,9 +576,8 @@ func TestParseSkipsWorkflowsItCannotRead(t *testing.T) {
 	for _, name := range []string{"dangling.yml", "loop.yml", "dir.yml"} {
 		assert.Contains(t, reasons[name], "it cannot be read", name)
 	}
-	if os.Geteuid() != 0 {
-		assert.Contains(t, reasons["locked.yml"], "permission denied")
-	}
+	testrepo.NeedsPermissions(t)
+	assert.Contains(t, reasons["locked.yml"], "permission denied")
 }
 
 func compositeRepo(t *testing.T, files map[string]string) []*models.Job {

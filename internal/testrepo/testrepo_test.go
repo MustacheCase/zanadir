@@ -25,3 +25,15 @@ func TestTouch(t *testing.T) {
 		}
 	}
 }
+
+func TestNeedsPermissions(t *testing.T) {
+	defer func(was bool) { permissionsIgnored = was }(permissionsIgnored)
+	for _, ignored := range []bool{false, true} {
+		permissionsIgnored = ignored
+		ran := false
+		t.Run("", func(t *testing.T) { NeedsPermissions(t); ran = true })
+		if ran == ignored {
+			t.Errorf("with permissions ignored %v, the test ran: %v", ignored, ran)
+		}
+	}
+}

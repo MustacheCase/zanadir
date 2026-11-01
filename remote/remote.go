@@ -604,11 +604,13 @@ func underTests(name string) bool {
 	return slices.ContainsFunc(strings.Split(name, "/"), utils.IsTestDir)
 }
 
-// within joins name onto dir, refusing a name that is absolute or resolves
-// outside it.
+// within joins name onto dir, refusing a name that is absolute, rooted, names
+// a drive (Windows' \x and C:x) or resolves outside dir.
 func within(dir, name string) (string, error) {
-	target := filepath.Join(dir, filepath.FromSlash(name))
-	if filepath.IsAbs(filepath.FromSlash(name)) || !strings.HasPrefix(target, filepath.Clean(dir)+string(filepath.Separator)) {
+	local := filepath.FromSlash(name)
+	target := filepath.Join(dir, local)
+	if filepath.IsAbs(local) || strings.HasPrefix(local, string(filepath.Separator)) || filepath.VolumeName(local) != "" ||
+		!strings.HasPrefix(target, filepath.Clean(dir)+string(filepath.Separator)) {
 		return "", fmt.Errorf("the archive has an entry outside the repository: %q", name)
 	}
 	return target, nil

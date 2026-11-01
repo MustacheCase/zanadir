@@ -193,9 +193,7 @@ func TestJenkinsFiles(t *testing.T) {
 }
 
 func TestJenkinsUnreadableFile(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root reads any file")
-	}
+	testrepo.NeedsPermissions(t)
 	root := testrepo.Write(t, map[string]string{"Jenkinsfile": "sh 'make'\n"})
 	require.NoError(t, os.Chmod(filepath.Join(root, "Jenkinsfile"), 0o000))
 	artifacts, err := NewJenkinsParser().Parse(root)

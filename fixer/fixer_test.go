@@ -622,7 +622,7 @@ var github, _ = parser.Lookup(parser.GitHub)
 func TestTemplatesPinActionsToReleases(t *testing.T) {
 	data, err := os.ReadFile("templates.yaml")
 	require.NoError(t, err)
-	for _, ref := range regexp.MustCompile(`uses: ([^\s@]+)@(\S+)(.*)`).FindAllStringSubmatch(string(data), -1) {
+	for _, ref := range regexp.MustCompile(`uses: ([^\s@]+)@(\S+)([^\r\n]*)`).FindAllStringSubmatch(string(data), -1) {
 		assert.Regexp(t, `^[0-9a-f]{40}$`, ref[2], ref[1])
 		assert.Regexp(t, `^ # v\d+(\.\d+)*$`, ref[3], ref[1])
 	}

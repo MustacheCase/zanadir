@@ -4,6 +4,7 @@ package testrepo
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,4 +32,16 @@ func Touch(t testing.TB, paths ...string) string {
 		files[path] = "x"
 	}
 	return Write(t, files)
+}
+
+// Root and Windows do not enforce permission bits.
+var permissionsIgnored = os.Geteuid() == 0 || runtime.GOOS == "windows"
+
+// NeedsPermissions skips a test that relies on a file or directory it cannot
+// read or write.
+func NeedsPermissions(t testing.TB) {
+	t.Helper()
+	if permissionsIgnored {
+		t.Skip("permission bits are not enforced here")
+	}
 }

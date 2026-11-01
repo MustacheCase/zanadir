@@ -127,9 +127,7 @@ func TestNotApplicableWithAnEmptyRepository(t *testing.T) {
 // A directory it cannot read must not crash the walk, and must not be taken as
 // evidence either way.
 func TestIaCToleratesAnUnreadableDirectory(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores directory permissions")
-	}
+	testrepo.NeedsPermissions(t)
 
 	dir := testrepo.Touch(t, "go.mod", ".github/workflows/ci.yml")
 	locked := filepath.Join(dir, "locked")
@@ -201,9 +199,7 @@ func TestIaCDoesNotFollowASymlinkedFile(t *testing.T) {
 }
 
 func TestIaCToleratesAnUnreadableManifest(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("root ignores file permissions")
-	}
+	testrepo.NeedsPermissions(t)
 
 	dir := testrepo.Write(t, map[string]string{".github/workflows/ci.yml": "on: push\n", "template.yaml": "AWSTemplateFormatVersion: x\n"})
 	assert.NoError(t, os.Chmod(filepath.Join(dir, "template.yaml"), 0o000))

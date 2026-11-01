@@ -391,15 +391,8 @@ func TestWriteWorkflowReportsAnOccupiedPath(t *testing.T) {
 }
 
 // Root ignores the permission bits these tests rely on.
-func skipIfRoot(t *testing.T) {
-	t.Helper()
-	if os.Geteuid() == 0 {
-		t.Skip("running as root; permission bits do not apply")
-	}
-}
-
 func TestWriteWorkflowReportsAnUncreatableDirectory(t *testing.T) {
-	skipIfRoot(t)
+	testrepo.NeedsPermissions(t)
 	dir := t.TempDir()
 	github := filepath.Join(dir, ".github")
 	assert.NoError(t, os.MkdirAll(github, 0o755))
@@ -426,7 +419,7 @@ func TestWriteWorkflowStaysInTheRepository(t *testing.T) {
 }
 
 func TestWriteWorkflowReportsAnUnwritableFile(t *testing.T) {
-	skipIfRoot(t)
+	testrepo.NeedsPermissions(t)
 	dir := t.TempDir()
 	path := filepath.Join(dir, filepath.FromSlash(generatedWorkflow))
 	assert.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))

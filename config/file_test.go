@@ -22,6 +22,8 @@ func withConfig(cmd *cobra.Command, path string) *cobra.Command {
 }
 
 func TestConfigFileSetsScanFlags(t *testing.T) {
+	baseline, err := filepath.Abs("/abs/baseline.yaml")
+	require.NoError(t, err)
 	path := writeConfig(t, `
 excluded-categories: [performance testing]
 enforce: true
@@ -30,7 +32,7 @@ fail-on-weakened: true
 required-checks: true
 output: markdown
 badge: badge.json
-baseline: /abs/baseline.yaml
+baseline: `+baseline+`
 `)
 	cmd := withConfig(newScanCmd(t.TempDir(), nil), path)
 	cmd.Flags().String("output-file", "", "output file")
@@ -44,7 +46,7 @@ baseline: /abs/baseline.yaml
 	assert.True(t, cfg.RequiredChecks)
 	assert.Equal(t, OutputMarkdown, cfg.Output)
 	assert.Equal(t, filepath.Join(filepath.Dir(path), "badge.json"), cfg.Badge)
-	assert.Equal(t, "/abs/baseline.yaml", cfg.Baseline)
+	assert.Equal(t, baseline, cfg.Baseline)
 	assert.Empty(t, cfg.OutputFile)
 }
 

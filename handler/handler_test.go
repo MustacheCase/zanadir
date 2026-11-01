@@ -1058,7 +1058,7 @@ func TestMergeGate(t *testing.T) {
 	assert.Nil(t, mergeGate(&config.Config{Repo: repo, RequiredChecks: true}, nil))
 	assert.Nil(t, mergeGate(&config.Config{Dir: t.TempDir(), RequiredChecks: true}, nil))
 	assert.Contains(t, warnings.String(), "Warning: --required-checks could not read the merge settings (rate limited); grading without them\n")
-	assert.Contains(t, warnings.String(), ".git/config")
+	assert.Contains(t, warnings.String(), filepath.Join(".git", "config"))
 }
 
 func TestReportGate(t *testing.T) {

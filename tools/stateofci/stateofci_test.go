@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -158,6 +159,9 @@ func TestLoadCandidatesSavesAndReuses(t *testing.T) {
 // is rate limited once, o/nobody has no CI, everything else has GitHub CI.
 func fakeZanadir(t *testing.T) string {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake zanadir is a shell script")
+	}
 	dir := t.TempDir()
 	script := filepath.Join(dir, "zanadir")
 	state := filepath.Join(dir, "busy-once")

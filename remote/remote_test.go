@@ -10,11 +10,14 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -217,7 +220,11 @@ func TestFetchWithoutTokenOrRef(t *testing.T) {
 }
 
 func TestFetchRefusesEntriesOutsideTheRepository(t *testing.T) {
-	for _, name := range []string{"o-r-1/../../escaped.yml", "o-r-1/..", "o-r-1//etc/passwd"} {
+	names := []string{"o-r-1/../../escaped.yml", "o-r-1/..", "o-r-1//etc/passwd"}
+	if runtime.GOOS == "windows" {
+		names = append(names, `o-r-1/\etc\passwd`, "o-r-1/C:x", `o-r-1/..\..\escaped.yml`)
+	}
+	for _, name := range names {
 		serve(t, http.StatusOK, tarball(t, entry{name: name, body: "x"}))
 		_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
 		assert.ErrorContains(t, err, "outside the repository", name)
@@ -668,6 +675,7 @@ func TestFetchFallsBackToTheArchive(t *testing.T) {
 func TestResetTo(t *testing.T) {
 	assert.Error(t, resetTo(filepath.Join(t.TempDir(), "missing")))
 
+	testrepo.NeedsPermissions(t)
 	dir := t.TempDir()
 	locked := filepath.Join(dir, "locked")
 	require.NoError(t, os.MkdirAll(filepath.Join(locked, "sub"), 0o755))

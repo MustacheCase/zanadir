@@ -22,7 +22,7 @@
   // The module ships gzipped (4 MB rather than 17), since GitHub Pages may
   // not compress it. A server that already decoded it sends plain wasm.
   // Bumped with each zanadir-action release.
-  const ACTION = "mustachecase/zanadir-action@v1.37";
+  const ACTION = "mustachecase/zanadir-action@v1.38";
   const WORKFLOW = `name: zanadir
 
 on:

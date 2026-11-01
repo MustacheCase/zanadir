@@ -510,7 +510,7 @@ func exists(path string) bool {
 }
 
 // contentOf says how much of a file zanadir reads: CI and build files and
-// uv.lock whole, the head of other JSON for IaC detection, else only the name.
+// the root uv.lock whole, the head of other JSON for IaC detection, else only the name.
 func contentOf(name string) content {
 	if keepContent(name) {
 		return whole
@@ -525,13 +525,17 @@ func keepContent(name string) bool {
 	if slices.Contains(strings.Split(filepath.ToSlash(name), "/"), ".make") {
 		return true
 	}
+	// Only the root lockfile is read; a monorepo can hold hundreds more.
+	if filepath.ToSlash(name) == "uv.lock" {
+		return true
+	}
 	base := strings.ToLower(filepath.Base(name))
 	switch filepath.Ext(base) {
 	case ".yml", ".yaml", ".mk", ".sh", ".bash":
 		return true
 	}
 	switch base {
-	case ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5", "tox.ini", ".gitattributes", "package.json", "uv.lock":
+	case ".renovaterc", ".renovaterc.json", ".renovaterc.json5", "renovate.json", "renovate.json5", "tox.ini", ".gitattributes", "package.json":
 		return true
 	}
 	// Makefile.common and the like are included by the Makefile.

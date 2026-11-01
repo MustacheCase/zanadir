@@ -22,6 +22,7 @@ type fakeRepo struct {
 	pushed   string
 	released string
 	tags     map[string]string
+	commits  map[string]string
 }
 
 // fakeGitHub serves the repositories given, 404s anything else, and fails
@@ -64,7 +65,8 @@ func fakeGitHub(t *testing.T, repos map[string]fakeRepo, broken ...string) *[]st
 			}
 			body = refs
 		case strings.HasPrefix(rest, "commits/"):
-			body = map[string]any{"commit": map[string]any{"committer": map[string]any{"date": repo.tags[strings.TrimPrefix(rest, "commits/")]}}}
+			ref := strings.TrimPrefix(rest, "commits/")
+			body = map[string]any{"sha": repo.commits[ref], "commit": map[string]any{"committer": map[string]any{"date": repo.tags[ref]}}}
 		}
 		_ = json.NewEncoder(w).Encode(body)
 	}))
@@ -124,8 +126,16 @@ const templates = `templates:
   - tool: Missing
     step: "- uses: o/nothing@v1"
   - tool: CLI
-    step: "- run: gitleaks detect"
+    step: "- run: gitleaks git"
+  - tool: Commit
+    step: "- uses: o/action@` + v31 + ` # v3.1.0"
+  - tool: Relabelled
+    step: "- uses: o/action@` + v31 + ` # v3"
+  - tool: Unlabelled
+    step: "- uses: o/action@` + v31 + `"
 `
+
+const v31 = "3a1c0de5e4f0a1b2c3d4e5f60718293a4b5c6d7e"
 
 func healthyAndNot() map[string]fakeRepo {
 	return map[string]fakeRepo{
@@ -133,7 +143,8 @@ func healthyAndNot() map[string]fakeRepo {
 		"o/frozen":   {archived: true},
 		"o/quiet":    {released: "2024-01-01T00:00:00Z", tags: map[string]string{"v1.0.0": "2024-01-01T00:00:00Z", "v1.1.0-rc1": "2026-01-01T00:00:00Z"}},
 		"o/untagged": {pushed: "2023-05-29T00:00:00Z"},
-		"o/action":   {released: "2020-01-01T00:00:00Z", tags: map[string]string{"v2": "2026-08-01T00:00:00Z", "v3": "2026-08-01T00:00:00Z", "v3.1.0": "2026-09-01T00:00:00Z", "latest": "2026-10-01T00:00:00Z"}},
+		"o/action": {released: "2020-01-01T00:00:00Z", tags: map[string]string{"v2": "2026-08-01T00:00:00Z", "v3": "2026-08-01T00:00:00Z", "v3.1.0": "2026-09-01T00:00:00Z", "latest": "2026-10-01T00:00:00Z"},
+			commits: map[string]string{"v3.1.0": v31, "v3": "9b8a7f6e5d4c3b2a19087f6e5d4c3b2a19087f6e"}},
 	}
 }
 
@@ -149,13 +160,15 @@ func TestCheckJudgesEveryRecommendedToolAndPin(t *testing.T) {
 		{Source: "fix template", Tool: "Behind", Repo: "o/action", Detail: "pinned to v2; v3 is out"},
 		{Broken: true, Source: "fix template", Tool: "Branch", Repo: "o/action", Detail: "@main is not a tag"},
 		{Broken: true, Source: "fix template", Tool: "Missing", Repo: "o/nothing", Detail: "the repository does not exist"},
+		{Broken: true, Source: "fix template", Tool: "Relabelled", Repo: "o/action", Detail: "@3a1c0de is not v3"},
+		{Broken: true, Source: "fix template", Tool: "Unlabelled", Repo: "o/action", Detail: "@3a1c0de is not labelled with a tag"},
 		{Source: "fix workflow", Tool: "o/action", Repo: "o/action", Detail: "pinned to v2; v3 is out"},
 		{Broken: true, Source: "fix workflow", Tool: "o/frozen", Repo: "o/frozen", Detail: "the repository is archived"},
 	}, findings, "an old release is rescued by a newer tag, but not by a pre-release; a repository is read once and reported once")
 }
 
 func TestCheckReportsAFailedRequest(t *testing.T) {
-	for _, path := range []string{"/repos/o/alive", "/repos/o/alive/releases/latest", "/repos/o/quiet/git/matching-refs/tags", "/repos/o/quiet/commits/v1.0.0", "/repos/o/action", "/repos/o/skeleton"} {
+	for _, path := range []string{"/repos/o/alive", "/repos/o/alive/releases/latest", "/repos/o/quiet/git/matching-refs/tags", "/repos/o/quiet/commits/v1.0.0", "/repos/o/action/commits/v3", "/repos/o/action", "/repos/o/skeleton"} {
 		fakeGitHub(t, healthyAndNot(), path)
 		_, err := check(catalogue(t, suggestions, templates, "uses: o/skeleton@v1"), "", now)
 		assert.ErrorContains(t, err, "502 Bad Gateway for "+path)

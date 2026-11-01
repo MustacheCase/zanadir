@@ -1066,8 +1066,9 @@ Not covered, with no snippet that fits:
 Coverage snippets set a floor the test run enforces itself
 (`pytest --cov-fail-under`, `go-test-coverage`), with no account or token;
 set it to today's coverage. Templates live in `fixer/templates.yaml` and pin
-actions to a major tag, or to a release where the action publishes no major
-tag, never to a branch; adding one is a self-contained contribution.
+every action to a commit with its release in a comment, so the generated
+workflow passes zizmor; images, packages and binaries are pinned to a release.
+Adding one is a self-contained contribution.
 
 ### Generating a workflow
 

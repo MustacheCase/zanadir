@@ -617,15 +617,16 @@ func TestTemplatesAreReadByTheParser(t *testing.T) {
 // github is the platform most Render tests write for.
 var github, _ = parser.Lookup(parser.GitHub)
 
-// A snippet that names an action follows a release, never a branch: a branch
-// changes under the user, and zizmor reports it.
+// A snippet names an action by commit with its release in a comment, never a
+// branch: zizmor's unpinned-uses audit asks that of the generated workflow.
 func TestTemplatesPinActionsToReleases(t *testing.T) {
 	data, err := os.ReadFile("templates.yaml")
 	require.NoError(t, err)
-	for _, ref := range regexp.MustCompile(`uses: ([^\s@]+)@(\S+)`).FindAllStringSubmatch(string(data), -1) {
-		assert.Regexp(t, `^v\d+(\.\d+)*$`, ref[2], ref[1])
+	for _, ref := range regexp.MustCompile(`uses: ([^\s@]+)@(\S+)(.*)`).FindAllStringSubmatch(string(data), -1) {
+		assert.Regexp(t, `^[0-9a-f]{40}$`, ref[2], ref[1])
+		assert.Regexp(t, `^ # v\d+(\.\d+)*$`, ref[3], ref[1])
 	}
-	assert.Contains(t, Workflow(Plan{}), "actions/checkout@v7\n        with:\n          persist-credentials: false\n")
+	assert.Contains(t, Workflow(Plan{}), "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n")
 }
 
 // The glsec snippet, pasted into .gitlab-ci.yml, is found by the rule that

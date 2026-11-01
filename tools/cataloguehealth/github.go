@@ -56,6 +56,15 @@ func (gh *github) repository(name string) (*repository, error) {
 	return repo, nil
 }
 
+// commitOf returns the commit a ref points at, through an annotated tag.
+func (gh *github) commitOf(name, ref string) (string, error) {
+	var commit struct {
+		SHA string `json:"sha"`
+	}
+	_, err := gh.get("/repos/"+name+"/commits/"+ref, &commit)
+	return commit.SHA, err
+}
+
 func (gh *github) releases(repo *repository) error {
 	var release struct {
 		Published time.Time `json:"published_at"`

@@ -441,7 +441,10 @@ func newFixHandler(categories ...string) *Handler {
 			},
 		})
 	}
+	return fixHandlerSuggesting(suggestions...)
+}
 
+func fixHandlerSuggesting(suggestions ...*suggester.CategorySuggestion) *Handler {
 	h := newEnforcementHandler()
 	m := new(MockSuggester)
 	m.On("FindSuggestions", mock.Anything, mock.Anything, mock.Anything).Return(suggestions)
@@ -475,6 +478,36 @@ func TestHandler_FixWriteWithNothingToWrite(t *testing.T) {
 	_, err := os.Stat(filepath.Join(dir, ".github", "workflows", "zanadir-suggested.yml"))
 	assert.True(t, os.IsNotExist(err), "no file should be written when there is nothing to add")
 }
+
+// A category fix has no snippet for is named, both on the screen and in the
+// generated file, rather than left out without a word.
+func TestHandler_FixWriteNamesTheGaps(t *testing.T) {
+	unitTests := &suggester.CategorySuggestion{ID: "Unit Tests", Name: "Unit Tests", Suggestions: []*suggester.Suggestion{{Name: "JUnit"}}}
+	secrets := &suggester.CategorySuggestion{ID: "Secrets Detection", Name: "Secrets", Suggestions: []*suggester.Suggestion{{Name: "Gitleaks"}}}
+	gap := "Not covered, with no snippet that fits:\n  Unit Tests: no ready-made snippet for this repository; suggested tools: JUnit.\n"
+
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".github", "workflows"), 0o755))
+	var buf bytes.Buffer
+	require.NoError(t, fixHandlerSuggesting(secrets, unitTests).Fix(&config.Config{Dir: dir, Write: true}, &buf))
+	assert.Contains(t, buf.String(), "Wrote .github/workflows/zanadir-suggested.yml (1 categories).")
+	assert.Contains(t, buf.String(), gap)
+	written, err := os.ReadFile(filepath.Join(dir, ".github", "workflows", "zanadir-suggested.yml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(written), "# - Unit Tests: no ready-made snippet")
+
+	buf.Reset()
+	require.NoError(t, fixHandlerSuggesting(unitTests).Fix(&config.Config{Dir: t.TempDir(), Write: true}, &buf))
+	assert.Equal(t, "Nothing to write: no uncovered category has a snippet that fits.\n"+gap, buf.String())
+
+	boom := errors.New("disk full")
+	assert.ErrorIs(t, fixHandlerSuggesting(unitTests).Fix(&config.Config{Dir: t.TempDir(), Write: true}, failingWriter{boom}), boom)
+	assert.ErrorIs(t, fixHandlerSuggesting(secrets).Fix(&config.Config{Dir: dir, Write: true}, failingWriter{boom}), boom)
+}
+
+type failingWriter struct{ err error }
+
+func (f failingWriter) Write([]byte) (int, error) { return 0, f.err }
 
 func TestHandler_FixWriteRejectsNonGitHubPlatform(t *testing.T) {
 	dir := t.TempDir()

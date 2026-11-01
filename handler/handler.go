@@ -285,26 +285,30 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 	platform := parser.Detect(cfg.Dir)
 	debugf("Detected platform: %s", platform.ID)
 
-	snippets := fixService.Snippets(suggestions, platform.ID)
+	plan := fixService.Plan(suggestions, platform.ID, cfg.Dir)
 
 	if !cfg.Write {
-		return fixer.Render(w, snippets, platform)
+		return fixer.Render(w, plan, platform)
 	}
 
 	if platform.ID != parser.GitHub {
 		return fmt.Errorf("--write generates a GitHub Actions workflow; %s is not supported yet, run without --write to print the snippets", platform.ID)
 	}
-	if len(snippets) == 0 {
-		_, err := fmt.Fprintln(w, "Nothing to write: every uncovered category either has no template yet, or there is nothing uncovered.")
-		return err
+	if len(plan.Snippets) == 0 {
+		if _, err := fmt.Fprintln(w, "Nothing to write: no uncovered category has a snippet that fits."); err != nil {
+			return err
+		}
+		return fixer.RenderGaps(w, plan.Gaps)
 	}
 
-	path, err := fixer.WriteWorkflow(cfg.Dir, snippets)
+	path, err := fixer.WriteWorkflow(cfg.Dir, plan)
 	if err != nil {
 		return err
 	}
-	_, err = fmt.Fprintf(w, "Wrote %s (%d categories).\nIt runs as its own job, so it repeats checkout and adds a check to pull requests.\n", path, len(snippets))
-	return err
+	if _, err := fmt.Fprintf(w, "Wrote %s (%d categories).\nIt runs as its own job, so it repeats checkout and adds a check to pull requests.\n", path, len(plan.Snippets)); err != nil {
+		return err
+	}
+	return fixer.RenderGaps(w, plan.Gaps)
 }
 
 // Execute scans the repository, reports the result, and fails when

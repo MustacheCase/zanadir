@@ -1051,12 +1051,23 @@ It prints only; no file is touched. The CI platform is detected from the
 repository, and snippets are emitted for GitHub Actions, GitLab CI, Bitbucket Pipelines, Azure Pipelines or Jenkins
 accordingly.
 
-Not every suggested tool has a template. A category whose tools are all
-untemplated is skipped rather than emitting something half-right, so `fix`
-covers fewer categories than `scan` reports. Templates live in
-`fixer/templates.yaml` and pin actions to a major tag, or to a release
-where the action publishes no major tag, never to a branch; adding one is a
-self-contained contribution.
+Not every suggested tool has a template, and some templates need a file the
+repository may not have: the end-of-life check builds an image from a
+`Dockerfile`, and the load test runs a `load-test.js` written for the service.
+`fix` emits nothing half-right. A category it cannot fill is listed at the end
+with the reason, and with the exclusion to use when the category does not
+apply:
+
+```
+Not covered, with no snippet that fits:
+  End-of-Life Package Checkers: Trivy checks a container image, and there is no Dockerfile at the repository root to build one. If it does not apply here, exclude it with -e "End Of Life".
+```
+
+Coverage snippets set a floor the test run enforces itself
+(`pytest --cov-fail-under`, `go-test-coverage`), with no account or token;
+set it to today's coverage. Templates live in `fixer/templates.yaml` and pin
+actions to a major tag, or to a release where the action publishes no major
+tag, never to a branch; adding one is a self-contained contribution.
 
 ### Generating a workflow
 
@@ -1071,6 +1082,9 @@ zanadir fix --dir . --write
 Wrote .github/workflows/zanadir-suggested.yml (9 categories).
 It runs as its own job, so it repeats checkout and adds a check to pull requests.
 ```
+
+The categories it could not fill are listed after that, and in a comment at
+the top of the file.
 
 Existing workflows are never edited, so nothing you wrote can be damaged; the
 worst case is a file you delete. Re-running overwrites the generated file and

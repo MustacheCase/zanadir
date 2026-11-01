@@ -73,7 +73,7 @@ func TestSnippetsOnePerCategory(t *testing.T) {
 		},
 	}
 
-	snippets := testFixer(t).Snippets(suggestions, parser.GitHub)
+	snippets := testFixer(t).Plan(suggestions, parser.GitHub, "").Snippets
 
 	assert.Len(t, snippets, 1, "one snippet per category, not per tool")
 	assert.Equal(t, "Gitleaks", snippets[0].Tool)
@@ -92,7 +92,7 @@ func TestSnippetsFallsThroughToATemplatedTool(t *testing.T) {
 		},
 	}
 
-	snippets := testFixer(t).Snippets(suggestions, parser.GitHub)
+	snippets := testFixer(t).Plan(suggestions, parser.GitHub, "").Snippets
 
 	assert.Len(t, snippets, 1)
 	assert.Equal(t, "Trivy", snippets[0].Tool)
@@ -104,8 +104,108 @@ func TestSnippetsSkipsUntemplatedCategory(t *testing.T) {
 			Suggestions: []*suggester.Suggestion{{Name: "JUnit"}, {Name: "pytest"}}},
 	}
 
-	assert.Empty(t, testFixer(t).Snippets(suggestions, parser.GitHub),
-		"a category with no template is skipped rather than guessed at")
+	plan := testFixer(t).Plan(suggestions, parser.GitHub, "")
+	assert.Empty(t, plan.Snippets, "a category with no template is reported rather than guessed at")
+	assert.Equal(t, []Gap{{Category: "Unit Tests", Reason: "no ready-made snippet for this repository; suggested tools: JUnit, pytest."}}, plan.Gaps)
+
+	plan = testFixer(t).Plan([]*suggester.CategorySuggestion{{ID: "Linter", Name: "Linting Tools"}}, parser.GitHub, "")
+	assert.Equal(t, []Gap{{Category: "Linting Tools", Reason: "no ready-made snippet for this repository."}}, plan.Gaps)
+}
+
+// End-of-life detection builds an image, and k6 runs a script; without the
+// file the step needs, fix says why instead of printing a step that fails.
+func TestPlanNeedsTheFilesATemplateRequires(t *testing.T) {
+	eol := []*suggester.CategorySuggestion{{ID: "End Of Life", Name: "End-of-Life Package Checkers",
+		Suggestions: []*suggester.Suggestion{{Name: "Trivy"}, {Name: "Docker Scout"}}}}
+	perf := []*suggester.CategorySuggestion{{ID: "Performance Testing", Name: "Performance",
+		Suggestions: []*suggester.Suggestion{{Name: "k6"}}}}
+
+	plan := testFixer(t).Plan(append(eol, perf...), parser.GitHub, testrepo.Touch(t, "go.mod"))
+	assert.Empty(t, plan.Snippets)
+	require.Len(t, plan.Gaps, 2)
+	assert.Equal(t, "End-of-Life Package Checkers", plan.Gaps[0].Category)
+	assert.Contains(t, plan.Gaps[0].Reason, "no Dockerfile at the repository root")
+	assert.Contains(t, plan.Gaps[0].Reason, `exclude it with -e "End Of Life".`)
+	assert.Contains(t, plan.Gaps[1].Reason, "load-test.js")
+
+	plan = testFixer(t).Plan(append(eol, perf...), parser.GitHub, testrepo.Touch(t, "Dockerfile", "load-test.js"))
+	assert.Empty(t, plan.Gaps)
+	require.Len(t, plan.Snippets, 2)
+	assert.Contains(t, plan.Snippets[1].Step, "k6 run load-test.js")
+}
+
+func TestValidateRejectsARequirementWithoutAReason(t *testing.T) {
+	catalogue := []suggester.CategorySuggestion{{ID: "End Of Life", Suggestions: []*suggester.Suggestion{{Name: "Trivy"}}}}
+	err := validate([]Template{{Tool: "Trivy", Platform: "github", Step: "- run: x", Requires: []string{"Dockerfile"}}}, catalogue)
+	assert.ErrorContains(t, err, "does not say why")
+}
+
+func TestRenderListsTheGaps(t *testing.T) {
+	gaps := []Gap{{Category: "Linter", Reason: "no ready-made snippet."}}
+
+	var buf bytes.Buffer
+	assert.NoError(t, Render(&buf, Plan{Snippets: samplePlan().Snippets, Gaps: gaps}, github))
+	assert.Contains(t, buf.String(), "SCA is not covered")
+	assert.Contains(t, buf.String(), "\n\nNot covered, with no snippet that fits:\n  Linter: no ready-made snippet.\n")
+
+	buf.Reset()
+	assert.NoError(t, Render(&buf, Plan{Gaps: gaps}, github))
+	assert.Equal(t, "Not covered, with no snippet that fits:\n  Linter: no ready-made snippet.\n", buf.String())
+
+	boom := errors.New("disk full")
+	assert.ErrorIs(t, RenderGaps(failWriter{err: boom}, gaps), boom)
+	assert.ErrorIs(t, RenderGaps(&failAfter{n: 1, err: boom}, gaps), boom)
+	assert.ErrorIs(t, Render(&failAfter{n: 4, err: boom}, Plan{Snippets: samplePlan().Snippets[:1], Gaps: gaps}, github), boom)
+}
+
+func TestWorkflowNamesWhatItLeftOut(t *testing.T) {
+	out := Workflow(Plan{Snippets: samplePlan().Snippets, Gaps: []Gap{{Category: "Linter", Reason: "no ready-made snippet."}}})
+	assert.Contains(t, out, "#\n# Not included:\n# - Linter: no ready-made snippet.\n")
+	assert.NotContains(t, Workflow(samplePlan()), "Not included")
+}
+
+// failAfter lets n writes through, then fails.
+type failAfter struct {
+	n   int
+	err error
+}
+
+func (f *failAfter) Write(p []byte) (int, error) {
+	if f.n == 0 {
+		return 0, f.err
+	}
+	f.n--
+	return len(p), nil
+}
+
+// Each of these snippets, pasted into a workflow, is a step its rule counts.
+func TestGithubTemplatesAreReadByTheirRule(t *testing.T) {
+	rs, err := rules.NewRulesService()
+	require.NoError(t, err)
+	templates, err := readTemplates()
+	require.NoError(t, err)
+
+	for tool, want := range map[string]struct {
+		category models.CategoryTitle
+		rule     string
+	}{
+		"Ruff":             {models.Linter, "ruff-rule"},
+		"pytest-cov":       {models.Coverage, "coverage-command-rule"},
+		"go-test-coverage": {models.Coverage, "coverage-command-rule"},
+		"k6":               {models.PerformanceTesting, "k6-rule"},
+	} {
+		idx := slices.IndexFunc(rs.GetCategoryRules(want.category), func(r *rules.Rule) bool { return r.ID == want.rule })
+		require.NotEqual(t, -1, idx, want.rule)
+		rule := rs.GetCategoryRules(want.category)[idx]
+
+		i := slices.IndexFunc(templates, func(t Template) bool { return t.Tool == tool && t.Platform == parser.GitHub })
+		require.NotEqual(t, -1, i, tool)
+		workflow := "on: pull_request\njobs:\n  a:\n    runs-on: x\n    steps:\n" + indent(templates[i].Step, "      ")
+		artifacts, err := parser.NewGithubParser().Parse(testrepo.Write(t, map[string]string{".github/workflows/ci.yml": workflow}))
+		require.NoError(t, err, tool)
+		require.NotEmpty(t, artifacts, tool)
+		assert.True(t, slices.ContainsFunc(artifacts[0].Jobs, func(job *models.Job) bool { return rule.Regex.MatchString(job.Run) }), tool)
+	}
 }
 
 func TestSnippetsArePlatformSpecific(t *testing.T) {
@@ -114,8 +214,8 @@ func TestSnippetsArePlatformSpecific(t *testing.T) {
 			Suggestions: []*suggester.Suggestion{{Name: "Gitleaks"}}},
 	}
 
-	gh := testFixer(t).Snippets(suggestions, parser.GitHub)
-	gl := testFixer(t).Snippets(suggestions, parser.GitLab)
+	gh := testFixer(t).Plan(suggestions, parser.GitHub, "").Snippets
+	gl := testFixer(t).Plan(suggestions, parser.GitLab, "").Snippets
 
 	assert.Contains(t, gh[0].Step, "- name: Detect secrets")
 	assert.NotContains(t, gh[0].Step, "secret_detection:")
@@ -129,7 +229,7 @@ func TestSnippetsEmptyForCircleCI(t *testing.T) {
 			Suggestions: []*suggester.Suggestion{{Name: "Gitleaks"}}},
 	}
 
-	assert.Empty(t, testFixer(t).Snippets(suggestions, parser.CircleCI))
+	assert.Empty(t, testFixer(t).Plan(suggestions, parser.CircleCI, "").Snippets)
 }
 
 func TestShippedTemplatesLookLikeYAML(t *testing.T) {
@@ -224,7 +324,7 @@ func TestRenderWritesPasteableBlocks(t *testing.T) {
 			Step: "- name: Scan\n  uses: aquasecurity/trivy-action@master"},
 	}
 
-	assert.NoError(t, Render(&buf, snippets, github))
+	assert.NoError(t, Render(&buf, Plan{Snippets: snippets}, github))
 
 	out := buf.String()
 	assert.Contains(t, out, "Secrets is not covered. Add to .github/workflows/security.yml:")
@@ -235,14 +335,14 @@ func TestRenderWritesPasteableBlocks(t *testing.T) {
 
 func TestRenderSaysSoWhenThereIsNothing(t *testing.T) {
 	var buf bytes.Buffer
-	assert.NoError(t, Render(&buf, nil, github))
+	assert.NoError(t, Render(&buf, Plan{}, github))
 	assert.Contains(t, buf.String(), "Nothing to fix")
 }
 
 func TestRenderNamesThePlatformsFile(t *testing.T) {
 	for _, platform := range parser.Platforms {
 		var buf bytes.Buffer
-		assert.NoError(t, Render(&buf, []Snippet{{Category: "C", Step: "- run: x"}}, platform))
+		assert.NoError(t, Render(&buf, Plan{Snippets: []Snippet{{Category: "C", Step: "- run: x"}}}, platform))
 		assert.Contains(t, buf.String(), "Add to "+platform.Target+":", platform.ID)
 	}
 }
@@ -251,21 +351,21 @@ func TestRenderPropagatesWriteErrors(t *testing.T) {
 	boom := errors.New("disk full")
 	w := failWriter{err: boom}
 
-	assert.ErrorIs(t, Render(w, []Snippet{{Category: "C", Step: "- run: x"}}, github), boom)
-	assert.ErrorIs(t, Render(w, nil, github), boom)
+	assert.ErrorIs(t, Render(w, Plan{Snippets: []Snippet{{Category: "C", Step: "- run: x"}}}, github), boom)
+	assert.ErrorIs(t, Render(w, Plan{}, github), boom)
 }
 
 type failWriter struct{ err error }
 
 func (f failWriter) Write([]byte) (int, error) { return 0, f.err }
 
-func sampleSnippets() []Snippet {
-	return []Snippet{
+func samplePlan() Plan {
+	return Plan{Snippets: []Snippet{
 		{Category: "Secrets", Tool: "Gitleaks", Repository: "https://github.com/gitleaks/gitleaks",
 			Step: "- name: Detect secrets\n  uses: gitleaks/gitleaks-action@v2"},
 		{Category: "SCA", Tool: "Trivy", Repository: "https://github.com/aquasecurity/trivy",
 			Step: "- name: Scan\n  uses: aquasecurity/trivy-action@master"},
-	}
+	}}
 }
 
 func TestWorkflowIsAValidWorkflow(t *testing.T) {
@@ -276,7 +376,7 @@ func TestWorkflowIsAValidWorkflow(t *testing.T) {
 			Steps  []map[string]interface{} `yaml:"steps"`
 		} `yaml:"jobs"`
 	}
-	assert.NoError(t, yaml.Unmarshal([]byte(Workflow(sampleSnippets())), &wf))
+	assert.NoError(t, yaml.Unmarshal([]byte(Workflow(samplePlan())), &wf))
 
 	assert.Equal(t, "zanadir-suggested", wf.Name)
 	job := wf.Jobs["suggested"]
@@ -290,7 +390,7 @@ func TestWorkflowIsAValidWorkflow(t *testing.T) {
 }
 
 func TestWorkflowStatesItsCost(t *testing.T) {
-	out := Workflow(sampleSnippets())
+	out := Workflow(samplePlan())
 	assert.Contains(t, out, generatedMarker)
 	assert.Contains(t, out, "repeats checkout")
 }
@@ -298,14 +398,14 @@ func TestWorkflowStatesItsCost(t *testing.T) {
 func TestWriteWorkflowIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 
-	path, err := WriteWorkflow(dir, sampleSnippets())
+	path, err := WriteWorkflow(dir, samplePlan())
 	assert.NoError(t, err)
 	assert.Equal(t, generatedWorkflow, path)
 
 	first, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(path)))
 	assert.NoError(t, err)
 
-	_, err = WriteWorkflow(dir, sampleSnippets())
+	_, err = WriteWorkflow(dir, samplePlan())
 	assert.NoError(t, err)
 	second, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(path)))
 	assert.NoError(t, err)
@@ -320,7 +420,7 @@ func TestWriteWorkflowRefusesToClobberAHandWrittenFile(t *testing.T) {
 	mine := "name: mine\non: [push]\n"
 	assert.NoError(t, os.WriteFile(path, []byte(mine), 0o644))
 
-	_, err := WriteWorkflow(dir, sampleSnippets())
+	_, err := WriteWorkflow(dir, samplePlan())
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not generated by zanadir")
@@ -332,7 +432,7 @@ func TestWriteWorkflowRefusesToClobberAHandWrittenFile(t *testing.T) {
 
 func TestWriteWorkflowIsReadableByOthers(t *testing.T) {
 	dir := t.TempDir()
-	path, err := WriteWorkflow(dir, sampleSnippets())
+	path, err := WriteWorkflow(dir, samplePlan())
 	assert.NoError(t, err)
 
 	info, err := os.Stat(filepath.Join(dir, filepath.FromSlash(path)))
@@ -348,15 +448,15 @@ func TestIsGeneratedWorkflow(t *testing.T) {
 
 func TestRenderPropagatesWriteErrorBetweenSnippets(t *testing.T) {
 	boom := errors.New("disk full")
-	err := Render(failWriter{err: boom}, sampleSnippets(), github)
+	err := Render(failWriter{err: boom}, samplePlan(), github)
 	assert.ErrorIs(t, err, boom)
 }
 
 func TestWorkflowKeepsBlankLinesInsideAStep(t *testing.T) {
-	out := Workflow([]Snippet{{
+	out := Workflow(Plan{Snippets: []Snippet{{
 		Category: "Secrets",
 		Step:     "- name: One\n  uses: a/b@v1\n\n- name: Two\n  uses: c/d@v1",
-	}})
+	}}})
 
 	var wf struct {
 		Jobs map[string]struct {
@@ -372,7 +472,7 @@ func TestWriteWorkflowReportsAnUnreadableTarget(t *testing.T) {
 	// A directory where the workflow file belongs: readable, but not a file.
 	assert.NoError(t, os.MkdirAll(filepath.Join(dir, filepath.FromSlash(generatedWorkflow)), 0o755))
 
-	_, err := WriteWorkflow(dir, sampleSnippets())
+	_, err := WriteWorkflow(dir, samplePlan())
 
 	assert.Error(t, err)
 	assert.NotContains(t, err.Error(), "not generated by zanadir",
@@ -384,7 +484,7 @@ func TestWriteWorkflowReportsAnOccupiedPath(t *testing.T) {
 	assert.NoError(t, os.MkdirAll(filepath.Join(dir, ".github"), 0o755))
 	assert.NoError(t, os.WriteFile(filepath.Join(dir, ".github", "workflows"), []byte("x"), 0o600))
 
-	_, err := WriteWorkflow(dir, sampleSnippets())
+	_, err := WriteWorkflow(dir, samplePlan())
 
 	assert.Error(t, err)
 	assert.NotContains(t, err.Error(), "not generated by zanadir")
@@ -399,7 +499,7 @@ func TestWriteWorkflowReportsAnUncreatableDirectory(t *testing.T) {
 	assert.NoError(t, os.Chmod(github, 0o500))
 	t.Cleanup(func() { _ = os.Chmod(github, 0o700) })
 
-	_, err := WriteWorkflow(dir, sampleSnippets())
+	_, err := WriteWorkflow(dir, samplePlan())
 
 	assert.ErrorIs(t, err, fs.ErrPermission)
 }
@@ -411,7 +511,7 @@ func TestWriteWorkflowStaysInTheRepository(t *testing.T) {
 	assert.NoError(t, os.MkdirAll(filepath.Join(dir, ".github"), 0o755))
 	assert.NoError(t, os.Symlink(outside, filepath.Join(dir, ".github", "workflows")))
 
-	_, err := WriteWorkflow(dir, sampleSnippets())
+	_, err := WriteWorkflow(dir, samplePlan())
 
 	assert.Error(t, err)
 	entries, _ := os.ReadDir(outside)
@@ -427,7 +527,7 @@ func TestWriteWorkflowReportsAnUnwritableFile(t *testing.T) {
 	assert.NoError(t, os.WriteFile(path, []byte(generatedMarker+"\nname: old\n"), 0o400))
 	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
 
-	_, err := WriteWorkflow(dir, sampleSnippets())
+	_, err := WriteWorkflow(dir, samplePlan())
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to write")
@@ -441,16 +541,16 @@ func TestSnippetsPickTheTemplateForTheCategory(t *testing.T) {
 	f := testFixer(t)
 	trivy := []*suggester.Suggestion{{Name: "Trivy", Repository: "https://github.com/aquasecurity/trivy"}}
 
-	eol := f.Snippets([]*suggester.CategorySuggestion{
+	eol := f.Plan([]*suggester.CategorySuggestion{
 		{ID: "End Of Life", Name: "End-of-Life Package Checkers", Suggestions: trivy},
-	}, parser.GitHub)
+	}, parser.GitHub, testrepo.Touch(t, "Dockerfile")).Snippets
 	assert.Len(t, eol, 1)
 	assert.Contains(t, eol[0].Step, "--exit-on-eol")
 	assert.NotContains(t, eol[0].Step, "scan-type: fs")
 
-	sca := f.Snippets([]*suggester.CategorySuggestion{
+	sca := f.Plan([]*suggester.CategorySuggestion{
 		{ID: "SCA", Name: "Software Composition Analysis", Suggestions: trivy},
-	}, parser.GitHub)
+	}, parser.GitHub, "").Snippets
 	assert.Len(t, sca, 1)
 	assert.Contains(t, sca[0].Step, "scan-type: fs")
 	assert.NotContains(t, sca[0].Step, "--exit-on-eol")
@@ -525,7 +625,7 @@ func TestTemplatesPinActionsToReleases(t *testing.T) {
 	for _, ref := range regexp.MustCompile(`uses: ([^\s@]+)@(\S+)`).FindAllStringSubmatch(string(data), -1) {
 		assert.Regexp(t, `^v\d+(\.\d+)*$`, ref[2], ref[1])
 	}
-	assert.Contains(t, Workflow(nil), "actions/checkout@v7\n        with:\n          persist-credentials: false\n")
+	assert.Contains(t, Workflow(Plan{}), "actions/checkout@v7\n        with:\n          persist-credentials: false\n")
 }
 
 // The glsec snippet, pasted into .gitlab-ci.yml, is found by the rule that

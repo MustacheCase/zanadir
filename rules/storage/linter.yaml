@@ -81,6 +81,13 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bshellcheck\\b"
 
+  # Anchor commands so installing yamllint does not count as running it.
+  # Multiline anchors also match later commands in the matcher's joined script.
+  - id: "yamllint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: '(?im)^[\t ]*(?:(?:[^\s]*/)?yamllint(?:[\s:@/]|$)|ibiqlik/action-yamllint(?:@[^\s]+)?[\t ]*$|pre-commit\s+run\s+yamllint(?:\s|$))'
+
   - id: "clippy-rule"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]

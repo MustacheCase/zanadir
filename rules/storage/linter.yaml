@@ -24,10 +24,14 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bgolangci-lint\\b"
 
-  # revive matched as whole path segment
+  # "revive" is also a plain word (revive-db.sh, revived), so it is matched as a
+  # whole path segment. revive exits 0 on findings unless -set_exit_status is
+  # given; a -config file can set error-code / warning-code instead.
   - id: "revive-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
+    # Case-sensitive: Artifact.Name is the workflow name, and "Revive stale
+    # issues" is not a Go linter. The revive CLI is always lower case.
     regex: "(?:^|[\\s/])revive(?:[\\s:@/]|$)"
     exitsZeroUnless:
       runMatches: "(?:^|\\s)--?set_exit_status\\b"
@@ -48,6 +52,20 @@ rules:
     categories: ["Linter"]
     regex: "(?i)(super-linter|super-linter|oxsecurity/megalinter)"
 
+  # GitLab's own templates and CI/CD components, recorded by name from include:.
+  - id: "gitlab-code-quality-template-rule"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^(jobs/)?code-quality\\.gitlab-ci\\.yml$"
+
+  # Jenkins Warnings Next Generation, which publishes linter and static
+  # analysis results.
+  - id: "jenkins-record-issues-rule"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^recordissues$"
+
+  # Static analyzers for PHP.
   - id: "php-static-analysis-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
@@ -68,20 +86,122 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\byamllint\\b"
 
+  - id: "clippy-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bcargo\\s+clippy\\b|clippy-check"
+
+  # Biome's binary is also a common word, so only its commands and action.
   - id: "biome-rule"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bbiome\\s+(?:check|lint|ci)\\b|biomejs/setup-biome"
 
+  - id: "oxlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\boxlint\\b"
+
+  - id: "next-lint-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bnext\\s+lint\\b"
+
+  - id: "deno-lint-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bdeno\\s+lint\\b"
+
+  - id: "stylelint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bstylelint\\b"
+
+  - id: "go-vet-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bgo\\s+vet\\b"
+
+  - id: "staticcheck-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bstaticcheck\\b"
+
+  - id: "kotlin-linter-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:ktlint(?:check)?|detekt)\\b"
+
+  - id: "checkstyle-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bcheckstyle(?:main|test)?\\b"
+
+  - id: "swiftlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bswiftlint\\b"
+
+  - id: "dart-analyze-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:dart|flutter)\\s+analyze\\b"
+
+  - id: "hadolint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bhadolint\\b"
+
+  - id: "chart-testing-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bct\\s+lint(?:-and-install)?\\b"
+
+  - id: "markdownlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bmarkdownlint(?:-cli2?)?\\b"
+
+  # `tflint --init` only installs plugins and `tflint -v` prints the version,
+  # so neither lints anything.
+  - id: "tflint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\btflint\\b"
+    unless: "(?i)^\\s*tflint\\s+(?:--init|-v)$"
+
+  - id: "credo-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bmix\\s+credo\\b"
+
+  - id: "standardrb-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bstandardrb\\b"
+
+  - id: "haskell-lua-linter-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:hlint|luacheck)\\b"
+
+  - id: "vite-plus-lint-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bvp\\s+lint\\b"
+
+  # Helm's lint subcommand validates charts; other helm subcommands do not.
   - id: "helm-lint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bhelm\\s+lint\\b"
 
+  # buf is also used for generation and publishing; only lint and its CI actions count.
   - id: "buf-lint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:\\bbuf\\s+lint\\b|bufbuild/buf(?:-lint)?-action)"
+    # buf-action can publish or check breaking changes without linting.
     weakenedWhen:
       - input: "lint"
         equals: "false"

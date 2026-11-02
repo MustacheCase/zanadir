@@ -527,7 +527,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"meson test -C _build", ".gitlab-ci/run-tests.sh _build x11", "./scripts/run_tests.sh",
 				"mvn -B verify", "./mvnw verify -Pci", "./gradlew check", "python -m unittest discover", "python3.12 -m unittest",
 				"bun test", "deno test -A", "swift test --parallel",
-				"cargo nextest run --workspace", "cargo nextest run --profile ci --no-fail-fast",
+				"cargo nextest run --workspace", "cargo nextest run --profile ci --no-fail-fast", "cargo nextest r --workspace",
 				"bats test/", "./test/bats/bin/bats --tap test", "npx bats tests",
 			},
 			shouldNotMatch: []string{
@@ -821,6 +821,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"unit-test-command-rule": {
 			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test",
 			"./gradlew check --exclude-task test", "cargo test --no-run", "cargo test --all --no-run --locked",
+			"cargo nextest run --no-run", "cargo nextest run --workspace --no-run --locked",
 			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",
 		},
 		"unit-test-rule": {"deploy-test", "publish-test-pypi", "report-test-failure", "tests-result", "set-test-package-matrix", "Snyk Test", "Test GitHub OIDC"},

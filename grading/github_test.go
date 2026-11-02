@@ -61,6 +61,107 @@ jobs:
 	}
 }
 
+// GuardDog reports findings without failing unless explicitly asked to fail.
+func TestGuardDogExitsZeroUnlessFindingFlag(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"uvx guarddog pypi verify requirements.txt --exit-non-zero-on-finding":         Enforcing,
+		"guarddog npm scan express --exit-non-zero-on-finding":                         Enforcing,
+		"guarddog npm scan express":                                                    Advisory,
+		"guarddog github_action verify .github/workflows/ci.yml --output-format sarif": Advisory,
+		"docker run --rm ghcr.io/datadog/guarddog:latest pypi scan requests":           Advisory,
+		"guarddog npm scan express --exit-non-zero-on-finding-extra":                   Advisory,
+		"guarddog npm scan express ${{ inputs.args }}":                                 Unknown,
+		"guarddog npm scan express --exit-non-zero-on-finding || true":                 Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Supply Chain"])
+		})
+	}
+}
+
+func TestGuardDogWorkflowGrading(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		event    string
+		steps    string
+		expected Verdict
+	}{
+		{
+			name:  "SARIF upload does not enable enforcement",
+			event: "pull_request",
+			steps: `      - run: uvx guarddog pypi verify requirements.txt --output-format sarif > guarddog.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: guarddog.sarif
+`,
+			expected: Advisory,
+		},
+		{
+			name:  "continue on error overrides failure flag",
+			event: "pull_request",
+			steps: `      - run: guarddog npm scan express --exit-non-zero-on-finding
+        continue-on-error: true
+`,
+			expected: Advisory,
+		},
+		{
+			name:  "neighboring command cannot supply the failure flag",
+			event: "pull_request",
+			steps: `      - run: |
+          guarddog npm scan express
+          other-tool --exit-non-zero-on-finding
+`,
+			expected: Advisory,
+		},
+		{
+			name:  "push follows supply chain shipping semantics",
+			event: "push",
+			steps: `      - run: guarddog npm scan express --exit-non-zero-on-finding
+`,
+			expected: Enforcing,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/guarddog.yml", `
+name: GuardDog
+on: `+tt.event+`
+jobs:
+  scan:
+    steps:
+`+tt.steps)
+			assert.Equal(t, tt.expected, verdicts["Supply Chain"])
+		})
+	}
+}
+
+func TestGuardDogInformationalCommandsDoNotCoverSupplyChain(t *testing.T) {
+	for _, run := range []string{
+		"guarddog pypi list-rules",
+		"guarddog npm list-rules",
+		"docker run --rm ghcr.io/datadog/guarddog pypi list-rules",
+		"python -m watchdog.watchmedo",
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/guarddog.yml", `
+name: GuardDog
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+			assert.NotContains(t, verdicts, "Supply Chain")
+		})
+	}
+}
+
 func TestFlawfinderExitsZeroUnlessErrorLevel(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"flawfinder --error-level=4 src/":                      Enforcing,

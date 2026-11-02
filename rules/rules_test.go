@@ -105,6 +105,7 @@ func TestEmbeddedRulesCarryWeakenedChecks(t *testing.T) {
 	assert.False(t, gitleaks.Weakened[0].RunMatches.MatchString("gitleaks detect --exit-code 1"))
 
 	for id, gate := range map[string]string{
+		"guarddog-rule":     "guarddog pypi verify requirements.txt --exit-non-zero-on-finding",
 		"trivy-rule":        "trivy fs --exit-code 1 .",
 		"trivy-config-rule": "trivy config --exit-code 1 .",
 		"trivy-secret-rule": "trivy fs --scanners secret --exit-code 1 .",
@@ -118,6 +119,10 @@ func TestEmbeddedRulesCarryWeakenedChecks(t *testing.T) {
 		assert.True(t, byID[id].ExitsZero.RunMatches.MatchString(gate), id)
 	}
 	trivy := byID["trivy-rule"].ExitsZero
+	guarddog := byID["guarddog-rule"].ExitsZero
+	assert.False(t, guarddog.RunMatches.MatchString("guarddog npm scan express"))
+	assert.False(t, guarddog.RunMatches.MatchString("guarddog npm scan express --exit-non-zero-on-finding-extra"))
+	assert.False(t, guarddog.RunMatches.MatchString("guarddog npm scan express --exit-non-zero-on-findings"))
 	assert.False(t, trivy.RunMatches.MatchString("trivy fs --exit-code 0 ."))
 	assert.True(t, trivy.UnknownWhen.MatchString("trivy fs -c ci/trivy.yaml ."))
 	assert.Equal(t, []string{"trivy.yaml"}, trivy.ConfigFiles)

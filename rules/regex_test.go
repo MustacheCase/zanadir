@@ -36,6 +36,28 @@ func TestRuleRegexPrecision(t *testing.T) {
 		shouldNotMatch []string
 	}{
 		{
+			ruleID: "guarddog-rule",
+			shouldMatch: []string{
+				"uvx guarddog pypi verify requirements.txt --exit-non-zero-on-finding",
+				"guarddog npm scan express",
+				"guarddog github_action verify .github/workflows/ci.yml --output-format sarif",
+				"docker run --rm ghcr.io/datadog/guarddog pypi scan requests",
+				"docker run --rm ghcr.io/datadog/guarddog:2.8.0 npm verify package.json",
+				"docker run ghcr.io/datadog/guarddog@sha256:abcdef pypi scan requests",
+				"./bin/guarddog go verify go.mod",
+				"guarddog rubygems scan rails",
+				"guarddog --log-level debug npm scan express",
+				"guarddog --log-level=DEBUG pypi verify requirements.txt",
+			},
+			shouldNotMatch: []string{
+				"guarddog pypi list-rules", "guarddog npm list-rules", "python -m watchdog.watchmedo",
+				"docker run ghcr.io/datadog/guarddog:2.8.0 npm list-rules",
+				"myguarddog npm scan express", "guarddogger npm scan express", "my-guarddog npm scan express",
+				"guarddog npm scan-extra express", "guarddog pypi verify-extra requirements.txt",
+				"guarddog", "guarddog --help", "ghcr.io/datadog/guarddog",
+			},
+		},
+		{
 			ruleID:         "trivy-rule",
 			shouldMatch:    []string{"trivy fs .", "trivy image --exit-code 1 alpine", "trivy -q repo .", "trivy --cache-dir /tmp/t rootfs /", "trivy sbom sbom.json", "docker run aquasec/trivy filesystem /src"},
 			shouldNotMatch: []string{"trivyscanner", "mytrivy fs", "trivy config .", "trivy --version", "trivy image-something", "aquasecurity/trivy-action"},

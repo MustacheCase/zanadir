@@ -155,3 +155,29 @@ jobs:
 		})
 	}
 }
+
+func TestBufActionLintInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default lint is enforcing", expected: Enforcing},
+		{name: "lint disabled is advisory", input: "lint: false", expected: Advisory},
+		{name: "expression is unknown", input: "lint: ${{ inputs.lint }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: bufbuild/buf-action@v1
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}

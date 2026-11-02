@@ -750,6 +750,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldMatch:    []string{"trivy fs --scanners secret .", "trivy repo --scanners vuln,secret ."},
 			shouldNotMatch: []string{"trivy fs .", "trivy fs --scanners vuln ."},
 		},
+		{
+			ruleID:         "buf-lint-rule",
+			shouldMatch:    []string{"buf lint", "buf lint proto/ --error-format=github-actions", "bufbuild/buf-action@v1", "bufbuild/buf-lint-action@v1"},
+			shouldNotMatch: []string{"buf generate", "buf push", "buf format -w", "buf config ls-lint-rules", "bufbuild/buf-setup-action@v1"},
+		},
 	}
 
 	for _, tt := range tests {

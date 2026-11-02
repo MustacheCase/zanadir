@@ -1,4 +1,13 @@
 rules:
+  - id: "guarddog-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    # Only scan and verify check packages; list-rules is informational.
+    regex: "(?i)(?:^|[\\s/])guarddog(?:[:@][\\w.:-]+)?\\s+(?:--log-level[= ]\\w+\\s+)?\\w+\\s+(?:scan|verify)(?:\\s|$)"
+    # Findings do not fail the command unless explicitly requested.
+    exitsZeroUnless:
+      runMatches: "(?:^|\\s)--exit-non-zero-on-finding(?:\\s|$)"
+
   - id: "grype-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]

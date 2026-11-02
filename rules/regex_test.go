@@ -39,6 +39,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID: "guarddog-rule",
 			shouldMatch: []string{
 				"uvx guarddog pypi verify requirements.txt --exit-non-zero-on-finding",
+				"uvx guarddog@2.8.0 pypi verify requirements.txt --exit-non-zero-on-finding",
 				"guarddog npm scan express",
 				"guarddog github_action verify .github/workflows/ci.yml --output-format sarif",
 				"docker run --rm ghcr.io/datadog/guarddog pypi scan requests",

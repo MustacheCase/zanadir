@@ -61,6 +61,46 @@ jobs:
 	}
 }
 
+// GuardDog reports findings without failing unless explicitly asked to fail.
+func TestGuardDogExitsZeroUnlessFindingFlag(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"uvx guarddog pypi verify requirements.txt --exit-non-zero-on-finding":         Enforcing,
+		"uvx guarddog@2.8.0 pypi verify requirements.txt --exit-non-zero-on-finding":   Enforcing,
+		"guarddog npm scan express --exit-non-zero-on-finding":                         Enforcing,
+		"guarddog npm scan express":                                                    Advisory,
+		"guarddog github_action verify .github/workflows/ci.yml --output-format sarif": Advisory,
+		"docker run --rm ghcr.io/datadog/guarddog:latest pypi scan requests":           Advisory,
+		"guarddog npm scan express --exit-non-zero-on-finding-extra":                   Advisory,
+		"guarddog npm scan express ${{ inputs.args }}":                                 Unknown,
+		"guarddog npm scan express --exit-non-zero-on-finding || true":                 Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["SCA"])
+		})
+	}
+}
+
+// A dependency scan on push runs after merge, so it cannot fully gate changes.
+func TestGuardDogPushOnlyGradesPartial(t *testing.T) {
+	verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/guarddog.yml", `
+name: GuardDog
+on: push
+jobs:
+  scan:
+    steps:
+      - run: guarddog npm scan express --exit-non-zero-on-finding
+`)
+	assert.Equal(t, Partial, verdicts["SCA"])
+	assert.NotContains(t, verdicts, "Supply Chain")
+}
+
 func TestFlawfinderExitsZeroUnlessErrorLevel(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"flawfinder --error-level=4 src/":                      Enforcing,

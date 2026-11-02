@@ -1,1 +1,95 @@
-PLACEHOLDER
+rules:
+  - id: "eslint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\beslint\\b"
+
+  - id: "pylint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bpylint\\b"
+
+  - id: "ruff-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bruff\\b"
+
+  - id: "python-type-checker-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:mypy|pyright)\\b"
+
+  - id: "golangci-lint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bgolangci-lint\\b"
+
+  # revive matched as whole path segment
+  - id: "revive-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|[\\s/])revive(?:[\\s:@/]|$)"
+    exitsZeroUnless:
+      runMatches: "(?:^|\\s)--?set_exit_status\\b"
+      unknownWhen: "(?:^|\\s)--?config(?:[= ]|$)"
+
+  - id: "rubocop-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\brubocop\\b"
+
+  - id: "flake8-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bflake8\\b"
+
+  - id: "oxsecurity-super-linter-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(super-linter|super-linter|oxsecurity/megalinter)"
+
+  - id: "php-static-analysis-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:phpstan|psalm)\\b"
+
+  - id: "clang-tidy-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bclang-tidy\\b"
+
+  - id: "shellcheck-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bshellcheck\\b"
+
+  - id: "yamllint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\byamllint\\b"
+
+  - id: "biome-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bbiome\\s+(?:check|lint|ci)\\b|biomejs/setup-biome"
+
+  - id: "helm-lint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bhelm\\s+lint\\b"
+
+  - id: "buf-lint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:\\bbuf\\s+lint\\b|bufbuild/buf(?:-lint)?-action)"
+    weakenedWhen:
+      - input: "lint"
+        equals: "false"
+        verdict: "advisory"
+
+  # PHP_CodeSniffer (phpcs). Exits non-zero on violations.
+  # Match as a path segment so phpcs.xml config copies do not count.
+  - id: "phpcs-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|[\\s/])phpcs(?:[\\s:@/]|$)"

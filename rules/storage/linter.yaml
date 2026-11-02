@@ -196,3 +196,8 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:\\bbuf\\s+lint\\b|bufbuild/buf(?:-lint)?-action)"
+    # buf-action can publish or check breaking changes without linting.
+    weakenedWhen:
+      - input: "lint"
+        equals: "false"
+        verdict: "advisory"

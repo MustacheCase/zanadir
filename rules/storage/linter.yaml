@@ -48,33 +48,14 @@ rules:
     regex: "(?i)\\bflake8\\b"
 
   - id: "oxsecurity-super-linter-rule"
-    applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
-    categories: [ "Linter" ]
-    regex: "(?i)(super-linter/super-linter|oxsecurity/megalinter)"
-
-  # GitLab's own templates and CI/CD components, recorded by name from include:.
-  - id: "gitlab-code-quality-template-rule"
-    applyOn: ["Job.Package"]
-    categories: ["Linter"]
-    regex: "(?i)^(?:jobs/)?code-quality\\.gitlab-ci\\.yml$"
-
-  # Jenkins Warnings Next Generation, which publishes linter and static
-  # analysis results.
-  - id: "jenkins-record-issues-rule"
-    applyOn: ["Job.Package"]
-    categories: ["Linter"]
-    regex: "(?i)^recordissues$"
-
-  # Static analysers for PHP.
-  - id: "php-static-analysis-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\b(?:phpstan|psalm)\\b"
+    regex: "(?i)\\bsuper-linter\\b"
 
-  - id: "clang-tidy-rule"
+  - id: "hadolint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\bclang-tidy\\b"
+    regex: "(?i)\\bhadolint\\b"
 
   - id: "shellcheck-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
@@ -86,111 +67,81 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\byamllint\\b"
 
-  - id: "clippy-rule"
-    applyOn: ["Job.Package", "Job.Run"]
+  - id: "markdownlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\bcargo\\s+clippy\\b|clippy-check"
+    regex: "(?i)\\bmarkdownlint\\b"
 
-  # Biome's binary is also a common word, so only its commands and action.
-  - id: "biome-rule"
-    applyOn: ["Job.Package", "Job.Run"]
+  - id: "actionlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\bbiome\\s+(?:check|lint|ci)\\b|biomejs/setup-biome"
+    regex: "(?i)\\bactionlint\\b"
+
+  - id: "jsonlint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bjsonlint\\b"
+
+  - id: "php-static-analysis-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:phpstan|psalm)\\b"
+
+  - id: "clang-tidy-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bclang-tidy\\b"
+
+  - id: "biome-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?:biome|@biomejs/biome)\\b"
 
   - id: "oxlint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\boxlint\\b"
 
-  - id: "next-lint-rule"
-    applyOn: ["Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)\\bnext\\s+lint\\b"
-
-  - id: "deno-lint-rule"
-    applyOn: ["Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)\\bdeno\\s+lint\\b"
-
   - id: "stylelint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bstylelint\\b"
 
-  - id: "go-vet-rule"
-    applyOn: ["Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)\\bgo\\s+vet\\b"
-
-  - id: "staticcheck-rule"
+  - id: "prettier-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\bstaticcheck\\b"
+    regex: "(?i)\\bprettier\\b"
 
-  - id: "kotlin-linter-rule"
+  - id: "black-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\b(?:ktlint(?:check)?|detekt)\\b"
+    regex: "(?i)\\bblack\\b"
 
-  - id: "checkstyle-rule"
+  - id: "isort-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\bcheckstyle(?:main|test)?\\b"
+    regex: "(?i)\\bisort\\b"
 
-  - id: "swiftlint-rule"
+  - id: "autopep8-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\bswiftlint\\b"
+    regex: "(?i)\\bautopep8\\b"
 
-  - id: "dart-analyze-rule"
-    applyOn: ["Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)\\b(?:dart|flutter)\\s+analyze\\b"
-
-  - id: "hadolint-rule"
+  - id: "php-cs-fixer-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\bhadolint\\b"
+    regex: "(?i)\\bphp-cs-fixer\\b"
 
-  - id: "chart-testing-rule"
+  - id: "phpcs-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\bct\\s+lint(?:-and-install)?\\b"
+    regex: "(?:^|[\\s/])phpcs(?:[\\s:@/]|$)"
 
-  - id: "markdownlint-rule"
+  - id: "golangci-lint-action-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\bmarkdownlint(?:-cli2?)?\\b"
+    regex: "(?i)\\bgolangci/golangci-lint-action\\b"
 
-  # `tflint --init` only installs plugins and `tflint -v` prints the version,
-  # so neither lints anything.
-  - id: "tflint-rule"
-    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)\\btflint\\b"
-    unless: "(?i)^\\S*tflint\\s+(?:--init|-v)$"
-
-  - id: "credo-rule"
-    applyOn: ["Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)\\bmix\\s+credo\\b"
-
-  - id: "standardrb-rule"
-    applyOn: ["Job.Package", "Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)\\bstandardrb\\b"
-
-  - id: "haskell-lua-linter-rule"
-    applyOn: ["Job.Package", "Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)\\b(?:hlint|luacheck)\\b"
-
-  - id: "vite-plus-lint-rule"
-    applyOn: ["Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)\\bvp\\s+lint\\b"
-
-  # Helm's lint subcommand validates charts; other helm subcommands do not.
   - id: "helm-lint-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
@@ -206,3 +157,10 @@ rules:
       - input: "lint"
         equals: "false"
         verdict: "advisory"
+
+  # PHP_CodeSniffer (phpcs). Exits non-zero on violations.
+  # Match as a path segment so phpcs.xml config copies do not count.
+  - id: "phpcs-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|[\\s/])phpcs(?:[\\s:@/]|$)"

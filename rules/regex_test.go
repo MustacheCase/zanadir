@@ -695,6 +695,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"hadolints"},
 		},
 		{
+			ruleID:         "ansible-lint-rule",
+			shouldMatch:    []string{"ansible-lint", "ansible-lint playbooks/ --profile production", "ansible/ansible-lint@v25"},
+			shouldNotMatch: []string{"ansible-playbook site.yml", "ansible-galaxy install -r requirements.yml", "yamllint ."},
+		},
+		{
 			ruleID: "chart-testing-rule",
 			shouldMatch: []string{
 				"ct lint --target-branch ${{ github.event.repository.default_branch }}",

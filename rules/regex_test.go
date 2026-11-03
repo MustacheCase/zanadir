@@ -59,6 +59,23 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "cfn-guard-rule",
+			shouldMatch: []string{
+				"cfn-guard validate -d template.yaml -r rules.guard",
+				"cfn-guard validate --data templates/ --rules guard/ --show-summary fail",
+				"/usr/src/cloudformation-guard/cfn-guard validate -r rules/ -d templates/ --output-format sarif",
+				"~/.guard/bin/cfn-guard validate --data cfn/ --rules rules/",
+				"set -e; cfn-guard validate -d template.yaml -r rules.guard",
+				"CFN-GUARD VALIDATE -d template.yaml -r rules.guard",
+			},
+			shouldNotMatch: []string{
+				"cfn-guard test -r rules.guard -t tests.yaml", "cfn-guard rulegen --template template.yaml",
+				"cfn-guard parse-tree -r rules.guard", "cfn-lint template.yaml",
+				"my-cfn-guard validate -d template.yaml", "cfn-guard validate-rules -r rules.guard",
+				"cfn-guard", "aws cloudformation validate-template --template-body file://template.yaml",
+			},
+		},
+		{
 			ruleID:         "trivy-rule",
 			shouldMatch:    []string{"trivy fs .", "trivy image --exit-code 1 alpine", "trivy -q repo .", "trivy --cache-dir /tmp/t rootfs /", "trivy sbom sbom.json", "docker run aquasec/trivy filesystem /src"},
 			shouldNotMatch: []string{"trivyscanner", "mytrivy fs", "trivy config .", "trivy --version", "trivy image-something", "aquasecurity/trivy-action"},

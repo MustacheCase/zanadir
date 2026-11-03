@@ -89,6 +89,12 @@ rules:
     categories: ["IaC Security"]
     regex: "(?i)\\bcfn-lint\\b"
 
+  - id: "cfn-guard-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    # Only validate checks templates; test, rulegen and parse-tree work on the rules.
+    regex: "(?i)(?:^|[\\s/;&|(])cfn-guard\\s+validate(?:\\s|$)"
+
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-sast-iac-template-rule"
     applyOn: ["Job.Package"]

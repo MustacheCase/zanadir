@@ -17,7 +17,7 @@ rules:
   - id: "unit-test-command-rule"
     applyOn: ["Job.Run"]
     categories: ["Unit Tests"]
-    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\b(?:pytest|rspec|phpunit|jest|mocha|vitest|ctest|tox)\\b|\\bmvnw?\\s[^\\n]*\\b(?:test|verify)\\b|\\bgradlew?\\s[^\\n]*\\b(?:test|check)\\b|\\bpython[\\d.]*\\s+-m\\s+unittest\\b|\\b(?:bun|deno|swift)\\s+test\\b|\\bbundle\\s+exec\\s+rspec\\b|\\bmeson\\s+test\\b|\\brun[-_]tests?\\.sh\\b|\\bcargo\\s+nextest\\s+(?:run|r)\\b|(?:^|[\\s;&|(])(?:npx\\s+|\\S*/bin/|\\S*\\.bin/)?bats(?:\\s|$)"
+    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\bcomposer\\s+(?:(?:run|run-script)\\s+)?test\\b|\\bphp\\s+artisan\\s+test\\b|\\b(?:pytest|rspec|phpunit|pest|jest|mocha|vitest|ctest|tox)\\b|\\bmvnw?\\s[^\\n]*\\b(?:test|verify)\\b|\\bgradlew?\\s[^\\n]*\\b(?:test|check)\\b|\\bpython[\\d.]*\\s+-m\\s+unittest\\b|\\b(?:bun|deno|swift)\\s+test\\b|\\bbundle\\s+exec\\s+rspec\\b|\\bmeson\\s+test\\b|\\brun[-_]tests?\\.sh\\b|\\bcargo\\s+nextest\\s+(?:run|r)\\b|(?:^|[\\s;&|(])(?:npx\\s+|\\S*/bin/|\\S*\\.bin/)?bats(?:\\s|$)"
     # Commands that build or check without running the tests: Maven's skip
     # properties, Gradle excluding the test task, cargo's and nextest's --no-run, and tox
     # environments that only lint, type-check, document or package.

@@ -546,6 +546,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"bun test", "deno test -A", "swift test --parallel",
 				"cargo nextest run --workspace", "cargo nextest run --profile ci --no-fail-fast", "cargo nextest r --workspace",
 				"bats test/", "./test/bats/bin/bats --tap test", "npx bats tests",
+				"./vendor/bin/pest", "vendor/bin/pest --ci --parallel", "php artisan test --parallel",
+				"composer test", "composer run test", "composer run-script test",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
@@ -554,6 +556,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"meson setup _build", "./rerun-tests.shx",
 				"cargo nextest archive --archive-file tests.tar.zst", "cargo nextest list",
 				"git clone https://github.com/bats-core/bats-core.git", "npm run combats",
+				"php artisan migrate --force", "php artisan route:cache",
+				"composer validate --strict", "composer run-script lint",
 				"latest", "deploy-latest",
 			},
 		},

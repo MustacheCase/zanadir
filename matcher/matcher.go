@@ -177,7 +177,7 @@ func Commands(run string, rule *rules.Rule) []string {
 
 func eachInvocation(run string, visit func(command, invoked string)) {
 	for _, command := range shell.Commands(run) {
-		if words := shell.Words(command); len(words) > 0 && !shell.Passive(words) {
+		if words := shell.Words(shell.NormalizeCommand(command)); len(words) > 0 && !shell.Passive(words) {
 			visit(command, strings.Join(shell.Invoked(words), " "))
 		}
 	}

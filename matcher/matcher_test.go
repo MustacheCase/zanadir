@@ -264,12 +264,59 @@ func TestMatchOnJobName(t *testing.T) {
 func TestRulesSkipTextWithoutTheirLiterals(t *testing.T) {
 	rule := &rules.Rule{ID: "x", Regex: regexp.MustCompile(`(?i)\bscan\b`), Literals: []string{"gitleaks"},
 		ApplyOn: []string{rules.FieldJobRun, rules.FieldJobName}, Categories: []string{"SAST"}}
-	artifacts := []*models.Artifact{{Jobs: []*models.Job{{Name: "scan", Run: "scan ."}, {Name: "GitLeaks scan", Run: "./GitLeaks/scan ."}}}}
+	artifacts := []*models.Artifact{{Jobs: []*models.Job{{Name: "scan", Run: "scan ."}, {Name: "GitLeaks scan", Run: "scan GitLeaks"}}}}
 
 	found := matcher.NewMatchService().Match(artifacts, []*rules.Rule{rule})
 	require.Len(t, found, 2)
 	assert.Equal(t, "GitLeaks scan", found[0].Job.Name)
 	assert.Equal(t, "GitLeaks scan", found[1].Job.Name, "literals are compared case-insensitively")
+}
+
+func TestQuotedExecutablePaths(t *testing.T) {
+	rule := &rules.Rule{ID: "grant", Regex: regexp.MustCompile(`(?i)^grant\s+(?:check|list)\b`),
+		Literals: []string{"grant"}, Unless: regexp.MustCompile(`--skip`),
+		ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"License Compliance"}}
+	for run, want := range map[string]bool{
+		`"/tmp/grant/" check .`:            false,
+		`"/tmp/my grant" check .`:          false,
+		`"$RUNNER_TEMP/grant" check dir:.`: true,
+		`'/opt/tools/grant' list`:          true,
+		`./bin/grant check .`:              true,
+		`"/bin/echo" grant check .`:        false,
+		`"/bin/cp" grant check`:            false,
+		`"/bin/grant" --version`:           false,
+		`"/bin/grant" check --skip`:        false,
+		`/tmp/grant/helper check .`:        false,
+		`/tmp/grant-helper check .`:        false,
+		`echo 'grant check .'`:             false,
+	} {
+		found := matcher.NewMatchService().Match([]*models.Artifact{{Jobs: []*models.Job{{Run: run}}}}, []*rules.Rule{rule})
+		assert.Equal(t, want, len(found) == 1, run)
+		commands := matcher.Commands(run, rule)
+		if want {
+			assert.Equal(t, []string{run}, commands)
+		} else {
+			assert.Empty(t, commands, run)
+		}
+	}
+}
+
+func TestQuotedPathsUseExistingCatalogueRules(t *testing.T) {
+	rs, err := rules.NewRulesService()
+	require.NoError(t, err)
+	for _, tt := range []struct {
+		run      string
+		category models.CategoryTitle
+		want     bool
+	}{
+		{`"./bin/k6" run load.js`, models.CategoryTitle("Performance Testing"), true},
+		{`"/tmp/k6/" run load.js`, models.CategoryTitle("Performance Testing"), false},
+		{`"./bin/trivy" fs .`, models.CategoryTitle("SCA"), true},
+		{`"./bin/trivy" fs --scanners secret .`, models.CategoryTitle("SCA"), false},
+	} {
+		found := matcher.NewMatchService().Match([]*models.Artifact{{Jobs: []*models.Job{{Run: tt.run}}}}, rs.GetCategoryRules(tt.category))
+		assert.Equal(t, tt.want, len(found) > 0, tt.run)
+	}
 }
 
 func TestCommandsAreTheOnesTheRuleMatches(t *testing.T) {

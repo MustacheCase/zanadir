@@ -677,6 +677,10 @@ to one tool, and a rule can say so:
         verdict: "advisory"
 ```
 
+A command's executable is matched by its unquoted basename: `"$RUNNER_TEMP/grant" check`
+is recognised as `grant check`. Arguments keep their quoting, and the original
+command is retained as evidence. Custom command rules use the same normalization.
+
 A check is either a regex over the step's shell command or one action input
 compared to a value - deliberately not an expression language. Covered today:
 `gitleaks --exit-code 0`, `tfsec` and `checkov` `--soft-fail` /

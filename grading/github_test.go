@@ -1,11 +1,66 @@
 package grading
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
 )
+
+// Executable quotes and directory prefixes must not change either recognition
+// or the command-specific evidence used to grade a control.
+func TestQuotedToolPathsGradeLikeBareCommands(t *testing.T) {
+	for _, tt := range []struct {
+		name, run, category string
+		want                Verdict
+	}{
+		{"bare grant", "grant check dir:.", "License Compliance", Enforcing},
+		{"relative grant", "./bin/grant check dir:.", "License Compliance", Enforcing},
+		{"absolute grant", "/opt/bin/grant check dir:.", "License Compliance", Enforcing},
+		{"double quoted grant", `"$RUNNER_TEMP/grant" check dir:.`, "License Compliance", Enforcing},
+		{"single quoted grant", `'./bin/grant' check dir:.`, "License Compliance", Enforcing},
+		{"grant path with spaces", `"/opt/tool cache/grant" check dir:.`, "License Compliance", Enforcing},
+		{"grant list", `"./bin/grant" list dir:.`, "License Compliance", Enforcing},
+		{"swallowed grant", `"$RUNNER_TEMP/grant" check dir:. || true`, "License Compliance", Advisory},
+		{"reraised grant", `"$RUNNER_TEMP/grant" check dir:. || exit 1`, "License Compliance", Enforcing},
+		{"conditional grant", `if "./bin/grant" check dir:.; then echo done; fi`, "License Compliance", Advisory},
+		{"bare semgrep ci", "semgrep ci", "SAST", Enforcing},
+		{"quoted semgrep ci", `"./bin/semgrep" ci`, "SAST", Enforcing},
+		{"quoted semgrep scan", `"./bin/semgrep" scan`, "SAST", Advisory},
+		{"quoted semgrep error", `"./bin/semgrep" scan --error`, "SAST", Enforcing},
+		{"quoted trivy fails", `"./bin/trivy" fs --exit-code 1 .`, "SCA", Enforcing},
+		{"quoted trivy reports", `"./bin/trivy" fs .`, "SCA", Advisory},
+		{"quoted trivy zero", `"./bin/trivy" fs --exit-code 0 .`, "SCA", Advisory},
+		{"trivy environment retained", `TRIVY_EXIT_CODE=1 "./bin/trivy" fs .`, "SCA", Enforcing},
+		{"neighbor flag cannot enforce", "gitleaks detect --exit-code 1\n\"./bin/trivy\" fs .", "SCA", Advisory},
+		{"neighbor flag cannot weaken", "gitleaks detect --exit-code 0\n\"./bin/trivy\" fs --exit-code 1 .", "SCA", Enforcing},
+		{"neighbor failure is unrelated", "gitleaks detect || true\n\"./bin/grant\" check dir:.", "License Compliance", Enforcing},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  check:
+    steps:
+      - run: |
+          `+strings.ReplaceAll(tt.run, "\n", "\n          ")+`
+`)
+			assert.Equal(t, tt.want, verdicts[tt.category])
+		})
+	}
+}
+
+func TestGrantQuotedPathInYAMLScalar(t *testing.T) {
+	verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  check:
+    steps:
+      - run: '"$RUNNER_TEMP/grant" check dir:.'
+`)
+	assert.Equal(t, Enforcing, verdicts["License Compliance"])
+}
 
 // A continue-on-error expression may or may not let the step fail, so the
 // control is unknown - neither enforcing nor advisory.

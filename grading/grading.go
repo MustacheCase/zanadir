@@ -93,7 +93,9 @@ func Grade(finding *matcher.Finding) Verdict {
 	shipping := finding.Category == string(models.SupplyChain)
 	if job := finding.Job; job != nil {
 		// The shell's way of saying continue-on-error: "|| true", "if ! …".
-		if job.ContinueOnError || finding.Rule != nil && finding.Rule.Regex != nil && shell.Swallowed(job.Run, finding.Rule.Regex.MatchString) {
+		if job.ContinueOnError || finding.Rule != nil && finding.Rule.Regex != nil && shell.Swallowed(job.Run, func(command string) bool {
+			return len(matcher.Commands(command, finding.Rule)) > 0
+		}) {
 			return Advisory
 		}
 		// A manual step may be the release itself; the file cannot say.
@@ -139,6 +141,9 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 	var matched []string
 	if rule.Regex != nil {
 		if matched = matcher.Commands(job.Run, rule); len(matched) > 0 {
+			for i, command := range matched {
+				matched[i] = shell.NormalizeCommand(command)
+			}
 			commands = matched
 		}
 	}

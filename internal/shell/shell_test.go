@@ -20,6 +20,25 @@ func TestWords(t *testing.T) {
 	assert.Empty(t, shell.Words("FOO=bar"))
 }
 
+func TestNormalizeCommand(t *testing.T) {
+	for command, want := range map[string]string{
+		`"/tmp/my grant" check .`:                       `"/tmp/my grant" check .`,
+		`"/tmp/grant/" check .`:                         `"/tmp/grant/" check .`,
+		`"$RUNNER_TEMP/grant" check dir:.`:              `grant check dir:.`,
+		`'/opt/my tools/grant' list`:                    `grant list`,
+		`./bin/k6 run load.js`:                          `k6 run load.js`,
+		`if ! sudo CI=1 "/opt/grant" check .`:           `if ! sudo CI=1 grant check .`,
+		`TRIVY_EXIT_CODE=1 "./bin/trivy" fs "some dir"`: `TRIVY_EXIT_CODE=1 trivy fs "some dir"`,
+		`git commit -m "bump grant"`:                    `git commit -m "bump grant"`,
+		`"$TOOL" check .`:                               `"$TOOL" check .`,
+		`"/bin/grant check .`:                           `"/bin/grant check .`,
+		`"" check`:                                      `"" check`,
+		``:                                              ``,
+	} {
+		assert.Equal(t, want, shell.NormalizeCommand(command), command)
+	}
+}
+
 func TestSwallowed(t *testing.T) {
 	runs := func(command string) bool { return strings.Contains(command, "gitleaks") }
 	for script, want := range map[string]bool{

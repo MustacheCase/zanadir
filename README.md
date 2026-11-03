@@ -677,10 +677,6 @@ to one tool, and a rule can say so:
         verdict: "advisory"
 ```
 
-A command's executable is matched by its unquoted basename: `"$RUNNER_TEMP/grant" check`
-is recognised as `grant check`. Arguments keep their quoting, and the original
-command is retained as evidence. Custom command rules use the same normalization.
-
 A check is either a regex over the step's shell command or one action input
 compared to a value - deliberately not an expression language. Covered today:
 `gitleaks --exit-code 0`, `tfsec` and `checkov` `--soft-fail` /
@@ -1030,6 +1026,10 @@ its name does not count (`unlessPackage: '^acme/scan-action'`).
 An `exitsZeroUnless` with `input` requires `Job.Package` in `applyOn`; it may
 also include `Job.Run` to grade direct commands. Without `input`, it requires
 `Job.Run`. The `runMatches` regex is required in either case.
+
+A command's executable is matched by its unquoted basename: `"$RUNNER_TEMP/grant" check`
+is recognised as `grant check`. Arguments keep their quoting, and the original
+command is retained as evidence. Custom command rules use the same normalization.
 
 Custom rules add to the catalogue and never replace a built-in rule, so an
 `id` that is already taken is an error, as is a regex that does not compile or

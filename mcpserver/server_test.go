@@ -96,11 +96,13 @@ func TestHandshakeAndToolList(t *testing.T) {
 	assert.Equal(t, "2025-03-26", replies[0].Result.ProtocolVersion, "a version both speak is kept")
 	assert.Equal(t, map[string]string{"name": "zanadir", "title": "zanadir", "version": "1.2.3"}, replies[0].Result.ServerInfo)
 	assert.Nil(t, replies[1].Error)
-	require.Len(t, replies[2].Result.Tools, 2)
+	require.Len(t, replies[2].Result.Tools, 3)
 	for _, tool := range replies[2].Result.Tools {
 		assert.True(t, tool.Annotations["readOnlyHint"], tool.Name)
 		assert.Contains(t, tool.InputSchema["properties"], "repo")
 	}
+	assert.Equal(t, "skills", replies[2].Result.Tools[2].Name)
+	assert.NotContains(t, replies[2].Result.Tools[2].InputSchema["properties"], "excludedCategories")
 	assert.Equal(t, "2025-06-18", replies[3].Result.ProtocolVersion, "an unknown version gets the newest")
 	assert.Equal(t, -32601, replies[4].Error.Code)
 	assert.Equal(t, -32700, replies[5].Error.Code)
@@ -147,7 +149,7 @@ func TestARepositoryIsFetchedAndRemoved(t *testing.T) {
 	serveFrom(t, base)
 	oldFetch := fetch
 	t.Cleanup(func() { fetch = oldFetch })
-	fetch = func(_ context.Context, r remote.Repository, _ string) (string, func(), error) {
+	fetch = func(_ context.Context, r remote.Repository, _ string, _ remote.Options) (string, func(), error) {
 		if r.Name == "gone" {
 			return "", nil, errors.New("github.com/o/gone was not found")
 		}
@@ -181,9 +183,11 @@ func TestToolCallErrors(t *testing.T) {
 		callMessage(1, "fix", nil),
 		callMessage(2, "deploy", nil),
 		map[string]any{"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": "scan"},
+		callMessage(4, "scan", nil),
 	)
 	assert.True(t, replies[0].Result.IsError)
 	assert.Equal(t, "no catalogue", replies[0].Result.Content[0].Text)
+	assert.Equal(t, "no catalogue", replies[3].Result.Content[0].Text)
 	assert.Equal(t, -32602, replies[1].Error.Code)
 	assert.Contains(t, replies[1].Error.Message, `unknown tool "deploy"`)
 	assert.Equal(t, -32602, replies[2].Error.Code)
@@ -274,7 +278,7 @@ func TestRepoFetchesUseTheTokenOnlyWhenAllowed(t *testing.T) {
 	dir, used := repo(t), ""
 	oldFetch := fetch
 	t.Cleanup(func() { fetch = oldFetch })
-	fetch = func(_ context.Context, _ remote.Repository, token string) (string, func(), error) {
+	fetch = func(_ context.Context, _ remote.Repository, token string, _ remote.Options) (string, func(), error) {
 		used = token
 		return dir, func() {}, nil
 	}
@@ -286,4 +290,43 @@ func TestRepoFetchesUseTheTokenOnlyWhenAllowed(t *testing.T) {
 	options.RepoToken = true
 	session(t, callMessage(1, "scan", map[string]any{"repo": "github.com/o/r"}))
 	assert.Equal(t, "secret", used)
+}
+
+func TestSkillsReturnsTheJSONReport(t *testing.T) {
+	dir := testrepo.Write(t, map[string]string{
+		".claude/skills/deploy/SKILL.md": "---\nname: deploy\ndescription: Deploys the service. Use when the user asks to deploy.\n---\nRun [the script](scripts/run.sh).\n",
+	})
+	serveFrom(t, dir)
+	replies := session(t, callMessage(1, "skills", map[string]any{"dir": dir}))
+	require.False(t, replies[0].Result.IsError, replies[0].Result.Content)
+	var report struct {
+		Skills   []string
+		Findings []struct{ Rule, File string }
+	}
+	require.NoError(t, json.Unmarshal([]byte(replies[0].Result.Content[0].Text), &report))
+	assert.Equal(t, []string{".claude/skills/deploy"}, report.Skills)
+	assert.Equal(t, []struct{ Rule, File string }{{"missing-reference", ".claude/skills/deploy/SKILL.md"}}, report.Findings)
+
+	replies = session(t, callMessage(1, "skills", map[string]any{"excludedCategories": []string{"Linter"}}))
+	assert.True(t, replies[0].Result.IsError)
+	assert.Equal(t, "invalid arguments: skills takes no excludedCategories", replies[0].Result.Content[0].Text)
+}
+
+func TestOnlySkillsFetchesSkillFiles(t *testing.T) {
+	dir := repo(t)
+	var asked []remote.Options
+	oldFetch := fetch
+	t.Cleanup(func() { fetch = oldFetch })
+	fetch = func(_ context.Context, _ remote.Repository, _ string, opts remote.Options) (string, func(), error) {
+		asked = append(asked, opts)
+		if len(asked) == 3 {
+			return filepath.Join(dir, "gone"), func() {}, nil
+		}
+		return dir, func() {}, nil
+	}
+	session(t, callMessage(1, "scan", map[string]any{"repo": "o/r"}), callMessage(2, "skills", map[string]any{"repo": "o/r"}))
+	assert.Equal(t, []remote.Options{{}, {Skills: true}}, asked)
+
+	replies := session(t, callMessage(3, "skills", map[string]any{"repo": "o/r"}))
+	assert.True(t, replies[0].Result.IsError, "a directory that cannot be read")
 }

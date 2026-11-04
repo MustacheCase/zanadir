@@ -176,7 +176,8 @@ ComposioHQ/awesome-claude-skills.
    skills until false positives are near zero.
 2. **Agent Skill Security** category in the CI blade.
 3. **Gaps**, with the catalogue and its health check.
-4. **`--home`**, SARIF and Markdown, MCP tool and action input.
+4. **`--home`**, SARIF and Markdown, MCP tool and action input. `--repo` and
+   the MCP tool are done.
 5. **`skills fix`**.
 
 ## Non-goals

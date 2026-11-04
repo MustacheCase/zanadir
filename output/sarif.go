@@ -1,91 +1,19 @@
 package output
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/url"
 	"strings"
 
 	"github.com/MustacheCase/zanadir/grading"
+	"github.com/MustacheCase/zanadir/internal/sarif"
 	"github.com/MustacheCase/zanadir/suggester"
 )
 
-// Minimal SARIF 2.1.0 document, covering only the fields zanadir populates.
 const (
-	sarifVersion = "2.1.0"
-	sarifSchema  = "https://json.schemastore.org/sarif-2.1.0.json"
-	toolName     = "zanadir"
-	toolURI      = "https://github.com/MustacheCase/zanadir"
+	toolName = "zanadir"
+	toolURI  = "https://github.com/MustacheCase/zanadir"
 )
-
-type sarifLog struct {
-	Schema  string     `json:"$schema"`
-	Version string     `json:"version"`
-	Runs    []sarifRun `json:"runs"`
-}
-
-type sarifRun struct {
-	Tool    sarifTool     `json:"tool"`
-	Results []sarifResult `json:"results"`
-}
-
-type sarifTool struct {
-	Driver sarifDriver `json:"driver"`
-}
-
-type sarifDriver struct {
-	Name           string      `json:"name"`
-	InformationURI string      `json:"informationUri"`
-	Rules          []sarifRule `json:"rules"`
-}
-
-type sarifRule struct {
-	ID                   string            `json:"id"`
-	Name                 string            `json:"name"`
-	ShortDescription     sarifMessage      `json:"shortDescription"`
-	FullDescription      sarifMessage      `json:"fullDescription"`
-	Help                 sarifMessage      `json:"help"`
-	DefaultConfiguration sarifRuleConfig   `json:"defaultConfiguration"`
-	Properties           sarifRuleProperty `json:"properties"`
-}
-
-type sarifRuleConfig struct {
-	Level string `json:"level"`
-}
-
-type sarifRuleProperty struct {
-	Tags []string `json:"tags"`
-}
-
-type sarifMessage struct {
-	Text string `json:"text"`
-}
-
-type sarifResult struct {
-	RuleID              string            `json:"ruleId"`
-	Level               string            `json:"level"`
-	Message             sarifMessage      `json:"message"`
-	Locations           []sarifLocation   `json:"locations,omitempty"`
-	PartialFingerprints map[string]string `json:"partialFingerprints"`
-}
-
-type sarifLocation struct {
-	PhysicalLocation sarifPhysicalLocation `json:"physicalLocation"`
-}
-
-type sarifPhysicalLocation struct {
-	ArtifactLocation sarifArtifactLocation `json:"artifactLocation"`
-	Region           sarifRegion           `json:"region"`
-}
-
-type sarifArtifactLocation struct {
-	URI string `json:"uri"`
-}
-
-type sarifRegion struct {
-	StartLine int `json:"startLine"`
-}
 
 // helpText renders a category's suggested tools as a list.
 func helpText(suggestion *suggester.CategorySuggestion) string {
@@ -101,20 +29,6 @@ func helpText(suggestion *suggester.CategorySuggestion) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// locateAt builds the single-location list SARIF wants, or none when there is
-// nowhere to point. Code scanning rejects a result with no location.
-func locateAt(uri string) []sarifLocation {
-	if uri == "" {
-		return nil
-	}
-	return []sarifLocation{{
-		PhysicalLocation: sarifPhysicalLocation{
-			ArtifactLocation: sarifArtifactLocation{URI: (&url.URL{Path: uri}).EscapedPath()},
-			Region:           sarifRegion{StartLine: 1},
-		},
-	}}
-}
-
 // weakenedRuleID keeps a weakened control distinct from a missing one, so code
 // scanning tracks them as separate alerts rather than one changing its mind.
 func weakenedRuleID(category string) string {
@@ -122,9 +36,9 @@ func weakenedRuleID(category string) string {
 }
 
 // buildSarif converts suggestions into one rule and one result per category.
-func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weaknesses []Weakness) sarifLog {
-	rules := make([]sarifRule, 0, len(suggestions))
-	results := make([]sarifResult, 0, len(suggestions))
+func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weaknesses []Weakness) sarif.Log {
+	rules := make([]sarif.Rule, 0, len(suggestions))
+	results := make([]sarif.Result, 0, len(suggestions))
 
 	for _, suggestion := range suggestions {
 		toolNames := make([]string, 0, len(suggestion.Suggestions))
@@ -132,14 +46,14 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weak
 			toolNames = append(toolNames, tool.Name)
 		}
 
-		rules = append(rules, sarifRule{
+		rules = append(rules, sarif.Rule{
 			ID:                   suggestion.ID,
 			Name:                 suggestion.Name,
-			ShortDescription:     sarifMessage{Text: fmt.Sprintf("Missing CI/CD coverage: %s", suggestion.Name)},
-			FullDescription:      sarifMessage{Text: suggestion.Description},
-			Help:                 sarifMessage{Text: helpText(suggestion)},
-			DefaultConfiguration: sarifRuleConfig{Level: "warning"},
-			Properties:           sarifRuleProperty{Tags: []string{"ci-cd", "coverage"}},
+			ShortDescription:     sarif.Message{Text: fmt.Sprintf("Missing CI/CD coverage: %s", suggestion.Name)},
+			FullDescription:      sarif.Message{Text: suggestion.Description},
+			Help:                 sarif.Message{Text: helpText(suggestion)},
+			DefaultConfiguration: sarif.RuleConfig{Level: "warning"},
+			Properties:           sarif.RuleProperty{Tags: []string{"ci-cd", "coverage"}},
 		})
 
 		message := fmt.Sprintf("No %s tooling detected in this repository's CI configuration.", suggestion.Name)
@@ -147,12 +61,12 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weak
 			message = fmt.Sprintf("%s Consider adding one of: %s.", message, strings.Join(toolNames, ", "))
 		}
 
-		results = append(results, sarifResult{
+		results = append(results, sarif.Result{
 			RuleID:              suggestion.ID,
 			Level:               "warning",
-			Message:             sarifMessage{Text: message},
+			Message:             sarif.Message{Text: message},
 			PartialFingerprints: map[string]string{"categoryId": suggestion.ID},
-			Locations:           locateAt(anchor),
+			Locations:           sarif.At(anchor, 1),
 		})
 	}
 
@@ -162,35 +76,35 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weak
 	for _, weakness := range weaknesses {
 		ruleID := weakenedRuleID(weakness.Category)
 
-		rules = append(rules, sarifRule{
+		rules = append(rules, sarif.Rule{
 			ID:                   ruleID,
 			Name:                 weakness.Category,
-			ShortDescription:     sarifMessage{Text: fmt.Sprintf("Weakened CI/CD control: %s", weakness.Category)},
-			FullDescription:      sarifMessage{Text: fmt.Sprintf("%s tooling is present but cannot fully protect this repository.", weakness.Category)},
-			Help:                 sarifMessage{Text: weakenedHelp(weakness)},
-			DefaultConfiguration: sarifRuleConfig{Level: "note"},
-			Properties:           sarifRuleProperty{Tags: []string{"ci-cd", "coverage", "effectiveness"}},
+			ShortDescription:     sarif.Message{Text: fmt.Sprintf("Weakened CI/CD control: %s", weakness.Category)},
+			FullDescription:      sarif.Message{Text: fmt.Sprintf("%s tooling is present but cannot fully protect this repository.", weakness.Category)},
+			Help:                 sarif.Message{Text: weakenedHelp(weakness)},
+			DefaultConfiguration: sarif.RuleConfig{Level: "note"},
+			Properties:           sarif.RuleProperty{Tags: []string{"ci-cd", "coverage", "effectiveness"}},
 		})
 
-		results = append(results, sarifResult{
+		results = append(results, sarif.Result{
 			RuleID:  ruleID,
 			Level:   "note",
-			Message: sarifMessage{Text: weakenedMessage(weakness)},
+			Message: sarif.Message{Text: weakenedMessage(weakness)},
 			PartialFingerprints: map[string]string{
 				"categoryId": weakness.Category,
 				"verdict":    weakness.Verdict,
 			},
 			// The workflow that produced the verdict, which is a better
 			// location than the anchor a missing category has to fall back on.
-			Locations: locateAt(weakness.Location),
+			Locations: sarif.At(weakness.Location, 1),
 		})
 	}
 
-	return sarifLog{
-		Schema:  sarifSchema,
-		Version: sarifVersion,
-		Runs: []sarifRun{{
-			Tool: sarifTool{Driver: sarifDriver{
+	return sarif.Log{
+		Schema:  sarif.Schema,
+		Version: sarif.Version,
+		Runs: []sarif.Run{{
+			Tool: sarif.Tool{Driver: sarif.Driver{
 				Name:           toolName,
 				InformationURI: toolURI,
 				Rules:          rules,
@@ -226,7 +140,5 @@ func weakenedMessage(w Weakness) string {
 }
 
 func renderSarif(w io.Writer, suggestions []*suggester.CategorySuggestion, anchor string, weaknesses []Weakness) error {
-	encoder := json.NewEncoder(w)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(buildSarif(suggestions, anchor, weaknesses))
+	return sarif.Write(w, buildSarif(suggestions, anchor, weaknesses))
 }

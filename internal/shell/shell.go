@@ -2,6 +2,7 @@
 package shell
 
 import (
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -90,6 +91,28 @@ func Words(command string) []string {
 		words = words[1:]
 	}
 	return words
+}
+
+// NormalizeCommand reduces the executable word to its unquoted basename.
+// Arguments and assignments retain their quoting; no shell expansion is done.
+func NormalizeCommand(command string) string {
+	words := split(strings.TrimSpace(command), false)
+	for i, word := range words {
+		if word == "sudo" || conditions[word] || strings.Contains(word, "=") {
+			continue
+		}
+		program := word
+		if len(program) >= 2 && (program[0] == '\'' || program[0] == '"') && program[len(program)-1] == program[0] {
+			program = program[1 : len(program)-1]
+		}
+		base := path.Base(program)
+		// A dynamic basename or incomplete quoting cannot identify a tool.
+		if program != "" && !strings.HasSuffix(program, "/") && !strings.ContainsAny(program, "`\"'") && !strings.ContainsAny(base, "$\\() \t\n") {
+			words[i] = base
+		}
+		break
+	}
+	return strings.Join(words, " ")
 }
 
 // passiveCommands handle or fetch a tool's files without running it: making

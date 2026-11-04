@@ -212,8 +212,22 @@ rules:
         equals: "false"
         verdict: "advisory"
 
+  # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
+  # and .codespellrc / codespell_lib are not runs of it.
+  - id: "codespell-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bcodespell\\b"
+    # actions-codespell reports and always exits 0 when only_warn is set to any value.
+    weakenedWhen:
+      - input: "only_warn"
+        equals: "1"
+        verdict: "advisory"
+      - input: "only_warn"
+        equals: "true"
+        verdict: "advisory"
+
   - id: "phpcs-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)(?:^|[\s/])phpcs(?:[\s:@/]|$)"
-
+    regex: "(?i)(?:^|[\\s/])phpcs(?:[\\s:@/]|$)"

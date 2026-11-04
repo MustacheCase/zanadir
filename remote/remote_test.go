@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -135,11 +136,14 @@ func github(t *testing.T, handler http.HandlerFunc) {
 }
 
 // routes answers each path with a status and body, and 404 for any other.
-func routes(t *testing.T, answers map[string]string) *[]string {
+func routes(t *testing.T, answers map[string]string) func() []string {
 	t.Helper()
+	var mu sync.Mutex
 	var asked []string
 	github(t, func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		asked = append(asked, r.URL.Path)
+		mu.Unlock()
 		answer, ok := answers[r.URL.Path]
 		if !ok {
 			http.NotFound(w, r)
@@ -150,7 +154,11 @@ func routes(t *testing.T, answers map[string]string) *[]string {
 		w.WriteHeader(code)
 		_, _ = w.Write([]byte(body))
 	})
-	return &asked
+	return func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(asked)
+	}
 }
 
 func TestFetchKeepsWhatZanadirReads(t *testing.T) {
@@ -411,11 +419,11 @@ func TestFetchRestoresWhatTheArchiveLeavesOut(t *testing.T) {
 	assert.Empty(t, read("tests/fixtures/Dockerfile"), "a file zanadir only looks at the name of is a placeholder")
 	assert.Empty(t, read("big.yml"), "a file over the size limit is a placeholder")
 	assert.Equal(t, "kept: true", read("keep.yml"), "a file the archive has is left alone")
-	assert.NotContains(t, *asked, "/raw/o/r/HEAD/keep.yml")
+	assert.NotContains(t, asked(), "/raw/o/r/HEAD/keep.yml")
 	assert.Empty(t, read("src/Tests/Fixtures/config.yml"), "test fixtures are not fetched")
 	assert.Empty(t, read("bridge/composer.json"), "nor JSON, of which only a head would be read")
-	assert.NotContains(t, *asked, "/raw/o/r/HEAD/src/Tests/Fixtures/config.yml")
-	assert.NotContains(t, *asked, "/raw/o/r/HEAD/bridge/composer.json")
+	assert.NotContains(t, asked(), "/raw/o/r/HEAD/src/Tests/Fixtures/config.yml")
+	assert.NotContains(t, asked(), "/raw/o/r/HEAD/bridge/composer.json")
 }
 
 // .gitattributes often leaves itself out, so it is fetched when missing.
@@ -456,7 +464,7 @@ func TestFetchWithNothingLeftOut(t *testing.T) {
 	_, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
 	require.NoError(t, err)
 	cleanup()
-	assert.Equal(t, []string{"/repos/o/r", "/repos/o/r/commits/HEAD", "/repos/o/r/tarball"}, *asked, "the default branch, no file list, then no export-ignore, nothing more to fetch")
+	assert.Equal(t, []string{"/repos/o/r", "/repos/o/r/commits/HEAD", "/repos/o/r/tarball"}, asked(), "the default branch, no file list, then no export-ignore, nothing more to fetch")
 }
 
 func TestFetchReportsFilesItCannotRestore(t *testing.T) {
@@ -538,7 +546,7 @@ const sha = "0123456789abcdef0123456789abcdef01234567"
 // fileList serves a repository through the commit, tree and raw endpoints,
 // honouring Range as raw.githubusercontent.com does, and records what was
 // asked with which Range.
-func fileList(t *testing.T, ref, tree string, files map[string]string, extra map[string]string) *[]string {
+func fileList(t *testing.T, ref, tree string, files map[string]string, extra map[string]string) func() []string {
 	t.Helper()
 	var mu sync.Mutex
 	var asked []string
@@ -575,7 +583,11 @@ func fileList(t *testing.T, ref, tree string, files map[string]string, extra map
 			_, _ = w.Write([]byte(body))
 		}
 	})
-	return &asked
+	return func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(asked)
+	}
 }
 
 func TestFetchDownloadsOnlyWhatZanadirReads(t *testing.T) {
@@ -627,7 +639,7 @@ func TestFetchDownloadsOnlyWhatZanadirReads(t *testing.T) {
 		"/raw/o/r/" + sha + "/.github/workflows/ci.yml bytes=0-8",
 		"/raw/o/r/" + sha + "/scripts/lint.sh bytes=0-17",
 		"/raw/o/r/" + sha + "/infra/stack.json bytes=0-" + strconv.Itoa(headBytes-1),
-	}, *asked, "no archive, and every file from the one commit")
+	}, asked(), "no archive, and every file from the one commit")
 }
 
 func TestFetchFallsBackToTheArchive(t *testing.T) {
@@ -665,7 +677,7 @@ func TestFetchFallsBackToTheArchive(t *testing.T) {
 		assert.FileExists(t, filepath.Join(dir, "from-archive.yml"), name)
 		assert.NoFileExists(t, filepath.Join(dir, "a.yml"), name+": nothing half-written is left")
 		assert.DirExists(t, filepath.Join(dir, ".git"), name)
-		assert.Contains(t, *asked, "/repos/o/r/tarball", name)
+		assert.Contains(t, asked(), "/repos/o/r/tarball", name)
 		cleanup()
 	}
 
@@ -673,7 +685,7 @@ func TestFetchFallsBackToTheArchive(t *testing.T) {
 	asked := fileList(t, "HEAD", twoFiles, both, map[string]string{"/repos/o/r/tarball": archive})
 	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
 	assert.ErrorContains(t, err, "the archive has more than 1 files", "the archive has the same limit, and reports it")
-	assert.Contains(t, *asked, "/repos/o/r/tarball")
+	assert.Contains(t, asked(), "/repos/o/r/tarball")
 }
 
 func TestResetTo(t *testing.T) {
@@ -719,5 +731,5 @@ func TestFetchWithoutTheArchive(t *testing.T) {
 	asked := fileList(t, "HEAD", `{"tree":[],"truncated":true}`, nil, nil)
 	_, _, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
 	assert.EqualError(t, err, "reading github.com/o/r: the file list is truncated")
-	assert.NotContains(t, *asked, "/repos/o/r/tarball")
+	assert.NotContains(t, asked(), "/repos/o/r/tarball")
 }

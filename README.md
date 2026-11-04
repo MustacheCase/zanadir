@@ -10,8 +10,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/MustacheCase/zanadir" alt="License: MIT"></a>
 </p>
 
-zanadir reads a repository's CI configuration and reports which security and
-quality controls are missing, or wired so they cannot fail a build.
+zanadir is an open-source CI/CD security tool. It reads a repository's
+pipeline, from GitHub Actions to GitLab CI, and reports which security and
+quality checks are missing, or wired so they cannot fail a build.
 
 ## What it answers
 
@@ -35,6 +36,9 @@ It reads GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure
 Pipelines and Jenkins, from a checkout (`--dir`) or straight from GitHub
 (`--repo`), and reports as a table, JSON, SARIF or Markdown. To see it on a
 public repository first, [scan it in your browser](https://mustachecase.github.io/scan/).
+For how it maps to the OWASP Top 10 CI/CD Security Risks, and how it differs
+from OpenSSF Scorecard, see [the mapping](https://mustachecase.github.io/owasp-cicd-top-10/)
+and [the comparison](https://mustachecase.github.io/compare/openssf-scorecard/).
 
 How common are these gaps? The [State of CI security 2026](https://mustachecase.github.io/state-of-ci/)
 scanned 1,000 of the most-starred GitHub repositories: 511 declare no
@@ -1022,6 +1026,10 @@ its name does not count (`unlessPackage: '^acme/scan-action'`).
 An `exitsZeroUnless` with `input` requires `Job.Package` in `applyOn`; it may
 also include `Job.Run` to grade direct commands. Without `input`, it requires
 `Job.Run`. The `runMatches` regex is required in either case.
+
+A command's executable is matched by its unquoted basename: `"$RUNNER_TEMP/grant" check`
+is recognised as `grant check`. Arguments keep their quoting, and the original
+command is retained as evidence. Custom command rules use the same normalization.
 
 Custom rules add to the catalogue and never replace a built-in rule, so an
 `id` that is already taken is an error, as is a regex that does not compile or

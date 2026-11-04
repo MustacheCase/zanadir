@@ -704,6 +704,16 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"ansible-playbook site.yml", "ansible-galaxy install -r requirements.yml", "yamllint ."},
 		},
 		{
+			ruleID: "codespell-rule",
+			shouldMatch: []string{
+				"codespell",
+				`codespell --skip="*.lock,./target" -L crate`,
+				"codespell-project/actions-codespell@v2",
+				"tox -e codespell",
+			},
+			shouldNotMatch: []string{"npx cspell lint .", "cp .codespellrc /tmp/", "python -m codespell_lib"},
+		},
+		{
 			ruleID: "chart-testing-rule",
 			shouldMatch: []string{
 				"ct lint --target-branch ${{ github.event.repository.default_branch }}",
@@ -809,9 +819,12 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"buf generate", "buf push", "buf format -w", "buf config ls-lint-rules", "bufbuild/buf-setup-action@v1"},
 		},
 		{
-			ruleID:         "phpcs-rule",
-			shouldMatch:    []string{"phpcs", "phpcs --standard=PSR12", "./vendor/bin/phpcs", "docker run cytopia/phpcs:latest"},
-			shouldNotMatch: []string{"phpcbf", "php-cs-fixer", "phpcs.xml"},
+			ruleID: "phpcs-rule",
+			shouldMatch: []string{
+				"phpcs", "phpcs --standard=PSR12 src/", "vendor/bin/phpcs -p", "./vendor/bin/phpcs",
+				"composer exec phpcs -- --report=checkstyle", "docker run cytopia/phpcs:latest",
+			},
+			shouldNotMatch: []string{"phpcbf src/", "cp phpcs.xml.dist phpcs.xml", "php-cs-fixer fix --dry-run"},
 		},
 	}
 

@@ -1,6 +1,6 @@
-// Package mcpserver serves zanadir's scan and fix as Model Context Protocol
-// tools over stdio, so a coding agent can check a repository's CI before
-// changing it.
+// Package mcpserver serves zanadir's scan, fix and skills as Model Context
+// Protocol tools over stdio, so a coding agent can check a repository's CI and
+// agent skills before changing them.
 package mcpserver
 
 import (
@@ -21,6 +21,7 @@ import (
 	"github.com/MustacheCase/zanadir/handler"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
+	"github.com/MustacheCase/zanadir/skills"
 )
 
 // Target names the repository a tool reads.
@@ -39,6 +40,20 @@ Run it before changing CI, and again after, to confirm the change.`
 
 const fixDescription = `Prints ready-to-paste CI configuration for each uncovered category, for the CI platform the repository uses. It changes no files: adapt the snippets into the existing workflows.`
 
+const skillsDescription = `Finds every agent skill (SKILL.md) in the repository and reports, as JSON, the skills found and their problems, each with a rule, file and line:
+- errors: frontmatter that is not valid YAML, links to files that do not exist, characters that hide text from a reviewer;
+- warnings: a missing name or description, a description that never says when to use the skill (it will rarely trigger) or overlaps another skill's, a body too long to load every time, unrestricted Bash, and curl piped into a shell or approvals skipped in what the agent runs.
+Run it after writing or changing a skill, and again after fixing it.`
+
+var skillsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "dir": {"type": "string", "description": "path to a local checkout; defaults to the current directory"},
+    "repo": {"type": "string", "description": "a GitHub repository to read without cloning, as github.com/owner/name or github.com/owner/name@ref; instead of dir"}
+  },
+  "additionalProperties": false
+}`)
+
 var targetSchema = json.RawMessage(`{
   "type": "object",
   "properties": {
@@ -55,19 +70,39 @@ type tool struct {
 	Description string          `json:"description"`
 	InputSchema json.RawMessage `json:"inputSchema"`
 	Annotations map[string]any  `json:"annotations"`
-	do          func(*handler.Handler, *config.Config, *bytes.Buffer) error
+	do          func(*config.Config, *bytes.Buffer) error
+	// skills marks the tool that reads agent skills, not CI.
+	skills bool
 }
 
 var readOnly = map[string]any{"readOnlyHint": true, "idempotentHint": true, "openWorldHint": true}
 
 var tools = []tool{
 	{Name: "scan", Title: "Grade the CI", Description: scanDescription, InputSchema: targetSchema, Annotations: readOnly,
-		do: func(h *handler.Handler, cfg *config.Config, out *bytes.Buffer) error {
+		do: func(cfg *config.Config, out *bytes.Buffer) error {
+			h, err := setup()
+			if err != nil {
+				return err
+			}
 			cfg.Output, cfg.Out = config.OutputJSON, out
 			return h.Execute(cfg)
 		}},
 	{Name: "fix", Title: "CI configuration for the gaps", Description: fixDescription, InputSchema: targetSchema, Annotations: readOnly,
-		do: func(h *handler.Handler, cfg *config.Config, out *bytes.Buffer) error { return h.Fix(cfg, out) }},
+		do: func(cfg *config.Config, out *bytes.Buffer) error {
+			h, err := setup()
+			if err != nil {
+				return err
+			}
+			return h.Fix(cfg, out)
+		}},
+	{Name: "skills", Title: "Check the agent skills", Description: skillsDescription, InputSchema: skillsSchema, Annotations: readOnly, skills: true,
+		do: func(cfg *config.Config, out *bytes.Buffer) error {
+			report, err := skills.Run(cfg.Dir)
+			if err != nil {
+				return err
+			}
+			return report.WriteJSON(out)
+		}},
 }
 
 // protocolVersions are the versions this server speaks, newest first.
@@ -75,7 +110,7 @@ var protocolVersions = []string{"2025-06-18", "2025-03-26", "2024-11-05"}
 
 // fetch, setup, stdin and readerExited are replaced in tests.
 var (
-	fetch                  = remote.FetchContext
+	fetch                  = remote.FetchWith
 	setup                  = handler.Setup
 	stdin        io.Reader = os.Stdin
 	readerExited           = func() {}
@@ -217,23 +252,22 @@ func run(ctx context.Context, t tool, arguments json.RawMessage, opts Options) (
 			return "", fmt.Errorf("invalid arguments: %w", err)
 		}
 	}
-	cfg, cleanup, err := configure(ctx, target, opts)
+	if t.skills && len(target.ExcludedCategories) > 0 {
+		return "", errors.New("invalid arguments: skills takes no excludedCategories")
+	}
+	cfg, cleanup, err := configure(ctx, target, opts, remote.Options{Skills: t.skills})
 	if err != nil {
 		return "", err
 	}
 	defer cleanup()
-	h, err := setup()
-	if err != nil {
-		return "", err
-	}
 	var out bytes.Buffer
-	if err := t.do(h, cfg, &out); err != nil {
+	if err := t.do(cfg, &out); err != nil {
 		return "", err
 	}
 	return out.String(), nil
 }
 
-func configure(ctx context.Context, target Target, opts Options) (*config.Config, func(), error) {
+func configure(ctx context.Context, target Target, opts Options, fetchOpts remote.Options) (*config.Config, func(), error) {
 	cfg := &config.Config{}
 	for _, name := range target.ExcludedCategories {
 		category, ok := models.ResolveCategory(name)
@@ -258,7 +292,7 @@ func configure(ctx context.Context, target Target, opts Options) (*config.Config
 	if opts.RepoToken {
 		token = remote.Token()
 	}
-	dir, cleanup, err := fetch(ctx, repo, token)
+	dir, cleanup, err := fetch(ctx, repo, token, fetchOpts)
 	if err != nil {
 		return nil, nil, err
 	}

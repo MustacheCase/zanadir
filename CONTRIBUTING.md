@@ -59,7 +59,7 @@ go test ./...
 ## Working with an AI agent
 
 The repository's `.mcp.json` gives Claude Code and other MCP clients zanadir's
-own `scan` and `fix` tools, built from the source you are working on
+own `scan`, `fix` and `skills` tools, built from the source you are working on
 (`go run . mcp`). Approve the zanadir server when the session starts, then ask
 the agent to scan a repository, or this one, to see a change's effect.
 

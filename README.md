@@ -139,16 +139,19 @@ repository. Re-run the scan to confirm the change.
 
 ### As an MCP server
 
-`zanadir mcp` serves two read-only tools over the Model Context Protocol, so
-any agent that speaks MCP can grade CI before and after changing it:
+`zanadir mcp` serves three read-only tools over the Model Context Protocol, so
+any agent that speaks MCP can grade CI, and check agent skills, before and
+after changing them:
 
 - `scan` returns the JSON report: the score, uncovered categories with
   suggested tools, and weakened controls with their verdicts;
-- `fix` returns ready-to-paste configuration for the gaps, and writes nothing.
+- `fix` returns ready-to-paste configuration for the gaps, and writes nothing;
+- `skills` returns [`zanadir skills`](#zanadir-skills)' JSON: the skills found
+  and their problems.
 
-Both take `dir` (a local checkout, by default the current directory) or
-`repo` (`github.com/owner/name[@ref]`, read without cloning), and
-`excludedCategories`.
+Each takes `dir` (a local checkout, by default the current directory) or
+`repo` (`github.com/owner/name[@ref]`, read without cloning); `scan` and
+`fix` also take `excludedCategories`.
 
 An agent can be steered by what it reads, so the server keeps its tools to
 what you started it with. A `dir` must be inside `--dir` (by default the

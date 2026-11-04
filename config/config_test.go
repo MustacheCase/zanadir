@@ -353,6 +353,7 @@ func newSkillsCmd(dir, output string, enforce bool) *cobra.Command {
 	cmd.Flags().StringP("dir", "d", dir, "dir")
 	cmd.Flags().StringP("output", "o", output, "output")
 	cmd.Flags().Bool("enforce", enforce, "enforce")
+	cmd.Flags().String("repo", "", "repo")
 	return cmd
 }
 
@@ -364,6 +365,20 @@ func TestCreateSkillsConfig(t *testing.T) {
 	assert.Equal(t, dir, cfg.Dir)
 	assert.Equal(t, OutputJSON, cfg.Output)
 	assert.True(t, cfg.Enforce)
+}
+
+func TestCreateSkillsConfigFetchesWithSkills(t *testing.T) {
+	cmd := newSkillsCmd("", "table", false)
+	assert.NoError(t, cmd.Flags().Set("repo", "anthropics/skills@main"))
+	cfg, err := CreateSkillsConfig(cmd)
+
+	assert.NoError(t, err)
+	assert.Equal(t, &remote.Repository{Owner: "anthropics", Name: "skills", Ref: "main"}, cfg.Repo)
+	assert.True(t, cfg.Skills)
+
+	assert.NoError(t, cmd.Flags().Set("dir", t.TempDir()))
+	_, err = CreateSkillsConfig(cmd)
+	assert.EqualError(t, err, "--dir and --repo name two repositories; give one")
 }
 
 func TestCreateSkillsConfigRejectsBadInput(t *testing.T) {

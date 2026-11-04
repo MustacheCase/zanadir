@@ -116,13 +116,13 @@ func TestABadCustomRuleStopsBothCommands(t *testing.T) {
 func fakeFetch(t *testing.T, err error) *bool {
 	t.Helper()
 	removed := false
-	fetchRepository = func(context.Context, remote.Repository, string) (string, func(), error) {
+	fetchRepository = func(context.Context, remote.Repository, string, remote.Options) (string, func(), error) {
 		if err != nil {
 			return "", nil, err
 		}
 		return "/tmp/fetched", func() { removed = true }, nil
 	}
-	t.Cleanup(func() { fetchRepository = remote.FetchContext })
+	t.Cleanup(func() { fetchRepository = remote.FetchWith })
 	return &removed
 }
 
@@ -139,6 +139,24 @@ func TestRunScansAFetchedRepositoryAndRemovesIt(t *testing.T) {
 	assert.Equal(t, "/tmp/fetched", scanned)
 	assert.True(t, *removed)
 	assert.Equal(t, -1, *code)
+}
+
+func TestRunFetchesSkillsForTheSkillsCommand(t *testing.T) {
+	exitCode(t)
+	var asked []remote.Options
+	fetchRepository = func(_ context.Context, _ remote.Repository, _ string, opts remote.Options) (string, func(), error) {
+		asked = append(asked, opts)
+		return "/tmp/fetched", func() {}, nil
+	}
+	t.Cleanup(func() { fetchRepository = remote.FetchWith })
+	skillsConfig := func(*cobra.Command) (*config.Config, error) {
+		return &config.Config{Repo: &remote.Repository{Owner: "o", Name: "r"}, Skills: true}, nil
+	}
+	none := func(*config.Config) error { return nil }
+
+	run(repoConfig, none)(&cobra.Command{}, nil)
+	run(skillsConfig, none)(&cobra.Command{}, nil)
+	assert.Equal(t, []remote.Options{{}, {Skills: true}}, asked)
 }
 
 func TestRunRemovesTheFetchedRepositoryWhenTheScanFails(t *testing.T) {
@@ -176,13 +194,13 @@ func TestRunAbandonsTheDownloadOnASignal(t *testing.T) {
 	code := exitCode(t)
 	signals := fakeSignals(t)
 	abandoned := false
-	fetchRepository = func(ctx context.Context, _ remote.Repository, _ string) (string, func(), error) {
+	fetchRepository = func(ctx context.Context, _ remote.Repository, _ string, _ remote.Options) (string, func(), error) {
 		signals <- syscall.SIGTERM
 		<-ctx.Done()
 		abandoned = true
 		return "", nil, ctx.Err()
 	}
-	t.Cleanup(func() { fetchRepository = remote.FetchContext })
+	t.Cleanup(func() { fetchRepository = remote.FetchWith })
 	scanned := false
 	run(repoConfig, func(*config.Config) error { scanned = true; return nil })(&cobra.Command{}, nil)
 
@@ -197,10 +215,10 @@ func TestRunRemovesTheFetchedRepositoryOnASignal(t *testing.T) {
 	code := exitCode(t)
 	signals := fakeSignals(t)
 	removed := make(chan struct{})
-	fetchRepository = func(context.Context, remote.Repository, string) (string, func(), error) {
+	fetchRepository = func(context.Context, remote.Repository, string, remote.Options) (string, func(), error) {
 		return "/tmp/fetched", func() { close(removed) }, nil
 	}
-	t.Cleanup(func() { fetchRepository = remote.FetchContext })
+	t.Cleanup(func() { fetchRepository = remote.FetchWith })
 	run(repoConfig, func(*config.Config) error {
 		signals <- os.Interrupt
 		<-removed
@@ -274,4 +292,5 @@ func TestSkillsCommandIsRegistered(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "skills", cmd.Name())
 	assert.NotNil(t, cmd.Flags().Lookup("enforce"))
+	assert.NotNil(t, cmd.Flags().Lookup("repo"))
 }

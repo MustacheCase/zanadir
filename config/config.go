@@ -56,6 +56,8 @@ type Config struct {
 	// Repo is a repository to fetch and scan instead of Dir; nil for a local
 	// checkout.
 	Repo *remote.Repository
+	// Skills makes a fetch keep the agent skills' files too.
+	Skills bool
 	// Out receives the report instead of OutputFile or stdout, for callers
 	// that are not the command line.
 	Out io.Writer
@@ -173,14 +175,13 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 	return cfg, nil
 }
 
-// CreateSkillsConfig builds the skills command's Config. Skills are read from
-// a checkout only: a fetched repository keeps CI files alone.
+// CreateSkillsConfig builds the skills command's Config.
 func CreateSkillsConfig(cmd *cobra.Command) (*Config, error) {
-	dir, err := resolveDir(cmd)
+	cfg, err := target(cmd)
 	if err != nil {
 		return nil, err
 	}
-	cfg := &Config{Dir: dir}
+	cfg.Skills = true
 	cfg.Enforce, _ = cmd.Flags().GetBool("enforce")
 	cfg.Output, _ = cmd.Flags().GetString("output")
 	cfg.Output = strings.ToLower(cfg.Output)

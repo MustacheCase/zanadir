@@ -68,7 +68,7 @@ var (
 	exit                      = os.Exit
 	stdout          io.Writer = os.Stdout
 	stderr          io.Writer = os.Stderr
-	fetchRepository           = remote.FetchContext
+	fetchRepository           = remote.FetchWith
 	serveMCP                  = mcpserver.Run
 	interrupts                = defaultInterrupts
 )
@@ -125,7 +125,7 @@ func run(build func(*cobra.Command) (*config.Config, error), do func(*config.Con
 
 		if cfg.Repo != nil {
 			var remove func()
-			cfg.Dir, remove, err = fetchRepository(ctx, *cfg.Repo, remote.Token())
+			cfg.Dir, remove, err = fetchRepository(ctx, *cfg.Repo, remote.Token(), remote.Options{Skills: cfg.Skills})
 			if err == nil {
 				mu.Lock()
 				cleanup = remove
@@ -200,7 +200,8 @@ func NewApp() *cobra.Command {
 	addSharedFlags(fixCmd)
 	fixCmd.Flags().Bool("write", false, "Generate .github/workflows/zanadir-suggested.yml instead of printing (optional)")
 
-	skillsCmd.Flags().StringP("dir", "d", "", "Path to the repository directory (required)")
+	skillsCmd.Flags().StringP("dir", "d", "", "Path to the repository directory (required unless --repo is given)")
+	skillsCmd.Flags().String("repo", "", "Check a GitHub repository's skills without cloning it: github.com/owner/name[@ref]; uses GITHUB_TOKEN if set (optional)")
 	skillsCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json) (optional)")
 	skillsCmd.Flags().Bool("enforce", false, "Fails when any skill has an error-level problem (optional)")
 

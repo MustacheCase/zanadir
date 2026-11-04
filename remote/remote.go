@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -129,6 +130,12 @@ const (
 	whole
 )
 
+// Options says what a fetch keeps beyond the files a CI scan reads.
+type Options struct {
+	// Skills keeps every file of each agent skill, for the skills command.
+	Skills bool
+}
+
 // Fetch downloads the repository into a new temporary directory, which the
 // returned function removes. Only files zanadir reads keep their contents;
 // every other file is an empty placeholder, since category gating and
@@ -140,6 +147,11 @@ func Fetch(repo Repository, token string) (string, func(), error) {
 // FetchContext is Fetch, abandoned when ctx is done; the directory is then
 // removed like on any other failure.
 func FetchContext(ctx context.Context, repo Repository, token string) (string, func(), error) {
+	return FetchWith(ctx, repo, token, Options{})
+}
+
+// FetchWith is FetchContext, keeping what opts asks for too.
+func FetchWith(ctx context.Context, repo Repository, token string, opts Options) (string, func(), error) {
 	dir, err := os.MkdirTemp("", "zanadir-")
 	if err != nil {
 		return "", nil, err
@@ -150,16 +162,18 @@ func FetchContext(ctx context.Context, repo Repository, token string) (string, f
 	err = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
 	if err == nil {
 		recordDefaultBranch(ctx, repo, token, dir)
-		if listErr := fetchFiles(ctx, repo, token, dir); listErr != nil {
+		skills, listErr := fetchFiles(ctx, repo, token, dir, opts)
+		if listErr != nil {
 			err = resetTo(dir)
-			if !archiveFallback {
+			// The archive alone cannot say where skills are.
+			if !archiveFallback || (opts.Skills && skills == nil) {
 				err = fmt.Errorf("reading %s: %w", repo, listErr)
 			}
 			if err == nil {
-				err = download(ctx, repo, token, dir)
+				err = download(ctx, repo, token, dir, skills)
 			}
 			if err == nil {
-				err = restoreExportIgnored(ctx, repo, token, dir)
+				err = restoreExportIgnored(ctx, repo, token, dir, skills)
 			}
 		}
 	}
@@ -214,21 +228,25 @@ type fetch struct {
 
 // fetchFiles lists the repository's files with one API call and downloads
 // only the contents zanadir reads, pinned to one commit. Any failure leaves
-// the archive to do the job.
-func fetchFiles(ctx context.Context, repo Repository, token, dir string) error {
+// the archive to do the job, with the skill directories the list showed.
+func fetchFiles(ctx context.Context, repo Repository, token, dir string, opts Options) (skillDirs, error) {
 	sha, err := resolveCommit(ctx, repo, token)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var tree struct {
 		Tree      []treeEntry `json:"tree"`
 		Truncated bool        `json:"truncated"`
 	}
 	if err := getJSON(ctx, fmt.Sprintf("%s/repos/%s/%s/git/trees/%s?recursive=1", apiBase, repo.Owner, repo.Name, sha), token, &tree); err != nil {
-		return err
+		return nil, err
 	}
 	if tree.Truncated {
-		return errors.New("the file list is truncated")
+		return nil, errors.New("the file list is truncated")
+	}
+	var skills skillDirs
+	if opts.Skills {
+		skills = findSkills(tree.Tree)
 	}
 
 	var fetches []fetch
@@ -240,19 +258,19 @@ func fetchFiles(ctx context.Context, repo Repository, token, dir string) error {
 		}
 		target, err := within(dir, entry.Path)
 		if err != nil {
-			return err
+			return skills, err
 		}
 		if files++; files > maxFiles {
-			return fmt.Errorf("more than %d files", maxFiles)
+			return skills, fmt.Errorf("more than %d files", maxFiles)
 		}
 		var size int64
-		switch contentOf(entry.Path) {
+		switch contentOf(entry.Path, skills) {
 		case whole:
 			if entry.Size <= maxFileBytes {
 				size = entry.Size
 			}
 			if kept += size; kept > maxKeptBytes {
-				return fmt.Errorf("configuration files exceed %d bytes", maxKeptBytes)
+				return skills, fmt.Errorf("configuration files exceed %d bytes", maxKeptBytes)
 			}
 		case head:
 			// IaC detection skips these directories, so their heads go unread.
@@ -263,15 +281,15 @@ func fetchFiles(ctx context.Context, repo Repository, token, dir string) error {
 		}
 		if size == 0 {
 			if err := writeFile(target, nil, 0); err != nil {
-				return err
+				return skills, err
 			}
 			continue
 		}
 		if fetches = append(fetches, fetch{entry.Path, target, size}); len(fetches) > maxFetches {
-			return fmt.Errorf("more than %d files to download", maxFetches)
+			return skills, fmt.Errorf("more than %d files to download", maxFetches)
 		}
 	}
-	return downloadFiles(ctx, repo, token, sha, fetches)
+	return skills, downloadFiles(ctx, repo, token, sha, fetches)
 }
 
 func skippedByWalk(name string) bool {
@@ -333,7 +351,7 @@ func recordDefaultBranch(ctx context.Context, repo Repository, token, dir string
 	_ = writeFile(filepath.Join(dir, ".git", "refs", "remotes", "origin", "HEAD"), strings.NewReader(head), int64(len(head)))
 }
 
-func download(ctx context.Context, repo Repository, token, dir string) error {
+func download(ctx context.Context, repo Repository, token, dir string, skills skillDirs) error {
 	endpoint := fmt.Sprintf("%s/repos/%s/%s/tarball", apiBase, repo.Owner, repo.Name)
 	if repo.Ref != "" {
 		endpoint += "/" + (&url.URL{Path: repo.Ref}).EscapedPath()
@@ -354,7 +372,7 @@ func download(ctx context.Context, repo Repository, token, dir string) error {
 	case resp.StatusCode != http.StatusOK:
 		return fmt.Errorf("downloading %s: %s", repo, resp.Status)
 	}
-	if err := extract(resp.Body, dir); err != nil {
+	if err := extract(resp.Body, dir, skills); err != nil {
 		return downloadFailed(repo, err)
 	}
 	return nil
@@ -395,7 +413,7 @@ func request(ctx context.Context, endpoint, token, accept, byteRange string) (*h
 // out too, so it is fetched when the archive lacks it. The tree lists every
 // file, so each missing one is written: with its contents if zanadir reads
 // them, as a placeholder otherwise.
-func restoreExportIgnored(ctx context.Context, repo Repository, token, dir string) error {
+func restoreExportIgnored(ctx context.Context, repo Repository, token, dir string, skills skillDirs) error {
 	ref := (&url.URL{Path: cmp.Or(repo.Ref, "HEAD")}).EscapedPath()
 	raw := func(path string) string {
 		return fmt.Sprintf("%s/%s/%s/%s/%s", rawBase, repo.Owner, repo.Name, ref, (&url.URL{Path: path}).EscapedPath())
@@ -436,7 +454,7 @@ func restoreExportIgnored(ctx context.Context, repo Repository, token, dir strin
 		}
 		// A project that leaves its tests out of the archive has thousands of
 		// fixtures, so none is fetched.
-		if contentOf(entry.Path) != whole || entry.Size > maxFileBytes || underTests(entry.Path) {
+		if contentOf(entry.Path, skills) != whole || entry.Size > maxFileBytes || underTests(entry.Path) {
 			err = writeFile(target, nil, 0)
 		} else if kept += entry.Size; kept > maxKeptBytes {
 			return fmt.Errorf("the repository's configuration files exceed %d bytes; %s", maxKeptBytes, tooLarge)
@@ -509,10 +527,11 @@ func exists(path string) bool {
 	return err == nil
 }
 
-// contentOf says how much of a file zanadir reads: CI and build files and
-// the root uv.lock whole, the head of other JSON for IaC detection, else only the name.
-func contentOf(name string) content {
-	if keepContent(name) {
+// contentOf says how much of a file zanadir reads: CI and build files, the
+// root uv.lock and files of the skills asked for whole, the head of other
+// JSON for IaC detection, else only the name.
+func contentOf(name string, skills skillDirs) content {
+	if keepContent(name) || skills.holds(name) {
 		return whole
 	}
 	if ext := strings.ToLower(filepath.Ext(name)); ext == ".json" || ext == ".json5" {
@@ -545,7 +564,7 @@ func keepContent(name string) bool {
 // extract unpacks a GitHub tarball, whose entries sit under one top-level
 // directory, into dir. Only regular files and directories are written; an
 // entry that would land outside dir is an error.
-func extract(r io.Reader, dir string) error {
+func extract(r io.Reader, dir string, skills skillDirs) error {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
 		return fmt.Errorf("reading the archive: %w", err)
@@ -583,7 +602,7 @@ func extract(r io.Reader, dir string) error {
 			}
 			// A repository of JSON data runs out of heads rather than failing.
 			var size int64
-			switch contentOf(name) {
+			switch contentOf(name, skills) {
 			case whole:
 				if header.Size <= maxFileBytes {
 					size = header.Size
@@ -602,6 +621,45 @@ func extract(r io.Reader, dir string) error {
 			}
 		}
 	}
+}
+
+// skillDirs are the directories holding a SKILL.md, the files the skills
+// command reads. The root is "." and then only SKILL.md and scripts count,
+// as for a checkout. Nil means skills were not asked for.
+type skillDirs map[string]bool
+
+// findSkills finds skills as skills.Discover does, skipping dependency and
+// test directories.
+func findSkills(entries []treeEntry) skillDirs {
+	found := skillDirs{}
+	for _, entry := range entries {
+		if entry.Type == "blob" && path.Base(entry.Path) == "SKILL.md" && !skippedForSkills(entry.Path) {
+			found[path.Dir(entry.Path)] = true
+		}
+	}
+	return found
+}
+
+func skippedForSkills(name string) bool {
+	parts := strings.Split(name, "/")
+	return slices.ContainsFunc(parts[:len(parts)-1], func(part string) bool {
+		return utils.IsDependencyDir(part) || utils.IsTestDir(part)
+	})
+}
+
+func (s skillDirs) holds(name string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	if s["."] && (name == "SKILL.md" || strings.HasPrefix(name, "scripts/")) {
+		return true
+	}
+	for dir := path.Dir(name); dir != "."; dir = path.Dir(dir) {
+		if s[dir] {
+			return true
+		}
+	}
+	return false
 }
 
 func underTests(name string) bool {

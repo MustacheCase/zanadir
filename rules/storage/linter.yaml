@@ -226,3 +226,8 @@ rules:
       - input: "only_warn"
         equals: "true"
         verdict: "advisory"
+
+  - id: "phpcs-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])phpcs(?:[\\s:@/]|$)"

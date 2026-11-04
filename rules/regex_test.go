@@ -818,6 +818,14 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldMatch:    []string{"buf lint", "buf lint proto/ --error-format=github-actions", "bufbuild/buf-action@v1", "bufbuild/buf-lint-action@v1"},
 			shouldNotMatch: []string{"buf generate", "buf push", "buf format -w", "buf config ls-lint-rules", "bufbuild/buf-setup-action@v1"},
 		},
+		{
+			ruleID: "phpcs-rule",
+			shouldMatch: []string{
+				"phpcs", "phpcs --standard=PSR12 src/", "vendor/bin/phpcs -p", "./vendor/bin/phpcs",
+				"composer exec phpcs -- --report=checkstyle", "docker run cytopia/phpcs:latest",
+			},
+			shouldNotMatch: []string{"phpcbf src/", "cp phpcs.xml.dist phpcs.xml", "php-cs-fixer fix --dry-run"},
+		},
 	}
 
 	for _, tt := range tests {

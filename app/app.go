@@ -202,7 +202,7 @@ func NewApp() *cobra.Command {
 
 	skillsCmd.Flags().StringP("dir", "d", "", "Path to the repository directory (required unless --repo is given)")
 	skillsCmd.Flags().String("repo", "", "Check a GitHub repository's skills without cloning it: github.com/owner/name[@ref]; uses GITHUB_TOKEN if set (optional)")
-	skillsCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json) (optional)")
+	skillsCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif, markdown) (optional)")
 	skillsCmd.Flags().Bool("enforce", false, "Fails when any skill has an error-level problem (optional)")
 
 	return rootCmd
@@ -241,9 +241,14 @@ func checkSkills(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	if cfg.Output == config.OutputJSON {
+	switch cfg.Output {
+	case config.OutputJSON:
 		err = report.WriteJSON(stdout)
-	} else {
+	case config.OutputSARIF:
+		err = report.WriteSARIF(stdout)
+	case config.OutputMarkdown:
+		err = report.WriteMarkdown(stdout)
+	default:
 		err = report.WriteTable(stdout)
 	}
 	if err == nil && cfg.Enforce && report.Errors() > 0 {

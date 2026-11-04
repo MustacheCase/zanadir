@@ -68,7 +68,7 @@ type Result struct {
 	Level               string            `json:"level"`
 	Message             Message           `json:"message"`
 	Locations           []Location        `json:"locations,omitempty"`
-	PartialFingerprints map[string]string `json:"partialFingerprints"`
+	PartialFingerprints map[string]string `json:"partialFingerprints,omitempty"`
 }
 
 type Location struct {

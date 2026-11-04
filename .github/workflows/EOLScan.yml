@@ -22,9 +22,17 @@ jobs:
     - name: Build the image
       run: docker build -t zanadir:eol-scan .
 
-    - name: Set up Trivy
-      uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567 # v0.3.1
-      with:
-        version: v0.75.0
+    - name: Install Trivy
+      env:
+        TRIVY_VERSION: 0.75.0
+        TRIVY_SHA256: c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f
+      run: |
+        archive="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+        curl -sSfL --retry 3 -o "$RUNNER_TEMP/$archive" \
+          "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${archive}"
+        echo "${TRIVY_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
+        mkdir -p "$RUNNER_TEMP/trivy-bin"
+        tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/trivy-bin" trivy
+        echo "$RUNNER_TEMP/trivy-bin" >> "$GITHUB_PATH"
     - name: Scan the image for end-of-life components
       run: trivy image --exit-on-eol 1 zanadir:eol-scan

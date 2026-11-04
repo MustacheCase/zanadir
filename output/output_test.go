@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/MustacheCase/zanadir/internal/sarif"
 	"io"
 	"os"
 	"path/filepath"
@@ -148,13 +149,13 @@ func TestResponse_SARIFOutput(t *testing.T) {
 		}
 	})
 
-	var report sarifLog
+	var report sarif.Log
 	if err := json.Unmarshal([]byte(out), &report); err != nil {
 		t.Fatalf("output is not valid SARIF JSON: %v", err)
 	}
 
-	if report.Version != sarifVersion {
-		t.Errorf("expected SARIF version %q, got %q", sarifVersion, report.Version)
+	if report.Version != sarif.Version {
+		t.Errorf("expected SARIF version %q, got %q", sarif.Version, report.Version)
 	}
 	if len(report.Runs) != 1 {
 		t.Fatalf("expected 1 run, got %d", len(report.Runs))
@@ -183,7 +184,7 @@ func TestResponse_WritesSARIFToFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("report file not written: %v", err)
 	}
-	var report sarifLog
+	var report sarif.Log
 	if err := json.Unmarshal(data, &report); err != nil {
 		t.Fatalf("file is not valid SARIF: %v", err)
 	}
@@ -486,21 +487,6 @@ func TestResponse_MarkdownOmitsTheTableWhenCovered(t *testing.T) {
 	}
 	if strings.Contains(out, "| Category |") {
 		t.Errorf("expected no table when there is nothing to show, got:\n%s", out)
-	}
-}
-
-// A pipe ends a cell and a newline ends a row, so either one in a description
-// silently breaks the rest of the table.
-func TestMarkdownCellCannotBreakTheTable(t *testing.T) {
-	for input, want := range map[string]string{
-		"a | b":            `a \| b`,
-		"line one\nline 2": "line one line 2",
-		"  spaced   out  ": "spaced out",
-		"plain":            "plain",
-	} {
-		if got := markdownCell(input); got != want {
-			t.Errorf("markdownCell(%q) = %q, want %q", input, got, want)
-		}
 	}
 }
 
@@ -820,19 +806,6 @@ func renderString(report Report) (string, error) {
 	var b strings.Builder
 	err := render(&b, report)
 	return b.String(), err
-}
-
-func TestMarkdownTextAndCode(t *testing.T) {
-	for got, want := range map[string]string{
-		markdownText("a <img src=x>\n & b|c"): "a &lt;img src=x&gt; &amp; b|c",
-		markdownCode("ci.yml"):                "`ci.yml`",
-		markdownCode("a`<b>`.yml"):            "``a`<b>`.yml``",
-		markdownCode("`x`"):                   "`` `x` ``",
-	} {
-		if got != want {
-			t.Errorf("got %q, want %q", got, want)
-		}
-	}
 }
 
 func TestResponseWritesToTheGivenWriter(t *testing.T) {

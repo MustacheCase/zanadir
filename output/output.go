@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/MustacheCase/zanadir/config"
+	"github.com/MustacheCase/zanadir/internal/markdown"
 	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/score"
 	"github.com/MustacheCase/zanadir/suggester"
@@ -151,31 +152,6 @@ func headline(s score.Score, count int) string {
 // update it, instead of adding one on every push.
 const MarkdownMarker = "<!-- zanadir-report -->"
 
-// markdownCell makes a value safe to sit in a table cell: a literal pipe ends
-// the cell, and a newline ends the row.
-func markdownCell(text string) string {
-	return strings.ReplaceAll(strings.Join(strings.Fields(text), " "), "|", "\\|")
-}
-
-// markdownText makes a value safe as Markdown prose: a file name or a reason
-// can hold <, which would otherwise reach a PR comment as raw HTML.
-func markdownText(text string) string {
-	return strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;").Replace(strings.Join(strings.Fields(text), " "))
-}
-
-// markdownCode wraps a value in a code span its own backticks cannot close.
-func markdownCode(text string) string {
-	text = strings.Join(strings.Fields(text), " ")
-	fence := "`"
-	for strings.Contains(text, fence) {
-		fence += "`"
-	}
-	if strings.HasPrefix(text, "`") || strings.HasSuffix(text, "`") {
-		text = " " + text + " "
-	}
-	return fence + text + fence
-}
-
 func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score, weaknesses []Weakness, notApplicable []string, merge *Gate) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n### zanadir\n\n%s\n", MarkdownMarker, headline(coverage, len(suggestions)))
@@ -186,33 +162,33 @@ func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, co
 			tools := make([]string, 0, len(suggestion.Suggestions))
 			for _, tool := range suggestion.Suggestions {
 				if tool.Repository == "" {
-					tools = append(tools, markdownCell(tool.Name))
+					tools = append(tools, markdown.Cell(tool.Name))
 					continue
 				}
-				tools = append(tools, fmt.Sprintf("[%s](%s)", markdownCell(tool.Name), tool.Repository))
+				tools = append(tools, fmt.Sprintf("[%s](%s)", markdown.Cell(tool.Name), tool.Repository))
 			}
 			fmt.Fprintf(&b, "| %s | %s | %s |\n",
-				markdownCell(suggestion.Name), markdownCell(suggestion.Description), strings.Join(tools, ", "))
+				markdown.Cell(suggestion.Name), markdown.Cell(suggestion.Description), strings.Join(tools, ", "))
 		}
 	}
 
 	if len(notApplicable) > 0 {
-		fmt.Fprintf(&b, "\n_%s_\n", markdownText(notApplicableLine(notApplicable)))
+		fmt.Fprintf(&b, "\n_%s_\n", markdown.Text(notApplicableLine(notApplicable)))
 	}
 
 	if len(weaknesses) > 0 {
 		fmt.Fprintf(&b, "\n**%s**\n\n", weakenedHeadline(len(weaknesses)))
 		for _, weakness := range weaknesses {
 			fmt.Fprintf(&b, "- %s is **%s** in %s%s\n",
-				markdownCode(weakness.Category), markdownText(weakness.Verdict), markdownCode(weakness.Location), markdownText(weakness.because()))
+				markdown.Code(weakness.Category), markdown.Text(weakness.Verdict), markdown.Code(weakness.Location), markdown.Text(weakness.because()))
 		}
 	}
 
 	if merge != nil {
 		title, lines := gateLines(merge)
-		fmt.Fprintf(&b, "\n**%s**\n\n", markdownText(title))
+		fmt.Fprintf(&b, "\n**%s**\n\n", markdown.Text(title))
 		for _, line := range lines {
-			fmt.Fprintf(&b, "- %s\n", markdownText(line))
+			fmt.Fprintf(&b, "- %s\n", markdown.Text(line))
 		}
 	}
 

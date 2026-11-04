@@ -284,6 +284,13 @@ func TestCheckSkills(t *testing.T) {
 	assert.ErrorAs(t, err, &enforceErr)
 	assert.Contains(t, out.String(), `"rule": "missing-reference"`)
 
+	out.Reset()
+	assert.NoError(t, checkSkills(&config.Config{Dir: dir, Output: config.OutputSARIF}))
+	assert.Contains(t, out.String(), `"ruleId": "skills/missing-reference"`)
+	out.Reset()
+	assert.NoError(t, checkSkills(&config.Config{Dir: dir, Output: config.OutputMarkdown}))
+	assert.Contains(t, out.String(), "| error | links gone.md, which does not exist |")
+
 	assert.Error(t, checkSkills(&config.Config{Dir: dir + "/absent"}))
 }
 

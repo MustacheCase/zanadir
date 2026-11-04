@@ -185,8 +185,8 @@ func CreateSkillsConfig(cmd *cobra.Command) (*Config, error) {
 	cfg.Enforce, _ = cmd.Flags().GetBool("enforce")
 	cfg.Output, _ = cmd.Flags().GetString("output")
 	cfg.Output = strings.ToLower(cfg.Output)
-	if cfg.Output != OutputTable && cfg.Output != OutputJSON {
-		return nil, fmt.Errorf("unsupported output format: %s (expected table or json)", cfg.Output)
+	if !slices.Contains(OutputFormats, cfg.Output) {
+		return nil, fmt.Errorf("unsupported output format: %s (expected one of %s)", cfg.Output, strings.Join(OutputFormats, ", "))
 	}
 	return cfg, nil
 }

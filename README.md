@@ -1168,8 +1168,12 @@ The safety rules are shallow on purpose and read only what the agent follows
 or runs, not reference documents that describe a risky pattern. For a security
 audit of a skill, use [SkillSpector](https://github.com/nvidia/skillspector).
 
-`--output json` gives the findings to other tools, and `--enforce` exits
-non-zero when any error is found. Dependency, test and `.git` directories are
+`--output json` gives the findings to other tools, `--output sarif` to GitHub
+code scanning, and `--output markdown` to a pull request comment; `--enforce`
+exits non-zero when any error is found. The SARIF has its own code scanning
+category, `zanadir/skills/`, so uploading it does not replace a scan's
+results. The Markdown lists errors first, at most 50 findings, and starts with
+`<!-- zanadir-skills-report -->` so a workflow can update its last comment. Dependency, test and `.git` directories are
 skipped. `--repo` fetches only the skill directories' files, as `scan --repo`
 fetches only CI files, and needs GitHub's file list to find them: a repository
 too large for one listing has to be cloned and checked with `--dir`.

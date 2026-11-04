@@ -382,8 +382,8 @@ func TestCreateSkillsConfigFetchesWithSkills(t *testing.T) {
 }
 
 func TestCreateSkillsConfigRejectsBadInput(t *testing.T) {
-	_, err := CreateSkillsConfig(newSkillsCmd(t.TempDir(), "sarif", false))
-	assert.EqualError(t, err, "unsupported output format: sarif (expected table or json)")
+	_, err := CreateSkillsConfig(newSkillsCmd(t.TempDir(), "xml", false))
+	assert.EqualError(t, err, "unsupported output format: xml (expected one of table, json, sarif, markdown)")
 
 	_, err = CreateSkillsConfig(newSkillsCmd("", "table", false))
 	assert.Error(t, err)

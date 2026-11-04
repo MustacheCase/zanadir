@@ -3,6 +3,7 @@ package output
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/MustacheCase/zanadir/internal/sarif"
 	"strings"
 	"testing"
 
@@ -33,8 +34,8 @@ func testSuggestions() []*suggester.CategorySuggestion {
 func TestBuildSarifStructure(t *testing.T) {
 	log := buildSarif(testSuggestions(), "", nil)
 
-	assert.Equal(t, sarifVersion, log.Version)
-	assert.Equal(t, sarifSchema, log.Schema)
+	assert.Equal(t, sarif.Version, log.Version)
+	assert.Equal(t, sarif.Schema, log.Schema)
 	assert.Len(t, log.Runs, 1)
 
 	run := log.Runs[0]
@@ -165,7 +166,7 @@ func TestSarifReportsWeakenedControlsAsNotes(t *testing.T) {
 	log := buildSarif(testSuggestions(), "anchor.yml", weaknesses)
 	run := log.Runs[0]
 
-	notes := map[string]sarifResult{}
+	notes := map[string]sarif.Result{}
 	for _, result := range run.Results {
 		if result.Level == "note" {
 			notes[result.RuleID] = result

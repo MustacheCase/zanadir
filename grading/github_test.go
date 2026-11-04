@@ -276,3 +276,30 @@ jobs:
 		})
 	}
 }
+
+func TestCodespellActionOnlyWarnInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "only_warn 1 is advisory", input: "only_warn: 1", expected: Advisory},
+		{name: "only_warn true is advisory", input: "only_warn: true", expected: Advisory},
+		{name: "expression is unknown", input: "only_warn: ${{ inputs.only_warn }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  spelling:
+    steps:
+      - uses: codespell-project/actions-codespell@v2
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}

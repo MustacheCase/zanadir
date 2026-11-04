@@ -704,6 +704,16 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"ansible-playbook site.yml", "ansible-galaxy install -r requirements.yml", "yamllint ."},
 		},
 		{
+			ruleID: "codespell-rule",
+			shouldMatch: []string{
+				"codespell",
+				`codespell --skip="*.lock,./target" -L crate`,
+				"codespell-project/actions-codespell@v2",
+				"tox -e codespell",
+			},
+			shouldNotMatch: []string{"npx cspell lint .", "cp .codespellrc /tmp/", "python -m codespell_lib"},
+		},
+		{
 			ruleID: "chart-testing-rule",
 			shouldMatch: []string{
 				"ct lint --target-branch ${{ github.event.repository.default_branch }}",

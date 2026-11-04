@@ -48,15 +48,15 @@ rules:
     regex: "(?i)\\bflake8\\b"
 
   - id: "oxsecurity-super-linter-rule"
-    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
-    categories: ["Linter"]
-    regex: "(?i)(super-linter|super-linter|oxsecurity/megalinter)"
+    applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
+    categories: [ "Linter" ]
+    regex: "(?i)(super-linter/super-linter|oxsecurity/megalinter)"
 
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-code-quality-template-rule"
     applyOn: ["Job.Package"]
     categories: ["Linter"]
-    regex: "(?i)^(jobs/)?code-quality\\.gitlab-ci\\.yml$"
+    regex: "(?i)^(?:jobs/)?code-quality\\.gitlab-ci\\.yml$"
 
   # Jenkins Warnings Next Generation, which publishes linter and static
   # analysis results.
@@ -65,7 +65,7 @@ rules:
     categories: ["Linter"]
     regex: "(?i)^recordissues$"
 
-  # Static analyzers for PHP.
+  # Static analysers for PHP.
   - id: "php-static-analysis-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
@@ -152,6 +152,11 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bhadolint\\b"
 
+  - id: "ansible-lint-rule"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bansible-lint\\b"   
+
   - id: "chart-testing-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
@@ -168,7 +173,7 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\btflint\\b"
-    unless: "(?i)^\\s*tflint\\s+(?:--init|-v)$"
+    unless: "(?i)^\\S*tflint\\s+(?:--init|-v)$"
 
   - id: "credo-rule"
     applyOn: ["Job.Run"]
@@ -207,9 +212,8 @@ rules:
         equals: "false"
         verdict: "advisory"
 
-  # PHP_CodeSniffer (phpcs). Exits non-zero on violations.
-  # Match as a path segment so phpcs.xml config copies do not count.
   - id: "phpcs-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?:^|[\\s/])phpcs(?:[\\s:@/]|$)"
+    regex: "(?i)(?:^|[\s/])phpcs(?:[\s:@/]|$)"
+

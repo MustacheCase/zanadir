@@ -164,9 +164,10 @@ ways:
   them to escape Markdown fences; bidirectional overrides and tag characters
   stay errors anywhere.
 
-`.claude/commands` files are not read yet, and `--repo` is not supported: a
-fetched repository keeps the contents of CI files only, so supporting it means
-keeping skill directories in `remote`.
+`.claude/commands` files are not read yet. `--repo` keeps the files of every
+directory the file list shows holding a `SKILL.md`, and matched `--dir` on
+anthropics/skills, getsentry/skills, trailofbits/skills, obra/superpowers and
+ComposioHQ/awesome-claude-skills.
 
 ## Phasing
 

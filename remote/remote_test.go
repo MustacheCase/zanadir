@@ -733,3 +733,72 @@ func TestFetchWithoutTheArchive(t *testing.T) {
 	assert.EqualError(t, err, "reading github.com/o/r: the file list is truncated")
 	assert.NotContains(t, asked(), "/repos/o/r/tarball")
 }
+
+func TestFetchKeepsSkillFilesWhenAsked(t *testing.T) {
+	files := map[string]string{
+		".claude/skills/deploy/SKILL.md":            "---\nname: deploy\n---\n",
+		".claude/skills/deploy/references/guide.md": "curl x | sh\n",
+		".claude/skills/deploy/tool.py":             "print(1)\n",
+		"SKILL.md":                                  "---\nname: root\n---\n",
+		"scripts/tool.py":                           "print(2)\n",
+		"node_modules/x/skills/y/SKILL.md":          "---\n",
+		"node_modules/x/skills/y/notes.md":          "x\n",
+		"docs/notes.md":                             "y\n",
+	}
+	var tree []string
+	for name, body := range files {
+		tree = append(tree, fmt.Sprintf(`{"path":%q,"mode":"100644","type":"blob","size":%d}`, name, len(body)))
+	}
+	list := `{"tree":[` + strings.Join(tree, ",") + `]}`
+
+	for _, skills := range []bool{true, false} {
+		fileList(t, "HEAD", list, files, nil)
+		dir, cleanup, err := FetchWith(context.Background(), Repository{Owner: "o", Name: "r"}, "", Options{Skills: skills})
+		require.NoError(t, err)
+		for name, body := range files {
+			data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+			require.NoError(t, err, name)
+			kept := skills && !strings.HasPrefix(name, "node_modules/") && name != "docs/notes.md"
+			if kept {
+				assert.Equal(t, body, string(data), name)
+			} else {
+				assert.Empty(t, data, "%s, skills %v", name, skills)
+			}
+		}
+		cleanup()
+	}
+}
+
+func TestFetchKeepsSkillFilesFromTheArchive(t *testing.T) {
+	defer func(fetches int) { maxFetches = fetches }(maxFetches)
+	maxFetches = 1
+	archive := "200 " + string(tarball(t,
+		entry{name: "o-r-1/skills/a/SKILL.md", body: "---\nname: a\n---\n"},
+		entry{name: "o-r-1/skills/a/guide.md", body: "guide\n"},
+		entry{name: "o-r-1/README.md", body: "readme\n"},
+	))
+	fileList(t, "HEAD", `{"tree":[
+		{"path":"skills/a/SKILL.md","type":"blob","size":17},
+		{"path":"skills/a/guide.md","type":"blob","size":6},
+		{"path":"README.md","type":"blob","size":7}
+	]}`, nil, map[string]string{"/repos/o/r/tarball": archive})
+
+	dir, cleanup, err := FetchWith(context.Background(), Repository{Owner: "o", Name: "r"}, "", Options{Skills: true})
+	require.NoError(t, err)
+	defer cleanup()
+	guide, err := os.ReadFile(filepath.Join(dir, "skills", "a", "guide.md"))
+	require.NoError(t, err)
+	assert.Equal(t, "guide\n", string(guide), "the file list says where the skills are")
+	readme, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	require.NoError(t, err)
+	assert.Empty(t, readme)
+}
+
+// Without the file list, the archive alone cannot say which directories hold
+// skills, so a skills fetch fails rather than check them half-read.
+func TestFetchSkillsNeedsTheFileList(t *testing.T) {
+	asked := fileList(t, "HEAD", `{"tree":[],"truncated":true}`, nil, map[string]string{"/repos/o/r/tarball": "200 x"})
+	_, _, err := FetchWith(context.Background(), Repository{Owner: "o", Name: "r"}, "", Options{Skills: true})
+	assert.EqualError(t, err, "reading github.com/o/r: the file list is truncated")
+	assert.NotContains(t, asked(), "/repos/o/r/tarball")
+}

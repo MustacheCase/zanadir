@@ -1127,10 +1127,11 @@ without it and paste the snippets.
 Agent skills (`SKILL.md` files for Claude Code, Codex and other agents) fail
 quietly: a vague description never triggers, a linked script was deleted, two
 skills compete for the same requests. `skills` finds every `SKILL.md` in a
-checkout and reports them:
+checkout, or in a GitHub repository without cloning it, and reports them:
 
 ```sh
 zanadir skills --dir .
+zanadir skills --repo github.com/owner/name
 ```
 
 ```
@@ -1166,7 +1167,9 @@ audit of a skill, use [SkillSpector](https://github.com/nvidia/skillspector).
 
 `--output json` gives the findings to other tools, and `--enforce` exits
 non-zero when any error is found. Dependency, test and `.git` directories are
-skipped. `skills` reads a checkout only; `--repo` is not supported yet.
+skipped. `--repo` fetches only the skill directories' files, as `scan --repo`
+fetches only CI files, and needs GitHub's file list to find them: a repository
+too large for one listing has to be cloned and checked with `--dir`.
 
 ## Contributors
 

@@ -1,7 +1,7 @@
 ---
 name: improve-ci
 description: Review and harden a repository's CI/CD pipeline with zanadir. Use when the user wants to know what their CI is missing, whether its security checks can actually fail a build, or wants dependency scanning, secrets detection, SAST, linting, tests, coverage, SBOMs or workflow hardening added to GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure Pipelines or Jenkins.
-allowed-tools: Bash(zanadir scan:*), Bash(zanadir fix:*), Bash(zanadir --help), Bash(zanadir --version), Bash(command -v zanadir), Read, Glob, Grep
+allowed-tools: Bash(zanadir scan:*), Bash(zanadir fix:*), Bash(zanadir skills:*), Bash(zanadir --help), Bash(zanadir --version), Bash(command -v zanadir), Read, Glob, Grep
 ---
 
 # Improve CI with zanadir
@@ -16,9 +16,10 @@ which controls are present but wired so they cannot fail a build.
 
 ## 1. Check zanadir
 
-If this plugin's zanadir MCP tools, `scan` and `fix`, are available, use
-them for steps 2 and 3: they return the same JSON report and snippets as the
-commands below, for the project by default, or for `dir` or `repo` when given.
+If this plugin's zanadir MCP tools, `scan`, `fix` and `skills`, are
+available, use them for steps 2 and 3: they return the same JSON reports and
+snippets as the commands below, for the project by default, or for `dir` or
+`repo` when given.
 
 Otherwise run `command -v zanadir`. If it is missing, tell the user how to
 install it and stop:
@@ -37,6 +38,10 @@ install it and stop:
     `verdict` (partial, advisory or unknown), the file and the reason, such
     as `continue-on-error`, `|| true`, `--exit-code 0` or a push-only trigger;
   - `notApplicable`: categories that do not apply to this repository.
+- If the repository has agent skills (`SKILL.md` files), run
+  `zanadir skills --dir . --output json`. It lists the skills found and each
+  problem with its rule, file and line, such as a link to a missing file,
+  hidden Unicode, or a download piped straight into a shell.
 - If the user has said categories are irrelevant, pass them with
   `--excluded-categories "A,B"`.
 - Read the CI configuration itself, so changes fit what exists: triggers, job

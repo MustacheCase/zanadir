@@ -34,6 +34,18 @@ type Skill struct {
 	Body           string
 	Content        string
 	keyLines       map[string]int
+	// root and src are where the skill is read from when that is not where
+	// it is shown: a home skill reached through a symlink.
+	root, src string
+}
+
+// location is the directory the skill's files are read under, and the
+// skill's directory within it.
+func (s *Skill) location(root string) (string, string) {
+	if s.root != "" {
+		return s.root, s.src
+	}
+	return root, s.Dir
 }
 
 // Discover returns every skill under dir, ordered by path. Dependency, test

@@ -58,6 +58,8 @@ type Config struct {
 	Repo *remote.Repository
 	// Skills makes a fetch keep the agent skills' files too.
 	Skills bool
+	// Home checks the skills in Dir's agent directories, a home directory.
+	Home bool
 	// Out receives the report instead of OutputFile or stdout, for callers
 	// that are not the command line.
 	Out io.Writer
@@ -177,7 +179,7 @@ func CreateConfig(cmd *cobra.Command) (*Config, error) {
 
 // CreateSkillsConfig builds the skills command's Config.
 func CreateSkillsConfig(cmd *cobra.Command) (*Config, error) {
-	cfg, err := target(cmd)
+	cfg, err := skillsTarget(cmd)
 	if err != nil {
 		return nil, err
 	}
@@ -190,6 +192,23 @@ func CreateSkillsConfig(cmd *cobra.Command) (*Config, error) {
 	}
 	return cfg, nil
 }
+
+// skillsTarget is target, or with --home the user's home directory.
+func skillsTarget(cmd *cobra.Command) (*Config, error) {
+	if home, _ := cmd.Flags().GetBool("home"); !home {
+		return target(cmd)
+	}
+	dir, _ := cmd.Flags().GetString("dir")
+	repo, _ := cmd.Flags().GetString("repo")
+	if dir != "" || repo != "" {
+		return nil, fmt.Errorf("--home checks your own skills; give it without --dir or --repo")
+	}
+	home, err := userHomeDir()
+	return &Config{Dir: home, Home: true}, err
+}
+
+// userHomeDir is replaced in tests.
+var userHomeDir = os.UserHomeDir
 
 // CreateFixConfig builds the subset of configuration the fix command needs.
 // It does not read the scan-only flags, which fix does not define.

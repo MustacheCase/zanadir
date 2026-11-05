@@ -152,6 +152,7 @@ func checkFrontmatter(s *Skill) []Finding {
 }
 
 func checkBody(root string, s *Skill) []Finding {
+	root, src := s.location(root)
 	var findings []Finding
 	lines := strings.Split(s.Content, "\n")
 	if n := len(strings.Split(strings.TrimRight(s.Body, "\n"), "\n")); n > maxBodyLines {
@@ -168,7 +169,7 @@ func checkBody(root string, s *Skill) []Finding {
 			continue
 		}
 		for _, match := range linkPattern.FindAllStringSubmatch(inlineCode.ReplaceAllString(line, ""), -1) {
-			if target, ok := localTarget(s.Dir, match[1]); ok && !exists(root, target) {
+			if target, ok := localTarget(src, match[1]); ok && !exists(root, target) {
 				findings = append(findings, quality(s, "missing-reference", Error, i+1, "links %s, which does not exist", match[1]))
 			}
 		}
@@ -204,22 +205,26 @@ func exists(root, rel string) bool {
 // checkFiles looks for unsafe content in every text file of the skill. A
 // skill at the root of the scan is only its SKILL.md and scripts.
 func checkFiles(root string, s *Skill) []Finding {
+	root, src := s.location(root)
 	var findings []Finding
-	for _, rel := range skillFiles(root, s) {
+	for _, rel := range skillFiles(root, src) {
 		data, err := repofs.ReadFileLimit(root, filepath.Join(root, filepath.FromSlash(rel)), maxScannedFileBytes)
 		if err != nil || bytes.IndexByte(data, 0) >= 0 {
 			continue
+		}
+		if src != s.Dir {
+			rel = s.Dir + strings.TrimPrefix(rel, src)
 		}
 		findings = append(findings, scanText(s, rel, string(data))...)
 	}
 	return findings
 }
 
-func skillFiles(root string, s *Skill) []string {
-	dirs := []string{s.Dir}
+func skillFiles(root, src string) []string {
+	dirs := []string{src}
 	files := []string{}
-	if s.Dir == "." {
-		dirs, files = []string{"scripts"}, []string{s.Path}
+	if src == "." {
+		dirs, files = []string{"scripts"}, []string{FileName}
 	}
 	for _, d := range dirs {
 		base := filepath.Join(root, filepath.FromSlash(d))

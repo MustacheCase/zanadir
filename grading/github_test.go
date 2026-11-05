@@ -116,6 +116,23 @@ jobs:
 	}
 }
 
+// nancy fails on findings unless --no-fail tells it not to.
+func TestNancyNoFailGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"go list -json -deps ./... | nancy sleuth":           Enforcing,
+		"go list -json -deps ./... | nancy sleuth --no-fail": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["SCA"], run)
+	}
+}
+
 // GuardDog reports findings without failing unless explicitly asked to fail.
 func TestGuardDogExitsZeroUnlessFindingFlag(t *testing.T) {
 	for run, expected := range map[string]Verdict{

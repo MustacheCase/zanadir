@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -354,7 +355,33 @@ func newSkillsCmd(dir, output string, enforce bool) *cobra.Command {
 	cmd.Flags().StringP("output", "o", output, "output")
 	cmd.Flags().Bool("enforce", enforce, "enforce")
 	cmd.Flags().String("repo", "", "repo")
+	cmd.Flags().Bool("home", false, "home")
 	return cmd
+}
+
+func TestCreateSkillsConfigHome(t *testing.T) {
+	cmd := newSkillsCmd("", "table", false)
+	require.NoError(t, cmd.Flags().Set("home", "true"))
+	userHomeDir = func() (string, error) { return "/home/me", nil }
+	t.Cleanup(func() { userHomeDir = os.UserHomeDir })
+
+	cfg, err := CreateSkillsConfig(cmd)
+	require.NoError(t, err)
+	assert.Equal(t, "/home/me", cfg.Dir)
+	assert.True(t, cfg.Home)
+	assert.Nil(t, cfg.Repo)
+
+	userHomeDir = func() (string, error) { return "", errors.New("$HOME is not defined") }
+	_, err = CreateSkillsConfig(cmd)
+	assert.EqualError(t, err, "$HOME is not defined")
+
+	for _, flag := range []string{"dir", "repo"} {
+		other := newSkillsCmd("", "table", false)
+		require.NoError(t, other.Flags().Set("home", "true"))
+		require.NoError(t, other.Flags().Set(flag, "o/r"))
+		_, err = CreateSkillsConfig(other)
+		assert.EqualError(t, err, "--home checks your own skills; give it without --dir or --repo", flag)
+	}
 }
 
 func TestCreateSkillsConfig(t *testing.T) {

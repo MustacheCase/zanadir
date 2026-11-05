@@ -292,6 +292,14 @@ func TestCheckSkills(t *testing.T) {
 	assert.Contains(t, out.String(), "| error | links gone.md, which does not exist |")
 
 	assert.Error(t, checkSkills(&config.Config{Dir: dir + "/absent"}))
+
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	home := t.TempDir()
+	assert.NoError(t, os.MkdirAll(home+"/.claude/skills", 0o755))
+	assert.NoError(t, os.Symlink(dir+"/skills/a", home+"/.claude/skills/a"))
+	out.Reset()
+	assert.NoError(t, checkSkills(&config.Config{Dir: home, Home: true, Output: config.OutputTable}))
+	assert.Contains(t, out.String(), "~/.claude/skills/a/SKILL.md:5  links gone.md, which does not exist")
 }
 
 func TestSkillsCommandIsRegistered(t *testing.T) {

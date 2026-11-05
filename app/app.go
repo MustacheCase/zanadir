@@ -204,6 +204,7 @@ func NewApp() *cobra.Command {
 	skillsCmd.Flags().String("repo", "", "Check a GitHub repository's skills without cloning it: github.com/owner/name[@ref]; uses GITHUB_TOKEN if set (optional)")
 	skillsCmd.Flags().StringP("output", "o", "table", "Output format of the tool (table, json, sarif, markdown) (optional)")
 	skillsCmd.Flags().Bool("enforce", false, "Fails when any skill has an error-level problem (optional)")
+	skillsCmd.Flags().Bool("home", false, "Check your own skills instead of a repository's: those in ~/.claude/skills, ~/.agents/skills, ~/.codex/skills and ~/.cursor/skills (optional)")
 
 	return rootCmd
 }
@@ -236,8 +237,15 @@ func fixRepo(cfg *config.Config) error {
 	return h.Fix(cfg, os.Stdout)
 }
 
+func findSkills(cfg *config.Config) (skills.Report, error) {
+	if cfg.Home {
+		return skills.RunHome(cfg.Dir), nil
+	}
+	return skills.Run(cfg.Dir)
+}
+
 func checkSkills(cfg *config.Config) error {
-	report, err := skills.Run(cfg.Dir)
+	report, err := findSkills(cfg)
 	if err != nil {
 		return err
 	}

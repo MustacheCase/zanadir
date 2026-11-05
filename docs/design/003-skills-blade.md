@@ -54,15 +54,19 @@ Gaps
 
 Score 61/100
 
-$ zanadir skills --home     # also ~/.claude/skills and installed plugins
+$ zanadir skills --home     # ~/.claude/skills, ~/.agents/skills and the like
 ```
 
 ## Where skills are found
 
 With `--dir`: `.claude/skills/*/SKILL.md`, `.claude/commands/*.md`,
 `.agents/skills/*/SKILL.md`, and `*/skills/*/SKILL.md` under any directory with
-a `.claude-plugin/plugin.json`. With `--home`: the same under `~/.claude`,
-`~/.codex` and installed plugins. `--repo` works as it does for CI.
+a `.claude-plugin/plugin.json`. With `--home`: `~/.claude/skills` (or
+`$CLAUDE_CONFIG_DIR/skills`), `~/.agents/skills`, `~/.codex/skills` and
+`~/.cursor/skills`, from each agent's documentation, following symlinked skill
+folders as the agents do. Installed Claude Code plugins are listed in
+`~/.claude/plugins/installed_plugins.json`, whose format is not documented,
+so they wait until one can be checked. `--repo` works as it does for CI.
 
 Each location must be checked against real repositories and real agents before
 release, not assumed. zanadir's GitLab support was dead for months because a
@@ -176,8 +180,8 @@ ComposioHQ/awesome-claude-skills.
    skills until false positives are near zero.
 2. **Agent Skill Security** category in the CI blade.
 3. **Gaps**, with the catalogue and its health check.
-4. **`--home`**, SARIF and Markdown, MCP tool and action input. `--repo` and
-   the MCP tool are done.
+4. **`--home`**, SARIF and Markdown, MCP tool and action input. All done but
+   the action input and plugins under `--home`.
 5. **`skills fix`**.
 
 ## Non-goals

@@ -1135,6 +1135,7 @@ checkout, or in a GitHub repository without cloning it, and reports them:
 ```sh
 zanadir skills --dir .
 zanadir skills --repo github.com/owner/name
+zanadir skills --home   # your own skills, which agents load in every project
 ```
 
 ```
@@ -1173,7 +1174,14 @@ code scanning, and `--output markdown` to a pull request comment; `--enforce`
 exits non-zero when any error is found. The SARIF has its own code scanning
 category, `zanadir/skills/`, so uploading it does not replace a scan's
 results. The Markdown lists errors first, at most 50 findings, and starts with
-`<!-- zanadir-skills-report -->` so a workflow can update its last comment. Dependency, test and `.git` directories are
+`<!-- zanadir-skills-report -->` so a workflow can update its last comment.
+
+`--home` checks the skills agents load for you in every project:
+`~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`) for Claude Code,
+`~/.agents/skills` and `~/.codex/skills` for Codex, and `~/.cursor/skills` for
+Cursor, which reads the others too. A skill folder that is a symlink is read
+where it points, as the agents do, and a skill linked from two places is
+checked once. Skills inside installed plugins are not read yet. Dependency, test and `.git` directories are
 skipped. `--repo` fetches only the skill directories' files, as `scan --repo`
 fetches only CI files, and needs GitHub's file list to find them: a repository
 too large for one listing has to be cloned and checked with `--dir`.

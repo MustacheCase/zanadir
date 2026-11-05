@@ -138,7 +138,7 @@ rules:
   - id: "nancy-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)(?:^|[\\s/])nancy(?:[:@]\\S+)?(?:\\s+-[\\w-]+(?:=\\S+)?)*\\s+(?:sleuth|lifecycle|iq)\\b|\\bnancy-github-action\\b"
+    regex: "(?i)(?:^|[\\s/])nancy(?:[:@]\\S+)?(?:\\s+-[\\w-]+(?:[=\\s]\\S+)?)*\\s+(?:sleuth|lifecycle|iq)\\b|\\bnancy-github-action\\b"
     weakenedWhen:
       - runMatches: "--no-fail\\b"
         verdict: "advisory"

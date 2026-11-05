@@ -371,12 +371,13 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"nancy sleuth --exclude-vulnerability-file .nancy-ignore", "nancy lifecycle", "nancy iq",
 				"./bin/nancy sleuth", "docker run --rm -i sonatypecommunity/nancy:latest sleuth",
 				"nancy -q sleuth", "nancy --skip-update-check sleuth",
+				"nancy --guide-token $GUIDE_TOKEN sleuth", "nancy -u $USER -t $TOKEN sleuth",
 				"sonatype-nexus-community/nancy-github-action@v1.0.2",
 			},
 			shouldNotMatch: []string{
 				"nancy config", "nancy update", "./scripts/notify-nancy.sh",
 				"kubectl rollout restart deploy/nancy-api", "nancy", "nancysleuth", "nancy sleuthing",
-				"docker run -i sonatypecommunity/nancy:latest", "nancy -q config",
+				"docker run -i sonatypecommunity/nancy:latest", "nancy -q config", "nancy -u x update",
 			},
 		},
 		{

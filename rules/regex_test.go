@@ -363,6 +363,21 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"retired", "npm run retire-old-builds", "git rm retire.txt", "echo retire", "retire-js"},
 		},
 		{
+			// "nancy" is also a person's name, so only the scanning
+			// sub-commands and the action count.
+			ruleID: "nancy-rule",
+			shouldMatch: []string{
+				"go list -json -deps ./... | nancy sleuth", "nancy sleuth --loud",
+				"nancy sleuth --exclude-vulnerability-file .nancy-ignore", "nancy lifecycle", "nancy iq",
+				"./bin/nancy sleuth", "docker run --rm -i sonatypecommunity/nancy:latest sleuth",
+				"sonatype-nexus-community/nancy-github-action@v1.0.2",
+			},
+			shouldNotMatch: []string{
+				"nancy config", "nancy update", "./scripts/notify-nancy.sh",
+				"kubectl rollout restart deploy/nancy-api", "nancy", "nancysleuth", "nancy sleuthing",
+			},
+		},
+		{
 			// "audit" on its own is in half the workflow names on GitHub, so
 			// only the subcommand counts.
 			ruleID:         "npm-audit-rule",

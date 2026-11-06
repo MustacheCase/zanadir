@@ -1,7 +1,7 @@
 {
   "name": "zanadir",
   "description": "Find what a repository's CI is missing, and which controls cannot fail a build: a skill to close the gaps and an MCP server with scan, fix and skills tools.",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "author": {
     "name": "MustacheCase"
   },

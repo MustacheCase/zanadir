@@ -131,12 +131,14 @@ rules:
 
   # "nancy" is also a person's name, so only its scanning sub-commands count
   # (iq is the old name of lifecycle), run directly, by path or as an image,
-  # and its action. config and update check nothing. --no-fail makes it exit
-  # 0 whatever it finds.
+  # with or without root flags before them, and its action. The image alone
+  # runs bare nancy, which prints help and exits 0, so it does not count.
+  # config and update check nothing. --no-fail makes it exit 0 whatever it
+  # finds.
   - id: "nancy-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
-    regex: "(?i)(?:^|[\\s/])nancy(?:[:@]\\S+)?\\s+(?:sleuth|lifecycle|iq)\\b|\\bnancy-github-action\\b"
+    regex: "(?i)(?:^|[\\s/])nancy(?:[:@]\\S+)?(?:\\s+-[\\w-]+(?:[=\\s]\\S+)?)*\\s+(?:sleuth|lifecycle|iq)\\b|\\bnancy-github-action\\b"
     weakenedWhen:
       - runMatches: "--no-fail\\b"
         verdict: "advisory"

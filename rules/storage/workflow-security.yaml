@@ -1,10 +1,12 @@
 rules:
   - id: "actionlint-rule"
+    name: "actionlint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Workflow Security"]
     regex: "(?i)\\bactionlint\\b|rhysd/actionlint|reviewdog/action-actionlint"
 
   - id: "zizmor-rule"
+    name: "zizmor"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Workflow Security"]
     regex: "(?i)\\bzizmor\\b"
@@ -14,6 +16,7 @@ rules:
   # glsec-io/glsec. Other images or components with "glsec" in their path, such
   # as gitlab.com/someone/glsec/glsec or glsec-io/glsec/glsec-extra, are not it.
   - id: "glsec-rule"
+    name: "glsec"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Workflow Security"]
     regex: "(?i)(?:^|[\\s/])glsec(?:\\s|$)|ghcr\\.io/glsec/glsec(?:[:@\\s]|$)|glsec-io/glsec/glsec(?:-code-quality)?(?:@|$)"
@@ -23,6 +26,7 @@ rules:
   # unless --fail-on-violation is set; like grype's, a missing flag is not
   # graded, or every default setup would read as weakened.
   - id: "poutine-rule"
+    name: "poutine"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Workflow Security"]
     regex: "(?i)\\bboostsecurityio/poutine\\b|\\bpoutine\\b[^\\n]*\\banalyze_(?:local|repo|org)\\b"
@@ -30,12 +34,14 @@ rules:
   # "scorecard" is the tool's whole name, so the word is enough; the plural
   # "scorecards" is a different thing and the boundary excludes it.
   - id: "scorecard-rule"
+    name: "OpenSSF Scorecard"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Workflow Security"]
     regex: "(?i)ossf/scorecard-action|\\bscorecard\\b"
 
   # CodeQL's actions language finds injection and other workflow flaws.
   - id: "codeql-actions-rule"
+    name: "CodeQL"
     applyOn: ["Job.Run"]
     categories: ["Workflow Security"]
     regex: "(?i)\\bcodeql\\s+database\\s+create\\b[^\\n]*--language[= ](?:[\\w+-]+,)*actions\\b"

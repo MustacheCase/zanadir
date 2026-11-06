@@ -29,7 +29,10 @@ var SupportedFields = []string{FieldArtifactName, FieldJobName, FieldJobPackage,
 
 // FileRule is a rule as written in the catalogue or a config file.
 type FileRule struct {
-	ID         string   `yaml:"id"`
+	ID string `yaml:"id"`
+	// Name is the tool a report shows. Without it, the report shows the
+	// regex's first non-empty "name" group, or else the text it matched.
+	Name       string   `yaml:"name"`
 	ApplyOn    []string `yaml:"applyOn"`
 	Categories []string `yaml:"categories"`
 	Regex      string   `yaml:"regex"`
@@ -87,6 +90,7 @@ type Collection struct {
 // Rule is a compiled FileRule.
 type Rule struct {
 	ID         string
+	Name       string
 	ApplyOn    []string
 	Categories []string
 	Regex      *regexp.Regexp
@@ -114,6 +118,35 @@ type WeakenedWhen struct {
 	Equals     string
 	Verdict    string
 }
+
+// Tool names the tool a rule found in text, the field it matched.
+func (r *Rule) Tool(text string) string {
+	if r.Name != "" {
+		return r.Name
+	}
+	match := r.Regex.FindStringSubmatch(text)
+	if match == nil {
+		return r.ID
+	}
+	found := match[0]
+	for i, group := range r.Regex.SubexpNames() {
+		if group == "name" && match[i] != "" {
+			found = match[i]
+			break
+		}
+	}
+	if found = strings.Join(strings.Fields(found), " "); found == "" {
+		return r.ID
+	}
+	if runes := []rune(found); len(runes) > maxToolName {
+		found = string(runes[:maxToolName-1]) + "…"
+	}
+	return found
+}
+
+// maxToolName keeps a name taken from a long match, such as a custom rule's
+// whole command line, to the width of a name.
+const maxToolName = 40
 
 // RuleService hands out the rules for a category.
 type RuleService interface {
@@ -157,6 +190,7 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 		}
 		convertedRules = append(convertedRules, &Rule{
 			ID:            r.ID,
+			Name:          r.Name,
 			ApplyOn:       r.ApplyOn,
 			Categories:    r.Categories,
 			Regex:         regexp.MustCompile(r.Regex),

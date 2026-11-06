@@ -1,21 +1,25 @@
 rules:
   - id: "jacoco-rule"
+    name: "JaCoCo"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
     regex: "(?i)\\bjacoco\\b"
 
   - id: "cobertura-rule"
+    name: "Cobertura"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
     # Prefix only: cobertura_splitter and coberturaXML are its tools too.
     regex: "(?i)\\bcobertura"
 
   - id: "codecov-rule"
+    name: "Codecov"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
     regex: "(?i)\\bcodecov\\b"
 
   - id: "coverallsapp-rule"
+    name: "Coveralls"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Coverage"]
     regex: "(?i)\\bcoveralls(app)?\\b"
@@ -30,4 +34,4 @@ rules:
   - id: "coverage-command-rule"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Coverage"]
-    regex: "(?i)\\bpytest\\b[^\\n]*\\s--cov\\b|\\bcoverage\\s+(?:run|report|xml|combine)\\b|\\bdiff-cover\\b|\\bgo\\s+test\\b[^\\n]*\\s-cover(?:profile|pkg|mode)?\\b|\\b(?:jest|vitest)\\b[^\\n]*\\s--coverage\\b|\\bnyc\\b|\\bcargo\\s+(?:tarpaulin|llvm-cov)\\b|\\bphpunit\\b[^\\n]*\\s--coverage-|\\bcoverlet\\b|XPlat Code Coverage|\\bgo-test-coverage\\b"
+    regex: "(?i)\\b(?P<name>pytest)\\b[^\\n]*\\s--cov\\b|\\b(?P<name>coverage)\\s+(?:run|report|xml|combine)\\b|\\bdiff-cover\\b|\\b(?P<name>go\\s+test)\\b[^\\n]*\\s-cover(?:profile|pkg|mode)?\\b|\\b(?P<name>jest|vitest)\\b[^\\n]*\\s--coverage\\b|\\bnyc\\b|\\bcargo\\s+(?:tarpaulin|llvm-cov)\\b|\\b(?P<name>phpunit)\\b[^\\n]*\\s--coverage-|\\bcoverlet\\b|XPlat Code Coverage|\\bgo-test-coverage\\b"

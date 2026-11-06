@@ -1,35 +1,42 @@
 rules:
   - id: "k6-rule"
+    name: "k6"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
     regex: "(?mi)\\bk6\\s+(?:run|cloud)\\b"
 
   - id: "jmeter-rule"
+    name: "JMeter"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
     regex: "(?i)\\bjmeter\\b"
 
   - id: "gatling-rule"
+    name: "Gatling"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
     regex: "(?i)\\bgatling\\b"
 
   - id: "apache-bench-rule"
+    name: "Apache Bench"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
     regex: "(?i)\\bapache-?bench\\b|\\bab\\s+-[nckt]\\b"
 
   - id: "artillery-rule"
+    name: "Artillery"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Performance Testing" ]
     regex: "(?i)\\bartillery\\b"
 
   - id: "blazemeter-rule"
+    name: "BlazeMeter"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Performance Testing" ]
     regex: "(?i)\\bblazemeter\\b"
 
   - id: "taurus-rule"
+    name: "Taurus"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Performance Testing" ]
     regex: "(?i)(?:^|[\\s/])bzt(?:\\s|$)"
@@ -37,6 +44,7 @@ rules:
 
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-performance-template-rule"
+    name: "GitLab Performance Testing"
     applyOn: ["Job.Package"]
     categories: ["Performance Testing"]
     regex: "(?i)^(?:jobs|verify)/(?:browser|load)-performance(?:-testing)?\\.gitlab-ci\\.yml$"
@@ -45,6 +53,7 @@ rules:
   # crate, runner labels), so only its subcommands or its image. Installing
   # it is passive, as for every tool.
   - id: "warp-rule"
+    name: "warp"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
     regex: "(?i)\\bminio/warp\\b|\\bwarp\\s+(?:mixed|get|put|delete|list|stat|versioned|multipart|multipart-put|append|retention|fanout|snowball|zip|analyze|cmp|merge|client)\\b"

@@ -1,15 +1,18 @@
 rules:
   - id: "eslint-rule"
+    name: "ESLint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\beslint\\b"
 
   - id: "pylint-rule"
+    name: "Pylint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bpylint\\b"
 
   - id: "ruff-rule"
+    name: "Ruff"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bruff\\b"
@@ -20,6 +23,7 @@ rules:
     regex: "(?i)\\b(?:mypy|pyright)\\b"
 
   - id: "golangci-lint-rule"
+    name: "golangci-lint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bgolangci-lint\\b"
@@ -28,6 +32,7 @@ rules:
   # whole path segment. revive exits 0 on findings unless -set_exit_status is
   # given; a -config file can set error-code / warning-code instead.
   - id: "revive-rule"
+    name: "revive"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     # Case-sensitive: Artifact.Name is the workflow name, and "Revive stale
@@ -38,11 +43,13 @@ rules:
       unknownWhen: "(?:^|\\s)--?config(?:[= ]|$)"
 
   - id: "rubocop-rule"
+    name: "RuboCop"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\brubocop\\b"
 
   - id: "flake8-rule"
+    name: "Flake8"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bflake8\\b"
@@ -50,10 +57,11 @@ rules:
   - id: "oxsecurity-super-linter-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Linter" ]
-    regex: "(?i)(super-linter/super-linter|oxsecurity/megalinter)"
+    regex: "(?i)((?P<name>super-linter)/super-linter|oxsecurity/(?P<name>megalinter))"
 
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-code-quality-template-rule"
+    name: "GitLab Code Quality"
     applyOn: ["Job.Package"]
     categories: ["Linter"]
     regex: "(?i)^(?:jobs/)?code-quality\\.gitlab-ci\\.yml$"
@@ -61,6 +69,7 @@ rules:
   # Jenkins Warnings Next Generation, which publishes linter and static
   # analysis results.
   - id: "jenkins-record-issues-rule"
+    name: "Warnings Next Generation"
     applyOn: ["Job.Package"]
     categories: ["Linter"]
     regex: "(?i)^recordissues$"
@@ -72,57 +81,68 @@ rules:
     regex: "(?i)\\b(?:phpstan|psalm)\\b"
 
   - id: "clang-tidy-rule"
+    name: "clang-tidy"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bclang-tidy\\b"
 
   - id: "shellcheck-rule"
+    name: "ShellCheck"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bshellcheck\\b"
 
   - id: "yamllint-rule"
+    name: "yamllint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\byamllint\\b"
 
   - id: "clippy-rule"
+    name: "Clippy"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bcargo\\s+clippy\\b|clippy-check"
 
   # Biome's binary is also a common word, so only its commands and action.
   - id: "biome-rule"
+    name: "Biome"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bbiome\\s+(?:check|lint|ci)\\b|biomejs/setup-biome"
 
   - id: "oxlint-rule"
+    name: "oxlint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\boxlint\\b"
 
   - id: "next-lint-rule"
+    name: "next lint"
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bnext\\s+lint\\b"
 
   - id: "deno-lint-rule"
+    name: "deno lint"
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bdeno\\s+lint\\b"
 
   - id: "stylelint-rule"
+    name: "Stylelint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bstylelint\\b"
 
   - id: "go-vet-rule"
+    name: "go vet"
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bgo\\s+vet\\b"
 
   - id: "staticcheck-rule"
+    name: "Staticcheck"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bstaticcheck\\b"
@@ -133,36 +153,43 @@ rules:
     regex: "(?i)\\b(?:ktlint(?:check)?|detekt)\\b"
 
   - id: "checkstyle-rule"
+    name: "Checkstyle"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bcheckstyle(?:main|test)?\\b"
 
   - id: "swiftlint-rule"
+    name: "SwiftLint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bswiftlint\\b"
 
   - id: "dart-analyze-rule"
+    name: "dart analyze"
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\b(?:dart|flutter)\\s+analyze\\b"
 
   - id: "hadolint-rule"
+    name: "Hadolint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bhadolint\\b"
 
   - id: "ansible-lint-rule"
+    name: "ansible-lint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bansible-lint\\b"   
 
   - id: "chart-testing-rule"
+    name: "chart-testing"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bct\\s+lint(?:-and-install)?\\b"
 
   - id: "markdownlint-rule"
+    name: "markdownlint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bmarkdownlint(?:-cli2?)?\\b"
@@ -170,17 +197,20 @@ rules:
   # `tflint --init` only installs plugins and `tflint -v` prints the version,
   # so neither lints anything.
   - id: "tflint-rule"
+    name: "TFLint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\btflint\\b"
     unless: "(?i)^\\S*tflint\\s+(?:--init|-v)$"
 
   - id: "credo-rule"
+    name: "Credo"
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bmix\\s+credo\\b"
 
   - id: "standardrb-rule"
+    name: "Standard Ruby"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bstandardrb\\b"
@@ -191,18 +221,21 @@ rules:
     regex: "(?i)\\b(?:hlint|luacheck)\\b"
 
   - id: "vite-plus-lint-rule"
+    name: "Vite+ lint"
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bvp\\s+lint\\b"
 
   # Helm's lint subcommand validates charts; other helm subcommands do not.
   - id: "helm-lint-rule"
+    name: "helm lint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bhelm\\s+lint\\b"
 
   # buf is also used for generation and publishing; only lint and its CI actions count.
   - id: "buf-lint-rule"
+    name: "buf lint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:\\bbuf\\s+lint\\b|bufbuild/buf(?:-lint)?-action)"
@@ -215,6 +248,7 @@ rules:
   # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
   # and .codespellrc / codespell_lib are not runs of it.
   - id: "codespell-rule"
+    name: "codespell"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bcodespell\\b"
@@ -228,6 +262,7 @@ rules:
         verdict: "advisory"
 
   - id: "phpcs-rule"
+    name: "PHP_CodeSniffer"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])phpcs(?:[\\s:@/]|$)"

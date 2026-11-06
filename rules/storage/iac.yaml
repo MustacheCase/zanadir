@@ -1,5 +1,6 @@
 rules:
   - id: "checkov-rule"
+    name: "Checkov"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bcheckov\\b|bridgecrewio/checkov"
@@ -11,6 +12,7 @@ rules:
         verdict: "advisory"
 
   - id: "tfsec-rule"
+    name: "tfsec"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\btfsec\\b"
@@ -22,16 +24,19 @@ rules:
         verdict: "advisory"
 
   - id: "terrascan-rule"
+    name: "Terrascan"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bterrascan\\b"
 
   - id: "kics-rule"
+    name: "KICS"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bkics\\b|checkmarx/kics"
 
   - id: "kubescape-rule"
+    name: "Kubescape"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bkubescape\\b"
@@ -45,6 +50,7 @@ rules:
   # exitsZeroUnless. Only the score sub-command checks manifests; version,
   # help and completion check nothing.
   - id: "kube-score-rule"
+    name: "kube-score"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bkube-score\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*score(?:\\s|$)"
@@ -53,12 +59,14 @@ rules:
   # exitsZeroUnless. Only the test sub-command checks configuration: verify
   # runs the Rego unit tests, and pull, push, fmt and parse check nothing.
   - id: "conftest-rule"
+    name: "Conftest"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bconftest\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*test(?:\\s|$)"
 
   # "snyk" alone is the SCA rule; only the iac sub-command scans infrastructure.
   - id: "snyk-iac-rule"
+    name: "Snyk IaC"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bsnyk\\s+iac\\b"
@@ -66,6 +74,7 @@ rules:
   # Likewise trivy: config, or misconfig among the scanners of another
   # sub-command. See trivy-rule in sca.yaml.
   - id: "trivy-config-rule"
+    name: "Trivy"
     applyOn: ["Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\btrivy\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*(?:config|conf)(?:\\s|$)|\\btrivy\\b[^\\n]*--(?:scanners|security-checks)[= ](?:[\\w-]+,)*(?:misconfig|config)\\b"
@@ -80,16 +89,19 @@ rules:
       configFiles: ["trivy.yaml"]
 
   - id: "cfn-nag-rule"
+    name: "cfn-nag"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bcfn[-_]nag\\b"
 
   - id: "cfn-lint-rule"
+    name: "cfn-lint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     regex: "(?i)\\bcfn-lint\\b"
 
   - id: "cfn-guard-rule"
+    name: "CloudFormation Guard"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
     # Only validate checks templates; test, rulegen and parse-tree work on the rules.
@@ -97,6 +109,7 @@ rules:
 
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-sast-iac-template-rule"
+    name: "GitLab IaC Scanning"
     applyOn: ["Job.Package"]
     categories: ["IaC Security"]
     regex: "(?i)^(?:jobs|security)/sast-iac(?:\\.latest)?\\.gitlab-ci\\.yml$"

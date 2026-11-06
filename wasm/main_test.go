@@ -117,10 +117,21 @@ jobs:
 	var parsed struct {
 		Uncovered []struct{ ID string }
 		Weakened  []struct{ Category, Verdict string }
+		Covered   []struct {
+			Category string
+			Tools    []struct{ Name string }
+		}
 	}
 	require.NoError(t, json.Unmarshal([]byte(report), &parsed))
 	assert.Contains(t, parsed.Weakened, struct{ Category, Verdict string }{string(models.Secrets), "advisory"}, "|| true is read")
 	assert.False(t, slices.ContainsFunc(parsed.Uncovered, func(c struct{ ID string }) bool { return c.ID == string(models.UnitTests) }), "go test is found")
+	var tools []string
+	for _, c := range parsed.Covered {
+		for _, tool := range c.Tools {
+			tools = append(tools, c.Category+": "+tool.Name)
+		}
+	}
+	assert.Contains(t, tools, "Unit Tests: go test", "the page names the tools it found")
 }
 
 func TestRunRefusesWhatIsNotARepository(t *testing.T) {

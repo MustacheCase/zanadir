@@ -36,6 +36,8 @@ func TestToolNamesWhatMatched(t *testing.T) {
 		ID: "acme-scan", Name: "Acme Scan", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SAST"}, Regex: `\bacme\b`,
 	}, rules.FileRule{
 		ID: "acme-everything", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SAST"}, Regex: `acme-run.*`,
+	}, rules.FileRule{
+		ID: "acme-blank", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SAST"}, Regex: `\s+`,
 	})
 	require.NoError(t, err)
 
@@ -43,6 +45,7 @@ func TestToolNamesWhatMatched(t *testing.T) {
 		{"nancy-rule", "nancy sleuth", "nancy"},
 		{"acme-scan", "acme --all", "Acme Scan"},
 		{"acme-everything", "acme-run --target production --region eu-west-1 --verbose", "acme-run --target production --region e…"},
+		{"acme-blank", "a  b", "acme-blank"},
 		{"unit-test-command-rule", "go test ./...", "go test"},
 		{"unit-test-command-rule", "npm run test", "npm run test"},
 		{"unit-test-command-rule", "mvn -B -ntp clean verify", "mvn"},

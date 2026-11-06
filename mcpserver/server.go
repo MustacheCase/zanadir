@@ -35,7 +35,8 @@ const scanDescription = `Reads the repository's CI configuration (GitHub Actions
 - score: categories covered out of those that apply;
 - uncovered: categories with no tool at all (SCA, secrets detection, SAST, linting, tests, coverage, licences, end-of-life, IaC, supply chain, workflow security, performance testing), each with tools that fit the repository's languages;
 - weakened: controls that are present but cannot fail a build, graded partial (not on every change), advisory (continue-on-error, || true, --exit-code 0, schedule-only) or unknown (behind a condition);
-- notApplicable and platforms.
+- notApplicable and platforms;
+- covered: each covered category with the tools found for it, their verdicts and the files they run in.
 Run it before changing CI, and again after, to confirm the change.`
 
 const fixDescription = `Prints ready-to-paste CI configuration for each uncovered category, for the CI platform the repository uses. It changes no files: adapt the snippets into the existing workflows.`

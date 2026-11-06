@@ -112,10 +112,8 @@ jobs:
   };
 
   const render = (repo, report) => {
-    const all = globalThis.zanadir.categories;
-    const uncovered = new Set(report.uncovered.map((c) => c.id));
     const na = new Set(report.notApplicable);
-    const weak = new Set(report.weakened.map((w) => w.category));
+    const fileURL = (location) => "https://github.com/" + repo + "/blob/HEAD/" + location.split("/").map(encodeURIComponent).join("/");
 
     $("covered").textContent = report.score.covered;
     $("total").textContent = report.score.total;
@@ -146,8 +144,7 @@ jobs:
       li.append(head);
       if (w.location) {
         const where = el("p", undefined, "detail");
-        const path = w.location.split("/").map(encodeURIComponent).join("/");
-        where.append(link("https://github.com/" + repo + "/blob/HEAD/" + path, w.location));
+        where.append(link(fileURL(w.location), w.location));
         li.append(where);
       }
       if (w.reason) li.append(el("p", w.reason, "detail"));
@@ -178,10 +175,22 @@ jobs:
     }
     $("uncovered-block").hidden = report.uncovered.length === 0;
 
-    const covered = all.filter((name) => !uncovered.has(name) && !na.has(name));
-    $("covered-list").replaceChildren(...covered.map((name) =>
-      el("span", weak.has(name) ? name + " (can't block)" : name, weak.has(name) ? "chip weak" : "chip")));
-    $("covered-block").hidden = covered.length === 0;
+    const covered = $("covered-list");
+    covered.replaceChildren();
+    for (const c of report.covered) {
+      const li = el("li");
+      const head = el("div", undefined, "row-head");
+      head.append(el("b", c.category), el("span", c.verdict, "verdict " + c.verdict));
+      const tools = el("p", undefined, "detail");
+      c.tools.forEach((tool, i) => {
+        if (i > 0) tools.append(document.createTextNode(", "));
+        tools.append(tool.locations.length ? link(fileURL(tool.locations[0]), tool.name) : el("span", tool.name));
+        if (tool.verdict !== "enforcing") tools.append(document.createTextNode(" (" + tool.verdict + ")"));
+      });
+      li.append(head, tools);
+      covered.append(li);
+    }
+    $("covered-block").hidden = report.covered.length === 0;
     $("na-list").replaceChildren(...[...na].map((name) => el("span", name, "chip")));
     $("na-block").hidden = na.size === 0;
 

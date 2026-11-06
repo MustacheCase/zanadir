@@ -81,7 +81,6 @@
   details ul { margin: 6px 0 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .chip { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 0.9rem; }
-  .chip.weak { border-color: var(--partial); }
   footer { margin-top: 56px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
   [hidden] { display: none !important; }
 </style>
@@ -122,7 +121,8 @@
 
     <div id="covered-block">
       <h2>Covered</h2>
-      <div class="chips" id="covered-list"></div>
+      <p class="hint">The tools found for each category. Each name links to a workflow that runs it.</p>
+      <ul class="rows" id="covered-list"></ul>
     </div>
 
     <div id="na-block">

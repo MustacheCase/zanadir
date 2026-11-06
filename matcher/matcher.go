@@ -15,6 +15,8 @@ import (
 type Finding struct {
 	Category string
 	RuleID   string
+	// Tool names what the rule found, for a report to show.
+	Tool     string
 	Location string
 	// Job is nil when the match was on the workflow name.
 	Artifact *models.Artifact
@@ -35,14 +37,15 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 
 	for _, rule := range ruleSet {
 		for _, artifact := range artifacts {
-			for _, job := range runs.matchingJobs(artifact, rule) {
+			for _, hit := range runs.matchingJobs(artifact, rule) {
 				for _, c := range rule.Categories {
 					findings = append(findings, &Finding{
 						Category: c,
 						RuleID:   rule.ID,
+						Tool:     rule.Tool(hit.text),
 						Location: artifact.Location,
 						Artifact: artifact,
-						Job:      job,
+						Job:      hit.job,
 						Rule:     rule,
 					})
 				}
@@ -53,12 +56,19 @@ func (s *service) Match(artifacts []*models.Artifact, ruleSet []*rules.Rule) []*
 	return findings
 }
 
+// hit is a step a rule matched, nil for the workflow's name, and the text it
+// matched in.
+type hit struct {
+	job  *models.Job
+	text string
+}
+
 // matchingJobs returns every step a rule matches. A match on the workflow's
 // name belongs to no step and yields a single nil, but only when no step
 // matches: a step says how the tool is wired, which grading needs, while a
 // name match would outrank it ungraded.
-func (runs scripts) matchingJobs(artifact *models.Artifact, rule *rules.Rule) []*models.Job {
-	var matched []*models.Job
+func (runs scripts) matchingJobs(artifact *models.Artifact, rule *rules.Rule) []hit {
+	var matched []hit
 	named := false
 	for _, field := range rule.ApplyOn {
 		if field == rules.FieldArtifactName {
@@ -68,13 +78,13 @@ func (runs scripts) matchingJobs(artifact *models.Artifact, rule *rules.Rule) []
 		matched = append(matched, runs.matchingSteps(artifact, rule, field)...)
 	}
 	if named && len(matched) == 0 {
-		return []*models.Job{nil}
+		return []hit{{text: artifact.Name}}
 	}
 	return matched
 }
 
-func (runs scripts) matchingSteps(artifact *models.Artifact, rule *rules.Rule, field string) []*models.Job {
-	var matched []*models.Job
+func (runs scripts) matchingSteps(artifact *models.Artifact, rule *rules.Rule, field string) []hit {
+	var matched []hit
 	for _, job := range artifact.Jobs {
 		var text string
 		switch field {
@@ -92,7 +102,7 @@ func (runs scripts) matchingSteps(artifact *models.Artifact, rule *rules.Rule, f
 		// A rule that can match "" would otherwise match every step that
 		// lacks the field. A run's excepted commands are already dropped.
 		if text != "" && (field == rules.FieldJobRun && runs.mayMatch(rule, job.Run) && rule.Regex.MatchString(text) || field != rules.FieldJobRun && matches(rule, text)) {
-			matched = append(matched, job)
+			matched = append(matched, hit{job, text})
 		}
 	}
 	return matched

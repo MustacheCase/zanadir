@@ -1,5 +1,6 @@
 rules:
   - id: "guarddog-rule"
+    name: "GuardDog"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     # Only scan and verify check packages; list-rules is informational.
@@ -9,6 +10,7 @@ rules:
       runMatches: "(?:^|\\s)--exit-non-zero-on-finding(?:\\s|$)"
 
   - id: "grype-rule"
+    name: "Grype"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     # A command or an image, not a name that contains it: syft's tests scan
@@ -27,6 +29,7 @@ rules:
   # sub-commands scan dependencies, unless the scanners leave vuln out or the
   # output is an SBOM, which trivy writes without scanning.
   - id: "trivy-rule"
+    name: "Trivy"
     applyOn: ["Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\btrivy\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*(?:fs|filesystem|image|i|repo|repository|rootfs|vm|k8s|kubernetes|sbom)(?:\\s|$)"
@@ -42,6 +45,7 @@ rules:
       configFiles: ["trivy.yaml"]
 
   - id: "snyk-rule"
+    name: "Snyk"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bsnyk\\b|^snyksecurityscan$|^snyksecurity$"
@@ -56,6 +60,7 @@ rules:
         verdict: "advisory"
 
   - id: "anchore-rule"
+    name: "Anchore"
     applyOn: ["Job.Package"]
     categories: ["SCA"]
     regex: "(?i)anchore/scan-action|^anchore$"
@@ -69,16 +74,19 @@ rules:
   # "dependabot/fetch-metadata" is a real action for reading pull request
   # metadata, and repositories have whole workflows named dependabot-triage.
   - id: "dependabot-rule"
+    name: "Dependabot"
     applyOn: ["Job.Package"]
     categories: ["SCA"]
     regex: "^dependabot$"
 
   - id: "renovate-rule"
+    name: "Renovate"
     applyOn: ["Job.Package"]
     categories: ["SCA"]
     regex: "^renovate$"
 
   - id: "govulncheck-rule"
+    name: "govulncheck"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bgovulncheck\\b"
@@ -86,17 +94,20 @@ rules:
   # bundle-audit, bundler-audit, "bundle audit" and the rake task. Updating
   # the advisory database, or asking for the version, scans nothing.
   - id: "bundler-audit-rule"
+    name: "bundler-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bbundler?[\\s:-]audit\\b"
     unless: "(?i)\\bbundler?[\\s:-]audit(?::|\\s+)(?:update|version|help)\\s*$"
 
   - id: "osv-scanner-rule"
+    name: "OSV-Scanner"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bosv-scanner\\b|google/osv-scanner-action"
 
   - id: "pip-audit-rule"
+    name: "pip-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bpip-audit\\b|pypa/gh-action-pip-audit"
@@ -106,6 +117,7 @@ rules:
   # pyupio's action and image. safety check fails on findings unless told to
   # --continue-on-error.
   - id: "safety-rule"
+    name: "Safety"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?m)(?:^|[\\s/])safety\\s+(?:--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?\\s+)*(?:check|scan)\\b|\\bpyupio/safety\\b"
@@ -114,6 +126,7 @@ rules:
         verdict: "advisory"
 
   - id: "cargo-audit-rule"
+    name: "cargo-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bcargo\\s+audit\\b|\\b(rustsec|actions-rs)/audit-check\\b"
@@ -122,6 +135,7 @@ rules:
   # starts with it, directly, by path or through npx and the like. It exits 13
   # on findings unless --exitwith says otherwise.
   - id: "retire-js-rule"
+    name: "Retire.js"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm\\s+dlx|yarn\\s+dlx|npm\\s+exec)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?retire(?:@\\S+)?(?:\\s|$)"
@@ -136,6 +150,7 @@ rules:
   # config and update check nothing. --no-fail makes it exit 0 whatever it
   # finds.
   - id: "nancy-rule"
+    name: "nancy"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)(?:^|[\\s/])nancy(?:[:@]\\S+)?(?:\\s+-[\\w-]+(?:[=\\s]\\S+)?)*\\s+(?:sleuth|lifecycle|iq)\\b|\\bnancy-github-action\\b"
@@ -160,24 +175,28 @@ rules:
   # Composer's audit sub-command, options may come first; not a project's own
   # script that happens to be called audit (composer run-script audit).
   - id: "composer-audit-rule"
+    name: "composer audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bcomposer(?:\\.phar)?\\s+(?:-\\S+\\s+)*audit(?:\\s|$)"
 
   # GitHub Advanced Security for Azure DevOps.
   - id: "azure-dependency-scanning-rule"
+    name: "Advanced Security dependency scanning"
     applyOn: ["Job.Package"]
     categories: ["SCA"]
     regex: "(?i)^advancedsecurity-dependency-scanning$"
 
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-dependency-scanning-template-rule"
+    name: "GitLab Dependency Scanning"
     applyOn: ["Job.Package"]
     categories: ["SCA"]
     regex: "(?i)^(?:jobs|security)/(?:dependency|container)-scanning(?:\\.latest|\\.v2)?\\.gitlab-ci\\.yml$|/components/(?:dependency|container)-scanning/"
 
   # OWASP Dependency-Check, from its CLI or its Jenkins plugin steps.
   - id: "dependency-check-rule"
+    name: "OWASP Dependency-Check"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bdependency-check(?:\\.sh|\\.bat)?\\b|^dependencycheck(?:publisher)?$"
@@ -185,12 +204,14 @@ rules:
   # IBM's audit-ci, which fails when npm, yarn or pnpm audit reports above a
   # threshold. The program, optionally pinned, not its audit-ci.jsonc config.
   - id: "audit-ci-rule"
+    name: "audit-ci"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\baudit-ci(?:@\\S*)?(?:\\s|$)"
 
   # Fails a pull request that adds a dependency with a known vulnerability.
   - id: "dependency-review-rule"
+    name: "Dependency Review"
     applyOn: ["Job.Package"]
     categories: ["SCA"]
     regex: "(?i)^actions/dependency-review-action$"
@@ -201,6 +222,7 @@ rules:
 
   # The advisories check of cargo deny; see cargo-deny-licenses-rule.
   - id: "cargo-deny-advisories-rule"
+    name: "cargo-deny"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bcargo[\\s-]deny\\b[^\\n]*\\bcheck\\b|embarkstudios/cargo-deny-action"
@@ -209,6 +231,7 @@ rules:
   # Elixir: mix_audit's deps.audit task or its standalone executable, and
   # Hex's hex.audit for retired packages, run alone or inside "mix do".
   - id: "mix-audit-rule"
+    name: "mix_audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bmix\\b[^\\n]*\\b(?:deps|hex)\\.audit(?:[\\s,+]|$)|(?:^|[\\s/])mix_audit(?:\\s|$)"

@@ -40,6 +40,7 @@ func TestMatch(t *testing.T) {
 		},
 		{
 			ID:         "rule2",
+			Name:       "Package Two",
 			Regex:      regexp.MustCompile("package2"),
 			ApplyOn:    []string{"Job.Package"},
 			Categories: []string{"CategoryB"},
@@ -52,6 +53,8 @@ func TestMatch(t *testing.T) {
 		{
 			Category: "CategoryA",
 			RuleID:   "rule1",
+			// An unnamed rule shows what it matched.
+			Tool:     "artifact1",
 			Location: "path/to/artifact1",
 			Artifact: artifacts[0],
 			// A workflow-name match belongs to no step.
@@ -61,6 +64,7 @@ func TestMatch(t *testing.T) {
 		{
 			Category: "CategoryB",
 			RuleID:   "rule2",
+			Tool:     "Package Two",
 			Location: "path/to/artifact2",
 			Artifact: artifacts[1],
 			Job:      artifacts[1].Jobs[0],

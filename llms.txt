@@ -5,7 +5,7 @@
 - Categories: SCA, Secrets Detection, SAST, Linter, Unit Tests, Coverage, License Compliance, End Of Life, IaC Security, Supply Chain (SBOM, signing, provenance), Workflow Security, Agent Skill Security (scanners for SKILL.md files), Performance Testing.
 - Each control found is graded: `enforcing` (can fail a merge), `partial` (runs, but not on every change, e.g. push-only), `advisory` (cannot fail: continue-on-error, `|| true`, allow_failure, soft-fail flags, or a scanner that exits 0 on findings by default, such as `trivy` without `--exit-code 1` or `grype` without `--fail-on`) or `unknown` (behind a condition the file cannot settle).
 - CI platforms: GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure Pipelines, Jenkins. It follows Makefiles, Taskfiles, tox, goreleaser, go-make, package.json scripts (npm, yarn, pnpm, bun, npm-run-all, turbo, lerna, nx), reusable workflows, local composite actions and CI templates into the commands they run.
-- Input: a checkout (`--dir`) or a GitHub repository without cloning (`--repo github.com/owner/name`). Output: table, JSON, SARIF, Markdown.
+- Input: a checkout (`--dir`) or a GitHub repository without cloning (`--repo github.com/owner/name`). Output: table, JSON, SARIF, Markdown. Every report also lists each covered category with the tools found for it (nancy, Dependabot, go test, ...) and each tool's grade.
 - `--required-checks` counts a control as enforcing only when branch protection or a ruleset requires its check. `--enforce`, `--fail-on` and `--fail-on-weakened` fail a CI run on gaps.
 - It complements OpenSSF Scorecard, which rates project-wide practices through the forge's API; zanadir reads the CI configuration and grades whether each control can fail a build.
 

@@ -288,12 +288,29 @@ Coverage 10/11 - 1 category needs attention:
 |                                | a system holds up under        | Bench, Artillery, |
 |                                | expected and peak traffic.     | BlazeMeter        |
 |--------------------------------|--------------------------------|-------------------|
+
+10 categories are covered by:
+  SCA                 Dependabot, govulncheck
+  Secrets Detection   Gitleaks (advisory)
+  Linter              golangci-lint
+  Unit Tests          go test
+  ...
 ```
 
-When nothing is missing, the scan says so rather than printing an empty table:
+The covered categories come last, each with the tools found for it. A tool
+whose run cannot block a merge shows its grade (see
+[Effectiveness](#effectiveness)). A rule that covers several
+tools, such as the test command one, names the one it matched: `pytest`,
+`go test` or `mvn`.
+
+When nothing is missing, the scan says so rather than printing an empty table,
+and lists what covers each category:
 
 ```
 Coverage 11/11 - all categories are covered.
+
+11 categories are covered by:
+  ...
 ```
 
 The headline is bold on an interactive terminal. Colour is omitted when the
@@ -307,8 +324,9 @@ zanadir scan --dir . --output json
 
 One object with the score, the CI systems whose configuration was found, the
 uncovered categories and the tools that cover them, the covered categories whose tooling cannot fully protect the
-repository, and the categories left out of the score. Every list is an array,
-empty rather than `null` when there is nothing in it.
+repository, the categories left out of the score, and every covered category
+with the tools found for it. Every list is an array, empty rather than `null`
+when there is nothing in it.
 
 ```json
 {
@@ -331,9 +349,21 @@ empty rather than `null` when there is nothing in it.
   "weakened": [
     { "category": "SCA", "verdict": "advisory", "location": ".github/dependabot.yml" }
   ],
-  "notApplicable": ["IaC Security"]
+  "notApplicable": ["IaC Security"],
+  "covered": [
+    {
+      "category": "SCA",
+      "verdict": "advisory",
+      "tools": [
+        { "name": "Dependabot", "verdict": "advisory", "locations": [".github/dependabot.yml"] }
+      ]
+    }
+  ]
 }
 ```
+
+In `covered`, a category's `verdict` is its strongest tool's, and each tool
+has its own with the files it runs in. Tools are listed strongest first.
 
 `language` appears on a suggested tool only when it is specific to one
 language, and `location` on a weakened category only when it points inside
@@ -1011,6 +1041,7 @@ same shape as the [built-in rules](rules/storage):
 ```yaml
 rules:
   - id: acme-scan
+    name: Acme Scan             # optional: the tool the report names; without it, the matched text
     applyOn: [Job.Run]          # Artifact.Name, Job.Name, Job.Package, Job.Run
     categories: [SAST]
     regex: '\bacme-scan\b'

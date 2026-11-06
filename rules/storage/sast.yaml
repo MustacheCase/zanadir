@@ -1,5 +1,6 @@
 rules:
   - id: "semgrep-rule"
+    name: "Semgrep"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bsemgrep\\b"
@@ -8,6 +9,7 @@ rules:
       runMatches: "\\bsemgrep\\s+ci\\b|--error\\b"
 
   - id: "flawfinder-rule"
+    name: "Flawfinder"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bflawfinder\\b"
@@ -21,6 +23,7 @@ rules:
   # creates) and Azure's tasks; not upload-sarif, which uploads any tool's
   # SARIF. CodeQL on actions alone checks workflows, not code.
   - id: "codeql-rule"
+    name: "CodeQL"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bcodeql\\s+(?:database|query|github|resolve|pack)\\b|advancedsecurity-codeql-"
@@ -28,6 +31,7 @@ rules:
 
   # A workflow that runs CodeQL's own action is decided by its steps.
   - id: "codeql-name-rule"
+    name: "CodeQL"
     applyOn: ["Artifact.Name"]
     categories: ["SAST"]
     regex: "(?i)\\bcodeql\\b"
@@ -36,6 +40,7 @@ rules:
   # Bare "sonar" appears in unrelated names, so require a product suffix, the
   # action's org prefix, or the Azure task or Jenkins step that runs it.
   - id: "sonar-rule"
+    name: "SonarQube"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bsonar(qube|cloud|-scanner)\\b|sonarsource/|^sonar(?:qube|cloud)analyze$|^withsonarqubeenv$|^waitforqualitygate$"
@@ -46,55 +51,65 @@ rules:
         verdict: "advisory"
 
   - id: "gosec-rule"
+    name: "gosec"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bgosec\\b|securego/gosec"
 
   - id: "bandit-rule"
+    name: "Bandit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bbandit\\b|pycqa/bandit"
 
   - id: "brakeman-rule"
+    name: "Brakeman"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bbrakeman\\b"
 
   # "snyk" alone is the SCA rule; only the code sub-command is SAST.
   - id: "snyk-code-rule"
+    name: "Snyk Code"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bsnyk\\s+code\\b"
 
   # "bearer" is ubiquitous in auth headers, so never match the bare word.
   - id: "bearer-rule"
+    name: "Bearer"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)bearer/bearer|\\bbearer\\s+scan\\b"
 
   - id: "checkmarx-rule"
+    name: "Checkmarx"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bcheckmarx\\b"
 
   - id: "veracode-rule"
+    name: "Veracode"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bveracode\\b"
 
   - id: "horusec-rule"
+    name: "Horusec"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bhorusec\\b"
 
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-sast-template-rule"
+    name: "GitLab SAST"
     applyOn: ["Job.Package"]
     categories: ["SAST"]
     regex: "(?i)^(?:jobs|security)/sast(?:\\.latest)?\\.gitlab-ci\\.yml$|/components/sast/"
 
   # The Clang static analyzer, run through its build wrapper.
   - id: "scan-build-rule"
+    name: "scan-build"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bscan-build\\b"

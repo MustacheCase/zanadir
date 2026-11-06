@@ -3,6 +3,7 @@
 package grading
 
 import (
+	"cmp"
 	"fmt"
 	"regexp"
 	"slices"
@@ -31,6 +32,7 @@ type Assessment struct {
 	Location string
 	// Reason explains a verdict the workflow alone does not show.
 	Reason string
+	Tools  []Tool
 }
 
 // Required reports something about a job's place in a merge.
@@ -394,18 +396,70 @@ func Weakened(verdict Verdict) bool {
 	return verdict == Advisory || verdict == Partial
 }
 
-// ByCategory keeps the strongest verdict for each category.
+// ByCategory keeps the strongest verdict for each category, and each tool's.
 func ByCategory(findings []*matcher.Finding, merge *Merge) map[string]Assessment {
 	best := make(map[string]Assessment)
+	tools := make(map[string]map[string]*Tool)
 	for _, finding := range findings {
 		if finding == nil {
 			continue
 		}
 		candidate := gated(Assessment{Verdict: Grade(finding), Location: finding.Location}, finding, merge)
+		addTool(tools, finding, candidate.Verdict)
 		if current, seen := best[finding.Category]; seen && !stronger(candidate.Verdict, current.Verdict) {
 			continue
 		}
 		best[finding.Category] = candidate
 	}
+	for category, assessment := range best {
+		assessment.Tools = sortTools(tools[category])
+		best[category] = assessment
+	}
 	return best
+}
+
+// Tool is one tool behind a category: its strongest verdict and the files it
+// runs in.
+type Tool struct {
+	Name      string
+	Verdict   Verdict
+	Locations []string
+}
+
+// addTool files a finding under its tool, one entry per name whatever the
+// rule or case.
+func addTool(tools map[string]map[string]*Tool, finding *matcher.Finding, verdict Verdict) {
+	name := cmp.Or(finding.Tool, finding.RuleID)
+	byName := tools[finding.Category]
+	if byName == nil {
+		byName = make(map[string]*Tool)
+		tools[finding.Category] = byName
+	}
+	key := strings.ToLower(name)
+	tool := byName[key]
+	if tool == nil {
+		tool = &Tool{Name: name, Verdict: verdict}
+		byName[key] = tool
+	} else if stronger(verdict, tool.Verdict) {
+		tool.Verdict = verdict
+	}
+	if finding.Location != "" && !slices.Contains(tool.Locations, finding.Location) {
+		tool.Locations = append(tool.Locations, finding.Location)
+	}
+}
+
+// sortTools puts the tools that decide a verdict first, then the rest by name.
+func sortTools(byName map[string]*Tool) []Tool {
+	list := make([]Tool, 0, len(byName))
+	for _, tool := range byName {
+		slices.Sort(tool.Locations)
+		list = append(list, *tool)
+	}
+	slices.SortFunc(list, func(a, b Tool) int {
+		if a.Verdict != b.Verdict {
+			return strength[b.Verdict] - strength[a.Verdict]
+		}
+		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
+	return list
 }

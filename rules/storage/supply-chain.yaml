@@ -1,10 +1,12 @@
 rules:
   - id: "syft-rule"
+    name: "Syft"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)\\bsyft\\b|anchore/sbom-action"
 
   - id: "cyclonedx-rule"
+    name: "CycloneDX"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)\\bcyclonedx\\b|\\bcdxgen\\b"
@@ -12,11 +14,13 @@ rules:
   # A bare "spdx" matches the SPDX-License-Identifier header, which appears in
   # workflows that generate no SBOM at all.
   - id: "spdx-tools-rule"
+    name: "SPDX tools"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)spdx-sbom-generator|\\bspdx-tools\\b"
 
   - id: "cosign-rule"
+    name: "Cosign"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)\\bcosign\\b"
@@ -25,21 +29,25 @@ rules:
   # packages were not tampered with. npm-audit-rule excepts this command
   # so it is not also counted as SCA.
   - id: "npm-audit-signatures-rule"
+    name: "npm audit signatures"
     applyOn: ["Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)\\b(?:npm|yarn|pnpm)\\s+audit\\s+signatures\\b"
 
   - id: "slsa-rule"
+    name: "SLSA"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)slsa-framework/|\\bslsa\\b"
 
   - id: "in-toto-rule"
+    name: "in-toto"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)\\bin-toto\\b"
 
   - id: "github-attestation-rule"
+    name: "GitHub Artifact Attestations"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)actions/attest-(build-provenance|sbom)"
@@ -47,6 +55,7 @@ rules:
   # trivy writes a bill of materials when asked for one as its output format.
   # Its sbom sub-command does the opposite: it scans one, which is SCA.
   - id: "trivy-sbom-rule"
+    name: "Trivy"
     applyOn: ["Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)\\btrivy\\b[^\\n]*\\s(?:--format|-f)[= ](?:cyclonedx|spdx|spdx-json)\\b"

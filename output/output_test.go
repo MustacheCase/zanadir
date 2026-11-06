@@ -66,6 +66,10 @@ func TestResponse_JSONOutput(t *testing.T) {
 			Weakened:      []Weakness{{Category: "SCA", Verdict: "advisory", Location: ".github/workflows/nightly.yml"}, {Category: "Linter", Verdict: "partial"}},
 			NotApplicable: []string{"IaC Security"},
 			Platforms:     []string{"github", "gitlab"},
+			Covered: []Coverage{
+				{Category: "SCA", Verdict: "advisory", Tools: []Tool{{Name: "Grype", Verdict: "advisory", Locations: []string{".github/workflows/nightly.yml"}}}},
+				{Category: "Linter", Verdict: "partial", Tools: []Tool{{Name: "Ruff", Verdict: "partial"}}},
+			},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -98,6 +102,14 @@ func TestResponse_JSONOutput(t *testing.T) {
 			map[string]any{"category": "Linter", "verdict": "partial"},
 		},
 		"notApplicable": []any{"IaC Security"},
+		"covered": []any{
+			map[string]any{"category": "SCA", "verdict": "advisory", "tools": []any{
+				map[string]any{"name": "Grype", "verdict": "advisory", "locations": []any{".github/workflows/nightly.yml"}},
+			}},
+			map[string]any{"category": "Linter", "verdict": "partial", "tools": []any{
+				map[string]any{"name": "Ruff", "verdict": "partial", "locations": []any{}},
+			}},
+		},
 	}
 	if !reflect.DeepEqual(want, got) {
 		t.Errorf("unexpected JSON:\n%s", out)
@@ -111,7 +123,7 @@ func TestResponse_JSONOutputWithNothingToReport(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
-	for _, key := range []string{`"platforms": []`, `"uncovered": []`, `"weakened": []`, `"notApplicable": []`} {
+	for _, key := range []string{`"platforms": []`, `"uncovered": []`, `"weakened": []`, `"notApplicable": []`, `"covered": []`} {
 		if !strings.Contains(out, key) {
 			t.Errorf("expected %s in:\n%s", key, out)
 		}
@@ -829,5 +841,74 @@ func TestRenderWeakenedEscapesControlCharacters(t *testing.T) {
 	}
 	if strings.Contains(b.String(), "\x1b") || !strings.Contains(b.String(), `a\u001b[2Jb.yml`) {
 		t.Errorf("the location is not escaped: %q", b.String())
+	}
+}
+
+func sampleCovered() []Coverage {
+	return []Coverage{
+		{Category: "SCA", Verdict: "enforcing", Tools: []Tool{{Name: "nancy", Verdict: "enforcing"}, {Name: "Dependabot", Verdict: "enforcing"}}},
+		{Category: "Secrets Detection", Verdict: "advisory", Tools: []Tool{{Name: "Gitleaks", Verdict: "advisory"}}},
+	}
+}
+
+// Covered categories come last, aligned, with the verdict of any tool that
+// cannot block a merge.
+func TestResponse_TableListsCoveredCategories(t *testing.T) {
+	var b bytes.Buffer
+	if err := render(&b, Report{Format: config.OutputTable, Score: score.Score{Covered: 2, Total: 2}, Covered: sampleCovered()}); err != nil {
+		t.Fatal(err)
+	}
+	want := "Coverage 2/2 - all categories are covered.\n\n2 categories are covered by:\n" +
+		"  SCA                nancy, Dependabot\n" +
+		"  Secrets Detection  Gitleaks (advisory)\n"
+	if b.String() != want {
+		t.Errorf("got:\n%s\nwant:\n%s", b.String(), want)
+	}
+}
+
+func TestResponse_MarkdownListsCoveredCategories(t *testing.T) {
+	var b bytes.Buffer
+	covered := append(sampleCovered(), Coverage{Category: "Linter", Verdict: "enforcing", Tools: []Tool{{Name: "a|b", Verdict: "enforcing"}}})
+	if err := render(&b, Report{Format: config.OutputMarkdown, Score: score.Score{Covered: 3, Total: 3}, Covered: covered}); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"<details><summary>3 categories are covered by:</summary>\n\n| Category | Tools |\n| --- | --- |\n",
+		"| SCA | nancy, Dependabot |\n",
+		"| Secrets Detection | Gitleaks (advisory) |\n",
+		`| Linter | a\|b |`,
+		"\n</details>\n",
+	} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("expected %q in:\n%s", want, b.String())
+		}
+	}
+}
+
+// A name taken from what a rule matched comes from the repository.
+func TestRenderCoveredEscapesControlCharacters(t *testing.T) {
+	var b bytes.Buffer
+	if err := renderCovered(&b, []Coverage{{Category: "SAST", Tools: []Tool{{Name: "acme\x1b[2J", Verdict: "enforcing"}}}}, false); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(b.String(), "\x1b") || !strings.Contains(b.String(), `acme\u001b[2J`) {
+		t.Errorf("the name is not escaped: %q", b.String())
+	}
+	if want := "1 category is covered by:"; !strings.Contains(b.String(), want) {
+		t.Errorf("expected %q in %q", want, b.String())
+	}
+}
+
+func TestRenderCoveredPropagatesWriteErrors(t *testing.T) {
+	boom := errors.New("disk full")
+	for _, substr := range []string{"covered by", "nancy"} {
+		report := Report{Format: config.OutputTable, Score: score.Score{Covered: 2, Total: 2}, Covered: sampleCovered()}
+		if err := render(failOnWriter{substr: substr, err: boom}, report); !errors.Is(err, boom) {
+			t.Errorf("writing %q: expected the write error to propagate, got %v", substr, err)
+		}
+	}
+	report := Report{Format: config.OutputTable, Score: score.Score{Covered: 2, Total: 2}, NotApplicable: []string{"IaC Security"}, Covered: sampleCovered()}
+	if err := render(failOnWriter{substr: "not applicable", err: boom}, report); !errors.Is(err, boom) {
+		t.Errorf("expected the not-applicable write error to propagate, got %v", err)
 	}
 }

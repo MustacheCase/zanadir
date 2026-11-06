@@ -2,6 +2,7 @@ package grading
 
 import (
 	"cmp"
+	"reflect"
 	"regexp"
 	"testing"
 
@@ -189,6 +190,34 @@ func TestByCategoryKeepsTheStrongestVerdict(t *testing.T) {
 				t.Errorf("location = %q, want %q", got.Location, tt.expectedLocation)
 			}
 		})
+	}
+}
+
+// Each tool is listed once with its strongest verdict and every file it runs
+// in, the tools that decide the category first.
+func TestByCategoryListsEachTool(t *testing.T) {
+	pullRequest := []models.Trigger{{Event: "pull_request"}}
+	tool := func(name, location string, job *models.Job) *matcher.Finding {
+		f := finding(pullRequest, job)
+		f.Tool, f.Location = name, location
+		return f
+	}
+
+	got := ByCategory([]*matcher.Finding{
+		tool("TruffleHog", "weak.yml", &models.Job{ContinueOnError: true}),
+		tool("Gitleaks", "weak.yml", &models.Job{ContinueOnError: true}),
+		tool("gitleaks", "ci.yml", &models.Job{}),
+		tool("Gitleaks", "ci.yml", &models.Job{}),
+		{Category: "Secrets Detection", RuleID: "acme-rule", Artifact: &models.Artifact{Triggers: pullRequest}, Job: &models.Job{ContinueOnError: true}},
+	}, nil)["Secrets Detection"]
+
+	want := []Tool{
+		{Name: "Gitleaks", Verdict: Enforcing, Locations: []string{"ci.yml", "weak.yml"}},
+		{Name: "acme-rule", Verdict: Advisory},
+		{Name: "TruffleHog", Verdict: Advisory, Locations: []string{"weak.yml"}},
+	}
+	if !reflect.DeepEqual(got.Tools, want) {
+		t.Errorf("tools = %+v, want %+v", got.Tools, want)
 	}
 }
 
@@ -811,7 +840,7 @@ func TestUnauditedGradesEnforcingDependencyScanningPartial(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Unaudited(tt.in, "uv.lock", tt.packages); got != tt.want {
+			if got := Unaudited(tt.in, "uv.lock", tt.packages); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Unaudited() = %+v, want %+v", got, tt.want)
 			}
 		})

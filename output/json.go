@@ -13,6 +13,7 @@ type jsonReport struct {
 	Uncovered     []jsonCategory `json:"uncovered"`
 	Weakened      []jsonWeakness `json:"weakened"`
 	NotApplicable []string       `json:"notApplicable"`
+	Covered       []jsonCoverage `json:"covered"`
 	// RequiredChecks is present only when --required-checks read them.
 	RequiredChecks *jsonGate `json:"requiredChecks,omitempty"`
 }
@@ -43,6 +44,18 @@ type jsonTool struct {
 	Language    string `json:"language,omitempty"`
 }
 
+type jsonCoverage struct {
+	Category string          `json:"category"`
+	Verdict  string          `json:"verdict"`
+	Tools    []jsonFoundTool `json:"tools"`
+}
+
+type jsonFoundTool struct {
+	Name      string   `json:"name"`
+	Verdict   string   `json:"verdict"`
+	Locations []string `json:"locations"`
+}
+
 type jsonWeakness struct {
 	Category string `json:"category"`
 	Verdict  string `json:"verdict"`
@@ -57,6 +70,7 @@ func renderJSON(w io.Writer, report Report) error {
 		Uncovered:     []jsonCategory{},
 		Weakened:      []jsonWeakness{},
 		NotApplicable: append([]string{}, report.NotApplicable...),
+		Covered:       []jsonCoverage{},
 	}
 	for _, category := range report.Suggestions {
 		tools := []jsonTool{}
@@ -67,6 +81,13 @@ func renderJSON(w io.Writer, report Report) error {
 	}
 	for _, weakness := range report.Weakened {
 		out.Weakened = append(out.Weakened, jsonWeakness(weakness))
+	}
+	for _, c := range report.Covered {
+		tools := []jsonFoundTool{}
+		for _, tool := range c.Tools {
+			tools = append(tools, jsonFoundTool{Name: tool.Name, Verdict: tool.Verdict, Locations: append([]string{}, tool.Locations...)})
+		}
+		out.Covered = append(out.Covered, jsonCoverage{Category: c.Category, Verdict: c.Verdict, Tools: tools})
 	}
 
 	if g := report.Gate; g != nil {

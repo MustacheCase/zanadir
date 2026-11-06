@@ -706,7 +706,7 @@ func TestWeakenedReportsOnlyWhatItShould(t *testing.T) {
 		weakFinding("SCA", "/repo/.github/workflows/sca.yml", &models.Job{If: "always()"}),
 	}
 
-	weaknesses := weakened(nil, "/repo", findings, nil, silent)
+	weaknesses, _ := graded(nil, "/repo", findings, nil, silent)
 
 	assert.Len(t, weaknesses, 1)
 	assert.Equal(t, "Secrets Detection", weaknesses[0].Category)
@@ -719,7 +719,7 @@ func TestWeakenedReportsOnlyWhatItShould(t *testing.T) {
 // with the operator.
 func TestWeakenedSkipsExcludedCategories(t *testing.T) {
 	coe := &models.Job{ContinueOnError: true}
-	weaknesses := weakened([]string{"Secrets Detection"}, "/repo", []*matcher.Finding{
+	weaknesses, _ := graded([]string{"Secrets Detection"}, "/repo", []*matcher.Finding{
 		weakFinding("Secrets Detection", "/repo/a.yml", coe),
 		weakFinding("Linter", "/repo/b.yml", coe),
 	}, nil, func(string, ...interface{}) {})
@@ -732,7 +732,7 @@ func TestWeakenedSkipsExcludedCategories(t *testing.T) {
 // between identical runs.
 func TestWeakenedIsSorted(t *testing.T) {
 	coe := &models.Job{ContinueOnError: true}
-	weaknesses := weakened(nil, "/repo", []*matcher.Finding{
+	weaknesses, _ := graded(nil, "/repo", []*matcher.Finding{
 		weakFinding("Unit Tests", "/repo/c.yml", coe),
 		weakFinding("Coverage", "/repo/a.yml", coe),
 		weakFinding("Linter", "/repo/b.yml", coe),
@@ -747,12 +747,33 @@ func TestWeakenedIsSorted(t *testing.T) {
 
 // A workflow outside the scan directory has no path a report can point at.
 func TestWeakenedDropsLocationsOutsideTheScanDirectory(t *testing.T) {
-	weaknesses := weakened(nil, "/repo", []*matcher.Finding{
+	weaknesses, _ := graded(nil, "/repo", []*matcher.Finding{
 		weakFinding("Linter", "/elsewhere/ci.yml", &models.Job{ContinueOnError: true}),
 	}, nil, func(string, ...interface{}) {})
 
 	assert.Len(t, weaknesses, 1)
 	assert.Empty(t, weaknesses[0].Location)
+}
+
+// Covered categories come in the catalogue's order, leave out excluded ones,
+// and point at repo-relative paths.
+func TestGradedListsCoveredCategoriesAndTheirTools(t *testing.T) {
+	tool := func(category, name, location string, job *models.Job) *matcher.Finding {
+		f := weakFinding(category, location, job)
+		f.Tool = name
+		return f
+	}
+	_, covered := graded([]string{"Linter"}, "/repo", []*matcher.Finding{
+		tool("Secrets Detection", "Gitleaks", "/repo/.github/workflows/ci.yml", &models.Job{ContinueOnError: true}),
+		tool("SCA", "nancy", "/repo/.github/workflows/ci.yml", &models.Job{}),
+		tool("SCA", "nancy", "/elsewhere/ci.yml", &models.Job{}),
+		tool("Linter", "Ruff", "/repo/.github/workflows/ci.yml", &models.Job{}),
+	}, nil, func(string, ...interface{}) {})
+
+	assert.Equal(t, []output.Coverage{
+		{Category: "SCA", Verdict: "enforcing", Tools: []output.Tool{{Name: "nancy", Verdict: "enforcing", Locations: []string{".github/workflows/ci.yml"}}}},
+		{Category: "Secrets Detection", Verdict: "advisory", Tools: []output.Tool{{Name: "Gitleaks", Verdict: "advisory", Locations: []string{".github/workflows/ci.yml"}}}},
+	}, covered)
 }
 
 // The scanner can hand back a nil artifact, and the anchor has to step over it
@@ -1213,7 +1234,7 @@ func TestWeakenedGradesUnauditableDependenciesPartial(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "uv.lock"), []byte(lock), 0o600))
 	ci := filepath.Join(dir, ".github", "workflows", "ci.yml")
 
-	weaknesses := weakened(nil, dir, []*matcher.Finding{
+	weaknesses, _ := graded(nil, dir, []*matcher.Finding{
 		weakFinding("SCA", ci, &models.Job{}),
 		weakFinding("SAST", ci, &models.Job{}),
 	}, nil, func(string, ...interface{}) {})

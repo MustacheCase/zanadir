@@ -118,10 +118,11 @@ func toolConfigs(dir string, service rules.RuleService) map[string]bool {
 	return found
 }
 
-// weakened lists the covered categories whose tooling cannot fully protect the
-// repository. An excluded category is left out: the operator has said it does
-// not apply, and grading it anyway would argue with them.
-func weakened(excluded []string, dir string, findings []*matcher.Finding, merge *grading.Merge, debugf debugFunc) []output.Weakness {
+// graded lists the covered categories with their tools, and those whose
+// tooling cannot fully protect the repository. An excluded category is left
+// out: the operator has said it does not apply, and grading it anyway would
+// argue with them.
+func graded(excluded []string, dir string, findings []*matcher.Finding, merge *grading.Merge, debugf debugFunc) ([]output.Weakness, []output.Coverage) {
 	skip := make(map[string]bool, len(excluded))
 	for _, category := range excluded {
 		skip[category] = true
@@ -132,6 +133,13 @@ func weakened(excluded []string, dir string, findings []*matcher.Finding, merge 
 		assessments[string(models.SCA)] = grading.Unaudited(sca, lockfile.UV, lockfile.Unauditable(dir))
 	}
 	list := make([]output.Weakness, 0, len(assessments))
+	var covered []output.Coverage
+	for _, title := range models.CategoryTitles {
+		category := string(title)
+		if assessment, found := assessments[category]; found && !skip[category] {
+			covered = append(covered, coverage(category, assessment, dir))
+		}
+	}
 	for category, assessment := range assessments {
 		debugf("Category %s is %s", category, assessment.Verdict)
 		if skip[category] || !grading.Weakened(assessment.Verdict) {
@@ -147,7 +155,21 @@ func weakened(excluded []string, dir string, findings []*matcher.Finding, merge 
 
 	// Map iteration order is random and a report has to be stable.
 	sort.Slice(list, func(i, j int) bool { return list[i].Category < list[j].Category })
-	return list
+	return list, covered
+}
+
+func coverage(category string, assessment grading.Assessment, dir string) output.Coverage {
+	tools := make([]output.Tool, 0, len(assessment.Tools))
+	for _, tool := range assessment.Tools {
+		var locations []string
+		for _, location := range tool.Locations {
+			if rel := repoRelative(dir, location); rel != "" && !slices.Contains(locations, rel) {
+				locations = append(locations, rel)
+			}
+		}
+		tools = append(tools, output.Tool{Name: tool.Name, Verdict: string(tool.Verdict), Locations: locations})
+	}
+	return output.Coverage{Category: category, Verdict: string(assessment.Verdict), Tools: tools}
 }
 
 // scanResult is one run of the pipeline.
@@ -156,6 +178,7 @@ type scanResult struct {
 	artifacts     []*models.Artifact
 	weaknesses    []output.Weakness
 	notApplicable []string
+	covered       []output.Coverage
 	platforms     []string
 	gate          *gate.Gate
 	// skipped is every category left out of the score: excluded by the
@@ -225,7 +248,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	for _, a := range artifacts {
 		a.DefaultBranch, a.ToolConfigs = defaultBranch, configs
 	}
-	weaknesses := weakened(skipped, cfg.Dir, findings, waits, debugf)
+	weaknesses, covered := graded(skipped, cfg.Dir, findings, waits, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
 
 	return &scanResult{
@@ -233,6 +256,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 		artifacts:     artifacts,
 		weaknesses:    weaknesses,
 		notApplicable: notApplicable,
+		covered:       covered,
 		platforms:     platforms,
 		gate:          merge,
 		skipped:       skipped,
@@ -345,6 +369,7 @@ func (h *Handler) Execute(cfg *config.Config) error {
 		NotApplicable: result.notApplicable,
 		Platforms:     result.platforms,
 		Gate:          reportGate(result.gate),
+		Covered:       result.covered,
 	})
 	if err != nil {
 		debugf("Output error: %v", err)

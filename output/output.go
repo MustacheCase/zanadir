@@ -41,6 +41,36 @@ type Report struct {
 	// Gate is what a merge into the default branch waits for; nil unless
 	// --required-checks read it.
 	Gate *Gate
+	// Covered lists the categories that have tooling, and which.
+	Covered []Coverage
+}
+
+// Coverage is a covered category, its verdict and the tools behind it.
+type Coverage struct {
+	Category string
+	Verdict  string
+	Tools    []Tool
+}
+
+// Tool is a tool found in CI, its verdict and the files it runs in.
+type Tool struct {
+	Name      string
+	Verdict   string
+	Locations []string
+}
+
+// toolList names a category's tools, with the verdict of any that cannot
+// block a merge.
+func toolList(tools []Tool, name func(string) string) string {
+	names := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		label := name(tool.Name)
+		if tool.Verdict != "enforcing" {
+			label += " (" + tool.Verdict + ")"
+		}
+		names = append(names, label)
+	}
+	return strings.Join(names, ", ")
 }
 
 // Gate is the default branch's required checks and anything wrong with them.
@@ -152,7 +182,7 @@ func headline(s score.Score, count int) string {
 // update it, instead of adding one on every push.
 const MarkdownMarker = "<!-- zanadir-report -->"
 
-func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score, weaknesses []Weakness, notApplicable []string, merge *Gate) error {
+func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, coverage score.Score, weaknesses []Weakness, notApplicable []string, merge *Gate, covered []Coverage) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n### zanadir\n\n%s\n", MarkdownMarker, headline(coverage, len(suggestions)))
 
@@ -192,6 +222,14 @@ func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, co
 		}
 	}
 
+	if len(covered) > 0 {
+		fmt.Fprintf(&b, "\n<details><summary>%s</summary>\n\n| Category | Tools |\n| --- | --- |\n", coveredHeadline(len(covered)))
+		for _, c := range covered {
+			fmt.Fprintf(&b, "| %s | %s |\n", markdown.Cell(c.Category), toolList(c.Tools, markdown.Cell))
+		}
+		b.WriteString("\n</details>\n")
+	}
+
 	_, err := fmt.Fprint(w, b.String())
 	return err
 }
@@ -210,6 +248,35 @@ func renderNotApplicable(w io.Writer, categories []string, colour bool) error {
 	}
 	_, err := fmt.Fprintf(w, "\n%s\n", paint(colour, ansiGreen, notApplicableLine(categories)))
 	return err
+}
+
+// coveredHeadline introduces the covered block.
+func coveredHeadline(count int) string {
+	if count == 1 {
+		return "1 category is covered by:"
+	}
+	return fmt.Sprintf("%d categories are covered by:", count)
+}
+
+// renderCovered lists each covered category's tools, after everything that
+// needs attention.
+func renderCovered(w io.Writer, covered []Coverage, colour bool) error {
+	if len(covered) == 0 {
+		return nil
+	}
+	width := 0
+	for _, c := range covered {
+		width = max(width, len(c.Category))
+	}
+	if _, err := fmt.Fprintf(w, "\n%s\n", paint(colour, ansiBold, coveredHeadline(len(covered)))); err != nil {
+		return err
+	}
+	for _, c := range covered {
+		if _, err := fmt.Fprintf(w, "  %-*s  %s\n", width, c.Category, toolList(c.Tools, utils.Printable)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // renderWeakened lists controls that are present but cannot fully protect the
@@ -279,7 +346,7 @@ func render(w io.Writer, report Report) error {
 	case config.OutputSARIF:
 		return renderSarif(w, report.Suggestions, report.Anchor, report.Weakened)
 	case config.OutputMarkdown:
-		return renderMarkdown(w, report.Suggestions, report.Score, report.Weakened, report.NotApplicable, report.Gate)
+		return renderMarkdown(w, report.Suggestions, report.Score, report.Weakened, report.NotApplicable, report.Gate, report.Covered)
 	case config.OutputTable:
 		return renderTable(w, report)
 	default:
@@ -338,7 +405,10 @@ func renderFooter(w io.Writer, report Report, colour bool) error {
 	if err := renderGate(w, report.Gate, colour); err != nil {
 		return err
 	}
-	return renderNotApplicable(w, report.NotApplicable, colour)
+	if err := renderNotApplicable(w, report.NotApplicable, colour); err != nil {
+		return err
+	}
+	return renderCovered(w, report.Covered, colour)
 }
 
 // NewOutputService returns the default Output.

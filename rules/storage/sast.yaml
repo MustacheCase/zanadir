@@ -113,3 +113,32 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bscan-build\\b"
+
+  # Fuzzing runs the code rather than reading it, but finds the same flaws,
+  # crashes and memory errors on hostile input, before release. Building the
+  # fuzzers alone finds nothing, and dry-run never fails.
+  - id: "cifuzz-rule"
+    name: "CIFuzz"
+    applyOn: ["Job.Package"]
+    categories: ["SAST"]
+    regex: "(?i)^google/oss-fuzz/infra/cifuzz/actions/run_fuzzers$"
+    weakenedWhen:
+      - input: "dry-run"
+        equals: "true"
+        verdict: "advisory"
+
+  - id: "clusterfuzzlite-rule"
+    name: "ClusterFuzzLite"
+    applyOn: ["Job.Package"]
+    categories: ["SAST"]
+    regex: "(?i)^google/clusterfuzzlite/actions/run_fuzzers$"
+    weakenedWhen:
+      - input: "dry-run"
+        equals: "true"
+        verdict: "advisory"
+
+  - id: "cargo-fuzz-rule"
+    name: "cargo-fuzz"
+    applyOn: ["Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bcargo\\s+(?:\\+\\S+\\s+)?fuzz\\s+run\\b"

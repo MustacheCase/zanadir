@@ -14,7 +14,7 @@ import (
 var namedByMatch = []string{
 	"unit-test-command-rule", "coverage-command-rule", "python-type-checker-rule", "php-static-analysis-rule",
 	"kotlin-linter-rule", "haskell-lua-linter-rule", "test-results-step-rule", "coverage-results-step-rule",
-	"npm-audit-rule", "oxsecurity-super-linter-rule",
+	"npm-audit-rule", "oxsecurity-super-linter-rule", "formatter-check-rule", "pre-commit-rule", "os-code-signing-rule",
 }
 
 func TestEmbeddedRulesAreNamed(t *testing.T) {
@@ -65,6 +65,17 @@ func TestToolNamesWhatMatched(t *testing.T) {
 		{"oxsecurity-super-linter-rule", "super-linter/super-linter/slim@v7", "super-linter"},
 		{"oxsecurity-super-linter-rule", "oxsecurity/megalinter@v8", "megalinter"},
 		{"test-results-step-rule", "PublishTestResults", "PublishTestResults"},
+		{"test-results-step-rule", "EnricoMi/publish-unit-test-result-action/linux", "publish-unit-test-result-action"},
+		{"unit-test-command-rule", "mvn -B clean install", "mvn"},
+		{"formatter-check-rule", "cargo fmt --all -- --check", "cargo fmt"},
+		{"formatter-check-rule", "prettier@3.9.0 --check .", "prettier"},
+		{"formatter-check-rule", "terraform fmt -check -recursive", "terraform fmt"},
+		{"formatter-check-rule", "./gradlew spotlessCheck", "spotless"},
+		{"formatter-check-rule", "dprint/check", "dprint"},
+		{"pre-commit-rule", "pre-commit/action", "pre-commit"},
+		{"pre-commit-rule", "prek --all-files", "prek"},
+		{"os-code-signing-rule", `codesign -f -s "$IDENTITY" App.app`, "codesign"},
+		{"os-code-signing-rule", "xcrun notarytool submit App.dmg --wait", "notarytool"},
 		// Text the rule does not match leaves only its id.
 		{"unit-test-command-rule", "make", "unit-test-command-rule"},
 	} {

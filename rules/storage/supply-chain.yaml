@@ -50,7 +50,7 @@ rules:
     name: "GitHub Artifact Attestations"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Supply Chain"]
-    regex: "(?i)actions/attest-(build-provenance|sbom)"
+    regex: "(?i)\\bactions/attest(?:-build-provenance|-sbom)?(?:$|[@\\s])"
 
   # trivy writes a bill of materials when asked for one as its output format.
   # Its sbom sub-command does the opposite: it scans one, which is SCA.
@@ -59,3 +59,29 @@ rules:
     applyOn: ["Job.Run"]
     categories: ["Supply Chain"]
     regex: "(?i)\\btrivy\\b[^\\n]*\\s(?:--format|-f)[= ](?:cyclonedx|spdx|spdx-json)\\b"
+
+  # Signing a release's binaries lets users check where they came from, as
+  # Cosign does for images. An ad-hoc codesign (-s -) proves nothing, and
+  # notarytool counts only when it submits.
+  - id: "os-code-signing-rule"
+    applyOn: ["Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)(?:^|\\n)(?:xcrun\\s+)?(?P<name>codesign)\\s(?:[^\\n]*\\s)?(?:-s|--sign)[= ]+[^\\s-]|(?:^|\\n)(?:xcrun\\s+)?(?P<name>notarytool)\\s+submit\\b|(?:^|\\n)(?P<name>signtool)(?:\\.exe)?\\s+sign\\b|(?:^|\\n)(?P<name>osslsigncode|rcodesign)\\s+sign\\b"
+
+  - id: "azure-artifact-signing-rule"
+    name: "Azure Artifact Signing"
+    applyOn: ["Job.Package"]
+    categories: ["Supply Chain"]
+    regex: "(?i)^azure/(?:trusted|artifact)-signing-action$"
+
+  - id: "signpath-rule"
+    name: "SignPath"
+    applyOn: ["Job.Package"]
+    categories: ["Supply Chain"]
+    regex: "(?i)^signpath/github-action-submit-signing-request$"
+
+  - id: "esigner-rule"
+    name: "SSL.com eSigner"
+    applyOn: ["Job.Package"]
+    categories: ["Supply Chain"]
+    regex: "(?i)^sslcom/esigner-codesign$"

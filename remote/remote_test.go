@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/MustacheCase/zanadir/internal/testrepo"
+	"github.com/MustacheCase/zanadir/models"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -443,6 +444,35 @@ func TestFetchReadsAGitattributesTheArchiveLeavesOut(t *testing.T) {
 	assert.Equal(t, "version: 2.1", string(data))
 }
 
+// The workflows GitHub has turned off are written down, as only the API says.
+func TestFetchRecordsDisabledWorkflows(t *testing.T) {
+	routes(t, map[string]string{
+		"/repos/o/r/actions/workflows": `200 {"total_count": 4, "workflows": [
+			{"path": ".github/workflows/ci.yml", "state": "active"},
+			{"path": ".github/workflows/old.yml", "state": "disabled_manually"},
+			{"path": ".github/workflows/nightly.yml", "state": "disabled_inactivity"},
+			{"path": "dynamic/github-code-scanning/codeql", "state": "active"}]}`,
+		"/repos/o/r/tarball": "200 " + string(tarball(t, entry{name: "o-r-1/go.mod", body: "module x"})),
+	})
+	dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	require.NoError(t, err)
+	defer cleanup()
+	listed, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
+	require.NoError(t, err)
+	assert.Equal(t, ".github/workflows/old.yml\n.github/workflows/nightly.yml\n", string(listed))
+}
+
+func TestFetchWritesNoDisabledWorkflowsWhenTheListFails(t *testing.T) {
+	routes(t, map[string]string{
+		"/repos/o/r/actions/workflows": "403 ",
+		"/repos/o/r/tarball":           "200 " + string(tarball(t, entry{name: "o-r-1/go.mod", body: "module x"})),
+	})
+	dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+	require.NoError(t, err)
+	defer cleanup()
+	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
+}
+
 // A fetched repository gets origin/HEAD, as git clone writes it.
 func TestFetchRecordsTheDefaultBranch(t *testing.T) {
 	routes(t, map[string]string{
@@ -464,7 +494,7 @@ func TestFetchWithNothingLeftOut(t *testing.T) {
 	_, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
 	require.NoError(t, err)
 	cleanup()
-	assert.Equal(t, []string{"/repos/o/r", "/repos/o/r/commits/HEAD", "/repos/o/r/tarball"}, asked(), "the default branch, no file list, then no export-ignore, nothing more to fetch")
+	assert.Equal(t, []string{"/repos/o/r", "/repos/o/r/actions/workflows", "/repos/o/r/commits/HEAD", "/repos/o/r/tarball"}, asked(), "the default branch and disabled workflows, no file list, then no export-ignore, nothing more to fetch")
 }
 
 func TestFetchReportsFilesItCannotRestore(t *testing.T) {
@@ -634,6 +664,7 @@ func TestFetchDownloadsOnlyWhatZanadirReads(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{
 		"/repos/o/r",
+		"/repos/o/r/actions/workflows",
 		"/repos/o/r/commits/release/1.0",
 		"/repos/o/r/git/trees/" + sha,
 		"/raw/o/r/" + sha + "/.github/workflows/ci.yml bytes=0-8",

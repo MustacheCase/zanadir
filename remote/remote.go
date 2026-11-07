@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/utils"
 )
 
@@ -162,6 +163,7 @@ func FetchWith(ctx context.Context, repo Repository, token string, opts Options)
 	err = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
 	if err == nil {
 		recordDefaultBranch(ctx, repo, token, dir)
+		recordDisabledWorkflows(ctx, repo, token, dir)
 		skills, listErr := fetchFiles(ctx, repo, token, dir, opts)
 		if listErr != nil {
 			err = resetTo(dir)
@@ -349,6 +351,42 @@ func recordDefaultBranch(ctx context.Context, repo Repository, token, dir string
 	}
 	head := "ref: refs/remotes/origin/" + info.DefaultBranch + "\n"
 	_ = writeFile(filepath.Join(dir, ".git", "refs", "remotes", "origin", "HEAD"), strings.NewReader(head), int64(len(head)))
+}
+
+// maxWorkflowPages bounds the workflow listing, at 100 workflows a page.
+const maxWorkflowPages = 10
+
+// recordDisabledWorkflows writes models.DisabledWorkflowsFile. A failure
+// leaves it unwritten, and every workflow counts as enabled.
+func recordDisabledWorkflows(ctx context.Context, repo Repository, token, dir string) {
+	var disabled []string
+	for page, seen := 1, 0; page <= maxWorkflowPages; page++ {
+		var list struct {
+			TotalCount int `json:"total_count"`
+			Workflows  []struct {
+				Path  string `json:"path"`
+				State string `json:"state"`
+			} `json:"workflows"`
+		}
+		endpoint := fmt.Sprintf("%s/repos/%s/%s/actions/workflows?per_page=100&page=%d", apiBase, repo.Owner, repo.Name, page)
+		if getJSON(ctx, endpoint, token, &list) != nil {
+			return
+		}
+		for _, workflow := range list.Workflows {
+			if strings.HasPrefix(workflow.State, "disabled") {
+				disabled = append(disabled, workflow.Path)
+			}
+		}
+		seen += len(list.Workflows)
+		if len(list.Workflows) == 0 || seen >= list.TotalCount {
+			break
+		}
+	}
+	if len(disabled) == 0 {
+		return
+	}
+	body := strings.Join(disabled, "\n") + "\n"
+	_ = writeFile(filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)), strings.NewReader(body), int64(len(body)))
 }
 
 func download(ctx context.Context, repo Repository, token, dir string, skills skillDirs) error {

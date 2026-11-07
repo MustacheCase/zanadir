@@ -165,16 +165,41 @@ func (g *GithubParser) Exists(root string) bool {
 func (g *GithubParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	defaults := map[*models.Artifact]map[string]string{}
+	disabled := disabledWorkflows(root)
 	for _, path := range GithubWorkflows(root) {
 		artifact, inputs, err := g.parseGithubWorkflow(root, path)
 		if err != nil {
 			return nil, err
 		}
+		if rel, err := filepath.Rel(root, path); err == nil && disabled[filepath.ToSlash(rel)] {
+			// Turned off, it still runs when another workflow calls it.
+			artifact.Disabled = true
+			artifact.Triggers = slices.DeleteFunc(artifact.Triggers, func(t models.Trigger) bool { return t.Event != "workflow_call" })
+		}
 		artifacts = append(artifacts, artifact)
 		defaults[artifact] = inputs
 	}
 	inheritCallers(artifacts, defaults)
+	for _, a := range artifacts {
+		a.Disabled = a.Disabled && !slices.ContainsFunc(a.Triggers, func(t models.Trigger) bool { return t.Event != "workflow_call" })
+	}
 	return artifacts, nil
+}
+
+// disabledWorkflows reads models.DisabledWorkflowsFile, which only a fetch
+// writes.
+func disabledWorkflows(root string) map[string]bool {
+	data, err := repofs.ReadFile(root, filepath.Join(root, filepath.FromSlash(models.DisabledWorkflowsFile)))
+	if err != nil {
+		return nil
+	}
+	paths := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			paths[line] = true
+		}
+	}
+	return paths
 }
 
 const localWorkflows = "./.github/workflows/"

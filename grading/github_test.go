@@ -337,3 +337,26 @@ jobs:
 		})
 	}
 }
+
+// Invoke-Pester reports failures and sets $LASTEXITCODE without exiting. Only
+// -CI and -EnableExit make the call itself exit non-zero; -CI:$false turns
+// -CI off, and any other invocation leaves the outcome to what runs around
+// it, which the workflow text alone cannot say.
+func TestPesterExitFlagsGradeCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"Invoke-Pester -Path tests -CI":              Enforcing,
+		"Invoke-Pester -Script ./tests -EnableExit":  Enforcing,
+		"Invoke-Pester -Path tests -Output Detailed": Unknown,
+		"Invoke-Pester -Configuration $config":       Unknown,
+		"Invoke-Pester -Path tests -CI:$false":       Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  pwsh:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Unit Tests"], run)
+	}
+}

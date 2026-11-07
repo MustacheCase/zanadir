@@ -36,6 +36,15 @@ rules:
     categories: ["License Compliance"]
     regex: "(?i)\\breuse\\s+lint\\b|fsfe/reuse-action"
 
+  # license-checker only lists licences unless --failOn or --onlyAllow is given.
+  - id: "license-checker-rule"
+    name: "license-checker"
+    applyOn: ["Job.Run"]
+    categories: ["License Compliance"]
+    regex: "(?i)(?:^|[\\s/])license-checker(?:-rseidelsohn)?(?:[\\s@]|$)"
+    exitsZeroUnless:
+      runMatches: "(?:^|\\s)--(?:failOn|onlyAllow)(?:[= ]|$)"
+
   # cargo deny check runs every check unless it is given some; licenses is
   # one of them. Its action runs check by default too.
   - id: "cargo-deny-licenses-rule"

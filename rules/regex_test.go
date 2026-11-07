@@ -846,6 +846,17 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"reuse download --all"},
 		},
 		{
+			ruleID: "license-checker-rule",
+			shouldMatch: []string{
+				"npx license-checker --production --onlyAllow \"MIT;ISC;Apache-2.0\"",
+				"license-checker --failOn \"GPL-3.0;AGPL-3.0\"",
+				"npx license-checker-rseidelsohn --onlyAllow MIT",
+				"npx license-checker --json --out licenses.json",
+				"npx license-checker@4 --onlyAllow MIT",
+			},
+			shouldNotMatch: []string{"addlicense -check .", "licensee detect .", "npm run check-licenses", "pip-license-checker --fail-on GPL", "npx license-checker-webpack-plugin"},
+		},
+		{
 			ruleID:         "cargo-deny-licenses-rule",
 			shouldMatch:    []string{"cargo deny check", "cargo deny --all-features check licenses", "cargo-deny check licenses bans", "EmbarkStudios/cargo-deny-action"},
 			shouldNotMatch: []string{"cargo deny init"},

@@ -54,6 +54,8 @@ func TestToolNamesWhatMatched(t *testing.T) {
 		{"unit-test-command-rule", "pytest -q tests", "pytest"},
 		{"unit-test-command-rule", "(bats tests | tee out.txt)", "bats"},
 		{"unit-test-command-rule", "./test/bats/bin/bats --tap test", "bats"},
+		{"unit-test-command-rule", "npx playwright test", "playwright test"},
+		{"unit-test-command-rule", "node_modules/.bin/playwright test --shard=1/4", "playwright test"},
 		{"coverage-command-rule", "pytest --cov=app tests", "pytest"},
 		{"coverage-command-rule", "go  test -coverprofile=c.out ./...", "go test"},
 		{"coverage-command-rule", "coverage run -m pytest", "coverage"},

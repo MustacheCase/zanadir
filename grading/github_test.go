@@ -361,6 +361,35 @@ jobs:
 	}
 }
 
+// Cypress's action installs dependencies and runs the tests; with runTests
+// off it only installs, builds and starts servers.
+func TestCypressRunTestsInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default runs the tests", expected: Enforcing},
+		{name: "runTests false only installs", input: "runTests: false", expected: Advisory},
+		{name: "runTests 0 only installs", input: "runTests: 0", expected: Advisory},
+		{name: "expression is unknown", input: "runTests: ${{ inputs.run }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  e2e:
+    steps:
+      - uses: cypress-io/github-action@v6
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/e2e.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Unit Tests"])
+		})
+	}
+}
+
 func TestCodespellActionOnlyWarnInputGradesCorrectly(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

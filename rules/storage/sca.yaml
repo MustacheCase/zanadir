@@ -90,6 +90,20 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bgovulncheck\\b"
+    # govulncheck exits 0 whatever it finds when it writes JSON, SARIF or
+    # OpenVEX; golang/govulncheck-action passes output-format to -format.
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--?(?:json(?:=true)?(?:\\s|$)|format[= ]+[\"']?(?:json|sarif|openvex)\\b)"
+        verdict: "advisory"
+      - input: "output-format"
+        equals: "json"
+        verdict: "advisory"
+      - input: "output-format"
+        equals: "sarif"
+        verdict: "advisory"
+      - input: "output-format"
+        equals: "openvex"
+        verdict: "advisory"
 
   # bundle-audit, bundler-audit, "bundle audit" and the rake task. Updating
   # the advisory database, or asking for the version, scans nothing.
@@ -105,6 +119,12 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bosv-scanner\\b|google/osv-scanner-action"
+    # The action's reusable workflows report without failing when fail-on-vuln
+    # is false.
+    weakenedWhen:
+      - input: "fail-on-vuln"
+        equals: "false"
+        verdict: "advisory"
 
   - id: "pip-audit-rule"
     name: "pip-audit"

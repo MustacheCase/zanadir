@@ -14,21 +14,23 @@ rules:
   #
   # Shell text cannot be matched with a bare \btests?\b: `if test -f`,
   # `test -z "$VAR"` and even `test.example.com` would all count as coverage.
-  # Match the runner invocations instead.
+  # Match the runner invocations instead. Maven's package, install and deploy
+  # phases and Gradle's build task run the tests on the way.
   # Bats counts only where a command starts, since `shellcheck --shell bats`
   # names a dialect.
   - id: "unit-test-command-rule"
     applyOn: ["Job.Run"]
     categories: ["Unit Tests"]
-    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\bcomposer\\s+(?:(?:run|run-script)\\s+)?test\\b|\\bphp\\s+artisan\\s+test\\b|\\b(?:pytest|rspec|phpunit|pest|jest|mocha|vitest|ctest|tox)\\b|\\b(?P<name>mvnw?)\\s[^\\n]*\\b(?:test|verify)\\b|\\b(?P<name>gradlew?)\\s[^\\n]*\\b(?:test|check)\\b|\\bpython[\\d.]*\\s+-m\\s+(?P<name>unittest)\\b|\\b(?:bun|deno|swift)\\s+test\\b|\\bbundle\\s+exec\\s+rspec\\b|\\bmeson\\s+test\\b|\\brun[-_]tests?\\.sh\\b|\\bcargo\\s+nextest\\s+(?:run|r)\\b|(?:^|\\n)\\(?\\s*(?:(?:npx|time|xargs)\\s+)?(?:\\S*/)?(?P<name>bats)(?:\\s|$)"
+    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\bcomposer\\s+(?:(?:run|run-script)\\s+)?test\\b|\\bphp\\s+artisan\\s+test\\b|\\b(?:pytest|rspec|phpunit|pest|jest|mocha|vitest|ctest|tox)\\b|\\b(?P<name>mvnw?)\\s[^\\n]*\\b(?:test|verify)\\b|\\b(?P<name>gradlew?)\\s[^\\n]*\\b(?:test|check)\\b|\\b(?P<name>mvnw?)\\s(?:[^\\n]*\\s)?(?:package|install|deploy)(?:\\s|$)|\\b(?P<name>gradlew?)\\s(?:[^\\n]*\\s)?(?:\\S*:)?build(?:\\s|$)|\\bpython[\\d.]*\\s+-m\\s+(?P<name>unittest)\\b|\\b(?:bun|deno|swift)\\s+test\\b|\\bbundle\\s+exec\\s+rspec\\b|\\bmeson\\s+test\\b|\\brun[-_]tests?\\.sh\\b|\\bcargo\\s+nextest\\s+(?:run|r)\\b|(?:^|\\n)\\(?\\s*(?:(?:npx|time|xargs)\\s+)?(?:\\S*/)?(?P<name>bats)(?:\\s|$)"
     # Commands that build or check without running the tests: Maven's skip
     # properties, Gradle excluding the test task, cargo's and nextest's --no-run, and tox
     # environments that only lint, type-check, document or package.
     unless: "(?i)\\bmvnw?\\s[^\\n]*-D(?:skipTests|maven\\.test\\.skip)(?:=true)?(?:\\s|$)|\\bgradlew?\\s[^\\n]*(?:-x|--exclude-task)[= ]?\\s*test(?:\\s|$)|\\bcargo\\s+test\\b[^\\n]*\\s--no-run\\b|\\bcargo\\s+nextest\\s+(?:run|r)\\b[^\\n]*\\s--no-run\\b|\\btox\\b[^\\n]*(?:\\s-e\\s*|\\s--envlist[= ]?)(?:lint|flake8|pylint|mypy|typing|types?|docs?|pre-commit|precommit|format|fmt|black|isort|ruff|style|pep8|build|package|packaging|release|publish|spell|codespell|bandit|security|safety|audit|manifest|readme|linkcheck|clean)(?:,(?:lint|flake8|pylint|mypy|typing|types?|docs?|pre-commit|precommit|format|fmt|black|isort|ruff|style|pep8|build|package|packaging|release|publish|spell|codespell|bandit|security|safety|audit|manifest|readme|linkcheck|clean))*(?:\\s|$)"
 
   # Steps that run or publish test results stand in for a test command zanadir
-  # cannot see, such as Azure's DotNetCoreCLI test input or a Jenkins junit step.
+  # cannot see, such as Azure's DotNetCoreCLI test input, a Jenkins junit step
+  # or an action that reports JUnit results.
   - id: "test-results-step-rule"
     applyOn: ["Job.Package"]
     categories: ["Unit Tests"]
-    regex: "(?i)^(?:vstest|publishtestresults|junit)$"
+    regex: "(?i)^(?:vstest|publishtestresults|junit|EnricoMi/(?P<name>publish-unit-test-result-action)(?:/\\w+)?|dorny/(?P<name>test-reporter)|mikepenz/(?P<name>action-junit-report)|(?P<name>test-summary)/action)$"

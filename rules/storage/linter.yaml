@@ -266,3 +266,18 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])phpcs(?:[\\s:@/]|$)"
+
+  # Formatters in check mode fail when a file is not formatted; without the
+  # flag they rewrite files and pass. gofmt is left out: it exits 0 whatever
+  # it finds, so it only gates inside a test -z wrapper.
+  - id: "formatter-check-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?P<name>cargo\\s+fmt)\\b[^\\n]*\\s--check\\b|\\b(?P<name>rustfmt)\\b[^\\n]*\\s--check\\b|\\b(?P<name>prettier)(?:@\\S+)?\\s(?:[^\\n]*\\s)?(?:--check|-c|--list-different|-l)(?:\\s|$)|\\b(?P<name>black)\\s(?:[^\\n]*\\s)?--check(?:\\s|$)|\\b(?P<name>isort)\\s(?:[^\\n]*\\s)?(?:--check-only|--check|-c)(?:\\s|$)|\\b(?P<name>dotnet\\s+format)\\b[^\\n]*\\s--verify-no-changes\\b|\\b(?P<name>dart\\s+format)\\b[^\\n]*\\s--set-exit-if-changed\\b|\\b(?P<name>(?:terraform|tofu)\\s+fmt)\\b[^\\n]*\\s-check\\b|\\b(?P<name>shfmt)\\s(?:[^\\n]*\\s)?(?:-d|--diff)(?:\\s|$)|\\b(?P<name>clang-format)(?:-\\d+)?\\s[^\\n]*(?:--dry-run|-n)\\s[^\\n]*--Werror\\b|\\b(?P<name>clang-format)(?:-\\d+)?\\s[^\\n]*--Werror\\s[^\\n]*(?:--dry-run|-n)(?:\\s|$)|\\b(?P<name>spotless)(?::check|Check)\\b|\\b(?P<name>dprint)\\s+check\\b|\\b(?P<name>oxfmt)\\b[^\\n]*\\s--check\\b|\\b(?P<name>mix\\s+format)\\b[^\\n]*\\s--check-formatted\\b|\\b(?P<name>deno\\s+fmt)\\b[^\\n]*\\s--check\\b|^(?P<name>dprint)/check$|^DoozyX/(?P<name>clang-format)-lint-action$"
+
+  # pre-commit and prek run whatever hooks the config lists, counted as linting
+  # without reading the config. prek runs the hooks when given no subcommand.
+  - id: "pre-commit-rule"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\b(?P<name>pre-commit)\\s+run\\b|(?:^|\\n)(?:\\S*/)?(?P<name>prek)(?:\\s+(?:run\\b|-|[\\\"'$])|[ \\t]*(?:\\n|$))|^(?P<name>pre-commit)/action$|^j178/(?P<name>prek)-action$"

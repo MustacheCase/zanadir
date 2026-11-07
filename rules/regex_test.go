@@ -567,6 +567,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"time bats test", "(bats tests | tee out.txt)", "xargs bats", "make lint\nbats --tap test",
 				"./vendor/bin/pest", "vendor/bin/pest --ci --parallel", "php artisan test --parallel",
 				"composer test", "composer run test", "composer run-script test",
+				"mvn -B clean install", "./mvnw -B package -Pci", "mvn deploy -s settings.xml", "./gradlew build", "./gradlew :app:build --scan",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
@@ -577,6 +578,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"git clone https://github.com/bats-core/bats-core.git", "npm run combats",
 				"shellcheck --shell bats test/*.bats", "shfmt --language-dialect bats -d test", `print_info "Running Bats in test"`,
 				"php artisan migrate --force", "php artisan route:cache",
+				"./gradlew assembleRelease --build-cache", "mvn -Dpackage.name=x compile", "mvn dependency:go-offline", "./gradlew publishToMavenLocal", "./gradlew buildEnvironment",
 				"composer validate --strict", "composer run-script lint",
 				"latest", "deploy-latest",
 			},
@@ -846,6 +848,95 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 			shouldNotMatch: []string{"phpcbf src/", "cp phpcs.xml.dist phpcs.xml", "php-cs-fixer fix --dry-run"},
 		},
+		{
+			ruleID: "formatter-check-rule",
+			shouldMatch: []string{
+				"cargo fmt --all -- --check", "cargo fmt --check", "cargo fmt -- --config imports_granularity=Item --check", "rustfmt --check src/main.rs",
+				"prettier --check .", "prettier@3.9.0 --check .", `prettier "docs/**/*.md" --check`, "prettier -c src", "prettier --list-different .",
+				"black --check .", "black . --check", "black --check --diff src", "isort --check .", "isort --check-only --diff src",
+				"dotnet format --verify-no-changes --verbosity minimal", "dart format --output=none --set-exit-if-changed lib test",
+				"terraform fmt -check -recursive", "tofu fmt -recursive -check -diff", "shfmt -i 4 -ci -sr -d scripts", "shfmt --diff .",
+				"clang-format --dry-run --Werror src/a.c", "clang-format-18 -n --Werror src/a.c", "clang-format --Werror --dry-run a.c",
+				"mvn spotless:check", "./gradlew spotlessCheck", "dprint check", "oxfmt --check .", "mix format --check-formatted", "deno fmt --check",
+				"dprint/check", "DoozyX/clang-format-lint-action",
+			},
+			shouldNotMatch: []string{
+				"cargo fmt --all", "cargo fmt", "rustup component add rustfmt", "prettier --write .", "black .", "isort .",
+				"dotnet format", "dart format lib", "terraform fmt -recursive", "shfmt -w .", "shfmt -l .", "clang-format -i src/a.c",
+				"clang-format --Werror -i src/a.c", "mvn spotless:apply", "dprint fmt", "oxfmt .", "mix format", "deno fmt",
+				"gofmt -l .", "ruff check --select black", "echo blacklist --check", "dprint/check-extra",
+			},
+		},
+		{
+			ruleID: "pre-commit-rule",
+			shouldMatch: []string{
+				"pre-commit run --all-files", "pre-commit run --show-diff-on-failure --color=always --all-files", "uvx pre-commit run -a",
+				"prek run --all-files", "prek", "prek --all-files --show-diff-on-failure", `prek "${prek_args[@]}" --all-files`, "make lint\nprek run",
+				"pre-commit/action", "j178/prek-action",
+			},
+			shouldNotMatch: []string{
+				"pre-commit install", "pre-commit install --install-hooks", "pre-commit autoupdate", "pre-commit gc",
+				"prek install", "prek prepare-hooks", "echo prek is fast", "pre-commit/action-extra", "./.github/actions/install-prek",
+			},
+		},
+		{
+			ruleID: "os-code-signing-rule",
+			shouldMatch: []string{
+				`codesign --verbose -f -s "$MACOS_CERTIFICATE_NAME" -o runtime App.app`, `codesign --sign "Developer ID Application: X" --timestamp app`,
+				`xcrun notarytool submit "App.dmg" --keychain-profile "p" --wait`, "notarytool submit app.zip --wait",
+				"signtool sign /fd sha256 /tr http://ts app.exe", "signtool.exe sign /a app.exe", "osslsigncode sign -pkcs12 c.p12 -in a.exe -out b.exe",
+				"rcodesign sign target/release/deno --code-signature-flags=runtime",
+			},
+			shouldNotMatch: []string{
+				"codesign -s - App.app", "codesign --sign - --force App.app", "codesign --verify --deep App.app", "codesign -dv App.app",
+				"security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pass build.keychain",
+				`xcrun notarytool store-credentials "profile" --key k.p8`, "xcrun notarytool log id", "signtool verify /pa app.exe",
+				"rcodesign print-signature-info app.dmg", `echo "codesign -s identity"`,
+			},
+		},
+		{
+			ruleID:         "azure-artifact-signing-rule",
+			shouldMatch:    []string{"azure/trusted-signing-action", "Azure/artifact-signing-action"},
+			shouldNotMatch: []string{"azure/login", "azure/artifact-signing-action-extra"},
+		},
+		{
+			ruleID:         "signpath-rule",
+			shouldMatch:    []string{"signpath/github-action-submit-signing-request"},
+			shouldNotMatch: []string{"./.github/actions/install-signpath-module"},
+		},
+		{
+			ruleID:         "esigner-rule",
+			shouldMatch:    []string{"sslcom/esigner-codesign"},
+			shouldNotMatch: []string{"apple-actions/import-codesign-certs"},
+		},
+		{
+			ruleID:         "cifuzz-rule",
+			shouldMatch:    []string{"google/oss-fuzz/infra/cifuzz/actions/run_fuzzers"},
+			shouldNotMatch: []string{"google/oss-fuzz/infra/cifuzz/actions/build_fuzzers"},
+		},
+		{
+			ruleID:         "clusterfuzzlite-rule",
+			shouldMatch:    []string{"google/clusterfuzzlite/actions/run_fuzzers"},
+			shouldNotMatch: []string{"google/clusterfuzzlite/actions/build_fuzzers"},
+		},
+		{
+			ruleID:         "cargo-fuzz-rule",
+			shouldMatch:    []string{"cargo fuzz run parser -- -max_total_time=60", "cargo +nightly fuzz run fuzz_target_1"},
+			shouldNotMatch: []string{"cargo fuzz build -s none", "cargo install cargo-fuzz", "cargo fuzz list"},
+		},
+		{
+			ruleID:         "github-attestation-rule",
+			shouldMatch:    []string{"actions/attest", "actions/attest-build-provenance", "actions/attest-sbom"},
+			shouldNotMatch: []string{"actions/attest-foo", "actions/attestation-viewer"},
+		},
+		{
+			ruleID: "test-results-step-rule",
+			shouldMatch: []string{
+				"PublishTestResults", "EnricoMi/publish-unit-test-result-action", "EnricoMi/publish-unit-test-result-action/linux",
+				"dorny/test-reporter", "mikepenz/action-junit-report", "test-summary/action",
+			},
+			shouldNotMatch: []string{"dorny/paths-filter", "actions/upload-artifact"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -883,7 +974,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"unit-test-command-rule": {
-			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test",
+			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test", "mvn -B clean install -DskipTests",
 			"./gradlew check --exclude-task test", "cargo test --no-run", "cargo test --all --no-run --locked",
 			"cargo nextest run --no-run", "cargo nextest run --workspace --no-run --locked",
 			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",

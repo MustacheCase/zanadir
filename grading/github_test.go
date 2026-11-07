@@ -133,6 +133,23 @@ jobs:
 	}
 }
 
+// CIFuzz fails on a crash unless dry-run tells it only to report.
+func TestCIFuzzDryRunGradesAdvisory(t *testing.T) {
+	for with, expected := range map[string]Verdict{
+		"": Enforcing,
+		"\n        with:\n          dry-run: true": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/cifuzz.yml", `
+on: pull_request
+jobs:
+  fuzz:
+    steps:
+      - uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master`+with+`
+`)
+		assert.Equal(t, expected, verdicts["SAST"], with)
+	}
+}
+
 // GuardDog reports findings without failing unless explicitly asked to fail.
 func TestGuardDogExitsZeroUnlessFindingFlag(t *testing.T) {
 	for run, expected := range map[string]Verdict{

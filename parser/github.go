@@ -214,7 +214,8 @@ func inheritCallers(artifacts []*models.Artifact, defaults map[*models.Artifact]
 			break
 		}
 	}
-	for called, jobs := range callers {
+	for _, called := range callersFirst(artifacts, callers) {
+		jobs := callers[called]
 		allMayFail := !slices.ContainsFunc(jobs, func(j *models.Job) bool { return !j.ContinueOnError })
 		var variants []map[string]string
 		for _, caller := range jobs {
@@ -239,6 +240,32 @@ func inheritCallers(artifacts []*models.Artifact, defaults map[*models.Artifact]
 			}
 		}
 	}
+}
+
+// callersFirst orders the called workflows so a caller that is itself called
+// has its own callers' conditions and inputs before it passes them on.
+func callersFirst(artifacts []*models.Artifact, callers map[*models.Artifact][]*models.Job) []*models.Artifact {
+	owner := map[*models.Job]*models.Artifact{}
+	for _, a := range artifacts {
+		for _, job := range a.Jobs {
+			owner[job] = a
+		}
+	}
+	depth := map[*models.Artifact]int{}
+	for range artifacts {
+		for called, jobs := range callers {
+			for _, job := range jobs {
+				if d := depth[owner[job]] + 1; d > depth[called] && d <= len(artifacts) {
+					depth[called] = d
+				}
+			}
+		}
+	}
+	order := slices.Collect(maps.Keys(callers))
+	slices.SortFunc(order, func(a, b *models.Artifact) int {
+		return cmp.Or(depth[a]-depth[b], strings.Compare(a.Location, b.Location))
+	})
+	return order
 }
 
 // withInputs puts each caller's inputs into text; callers passing different

@@ -481,6 +481,22 @@ func TestReusableWorkflowsInheritTheirCallers(t *testing.T) {
 	assert.Equal(t, "v1", remote.Version)
 }
 
+// A caller's condition, continue-on-error and inputs reach the end of a chain
+// of calls however the map of callers happens to be ordered.
+func TestReusableWorkflowChainsSettleInOrder(t *testing.T) {
+	files := map[string]string{
+		"top.yml":    "on: pull_request\njobs:\n  ci:\n    if: github.repository == 'o/r'\n    continue-on-error: true\n    uses: ./.github/workflows/mid.yml\n    with:\n      target: ./pkg\n",
+		"mid.yml":    "on:\n  workflow_call:\n    inputs:\n      target: {type: string}\njobs:\n  tests:\n    uses: ./.github/workflows/bottom.yml\n    with:\n      dir: ${{ inputs.target }}\n",
+		"bottom.yml": "on:\n  workflow_call:\n    inputs:\n      dir: {type: string}\njobs:\n  test:\n    runs-on: x\n    steps:\n      - run: go test ${{ inputs.dir }}\n",
+	}
+	for range 30 {
+		bottom := byFile(t, files)["bottom.yml"].Jobs[0]
+		assert.Equal(t, "github.repository == 'o/r'", bottom.JobIf)
+		assert.True(t, bottom.ContinueOnError)
+		assert.Equal(t, "go test ./pkg", bottom.Run)
+	}
+}
+
 // django runs flake8 through liskin/gh-problem-matcher-wrap's run: input.
 func TestGithubParserReadsACommandPassedToAnAction(t *testing.T) {
 	artifact := parseOne(t, `on: pull_request

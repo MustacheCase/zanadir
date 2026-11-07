@@ -601,6 +601,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"npx playwright test", "pnpm exec playwright test --shard=1/4", "pnpm -C e2e exec playwright test -c playwright.visual.config.ts",
 				"bunx playwright test --config e2e/playwright.config.ts", "yarn playwright test --project=chromium",
 				"xvfb-run -a pnpm exec playwright test --reporter=list", "node_modules/.bin/playwright test", "npx playwright test --update-snapshots",
+				"helm unittest helm/superset", "helm unittest -f 'tests/*.yaml' charts/app", "helm unittest --strict --with-subchart=false .", "helm unittest charts/*",
+				"docker run --rm -v $(pwd):/apps helmunittest/helm-unittest .", "docker run -ti --rm -v $(pwd):/apps helmunittest/helm-unittest:3.11.1-0.3.0 -o test-output.xml .",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
@@ -617,6 +619,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"npx playwright install --with-deps chromium", "npx playwright install-deps", "pnpm exec playwright show-report",
 				"npx playwright codegen https://example.com", "npx playwright merge-reports --reporter html ./all-blob-reports",
 				"python -m playwright install --with-deps",
+				"helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.1", "helm lint charts/app", "helm template charts/app",
+				"docker pull helmunittest/helm-unittest:3.11.1-0.3.0", "make helm-unittest",
 			},
 		},
 		{
@@ -1016,6 +1020,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 			"cargo nextest run --no-run", "cargo nextest run --workspace --no-run --locked",
 			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",
 			"npx playwright test --list", "pnpm exec playwright test --config tests/playwright.config.ts --list --reporter=json",
+			"helm unittest --help", "helm unittest --help >/dev/null",
 		},
 		"unit-test-rule": {"deploy-test", "publish-test-pypi", "report-test-failure", "tests-result", "set-test-package-matrix", "Snyk Test", "Test GitHub OIDC"},
 		"taurus-rule":    {"pip install bzt", "pip3 install bzt", "bzt --help", "bzt -h"},

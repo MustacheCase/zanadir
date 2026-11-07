@@ -244,8 +244,13 @@ func TestRuleRegexPrecision(t *testing.T) {
 		},
 		{
 			ruleID:         "zizmor-rule",
-			shouldMatch:    []string{"zizmorcore/zizmor-action", "zizmor .github/workflows", "pipx run zizmor"},
+			shouldMatch:    []string{"zizmor .github/workflows", "pipx run zizmor", "crazy-max/.github/.github/workflows/zizmor.yml"},
 			shouldNotMatch: []string{"zizmorish", "myzizmor"},
+		},
+		{
+			ruleID:         "zizmor-action-rule",
+			shouldMatch:    []string{"zizmorcore/zizmor-action", "ZizmorCore/Zizmor-Action"},
+			shouldNotMatch: []string{"zizmorcore/zizmor-action-fork", "zizmor .github/workflows"},
 		},
 		{
 			// The organisation is also called step-security, and its other
@@ -1000,6 +1005,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
+		"zizmor-rule":                {"zizmorcore/zizmor-action"},
 		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},

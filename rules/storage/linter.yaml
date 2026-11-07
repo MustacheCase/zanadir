@@ -163,12 +163,20 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bswiftlint\\b"
+    # --fix only corrects, and --lenient turns every error into a warning.
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--(?:fix|autocorrect|lenient)(?:\\s|$)"
+        verdict: "advisory"
 
   - id: "dart-analyze-rule"
     name: "dart analyze"
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\b(?:dart|flutter)\\s+analyze\\b"
+    # Errors still fail with these, but warnings or infos no longer do.
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--no-fatal-(?:warnings|infos)(?:\\s|$)"
+        verdict: "partial"
 
   - id: "hadolint-rule"
     name: "Hadolint"
@@ -239,10 +247,14 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:\\bbuf\\s+lint\\b|bufbuild/buf(?:-lint)?-action)"
-    # buf-action can publish or check breaking changes without linting.
+    # buf-action can publish or check breaking changes without linting, or
+    # only install buf.
     weakenedWhen:
       - input: "lint"
         equals: "false"
+        verdict: "advisory"
+      - input: "setup_only"
+        equals: "true"
         verdict: "advisory"
 
   # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
@@ -281,3 +293,8 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\b(?P<name>pre-commit)\\s+run\\b|(?:^|\\n)(?:\\S*/)?(?P<name>prek)(?:\\s+(?:run\\b|-|[\\\"'$])|[ \\t]*(?:\\n|$))|^(?P<name>pre-commit)/action$|^j178/(?P<name>prek)-action$"
+    # Without a file selection only staged files are checked, and a CI
+    # checkout has none, so every hook is skipped.
+    exitsZeroUnless:
+      runMatches: "(?:^|\\s)(?:--all-files|-a|--files|--glob|--directory|-d|--from-ref|--source|-s|--to-ref|--origin|-o|--last-commit)(?:[=\\s]|$)"
+      unknownWhen: "\\$"

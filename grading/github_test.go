@@ -398,3 +398,53 @@ jobs:
 		})
 	}
 }
+
+// Each of these tools reports and exits 0 in some form, or stops failing on
+// part of what it finds.
+func TestToolFormsThatCannotFail(t *testing.T) {
+	step := func(lines ...string) string {
+		return "    runs-on: ubuntu-latest\n    steps:\n      - " + strings.Join(lines, "\n        ") + "\n"
+	}
+	osv := "    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.0\n"
+	for _, tt := range []struct {
+		name, category, job string
+		want                Verdict
+	}{
+		{"zizmor action default", "Workflow Security", step("uses: zizmorcore/zizmor-action@v0.8.1"), Advisory},
+		{"zizmor action advanced security", "Workflow Security", step("uses: zizmorcore/zizmor-action@v0.8.1", "with:", "  advanced-security: true"), Advisory},
+		{"zizmor action fails", "Workflow Security", step("uses: zizmorcore/zizmor-action@v0.8.1", "with:", "  advanced-security: 'false'"), Enforcing},
+		{"zizmor action expression", "Workflow Security", step("uses: zizmorcore/zizmor-action@v0.8.1", "with:", "  advanced-security: ${{ inputs.sarif }}"), Unknown},
+		{"zizmor sarif", "Workflow Security", step("run: uvx zizmor --format=sarif . > results.sarif"), Advisory},
+		{"zizmor no exit codes", "Workflow Security", step("run: zizmor --no-exit-codes .github/workflows"), Advisory},
+		{"zizmor", "Workflow Security", step("run: zizmor --format github --min-severity high ."), Enforcing},
+		{"buf setup only", "Linter", step("uses: bufbuild/buf-action@v1", "with:", "  setup_only: true"), Advisory},
+		{"buf action", "Linter", step("uses: bufbuild/buf-action@v1"), Enforcing},
+		{"swiftlint fix", "Linter", step("run: docker run --rm -v $PWD:/work ghcr.io/realm/swiftlint:latest --fix"), Advisory},
+		{"swiftlint lenient", "Linter", step("run: swiftlint lint --lenient"), Advisory},
+		{"swiftlint strict", "Linter", step("run: swiftlint lint --strict"), Enforcing},
+		{"flutter no fatal infos", "Linter", step("run: flutter analyze --no-fatal-infos"), Partial},
+		{"dart no fatal warnings", "Linter", step("run: dart analyze --no-fatal-warnings lib"), Partial},
+		{"dart fatal infos", "Linter", step("run: dart analyze --fatal-infos"), Enforcing},
+		{"pre-commit staged files", "Linter", step("run: pre-commit run --show-diff-on-failure"), Advisory},
+		{"pre-commit one hook", "Linter", step("uses: pre-commit/action@v3.0.1", "with:", "  extra_args: trailing-whitespace"), Advisory},
+		{"pre-commit arguments", "Linter", step("run: pre-commit run $PRE_COMMIT_ARGS"), Unknown},
+		{"pre-commit all files", "Linter", step("run: uv run pre-commit run -a"), Enforcing},
+		{"pre-commit refs", "Linter", step("run: pre-commit run --from-ref origin/main --to-ref HEAD"), Enforcing},
+		{"pre-commit action", "Linter", step("uses: pre-commit/action@v3.0.1"), Enforcing},
+		{"prek last commit", "Linter", step("run: prek run --last-commit"), Enforcing},
+		{"osv no fail", "SCA", osv + "    with:\n      fail-on-vuln: false\n", Advisory},
+		{"osv", "SCA", osv, Enforcing},
+		{"govulncheck sarif", "SCA", step("run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 -format sarif ./... > gh.sarif"), Advisory},
+		{"govulncheck json", "SCA", step("run: govulncheck -json ./..."), Advisory},
+		{"govulncheck json off", "SCA", step("run: govulncheck -json=false ./..."), Enforcing},
+		{"govulncheck text", "SCA", step("run: govulncheck -format text ./..."), Enforcing},
+		{"govulncheck action sarif", "SCA", step("uses: golang/govulncheck-action@v1", "with:", "  output-format: sarif"), Advisory},
+		{"govulncheck action", "SCA", step("uses: golang/govulncheck-action@v1"), Enforcing},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			workflow := "on: pull_request\njobs:\n  checks:\n" + tt.job
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/checks.yml", workflow)
+			assert.Equal(t, tt.want, verdicts[tt.category])
+		})
+	}
+}

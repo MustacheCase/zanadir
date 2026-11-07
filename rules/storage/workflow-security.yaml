@@ -10,6 +10,23 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Workflow Security"]
     regex: "(?i)\\bzizmor\\b"
+    unless: "(?i)^zizmorcore/zizmor-action$"
+    unlessPackage: "(?i)^zizmorcore/zizmor-action$"
+    # zizmor exits 0 whatever it finds with SARIF output or --no-exit-codes.
+    weakenedWhen:
+      - runMatches: "--format[= ]+[\"']?sarif\\b|--no-exit-codes\\b"
+        verdict: "advisory"
+
+  # zizmor-action runs zizmor --format=sarif and uploads the results unless
+  # advanced-security is false.
+  - id: "zizmor-action-rule"
+    name: "zizmor"
+    applyOn: ["Job.Package"]
+    categories: ["Workflow Security"]
+    regex: "(?i)^zizmorcore/zizmor-action$"
+    exitsZeroUnless:
+      input: "advanced-security"
+      runMatches: "(?i)^false$"
 
   # glsec reads GitLab CI. It runs as the glsec command, as the
   # ghcr.io/glsec/glsec image, or as one of the two components under

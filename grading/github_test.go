@@ -337,3 +337,33 @@ jobs:
 		})
 	}
 }
+
+// github-action-benchmark only comments on a regression unless fail-on-alert
+// is true, and its former name rhysd/ is still in older workflows.
+func TestGithubActionBenchmarkFailOnAlertGradesAdvisory(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		uses     string
+		input    string
+		expected Verdict
+	}{
+		{name: "fail-on-alert true is a gate", uses: "benchmark-action/github-action-benchmark@v1", input: "fail-on-alert: true", expected: Enforcing},
+		{name: "fail-on-alert default is advisory", uses: "benchmark-action/github-action-benchmark@v1", expected: Advisory},
+		{name: "fail-on-alert false is advisory", uses: "benchmark-action/github-action-benchmark@v1", input: "fail-on-alert: false", expected: Advisory},
+		{name: "former name with true is a gate", uses: "rhysd/github-action-benchmark@v1", input: "fail-on-alert: TRUE", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  bench:
+    steps:
+      - uses: ` + tc.uses + `
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Performance Testing"])
+		})
+	}
+}

@@ -36,6 +36,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 		shouldNotMatch []string
 	}{
 		{
+			ruleID: "github-action-benchmark-rule",
+			shouldMatch: []string{
+				"benchmark-action/github-action-benchmark@v1",
+				"benchmark-action/github-action-benchmark",
+				"rhysd/github-action-benchmark@v1",
+			},
+			shouldNotMatch: []string{
+				"cargo bench", "go test -bench=. ./...", "CodSpeedHQ/action@v3",
+				"benchmark-action/github-action-benchmark-extra@v1",
+			},
+		},
+		{
 			ruleID: "guarddog-rule",
 			shouldMatch: []string{
 				"uvx guarddog pypi verify requirements.txt --exit-non-zero-on-finding",

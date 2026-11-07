@@ -21,7 +21,14 @@ type Artifact struct {
 	DefaultBranch string
 	// ToolConfigs are the config files named by rules that the repository has.
 	ToolConfigs map[string]bool
+	// Disabled is a workflow GitHub has turned off and nothing enabled calls,
+	// so it never runs.
+	Disabled bool
 }
+
+// DisabledWorkflowsFile lists the workflows a fetched repository has turned
+// off, one path a line. Only GitHub's API says so, not the files.
+const DisabledWorkflowsFile = ".git/zanadir-disabled-workflows"
 
 // Trigger is one event a CI configuration runs on, with its filters.
 type Trigger struct {

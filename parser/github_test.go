@@ -665,6 +665,49 @@ runs:
 	assert.Equal(t, map[string]string{"aquasecurity/setup-trivy": "v0.3.1", "./.github/actions/nested": "", "./.github/actions/scan": ""}, packages)
 }
 
+// A disabled workflow never runs on its own triggers, but still runs when an
+// enabled workflow calls it, and calls nothing itself.
+func TestGithubDisabledWorkflowsRunOnlyWhenCalled(t *testing.T) {
+	artifacts, err := parser.NewGithubParser().Parse(testrepo.Write(t, map[string]string{
+		models.DisabledWorkflowsFile:   ".github/workflows/old.yml\n.github/workflows/lib.yml\n.github/workflows/legacy.yml\n",
+		".github/workflows/old.yml":    "on: pull_request\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - run: gitleaks detect\n",
+		".github/workflows/lib.yml":    "on: [workflow_call, push]\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - run: semgrep ci\n",
+		".github/workflows/ci.yml":     "on: pull_request\njobs:\n  call:\n    uses: ./.github/workflows/lib.yml\n",
+		".github/workflows/legacy.yml": "on: pull_request\njobs:\n  call:\n    uses: ./.github/workflows/shared.yml\n",
+		".github/workflows/shared.yml": "on: workflow_call\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - run: trivy fs .\n",
+	}))
+	require.NoError(t, err)
+	byFile := map[string]*models.Artifact{}
+	for _, a := range artifacts {
+		byFile[filepath.Base(a.Location)] = a
+	}
+	events := func(a *models.Artifact) []string {
+		var found []string
+		for _, trigger := range a.Triggers {
+			found = append(found, trigger.Event)
+		}
+		return found
+	}
+
+	assert.True(t, byFile["old.yml"].Disabled)
+	assert.Empty(t, events(byFile["old.yml"]))
+	assert.False(t, byFile["lib.yml"].Disabled, "an enabled caller runs it")
+	assert.ElementsMatch(t, []string{"workflow_call", "pull_request"}, events(byFile["lib.yml"]), "its own push no longer runs it")
+	assert.True(t, byFile["legacy.yml"].Disabled)
+	assert.Equal(t, []string{"workflow_call"}, events(byFile["shared.yml"]), "a disabled caller passes on no triggers")
+	assert.False(t, byFile["ci.yml"].Disabled)
+}
+
+func TestGithubWorkflowsAreEnabledWithoutTheList(t *testing.T) {
+	artifacts, err := parser.NewGithubParser().Parse(testrepo.Write(t, map[string]string{
+		".github/workflows/old.yml": "on: pull_request\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - run: gitleaks detect\n",
+	}))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.False(t, artifacts[0].Disabled)
+	assert.Len(t, artifacts[0].Triggers, 1)
+}
+
 func TestGithubReadsParallelStepGroups(t *testing.T) {
 	jobs := compositeRepo(t, map[string]string{
 		".github/workflows/ci.yml": `on: pull_request

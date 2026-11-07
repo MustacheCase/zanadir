@@ -47,6 +47,9 @@ type Merge struct {
 // NotRequired is the reason a control that runs on pull requests is partial.
 const NotRequired = "its check is not required to merge"
 
+// TurnedOff is the reason a control in a disabled workflow is advisory.
+const TurnedOff = "its workflow is disabled in the repository's settings"
+
 // Unaudited grades a dependency scanning control partial when the lockfile
 // installs packages that no scanner can look up, and names them.
 func Unaudited(a Assessment, lockfile string, packages []string) Assessment {
@@ -88,7 +91,7 @@ func Grade(finding *matcher.Finding) Verdict {
 	if finding == nil || finding.Artifact == nil {
 		return Unknown
 	}
-	if finding.Artifact.OutsidePipeline {
+	if finding.Artifact.OutsidePipeline || finding.Artifact.Disabled {
 		return Advisory
 	}
 
@@ -404,7 +407,12 @@ func ByCategory(findings []*matcher.Finding, merge *Merge) map[string]Assessment
 		if finding == nil {
 			continue
 		}
-		candidate := gated(Assessment{Verdict: Grade(finding), Location: finding.Location}, finding, merge)
+		candidate := Assessment{Verdict: Grade(finding), Location: finding.Location}
+		if finding.Artifact != nil && finding.Artifact.Disabled {
+			candidate.Reason = TurnedOff
+		} else {
+			candidate = gated(candidate, finding, merge)
+		}
 		addTool(tools, finding, candidate.Verdict)
 		if current, seen := best[finding.Category]; seen && !stronger(candidate.Verdict, current.Verdict) {
 			continue

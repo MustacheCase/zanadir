@@ -45,3 +45,16 @@ rules:
     applyOn: ["Job.Run"]
     categories: ["Workflow Security"]
     regex: "(?i)\\bcodeql\\s+database\\s+create\\b[^\\n]*--language[= ](?:[\\w+-]+,)*actions\\b"
+
+  # Harden-Runner watches the runner for the rest of the job it is in. Its
+  # egress-policy defaults to block, which refuses calls outside
+  # allowed-endpoints; audit only records what happened.
+  - id: "harden-runner-rule"
+    name: "Harden-Runner"
+    applyOn: ["Job.Package"]
+    categories: ["Workflow Security"]
+    regex: "(?i)^step-security/harden-runner$"
+    weakenedWhen:
+      - input: "egress-policy"
+        equals: "audit"
+        verdict: "advisory"

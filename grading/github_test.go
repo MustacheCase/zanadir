@@ -311,6 +311,37 @@ jobs:
 	}
 }
 
+// Harden-Runner watches the runner for the rest of the job it is in;
+// egress-policy audit only records what happened, block (the default) refuses
+// the calls that are not allowed.
+func TestHardenRunnerEgressPolicyGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default egress-policy is block", expected: Enforcing},
+		{name: "allowed-endpoints without egress-policy is enforcing", input: "allowed-endpoints: github.com:443", expected: Enforcing},
+		{name: "egress-policy block is enforcing", input: "egress-policy: block", expected: Enforcing},
+		{name: "egress-policy audit only records", input: "egress-policy: audit", expected: Advisory},
+		{name: "expression is unknown", input: "egress-policy: ${{ inputs.policy }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  build:
+    steps:
+      - uses: step-security/harden-runner@v2
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Workflow Security"])
+		})
+	}
+}
+
 func TestCodespellActionOnlyWarnInputGradesCorrectly(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

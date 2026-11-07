@@ -61,6 +61,7 @@ func TestToolNamesWhatMatched(t *testing.T) {
 		{"coverage-command-rule", "phpunit --coverage-clover clover.xml", "phpunit"},
 		{"coverage-command-rule", "nyc mocha", "nyc"},
 		{"python-type-checker-rule", "mypy src", "mypy"},
+		{"python-type-checker-rule", "uv run ty check", "ty"},
 		{"npm-audit-rule", "pnpm audit --prod", "pnpm audit"},
 		{"oxsecurity-super-linter-rule", "super-linter/super-linter/slim@v7", "super-linter"},
 		{"oxsecurity-super-linter-rule", "oxsecurity/megalinter@v8", "megalinter"},

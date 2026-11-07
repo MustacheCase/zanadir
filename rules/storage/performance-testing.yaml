@@ -42,6 +42,17 @@ rules:
     regex: "(?i)(?:^|[\\s/])bzt(?:\\s|$)"
     unless: "(?i)\\bpip(?:3)?\\s+install\\b[^\\n]*\\bbzt\\b|\\bbzt\\s+(?:--help|-h)(?:\\s|$)"
 
+  # github-action-benchmark only comments on a regression by default. It fails
+  # the job only with fail-on-alert: true. rhysd/ is its former name.
+  - id: "github-action-benchmark-rule"
+    name: "github-action-benchmark"
+    applyOn: ["Job.Package"]
+    categories: ["Performance Testing"]
+    regex: "(?i)^(?:benchmark-action|rhysd)/github-action-benchmark(?:@|$)"
+    exitsZeroUnless:
+      input: "fail-on-alert"
+      runMatches: "(?i)^true$"
+
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-performance-template-rule"
     name: "GitLab Performance Testing"

@@ -473,6 +473,31 @@ func TestFetchWritesNoDisabledWorkflowsWhenTheListFails(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
 }
 
+func TestRecordDisabledWorkflowsReadsEveryPage(t *testing.T) {
+	var pages []string
+	github(t, func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		pages = append(pages, page)
+		state := map[string]string{"1": "active", "2": "disabled_manually"}[page]
+		_, _ = fmt.Fprintf(w, `{"total_count": 2, "workflows": [{"path": ".github/workflows/%s.yml", "state": %q}]}`, page, state)
+	})
+	dir := t.TempDir()
+	recordDisabledWorkflows(context.Background(), Repository{Owner: "o", Name: "r"}, "", dir)
+	listed, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
+	require.NoError(t, err)
+	assert.Equal(t, ".github/workflows/2.yml\n", string(listed))
+	assert.Equal(t, []string{"1", "2"}, pages)
+}
+
+func TestRecordDisabledWorkflowsWritesNothingWhenAllAreActive(t *testing.T) {
+	routes(t, map[string]string{
+		"/repos/o/r/actions/workflows": `200 {"total_count": 1, "workflows": [{"path": ".github/workflows/ci.yml", "state": "active"}]}`,
+	})
+	dir := t.TempDir()
+	recordDisabledWorkflows(context.Background(), Repository{Owner: "o", Name: "r"}, "", dir)
+	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
+}
+
 // A fetched repository gets origin/HEAD, as git clone writes it.
 func TestFetchRecordsTheDefaultBranch(t *testing.T) {
 	routes(t, map[string]string{

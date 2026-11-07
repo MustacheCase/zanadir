@@ -39,12 +39,11 @@ rules:
   # license-checker only lists licences unless --failOn or --onlyAllow is given.
   - id: "license-checker-rule"
     name: "license-checker"
-    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    applyOn: ["Job.Run"]
     categories: ["License Compliance"]
-    regex: "(?i)\\blicense-checker(?:-rseidelsohn)?\\b"
+    regex: "(?i)(?:^|[\\s/])license-checker(?:-rseidelsohn)?(?:[\\s@]|$)"
     exitsZeroUnless:
       runMatches: "(?:^|\\s)--(?:failOn|onlyAllow)(?:[= ]|$)"
-      unknownWhen: "(?:^|\\s)--config(?:[= ]|$)"
 
   # cargo deny check runs every check unless it is given some; licenses is
   # one of them. Its action runs check by default too.

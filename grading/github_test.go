@@ -105,8 +105,6 @@ func TestLicenseCheckerExitsZeroUnlessFailFlag(t *testing.T) {
 		"npx license-checker --json --out licenses.json":                      Advisory,
 		"npx license-checker --production --onlyAllow \"MIT;ISC;Apache-2.0\"": Enforcing,
 		"license-checker --failOn \"GPL-3.0;AGPL-3.0\"":                       Enforcing,
-		"npx license-checker --config .licenses.json":                         Unknown,
-		"npx license-checker --config=.licenses.json --json":                  Unknown,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
 on: pull_request

@@ -756,6 +756,25 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"flutter test", "dart analyzer"},
 		},
 		{
+			// Plain tsc is how packages are built, so only --noEmit says
+			// "check, don't write". tsc-alias is another tool, and
+			// --noEmitOnError is a different flag.
+			ruleID: "typescript-noemit-rule",
+			shouldMatch: []string{
+				"tsc --noEmit", "npx tsc --noEmit", "pnpm exec tsc --noEmit", "bunx tsc --noEmit",
+				"bun x tsc --noEmit -p scripts/tsconfig.json", "npx tsc -b --noEmit",
+				"npx tsc --noEmit -p convex/tsconfig.json", "./node_modules/.bin/tsc --noEmit",
+				"node script/yarn.js tsc -p tsconfig.spec.json --noEmit", "pnpm exec tsc --noEmit --incremental false",
+				"vue-tsc --noEmit", "pnpm --filter marktext exec vue-tsc --noEmit -p tsconfig.json",
+				"npx tsgo -p packages/twenty-cli/tsconfig.json --noEmit", "tsc --noemit",
+			},
+			shouldNotMatch: []string{
+				"tsc", "pnpm tsc", "tsc -p tsconfig.build.json", "tsc --noEmitOnError", "vue-tsc -b",
+				"bun run typecheck:tsc", "tsc-alias -p tsconfig.json --noEmit",
+				"uv export --frozen --no-dev --no-emit-project", "npm run typecheck",
+			},
+		},
+		{
 			ruleID:         "hadolint-rule",
 			shouldMatch:    []string{"hadolint Dockerfile", "hadolint/hadolint-action"},
 			shouldNotMatch: []string{"hadolints"},

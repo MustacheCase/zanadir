@@ -54,6 +54,8 @@ func TestToolNamesWhatMatched(t *testing.T) {
 		{"unit-test-command-rule", "pytest -q tests", "pytest"},
 		{"unit-test-command-rule", "(bats tests | tee out.txt)", "bats"},
 		{"unit-test-command-rule", "./test/bats/bin/bats --tap test", "bats"},
+		{"unit-test-command-rule", "./bin/gotestsum --format testname", "gotestsum"},
+		{"unit-test-command-rule", "go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=2 --packages=./... -- -v", "gotestsum"},
 		{"coverage-command-rule", "pytest --cov=app tests", "pytest"},
 		{"coverage-command-rule", "go  test -coverprofile=c.out ./...", "go test"},
 		{"coverage-command-rule", "coverage run -m pytest", "coverage"},

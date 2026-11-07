@@ -568,6 +568,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"./vendor/bin/pest", "vendor/bin/pest --ci --parallel", "php artisan test --parallel",
 				"composer test", "composer run test", "composer run-script test",
 				"mvn -B clean install", "./mvnw -B package -Pci", "mvn deploy -s settings.xml", "./gradlew build", "./gradlew :app:build --scan",
+				"gotestsum -- ./...", "gotestsum --format github-actions ./...",
+				"gotestsum --format github-actions -- -race ./...",
+				"gotestsum --junitfile results.xml --packages ./integration -- -v",
+				"./bin/gotestsum --format testname",
+				"go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=2 --packages=./... -- -v",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
@@ -581,6 +586,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"./gradlew assembleRelease --build-cache", "mvn -Dpackage.name=x compile", "mvn dependency:go-offline", "./gradlew publishToMavenLocal", "./gradlew buildEnvironment",
 				"composer validate --strict", "composer run-script lint",
 				"latest", "deploy-latest",
+				`docker cp "$CTN:c:\gopath\bin\gotestsum.exe" bin\`, "go build -o bin/gotestsum gotest.tools/gotestsum",
 			},
 		},
 		{
@@ -978,6 +984,8 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 			"./gradlew check --exclude-task test", "cargo test --no-run", "cargo test --all --no-run --locked",
 			"cargo nextest run --no-run", "cargo nextest run --workspace --no-run --locked",
 			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",
+			"gotestsum tool slowest --jsonfile tests.json --threshold 500ms",
+			"gotestsum tool ci-matrix --timing-files 'tests/*.log' --partitions 4",
 		},
 		"unit-test-rule": {"deploy-test", "publish-test-pypi", "report-test-failure", "tests-result", "set-test-package-matrix", "Snyk Test", "Test GitHub OIDC"},
 		"taurus-rule":    {"pip install bzt", "pip3 install bzt", "bzt --help", "bzt -h"},

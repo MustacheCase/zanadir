@@ -236,6 +236,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"zizmorish", "myzizmor"},
 		},
 		{
+			// The organisation is also called step-security, and its other
+			// actions and forks of this one are not it. Job.Package arrives
+			// without the @version, so the match can be anchored at both ends.
+			ruleID: "harden-runner-rule",
+			shouldMatch: []string{
+				"step-security/harden-runner", "Step-Security/Harden-Runner",
+			},
+			shouldNotMatch: []string{
+				"step-security/changed-files", "step-security/wait-for-secrets",
+				"step-security/harden-runner-fork", "my-org/step-security/harden-runner",
+			},
+		},
+		{
 			ruleID: "glsec-rule",
 			shouldMatch: []string{
 				"ghcr.io/glsec/glsec",

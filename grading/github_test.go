@@ -98,6 +98,27 @@ jobs:
 	}
 }
 
+// license-checker only lists licences unless --failOn or --onlyAllow makes it
+// fail; a --config file can set either, so that run is unknown.
+func TestLicenseCheckerExitsZeroUnlessFailFlag(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx license-checker --json --out licenses.json":                      Advisory,
+		"npx license-checker --production --onlyAllow \"MIT;ISC;Apache-2.0\"": Enforcing,
+		"license-checker --failOn \"GPL-3.0;AGPL-3.0\"":                       Enforcing,
+		"npx license-checker --config .licenses.json":                         Unknown,
+		"npx license-checker --config=.licenses.json --json":                  Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  licenses:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["License Compliance"], run)
+	}
+}
+
 // Retire.js fails on findings unless --exitwith 0 tells it not to.
 func TestRetireJSExitWithZeroGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{

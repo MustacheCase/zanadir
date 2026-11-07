@@ -43,6 +43,21 @@ type stepDef struct {
 	If              string          `yaml:"if"`
 	ContinueOnError continueOnError `yaml:"continue-on-error"`
 	With            map[string]any  `yaml:"with"`
+	Parallel        []stepDef       `yaml:"parallel"`
+}
+
+// flatSteps lists the steps of parallel: groups in place of the group. Each
+// still fails the job, at the wait the group ends with.
+func flatSteps(steps []stepDef) []stepDef {
+	var flat []stepDef
+	for _, step := range steps {
+		if step.Parallel != nil {
+			flat = append(flat, flatSteps(step.Parallel)...)
+			continue
+		}
+		flat = append(flat, step)
+	}
+	return flat
 }
 
 // usesRef is a uses: value. "$/" names the workflow's own repository at the
@@ -326,7 +341,7 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 				Package: pkg, Version: version, With: stepInputs(job.With),
 				ContinueOnError: job.ContinueOnError.always, JobIf: joinConditions(job.If, job.ContinueOnError.condition())})
 		}
-		for _, step := range job.Steps {
+		for _, step := range flatSteps(job.Steps) {
 			record := &models.Job{
 				Name: jobName,
 				// Either level means a failure here cannot fail the build.
@@ -448,7 +463,7 @@ func (c *composites) steps(uses string, caller *models.Job, depth int) []*models
 	}
 
 	var jobs []*models.Job
-	for _, step := range action.Runs.Steps {
+	for _, step := range flatSteps(action.Runs.Steps) {
 		record := *caller
 		record.ContinueOnError = caller.ContinueOnError || step.ContinueOnError.always
 		record.If = joinConditions(caller.If, joinConditions(step.If, step.ContinueOnError.condition()))

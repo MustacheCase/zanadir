@@ -665,6 +665,35 @@ runs:
 	assert.Equal(t, map[string]string{"aquasecurity/setup-trivy": "v0.3.1", "./.github/actions/nested": "", "./.github/actions/scan": ""}, packages)
 }
 
+func TestGithubReadsParallelStepGroups(t *testing.T) {
+	jobs := compositeRepo(t, map[string]string{
+		".github/workflows/ci.yml": `on: pull_request
+jobs:
+  checks:
+    runs-on: x
+    steps:
+      - uses: actions/checkout@v6
+      - parallel:
+          - name: Secrets
+            run: gitleaks detect
+          - name: Shell
+            run: shellcheck *.sh
+            continue-on-error: true
+          - uses: ./.github/actions/lint
+      - run: go test ./...
+`,
+		".github/actions/lint/action.yml": "runs:\n  using: composite\n  steps:\n    - parallel:\n        - run: golangci-lint run\n          shell: bash\n",
+	})
+
+	assert.Equal(t, []string{"gitleaks detect", "shellcheck *.sh", "golangci-lint run", "go test ./..."}, runs(jobs))
+	ignored := map[string]bool{}
+	for _, job := range jobs {
+		ignored[job.Run] = job.ContinueOnError
+	}
+	assert.False(t, ignored["gitleaks detect"])
+	assert.True(t, ignored["shellcheck *.sh"], "a step in a group keeps its own continue-on-error")
+}
+
 func TestGithubReadsOnlyCompositeLocalActions(t *testing.T) {
 	jobs := compositeRepo(t, map[string]string{
 		".github/workflows/ci.yml": `on: pull_request

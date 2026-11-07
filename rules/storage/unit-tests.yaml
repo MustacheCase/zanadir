@@ -57,3 +57,18 @@ rules:
       - input: "runTests"
         equals: "0"
         verdict: "advisory"
+  # Pester is PowerShell's test framework. Invoke-Pester reports failures and
+  # sets $LASTEXITCODE without exiting, so whether a bare call fails the step
+  # depends on what runs around it: GitHub's pwsh and powershell shells end
+  # the script with exit $LASTEXITCODE, a native command after it resets it,
+  # and a -Configuration object may or may not set Run.Exit. Only -CI and
+  # -EnableExit make the call exit non-zero (-CI:$false turns -CI off), so
+  # every other invocation is unknown rather than advisory.
+  - id: "pester-rule"
+    name: "Pester"
+    applyOn: ["Job.Run"]
+    categories: ["Unit Tests"]
+    regex: "(?i)\\binvoke-pester\\b"
+    exitsZeroUnless:
+      runMatches: "(?i)(?:(?:^|\\s)-CI(?::\\$true)?|-EnableExit)(?:\\s|$)"
+      unknownWhen: "(?i)invoke-pester\\b"

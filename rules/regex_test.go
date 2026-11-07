@@ -1078,6 +1078,26 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 			shouldNotMatch: []string{"dorny/paths-filter", "actions/upload-artifact"},
 		},
+		{
+			// "pester" alone is the module name, which Install-Module and
+			// Import-Module load without running anything; only the
+			// Invoke-Pester cmdlet runs the tests.
+			ruleID: "pester-rule",
+			shouldMatch: []string{
+				"Invoke-Pester -Path 'pester/*.Tests.ps1' -Output Detailed -CI",
+				"Invoke-Pester -Path \"tests\" -CI",
+				"Invoke-Pester -Configuration $config",
+				"$result = Invoke-Pester -Path test -Output Detailed -PassThru",
+				"Invoke-Pester -Output Detailed",
+				"pwsh -Command \"Invoke-Pester -Path tests -CI\"",
+			},
+			shouldNotMatch: []string{
+				"Install-Module -Name Pester -RequiredVersion 5.8.0 -Force",
+				"Install-PSResource -Name Pester -Version '[5.7.1]'",
+				"Import-Module Pester",
+				"$config = New-PesterConfiguration",
+			},
+		},
 	}
 
 	for _, tt := range tests {

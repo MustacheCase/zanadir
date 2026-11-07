@@ -593,6 +593,9 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"./vendor/bin/pest", "vendor/bin/pest --ci --parallel", "php artisan test --parallel",
 				"composer test", "composer run test", "composer run-script test",
 				"mvn -B clean install", "./mvnw -B package -Pci", "mvn deploy -s settings.xml", "./gradlew build", "./gradlew :app:build --scan",
+				"npx playwright test", "pnpm exec playwright test --shard=1/4", "pnpm -C e2e exec playwright test -c playwright.visual.config.ts",
+				"bunx playwright test --config e2e/playwright.config.ts", "yarn playwright test --project=chromium",
+				"xvfb-run -a pnpm exec playwright test --reporter=list", "node_modules/.bin/playwright test", "npx playwright test --update-snapshots",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
@@ -606,6 +609,9 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"./gradlew assembleRelease --build-cache", "mvn -Dpackage.name=x compile", "mvn dependency:go-offline", "./gradlew publishToMavenLocal", "./gradlew buildEnvironment",
 				"composer validate --strict", "composer run-script lint",
 				"latest", "deploy-latest",
+				"npx playwright install --with-deps chromium", "npx playwright install-deps", "pnpm exec playwright show-report",
+				"npx playwright codegen https://example.com", "npx playwright merge-reports --reporter html ./all-blob-reports",
+				"python -m playwright install --with-deps",
 			},
 		},
 		{
@@ -1003,6 +1009,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 			"./gradlew check --exclude-task test", "cargo test --no-run", "cargo test --all --no-run --locked",
 			"cargo nextest run --no-run", "cargo nextest run --workspace --no-run --locked",
 			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",
+			"npx playwright test --list", "pnpm exec playwright test --config tests/playwright.config.ts --list --reporter=json",
 		},
 		"unit-test-rule": {"deploy-test", "publish-test-pypi", "report-test-failure", "tests-result", "set-test-package-matrix", "Snyk Test", "Test GitHub OIDC"},
 		"taurus-rule":    {"pip install bzt", "pip3 install bzt", "bzt --help", "bzt -h"},

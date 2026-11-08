@@ -40,3 +40,20 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["Unit Tests"]
     regex: "(?i)^(?:vstest|publishtestresults|junit|EnricoMi/(?P<name>publish-unit-test-result-action)(?:/\\w+)?|dorny/(?P<name>test-reporter)|mikepenz/(?P<name>action-junit-report)|(?P<name>test-summary)/action)$"
+
+  # Cypress runs browser tests as `cypress run`, or through its action, which
+  # installs dependencies and runs them; only `run` tests anything. With the
+  # action's runTests off it only installs, builds and starts servers, and a
+  # later step often runs the tests another way.
+  - id: "cypress-rule"
+    name: "Cypress"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Unit Tests"]
+    regex: "(?i)\\bcypress\\s+run\\b|cypress-io/github-action"
+    weakenedWhen:
+      - input: "runTests"
+        equals: "false"
+        verdict: "advisory"
+      - input: "runTests"
+        equals: "0"
+        verdict: "advisory"

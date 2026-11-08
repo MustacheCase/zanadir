@@ -624,6 +624,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "cypress-rule",
+			shouldMatch: []string{
+				"npx cypress run", "npx cypress run --browser chrome --record --parallel", "yarn cypress run --component",
+				"pnpm exec cypress run --spec cypress/e2e/smoke.cy.ts", "xvfb-run -a npx cypress run",
+				"npx start-server-and-test start http://localhost:3000 'cypress run'", "cypress-io/github-action@v6",
+			},
+			shouldNotMatch: []string{
+				"npx cypress open", "npx cypress verify", "npx cypress install", "npx cypress info",
+				"npx cypress cache path", "npm ci --prefix ./cypress-tests",
+			},
+		},
+		{
 			ruleID:         "syft-rule",
 			shouldMatch:    []string{"syft dir:. -o spdx-json", "anchore/sbom-action@v0"},
 			shouldNotMatch: []string{"syftly", "mysyft"},

@@ -70,5 +70,5 @@ rules:
     categories: ["Unit Tests"]
     regex: "(?i)\\binvoke-pester\\b"
     exitsZeroUnless:
-      runMatches: "(?i)(?:(?:^|\\s)-CI(?::\\$true)?|-EnableExit)(?:\\s|$)"
+      runMatches: "(?i)(?:(?:^|\\s)-CI(?::\\$true)?|-EnableExit)(?:[\\s\"']|$)"
       unknownWhen: "(?i)invoke-pester\\b"

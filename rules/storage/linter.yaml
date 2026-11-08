@@ -298,3 +298,13 @@ rules:
     exitsZeroUnless:
       runMatches: "(?:^|\\s)(?:--all-files|-a|--files|--glob|--directory|-d|--from-ref|--source|-s|--to-ref|--origin|-o|--last-commit)(?:[=\\s]|$)"
       unknownWhen: "\\$"
+
+  # tsc is as often the build as a check, so only --noEmit says "check,
+  # don't write". vue-tsc type-checks Vue single-file components and tsgo is
+  # TypeScript's native preview compiler; both take the flag. tsc-alias and
+  # --noEmitOnError are not it.
+  - id: "typescript-noemit-rule"
+    name: "TypeScript"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])(?:tsc|vue-tsc|tsgo)[^\\S\\n](?:[^\\n]*[^\\S\\n])?--noemit\\b"

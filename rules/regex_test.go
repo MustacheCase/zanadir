@@ -616,6 +616,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"xvfb-run -a pnpm exec playwright test --reporter=list", "node_modules/.bin/playwright test", "npx playwright test --update-snapshots",
 				"helm unittest helm/superset", "helm unittest -f 'tests/*.yaml' charts/app", "helm unittest --strict --with-subchart=false .", "helm unittest charts/*",
 				"docker run --rm -v $(pwd):/apps helmunittest/helm-unittest .", "docker run -ti --rm -v $(pwd):/apps helmunittest/helm-unittest:3.11.1-0.3.0 -o test-output.xml .",
+				"gotestsum -- ./...", "gotestsum --format github-actions ./...",
+				"gotestsum --format github-actions -- -race ./...",
+				"gotestsum --junitfile results.xml --packages ./integration -- -v",
+				"./bin/gotestsum --format testname",
+				"go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=2 --packages=./... -- -v",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
@@ -634,6 +639,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"python -m playwright install --with-deps",
 				"helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.1", "helm lint charts/app", "helm template charts/app",
 				"docker pull helmunittest/helm-unittest:3.11.1-0.3.0", "make helm-unittest",
+				`docker cp "$CTN:c:\gopath\bin\gotestsum.exe" bin\`, "go build -o bin/gotestsum gotest.tools/gotestsum",
 			},
 		},
 		{
@@ -1076,6 +1082,8 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",
 			"npx playwright test --list", "pnpm exec playwright test --config tests/playwright.config.ts --list --reporter=json",
 			"helm unittest --help", "helm unittest --help >/dev/null",
+			"gotestsum tool slowest --jsonfile tests.json --threshold 500ms",
+			"gotestsum tool ci-matrix --timing-files 'tests/*.log' --partitions 4",
 		},
 		"unit-test-rule": {"deploy-test", "publish-test-pypi", "report-test-failure", "tests-result", "set-test-package-matrix", "Snyk Test", "Test GitHub OIDC"},
 		"taurus-rule":    {"pip install bzt", "pip3 install bzt", "bzt --help", "bzt -h"},

@@ -215,9 +215,22 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"ruffle", "gruff"},
 		},
 		{
-			ruleID:         "python-type-checker-rule",
-			shouldMatch:    []string{"uv run mypy --config-file ./pyproject.toml src", "pyright", "jakebailey/pyright-action"},
-			shouldNotMatch: []string{"mypyc-build", "pyrightish"},
+			// "ty" is two letters that turn up inside words and paths, so only
+			// "ty check" counts, and "ty checkout" is not the sub-command.
+			ruleID: "python-type-checker-rule",
+			shouldMatch: []string{
+				"uv run mypy --config-file ./pyproject.toml src", "pyright", "jakebailey/pyright-action",
+				"ty check", "uv run ty check", "uv run --locked ty check", "uvx ty check",
+				"uvx ty@latest check src", "uv run --python 3.15 --with ty ty check --output-format=github",
+				"ty check --exit-zero-on-warning --output-format=github", "ty check openbb_ecb",
+				"uv run --only-group check ty check python/uv",
+			},
+			shouldNotMatch: []string{
+				"mypyc-build", "pyrightish",
+				"ty version", "ty server", "ty explain rule unresolved-import", "uv run ty", "ty checkout",
+				"pretty check", "./scripts/ty-check.sh", "cargo build --profile=profiling --bin=ty",
+				"mv target/profiling/ty ty-new",
+			},
 		},
 		{
 			ruleID: "coverage-command-rule",

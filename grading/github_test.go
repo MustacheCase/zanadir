@@ -496,3 +496,22 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 		})
 	}
 }
+
+// ty exits 1 on error-level diagnostics unless --exit-zero says otherwise;
+// --exit-zero-on-warning still fails on errors.
+func TestTyExitZeroGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"uv run ty check":                 Enforcing,
+		"uv run ty check --exit-zero":     Advisory,
+		"ty check --exit-zero-on-warning": Enforcing,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  typecheck:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}

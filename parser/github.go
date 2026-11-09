@@ -37,6 +37,7 @@ type workflowJobDef struct {
 }
 
 type stepDef struct {
+	ID              string          `yaml:"id"`
 	Name            string          `yaml:"name"`
 	Uses            usesRef         `yaml:"uses"`
 	Run             string          `yaml:"run"`
@@ -58,6 +59,84 @@ func flatSteps(steps []stepDef) []stepDef {
 		flat = append(flat, step)
 	}
 	return flat
+}
+
+// reraised lists the steps whose failure a later step turns back into one:
+// it runs when their outcome is failure, which continue-on-error leaves
+// visible, and always fails.
+func reraised(steps []stepDef) map[string]bool {
+	raised := map[string]bool{}
+	for _, step := range steps {
+		if step.ContinueOnError != (continueOnError{}) || !alwaysFails(step) {
+			continue
+		}
+		for _, id := range failedOutcomes(step.If) {
+			raised[id] = true
+		}
+	}
+	return raised
+}
+
+var (
+	failedOutcome = regexp.MustCompile(`^(?:steps\.([\w-]+)\.outcome\s*(?:==\s*'failure'|!=\s*'success')|'failure'\s*==\s*steps\.([\w-]+)\.outcome)$`)
+	// success() is still true after a step that continued on error.
+	statusChecks = strings.NewReplacer("always()", "true", "!cancelled()", "true", "success()", "true")
+	failingExit  = regexp.MustCompile(`^(?:[^|#]*(?:;|&&)\s*)?exit\s+0*[1-9]\d*\s*(?:#.*)?$`)
+)
+
+// failedOutcomes lists the steps whose failure alone is enough for the
+// condition to hold. Grouping and other operands are not read.
+func failedOutcomes(condition string) []string {
+	condition = strings.TrimSpace(condition)
+	if inner, ok := strings.CutPrefix(condition, "${{"); ok {
+		condition, _ = strings.CutSuffix(strings.TrimSpace(inner), "}}")
+	}
+	condition = statusChecks.Replace(condition)
+	if strings.ContainsAny(strings.ReplaceAll(condition, "!=", ""), "()!") {
+		return nil
+	}
+	var ids []string
+	for _, alternative := range strings.Split(condition, "||") {
+		var id string
+		for _, term := range strings.Split(alternative, "&&") {
+			term = strings.TrimSpace(term)
+			if term == "true" {
+				continue
+			}
+			m := failedOutcome.FindStringSubmatch(term)
+			if m == nil || id != "" {
+				id = ""
+				break
+			}
+			id = m[1] + m[2]
+		}
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// alwaysFails reports whether a step's script ends in exit with a non-zero
+// code and exits nowhere else, or a github-script starts with core.setFailed.
+func alwaysFails(step stepDef) bool {
+	if pkg, _ := parseStepUsageStatement(string(step.Uses)); pkg == "actions/github-script" {
+		script, _ := step.With["script"].(string)
+		return strings.HasPrefix(strings.TrimSpace(script), "core.setFailed(")
+	}
+	var last string
+	exits := 0
+	for _, line := range strings.Split(step.Run, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		last = line
+		if strings.Contains(line, "exit") {
+			exits++
+		}
+	}
+	return exits == 1 && failingExit.MatchString(last)
 }
 
 // usesRef is a uses: value. "$/" names the workflow's own repository at the
@@ -366,11 +445,13 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 				Package: pkg, Version: version, With: stepInputs(job.With),
 				ContinueOnError: job.ContinueOnError.always, JobIf: joinConditions(job.If, job.ContinueOnError.condition())})
 		}
-		for _, step := range flatSteps(job.Steps) {
+		steps := flatSteps(job.Steps)
+		raised := reraised(steps)
+		for _, step := range steps {
 			record := &models.Job{
 				Name: jobName,
 				// Either level means a failure here cannot fail the build.
-				ContinueOnError: step.ContinueOnError.always || job.ContinueOnError.always,
+				ContinueOnError: step.ContinueOnError.always && !raised[step.ID] || job.ContinueOnError.always,
 				If:              joinConditions(step.If, step.ContinueOnError.condition()),
 				JobIf:           joinConditions(job.If, job.ContinueOnError.condition()),
 				Needs:           job.Needs,
@@ -488,9 +569,11 @@ func (c *composites) steps(uses string, caller *models.Job, depth int) []*models
 	}
 
 	var jobs []*models.Job
-	for _, step := range flatSteps(action.Runs.Steps) {
+	steps := flatSteps(action.Runs.Steps)
+	raised := reraised(steps)
+	for _, step := range steps {
 		record := *caller
-		record.ContinueOnError = caller.ContinueOnError || step.ContinueOnError.always
+		record.ContinueOnError = caller.ContinueOnError || step.ContinueOnError.always && !raised[step.ID]
 		record.If = joinConditions(caller.If, joinConditions(step.If, step.ContinueOnError.condition()))
 		record.With = stepInputs(step.With)
 		record.Package, record.Version, record.Run = "", "", step.Run

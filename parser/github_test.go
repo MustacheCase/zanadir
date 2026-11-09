@@ -217,6 +217,62 @@ jobs:
 	assert.Empty(t, semgrep.If)
 }
 
+// A step that continues on error still fails the job when a later step runs
+// on its failed outcome and always fails (opencost, apache/dubbo).
+func TestParseReraisedFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name, raise string
+		swallowed   bool
+	}{
+		{"exit 1", "if: steps.scan.outcome == 'failure'\n        run: |\n          # fail the job\n          echo found\n          exit 1 # explicitly", false},
+		{"expression with always", "if: ${{ always() && steps.scan.outcome != 'success' }}\n        run: echo found && exit 2", false},
+		{"one of several outcomes", "if: steps.lint.outcome == 'failure' || 'failure' == steps.scan.outcome\n        run: exit 1", false},
+		{"pwsh exit", "if: success() && steps.scan.outcome == 'failure'\n        shell: pwsh\n        run: exit 1", false},
+		{"github-script", "if: ${{ steps.scan.outcome == 'failure' }}\n        uses: actions/github-script@v7.0.1\n        with:\n          script: |\n            core.setFailed(\"found\")", false},
+		{"github-script that may not fail", "if: steps.scan.outcome == 'failure'\n        uses: actions/github-script@v7\n        with:\n          script: if (found) core.setFailed(\"found\")", true},
+		{"only reports","if: steps.scan.outcome == 'failure'\n        run: gh issue create --title found", true},
+		{"exits zero first", "if: steps.scan.outcome == 'failure'\n        run: |\n          [ -s report ] || exit 0\n          exit 1", true},
+		{"ends in a block", "if: steps.scan.outcome == 'failure'\n        run: |\n          if [ -s report ]; then\n            exit 1\n          fi", true},
+		{"needs another condition", "if: steps.scan.outcome == 'failure' && github.event_name == 'push'\n        run: exit 1", true},
+		{"needs both outcomes", "if: steps.lint.outcome == 'failure' && steps.scan.outcome == 'failure'\n        run: exit 1", true},
+		{"after a failure", "if: failure() && steps.scan.outcome == 'failure'\n        run: exit 1", true},
+		{"negated", "if: \"!(steps.scan.outcome == 'success')\"\n        run: exit 1", true},
+		{"conclusion stays success", "if: steps.scan.conclusion == 'failure'\n        run: exit 1", true},
+		{"other step", "if: steps.lint.outcome == 'failure'\n        run: exit 1", true},
+		{"itself continues", "if: steps.scan.outcome == 'failure'\n        continue-on-error: true\n        run: exit 1", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			artifact := parseOne(t, `
+name: w
+on: pull_request
+jobs:
+  a:
+    steps:
+      - id: scan
+        run: trivy fs --exit-code 1 .
+        continue-on-error: true
+      - `+tc.raise+`
+`)
+			assert.Equal(t, tc.swallowed, artifact.Jobs[0].ContinueOnError)
+		})
+	}
+
+	jobLevel := parseOne(t, `
+name: w
+on: pull_request
+jobs:
+  a:
+    continue-on-error: true
+    steps:
+      - id: scan
+        run: trivy fs --exit-code 1 .
+        continue-on-error: true
+      - if: steps.scan.outcome == 'failure'
+        run: exit 1
+`)
+	assert.True(t, jobLevel.Jobs[0].ContinueOnError, "the job itself may still fail")
+}
+
 // Both conditions gate the step and they are separate expressions, so merging
 // them would lose which one is responsible.
 func TestParseConditionsStaySeparate(t *testing.T) {
@@ -663,6 +719,24 @@ runs:
 		}
 	}
 	assert.Equal(t, map[string]string{"aquasecurity/setup-trivy": "v0.3.1", "./.github/actions/nested": "", "./.github/actions/scan": ""}, packages)
+}
+
+func TestGithubCompositeReraisedFailure(t *testing.T) {
+	jobs := compositeRepo(t, map[string]string{
+		".github/workflows/ci.yml": "on: pull_request\njobs:\n  scan:\n    steps:\n      - uses: ./.github/actions/scan\n",
+		".github/actions/scan/action.yml": `runs:
+  using: composite
+  steps:
+    - id: trivy
+      run: trivy fs --exit-code 1 .
+      shell: bash
+      continue-on-error: true
+    - if: steps.trivy.outcome == 'failure'
+      run: exit 1
+      shell: bash
+`,
+	})
+	assert.False(t, jobs[0].ContinueOnError)
 }
 
 // A disabled workflow never runs on its own triggers, but still runs when an

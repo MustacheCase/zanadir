@@ -152,6 +152,28 @@ jobs:
 	}
 }
 
+func TestReraisedFailureGradesEnforcing(t *testing.T) {
+	for raise, expected := range map[string]Verdict{
+		"run: exit 1":                 Enforcing,
+		"run: gh issue create -t vuln": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - id: trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          exit-code: "1"
+      - if: steps.trivy.outcome == 'failure'
+        `+raise+`
+`)
+		assert.Equal(t, expected, verdicts["SCA"], raise)
+	}
+}
+
 // CIFuzz fails on a crash unless dry-run tells it only to report.
 func TestCIFuzzDryRunGradesAdvisory(t *testing.T) {
 	for with, expected := range map[string]Verdict{

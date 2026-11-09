@@ -515,3 +515,40 @@ jobs:
 		assert.Equal(t, expected, verdicts["Linter"], run)
 	}
 }
+
+// Trivy and grype read their settings from the environment, which a
+// workflow sets as often in env: as before the command.
+func TestEnvSettingsAreRead(t *testing.T) {
+	for _, tc := range []struct {
+		name, workflowEnv, jobEnv, stepEnv, run, category string
+		expected                                          Verdict
+	}{
+		{name: "step env fails", stepEnv: "TRIVY_EXIT_CODE: 1", run: "trivy fs .", category: "SCA", expected: Enforcing},
+		{name: "job env fails", jobEnv: "TRIVY_EXIT_CODE: '1'", run: "trivy fs .", category: "SCA", expected: Enforcing},
+		{name: "workflow env fails", workflowEnv: "TRIVY_EXIT_CODE: 1", run: "trivy fs .", category: "SCA", expected: Enforcing},
+		{name: "step env outranks job env", jobEnv: "TRIVY_EXIT_CODE: 1", stepEnv: "TRIVY_EXIT_CODE: 0", run: "trivy fs .", category: "SCA", expected: Advisory},
+		{name: "env zero", stepEnv: "TRIVY_EXIT_CODE: 0", run: "trivy fs .", category: "SCA", expected: Advisory},
+		{name: "env expression", stepEnv: "TRIVY_EXIT_CODE: ${{ inputs.exit-code }}", run: "trivy fs .", category: "SCA", expected: Unknown},
+		{name: "env config", stepEnv: "TRIVY_CONFIG: ci/trivy.yaml", run: "trivy fs .", category: "SCA", expected: Unknown},
+		{name: "grype severity", stepEnv: "GRYPE_FAIL_ON_SEVERITY: high", run: "grype dir:.", category: "SCA", expected: Enforcing},
+		{name: "unread variables", stepEnv: "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n          CONFIG: ${{ inputs.config }}", run: "trivy fs .", category: "SCA", expected: Advisory},
+		{name: "unread dollar", jobEnv: "PATH_EXTRA: $HOME/bin", run: "pre-commit run --all-files", category: "Linter", expected: Enforcing},
+		{name: "env set by expression", jobEnv: "${{ fromJSON(inputs.env) }}", run: "trivy fs --exit-code 1 .", category: "SCA", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			block := func(indent, env string) string {
+				if env == "" {
+					return ""
+				}
+				if strings.HasPrefix(env, "${{") {
+					return indent + "env: " + env + "\n"
+				}
+				return indent + "env:\n" + indent + "  " + env + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", "on: pull_request\n"+
+				block("", tc.workflowEnv)+"jobs:\n  scan:\n"+block("    ", tc.jobEnv)+
+				"    steps:\n      - run: "+tc.run+"\n"+block("        ", tc.stepEnv))
+			assert.Equal(t, tc.expected, verdicts[tc.category])
+		})
+	}
+}

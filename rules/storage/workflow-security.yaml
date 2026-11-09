@@ -75,3 +75,9 @@ rules:
       - input: "egress-policy"
         equals: "audit"
         verdict: "advisory"
+# ghalint checks GitHub Actions workflows for security best practices.
+- id: "ghalint-rule"
+name: "ghalint"
+applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+categories: ["Workflow Security"]
+regex: "(?i)\\bghalint\\s+(?:run|run-action|act)\\b"

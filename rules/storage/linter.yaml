@@ -301,9 +301,10 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\b(?P<name>pre-commit)\\s+run\\b|(?:^|\\n)(?:\\S*/)?(?P<name>prek)(?:\\s+(?:run\\b|-|[\\\"'$])|[ \\t]*(?:\\n|$))|^(?P<name>pre-commit)/action$|^j178/(?P<name>prek)-action$"
     # Without a file selection only staged files are checked, and a CI
-    # checkout has none, so every hook is skipped.
+    # checkout has none, so every hook is skipped. pre-commit takes any unique
+    # prefix of a long option (--all) and short flags together (-av).
     exitsZeroUnless:
-      runMatches: "(?:^|\\s)(?:--all-files|-a|--files|--glob|--directory|-d|--from-ref|--source|-s|--to-ref|--origin|-o|--last-commit)(?:[=\\s]|$)"
+      runMatches: "(?:^|\\s)(?:--a(?:l(?:l(?:-(?:f(?:i(?:l(?:es?)?)?)?)?)?)?)?|--fi(?:l(?:es?)?)?|--fr(?:o(?:m(?:-(?:r(?:ef?)?)?)?)?)?|--so(?:u(?:r(?:ce?)?)?)?|--t(?:o(?:-(?:r(?:ef?)?)?)?)?|--o(?:r(?:i(?:g(?:in?)?)?)?)?|--glob|--directory|--last-commit|-[vq]*[asod]\\S*)(?:[=\\s\\\"';&|)]|$)"
       unknownWhen: "\\$"
 
   # tsc is as often the build as a check, so only --noEmit says "check,

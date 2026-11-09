@@ -61,9 +61,7 @@ func flatSteps(steps []stepDef) []stepDef {
 	return flat
 }
 
-// reraised lists the steps whose failure a later step turns back into one:
-// it runs when their outcome is failure, which continue-on-error leaves
-// visible, and always fails.
+// reraised lists the steps that continue on error but whose failure a later step re-raises.
 func reraised(steps []stepDef) map[string]bool {
 	raised := map[string]bool{}
 	for _, step := range steps {
@@ -84,8 +82,7 @@ var (
 	failingExit  = regexp.MustCompile(`^(?:[^|#]*(?:;|&&)\s*)?exit\s+0*[1-9]\d*\s*(?:#.*)?$`)
 )
 
-// failedOutcomes lists the steps whose failure alone is enough for the
-// condition to hold. Grouping and other operands are not read.
+// failedOutcomes lists the steps whose failure alone makes the condition hold.
 func failedOutcomes(condition string) []string {
 	condition = strings.TrimSpace(condition)
 	if inner, ok := strings.CutPrefix(condition, "${{"); ok {
@@ -117,8 +114,7 @@ func failedOutcomes(condition string) []string {
 	return ids
 }
 
-// alwaysFails reports whether a step's script ends in exit with a non-zero
-// code and exits nowhere else, or a github-script starts with core.setFailed.
+// alwaysFails reports whether a step fails whatever happened before it.
 func alwaysFails(step stepDef) bool {
 	if pkg, _ := parseStepUsageStatement(string(step.Uses)); pkg == "actions/github-script" {
 		script, _ := step.With["script"].(string)

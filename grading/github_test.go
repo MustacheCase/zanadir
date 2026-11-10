@@ -135,6 +135,33 @@ jobs:
 	}
 }
 
+// pinact run changes workflow files by default, but --check, --diff and
+// --fix=false turn unpinned actions into a failing CI check.
+func TestPinactRunGradesOnlyCheckingModesAsEnforcing(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"pinact run":                      Advisory,
+		"pinact run --check":              Enforcing,
+		"pinact run --diff":               Enforcing,
+		"pinact run --fix=false --no-api": Enforcing,
+		"aqua exec -- pinact run --check": Enforcing,
+		"pinact run --fix false":          Advisory,
+		"pinact run --checkout-dir x":     Advisory,
+		"pinact run --verify-comment":     Advisory,
+		"pinact run --checkmate":          Advisory,
+		"pinact run --difference":         Advisory,
+		"pinact run --fix=falsehood":      Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/pinact.yml", `
+on: pull_request
+jobs:
+  pin:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Workflow Security"], run)
+	}
+}
+
 // nancy fails on findings unless --no-fail tells it not to.
 func TestNancyNoFailGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{

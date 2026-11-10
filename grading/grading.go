@@ -99,6 +99,30 @@ func UncoveredEcosystems(a Assessment, languages []string) Assessment {
 	a.Verdict = Partial
 	a.Reason = fmt.Sprintf("%s %s only %s; %s dependencies detected from repository manifests have no enforcing SCA check",
 		strings.Join(names, ", "), verb, strings.Join(supported, ", "), strings.Join(sortedUnique(missing), ", "))
+	var coverage []string
+	missing = sortedUnique(missing)
+	for _, tool := range a.Tools {
+		if tool.Verdict != Advisory && tool.Verdict != Partial {
+			continue
+		}
+		var covered []string
+		for _, language := range missing {
+			if len(tool.Ecosystems) == 0 || slices.Contains(tool.Ecosystems, language) {
+				covered = append(covered, language)
+			}
+		}
+		if len(covered) == 0 {
+			continue
+		}
+		scope := "them"
+		if len(covered) != len(missing) {
+			scope = strings.Join(covered, ", ") + " dependencies"
+		}
+		coverage = append(coverage, fmt.Sprintf("%s covers %s but cannot block a merge", tool.Name, scope))
+	}
+	if len(coverage) > 0 {
+		a.Reason += " (" + strings.Join(sortedUnique(coverage), "; ") + ")"
+	}
 	return a
 }
 

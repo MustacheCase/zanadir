@@ -24,8 +24,14 @@ func TestUncoveredEcosystems(t *testing.T) {
 		{"extra language gap", []Tool{goTool}, []string{"Go", "Python"}, Partial, gap},
 		{"complementary scanners", []Tool{goTool, {Name: "pip-audit", Verdict: Enforcing, Ecosystems: []string{"Python"}}}, []string{"Go", "Python"}, Enforcing, ""},
 		{"unrestricted enforcing scanner", []Tool{goTool, {Name: "multi", Verdict: Enforcing}}, []string{"Go", "Python"}, Enforcing, ""},
-		{"unrestricted advisory scanner", []Tool{goTool, {Name: "multi", Verdict: Advisory}}, []string{"Go", "Python"}, Partial, gap},
-		{"unrestricted partial scanner", []Tool{goTool, {Name: "multi", Verdict: Partial}}, []string{"Go", "Python"}, Partial, gap},
+		{"unrestricted advisory scanner", []Tool{goTool, {Name: "multi", Verdict: Advisory}}, []string{"Go", "Python"}, Partial, gap + " (multi covers them but cannot block a merge)"},
+		{"unrestricted partial scanner", []Tool{goTool, {Name: "multi", Verdict: Partial}}, []string{"Go", "Python"}, Partial, gap + " (multi covers them but cannot block a merge)"},
+		{"scoped advisory scanner", []Tool{goTool, {Name: "pip-audit", Verdict: Advisory, Ecosystems: []string{"Python"}}}, []string{"Go", "Python"}, Partial, gap + " (pip-audit covers them but cannot block a merge)"},
+		{"scoped partial scanner", []Tool{goTool, {Name: "pip-audit", Verdict: Partial, Ecosystems: []string{"Python"}}}, []string{"Go", "Python"}, Partial, gap + " (pip-audit covers them but cannot block a merge)"},
+		{"unrelated weaker scanner", []Tool{goTool, {Name: "cargo-audit", Verdict: Advisory, Ecosystems: []string{"Rust"}}}, []string{"Go", "Python"}, Partial, gap},
+		{"unknown scoped scanner", []Tool{goTool, {Name: "pip-audit", Verdict: Unknown, Ecosystems: []string{"Python"}}}, []string{"Go", "Python"}, Partial, gap},
+		{"multiple weaker scanners", []Tool{goTool, {Name: "Renovate", Verdict: Advisory}, {Name: "Dependabot", Verdict: Advisory}}, []string{"Go", "Python"}, Partial, gap + " (Dependabot covers them but cannot block a merge; Renovate covers them but cannot block a merge)"},
+		{"weaker scanner covers only part of gap", []Tool{goTool, {Name: "pip-audit", Verdict: Advisory, Ecosystems: []string{"Python"}}}, []string{"Go", "Python", "Ruby"}, Partial, "govulncheck checks only Go; Python, Ruby dependencies detected from repository manifests have no enforcing SCA check (pip-audit covers Python dependencies but cannot block a merge)"},
 		{"unrestricted unknown scanner", []Tool{goTool, {Name: "multi", Verdict: Unknown}}, []string{"Go", "Python"}, Partial, gap},
 		{"empty languages", []Tool{goTool}, nil, Enforcing, ""},
 		{"missing tool metadata", nil, []string{"Python"}, Enforcing, ""},
@@ -130,9 +136,9 @@ func TestEcosystemCoverageUsesFinalGatedVerdicts(t *testing.T) {
 		want     Verdict
 		reason   string
 	}{
-		{"required scoped scanner leaves gap", &Merge{Required: func(job *models.Job) bool { return job.Check == "go" }}, false, Partial, "go checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check"},
+		{"required scoped scanner leaves gap", &Merge{Required: func(job *models.Job) bool { return job.Check == "go" }}, false, Partial, "go checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check (other covers them but cannot block a merge)"},
 		{"both required cover languages", &Merge{Required: func(*models.Job) bool { return true }}, false, Enforcing, ""},
-		{"disabled broad scanner leaves gap", &Merge{Required: func(*models.Job) bool { return true }, Scanned: func(*models.Job) bool { return true }}, true, Partial, "go checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check"},
+		{"disabled broad scanner leaves gap", &Merge{Required: func(*models.Job) bool { return true }, Scanned: func(*models.Job) bool { return true }}, true, Partial, "go checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check (other covers them but cannot block a merge)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

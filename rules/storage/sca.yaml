@@ -86,10 +86,10 @@ rules:
     regex: "^renovate$"
 
   - id: "govulncheck-rule"
-    ecosystems: ["Go"]
     name: "govulncheck"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Go"]
     regex: "(?i)\\bgovulncheck\\b"
     # govulncheck exits 0 whatever it finds when it writes JSON, SARIF or
     # OpenVEX; golang/govulncheck-action passes output-format to -format.
@@ -109,10 +109,10 @@ rules:
   # bundle-audit, bundler-audit, "bundle audit" and the rake task. Updating
   # the advisory database, or asking for the version, scans nothing.
   - id: "bundler-audit-rule"
-    ecosystems: ["Ruby"]
     name: "bundler-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Ruby"]
     regex: "(?i)\\bbundler?[\\s:-]audit\\b"
     unless: "(?i)\\bbundler?[\\s:-]audit(?::|\\s+)(?:update|version|help)\\s*$"
 
@@ -129,10 +129,10 @@ rules:
         verdict: "advisory"
 
   - id: "pip-audit-rule"
-    ecosystems: ["Python"]
     name: "pip-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Python"]
     regex: "(?i)\\bpip-audit\\b|pypa/gh-action-pip-audit"
 
   # "safety" is a common word, so only its check and scan sub-commands, in
@@ -140,30 +140,30 @@ rules:
   # pyupio's action and image. safety check fails on findings unless told to
   # --continue-on-error.
   - id: "safety-rule"
-    ecosystems: ["Python"]
     name: "Safety"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Python"]
     regex: "(?m)(?:^|[\\s/])safety\\s+(?:--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?\\s+)*(?:check|scan)\\b|\\bpyupio/safety\\b"
     weakenedWhen:
       - runMatches: "--continue-on-error\\b"
         verdict: "advisory"
 
   - id: "cargo-audit-rule"
-    ecosystems: ["Rust"]
     name: "cargo-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Rust"]
     regex: "(?i)\\bcargo\\s+audit\\b|\\b(rustsec|actions-rs)/audit-check\\b"
 
   # "retire" is an ordinary word, so only the program counts: a command that
   # starts with it, directly, by path or through npx and the like. It exits 13
   # on findings unless --exitwith says otherwise.
   - id: "retire-js-rule"
-    ecosystems: ["JavaScript"]
     name: "Retire.js"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["JavaScript"]
     regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm\\s+dlx|yarn\\s+dlx|npm\\s+exec)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?retire(?:@\\S+)?(?:\\s|$)"
     weakenedWhen:
       - runMatches: "--exitwith[= ]+0+\\b"
@@ -176,10 +176,10 @@ rules:
   # config and update check nothing. --no-fail makes it exit 0 whatever it
   # finds.
   - id: "nancy-rule"
-    ecosystems: ["Go"]
     name: "nancy"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Go"]
     regex: "(?i)(?:^|[\\s/])nancy(?:[:@]\\S+)?(?:\\s+-[\\w-]+(?:[=\\s]\\S+)?)*\\s+(?:sleuth|lifecycle|iq)\\b|\\bnancy-github-action\\b"
     weakenedWhen:
       - runMatches: "--no-fail\\b"
@@ -189,9 +189,9 @@ rules:
   # names on GitHub. A trailing "|| true", the usual way this one gets
   # defanged, is graded advisory for every tool.
   - id: "npm-audit-rule"
-    ecosystems: ["JavaScript"]
     applyOn: ["Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["JavaScript"]
     regex: "(?i)\\b(npm|yarn|pnpm)\\s+audit\\b"
     # `npm audit signatures` verifies registry signatures and provenance;
     # it is a supply-chain check (npm-audit-signatures-rule), not SCA.
@@ -203,10 +203,10 @@ rules:
   # Composer's audit sub-command, options may come first; not a project's own
   # script that happens to be called audit (composer run-script audit).
   - id: "composer-audit-rule"
-    ecosystems: ["PHP"]
     name: "composer audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["PHP"]
     regex: "(?i)\\bcomposer(?:\\.phar)?\\s+(?:-\\S+\\s+)*audit(?:\\s|$)"
 
   # GitHub Advanced Security for Azure DevOps.
@@ -233,10 +233,10 @@ rules:
   # IBM's audit-ci, which fails when npm, yarn or pnpm audit reports above a
   # threshold. The program, optionally pinned, not its audit-ci.jsonc config.
   - id: "audit-ci-rule"
-    ecosystems: ["JavaScript"]
     name: "audit-ci"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["JavaScript"]
     regex: "(?i)\\baudit-ci(?:@\\S*)?(?:\\s|$)"
 
   # Fails a pull request that adds a dependency with a known vulnerability.
@@ -252,10 +252,10 @@ rules:
 
   # The advisories check of cargo deny; see cargo-deny-licenses-rule.
   - id: "cargo-deny-advisories-rule"
-    ecosystems: ["Rust"]
     name: "cargo-deny"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Rust"]
     regex: "(?i)\\bcargo[\\s-]deny\\b[^\\n]*\\bcheck\\b|embarkstudios/cargo-deny-action"
     unless: "(?i)\\bcheck\\s+(?:(?:licenses|bans|sources)\\s*)+$"
 

@@ -89,6 +89,7 @@ rules:
     name: "govulncheck"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Go"]
     regex: "(?i)\\bgovulncheck\\b"
     # govulncheck exits 0 whatever it finds when it writes JSON, SARIF or
     # OpenVEX; golang/govulncheck-action passes output-format to -format.
@@ -111,6 +112,7 @@ rules:
     name: "bundler-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Ruby"]
     regex: "(?i)\\bbundler?[\\s:-]audit\\b"
     unless: "(?i)\\bbundler?[\\s:-]audit(?::|\\s+)(?:update|version|help)\\s*$"
 
@@ -130,6 +132,7 @@ rules:
     name: "pip-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Python"]
     regex: "(?i)\\bpip-audit\\b|pypa/gh-action-pip-audit"
 
   # "safety" is a common word, so only its check and scan sub-commands, in
@@ -140,6 +143,7 @@ rules:
     name: "Safety"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Python"]
     regex: "(?m)(?:^|[\\s/])safety\\s+(?:--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?\\s+)*(?:check|scan)\\b|\\bpyupio/safety\\b"
     weakenedWhen:
       - runMatches: "--continue-on-error\\b"
@@ -149,6 +153,7 @@ rules:
     name: "cargo-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Rust"]
     regex: "(?i)\\bcargo\\s+audit\\b|\\b(rustsec|actions-rs)/audit-check\\b"
 
   # "retire" is an ordinary word, so only the program counts: a command that
@@ -158,6 +163,7 @@ rules:
     name: "Retire.js"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["JavaScript"]
     regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm\\s+dlx|yarn\\s+dlx|npm\\s+exec)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?retire(?:@\\S+)?(?:\\s|$)"
     weakenedWhen:
       - runMatches: "--exitwith[= ]+0+\\b"
@@ -173,6 +179,7 @@ rules:
     name: "nancy"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Go"]
     regex: "(?i)(?:^|[\\s/])nancy(?:[:@]\\S+)?(?:\\s+-[\\w-]+(?:[=\\s]\\S+)?)*\\s+(?:sleuth|lifecycle|iq)\\b|\\bnancy-github-action\\b"
     weakenedWhen:
       - runMatches: "--no-fail\\b"
@@ -184,6 +191,7 @@ rules:
   - id: "npm-audit-rule"
     applyOn: ["Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["JavaScript"]
     regex: "(?i)\\b(npm|yarn|pnpm)\\s+audit\\b"
     # `npm audit signatures` verifies registry signatures and provenance;
     # it is a supply-chain check (npm-audit-signatures-rule), not SCA.
@@ -198,6 +206,7 @@ rules:
     name: "composer audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["PHP"]
     regex: "(?i)\\bcomposer(?:\\.phar)?\\s+(?:-\\S+\\s+)*audit(?:\\s|$)"
 
   # GitHub Advanced Security for Azure DevOps.
@@ -227,6 +236,7 @@ rules:
     name: "audit-ci"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["JavaScript"]
     regex: "(?i)\\baudit-ci(?:@\\S*)?(?:\\s|$)"
 
   # Fails a pull request that adds a dependency with a known vulnerability.
@@ -245,6 +255,7 @@ rules:
     name: "cargo-deny"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Rust"]
     regex: "(?i)\\bcargo[\\s-]deny\\b[^\\n]*\\bcheck\\b|embarkstudios/cargo-deny-action"
     unless: "(?i)\\bcheck\\s+(?:(?:licenses|bans|sources)\\s*)+$"
 

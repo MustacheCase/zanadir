@@ -122,7 +122,7 @@ func toolConfigs(dir string, service rules.RuleService) map[string]bool {
 // tooling cannot fully protect the repository. An excluded category is left
 // out: the operator has said it does not apply, and grading it anyway would
 // argue with them.
-func graded(excluded []string, dir string, findings []*matcher.Finding, merge *grading.Merge, debugf debugFunc) ([]output.Weakness, []output.Coverage) {
+func graded(excluded []string, dir string, languages []string, findings []*matcher.Finding, merge *grading.Merge, debugf debugFunc) ([]output.Weakness, []output.Coverage) {
 	skip := make(map[string]bool, len(excluded))
 	for _, category := range excluded {
 		skip[category] = true
@@ -130,7 +130,8 @@ func graded(excluded []string, dir string, findings []*matcher.Finding, merge *g
 
 	assessments := grading.ByCategory(findings, merge)
 	if sca, covered := assessments[string(models.SCA)]; covered {
-		assessments[string(models.SCA)] = grading.Unaudited(sca, lockfile.UV, lockfile.Unauditable(dir))
+		sca = grading.Unaudited(sca, lockfile.UV, lockfile.Unauditable(dir))
+		assessments[string(models.SCA)] = grading.UncoveredEcosystems(sca, languages)
 	}
 	list := make([]output.Weakness, 0, len(assessments))
 	var covered []output.Coverage
@@ -248,7 +249,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	for _, a := range artifacts {
 		a.DefaultBranch, a.ToolConfigs = defaultBranch, configs
 	}
-	weaknesses, covered := graded(skipped, cfg.Dir, findings, waits, debugf)
+	weaknesses, covered := graded(skipped, cfg.Dir, languages, findings, waits, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
 
 	return &scanResult{

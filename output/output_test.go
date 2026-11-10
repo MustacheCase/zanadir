@@ -757,6 +757,35 @@ func gatedReport(format string) Report {
 	}
 }
 
+func TestResponse_ReportsSCAEcosystemGap(t *testing.T) {
+	const reason = "govulncheck checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check"
+	for _, format := range []string{config.OutputTable, config.OutputMarkdown, config.OutputJSON} {
+		t.Run(format, func(t *testing.T) {
+			out, err := renderString(Report{
+				Format:   format,
+				Weakened: []Weakness{{Category: "SCA", Verdict: "partial", Reason: reason}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out, reason) {
+				t.Errorf("ecosystem gap reason missing:\n%s", out)
+			}
+			if format == config.OutputJSON {
+				var report struct {
+					Weakened []Weakness `json:"weakened"`
+				}
+				if err := json.Unmarshal([]byte(out), &report); err != nil {
+					t.Fatal(err)
+				}
+				if len(report.Weakened) != 1 || report.Weakened[0].Verdict != "partial" || report.Weakened[0].Reason != reason {
+					t.Errorf("unexpected weakened controls: %+v", report.Weakened)
+				}
+			}
+		})
+	}
+}
+
 func TestResponse_ReportsTheMergeSettings(t *testing.T) {
 	markdown := gatedReport(config.OutputMarkdown)
 	markdown.Gate.Required = []string{"Unit tests", "lint"}

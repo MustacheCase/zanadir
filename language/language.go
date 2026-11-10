@@ -47,6 +47,18 @@ var suffixMarkers = map[string]string{
 	".sln":     CSharp,
 }
 
+// Names returns the sorted canonical language names recognised by Detect.
+func Names() []string {
+	found := make(map[string]bool)
+	for _, name := range markers {
+		found[name] = true
+	}
+	for _, name := range suffixMarkers {
+		found[name] = true
+	}
+	return slices.Sorted(maps.Keys(found))
+}
+
 // Detect returns the languages a repository appears to be written in, sorted.
 // It inspects the root and its immediate subdirectories, covering the common
 // monorepo layout without walking the whole tree.

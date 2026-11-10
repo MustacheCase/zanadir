@@ -75,3 +75,12 @@ func TestDetectSkipsHiddenDirectories(t *testing.T) {
 func TestDetectMissingDirectory(t *testing.T) {
 	assert.Empty(t, language.Detect(filepath.Join(t.TempDir(), "nope")))
 }
+
+func TestNames(t *testing.T) {
+	want := []string{language.CSharp, language.Go, language.Java, language.JavaScript, language.PHP, language.Python, language.Ruby, language.Rust}
+	assert.Equal(t, want, language.Names())
+	// Callers may change the returned slice without changing the registry.
+	names := language.Names()
+	names[0] = "changed"
+	assert.Equal(t, want, language.Names())
+}

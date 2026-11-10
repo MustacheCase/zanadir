@@ -39,6 +39,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID: "pinact-rule",
 			shouldMatch: []string{
 				"pinact run --check",
+				"pinact run --diff",
 				"pinact run --fix=false --no-api",
 				"aqua exec -- pinact run --check",
 				"pinact run",

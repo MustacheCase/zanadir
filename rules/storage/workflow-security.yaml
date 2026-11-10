@@ -5,7 +5,7 @@ rules:
     categories: ["Workflow Security"]
     regex: "(?i)\\bactionlint\\b|rhysd/actionlint|reviewdog/action-actionlint"
 
-  # pinact run rewrites unpinned actions by default. Only check mode or
+  # pinact run rewrites unpinned actions by default. Only --check, --diff or
   # --fix=false makes findings fail the build.
   - id: "pinact-rule"
     name: "pinact"
@@ -13,7 +13,7 @@ rules:
     categories: ["Workflow Security"]
     regex: "(?i)(?:^|[^\\w-])pinact\\s+run(?:\\s|$)"
     exitsZeroUnless:
-      runMatches: "(?i)(?:^|\\s)--(?:check|fix(?:=|\\s+)false)(?:\\s|$)"
+      runMatches: "(?i)(?:^|\\s)--(?:check|diff|fix=false)(?:\\s|$)"
 
   - id: "zizmor-rule"
     name: "zizmor"

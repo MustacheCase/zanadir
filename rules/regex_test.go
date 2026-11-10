@@ -280,6 +280,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldMatch:    []string{"zizmorcore/zizmor-action", "ZizmorCore/Zizmor-Action"},
 			shouldNotMatch: []string{"zizmorcore/zizmor-action-fork", "zizmor .github/workflows"},
 		},
+	{
+		ruleID: "ghalint-rule",
+		shouldMatch: []string{
+			"ghalint run",
+			"ghalint run-action",
+			"ghalint act",
+			"aqua exec -- ghalint run",
+		},
+		shouldNotMatch: []string{
+			"aqua g -i suzuki-shunsuke/ghalint",
+			"ghalints",
+		},
+	},
 		{
 			// The organisation is also called step-security, and its other
 			// actions and forks of this one are not it. Job.Package arrives

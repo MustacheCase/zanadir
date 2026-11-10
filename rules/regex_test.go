@@ -51,6 +51,16 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "secretlint-rule",
+			shouldMatch: []string{
+				`npx secretlint "**/*"`,
+				"secretlint --format sarif .",
+				`secretlint --format @secretlint/secretlint-formatter-sarif "**/*"`,
+				`docker run secretlint/secretlint secretlint "**/*"`,
+			},
+			shouldNotMatch: []string{"secretlinter", "my-secretlint", "secretlint-wrapper", "mysecretlint"},
+		},
+		{
 			ruleID: "github-action-benchmark-rule",
 			shouldMatch: []string{
 				"benchmark-action/github-action-benchmark@v1",

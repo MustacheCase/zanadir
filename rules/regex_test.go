@@ -447,6 +447,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"gitleaksy"},
 		},
 		{
+			ruleID: "ripsecrets-rule",
+			shouldMatch: []string{
+				"ripsecrets", "ripsecrets src/ config/",
+				"ripsecrets --strict-ignore $(git diff --cached --name-only)",
+				"/usr/local/bin/ripsecrets", "sirwart/ripsecrets@v0.1.8",
+			},
+			shouldNotMatch: []string{
+				"rip secrets", "./ripsecrets-report.py", "grep -r secrets .",
+				"ripsecrets-helper", "myripsecrets",
+			},
+		},
+		{
 			ruleID:         "trufflehog-rule",
 			shouldMatch:    []string{"trufflehog git file://.", "trufflesecurity/trufflehog"},
 			shouldNotMatch: []string{"trufflehogsx"},
@@ -1085,6 +1097,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"codeql-rule":                {"codeql database create --language=actions"},
 		"zizmor-rule":                {"zizmorcore/zizmor-action"},
 		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
+		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
 		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},

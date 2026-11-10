@@ -330,6 +330,33 @@ jobs:
 	}
 }
 
+// lychee-action fails the build on a broken link unless fail is false.
+func TestLycheeActionFailInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default fail is enforcing", expected: Enforcing},
+		{name: "fail disabled is advisory", input: "fail: false", expected: Advisory},
+		{name: "expression is unknown", input: "fail: ${{ inputs.fail }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  links:
+    steps:
+      - uses: lycheeverse/lychee-action@v2
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
 // Harden-Runner watches the runner for the rest of the job it is in;
 // egress-policy audit only records what happened, block (the default) refuses
 // the calls that are not allowed.

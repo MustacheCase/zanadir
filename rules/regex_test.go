@@ -942,6 +942,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"buf generate", "buf push", "buf format -w", "buf config ls-lint-rules", "bufbuild/buf-setup-action@v1"},
 		},
 		{
+			ruleID: "lychee-rule",
+			shouldMatch: []string{
+				"lychee .", "lychee --no-progress --config lychee.toml './**/*.md'", "lychee --scheme https --timeout 60 --exclude-all-private .",
+				"./lychee --offline docs/", "docker run --rm -v $PWD:/input lycheeverse/lychee:latest /input/README.md",
+				"lycheeverse/lychee-action@v2", "lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8",
+			},
+			shouldNotMatch: []string{
+				"cat lychee/out.md", "gh issue create --body-file ./lychee/out.md", "cp lychee.toml /tmp/", "rm -rf .lycheecache",
+				"tar -xzf lychee-x86_64-unknown-linux-gnu.tar.gz", "markdown-link-check README.md",
+				"key: cache-lychee-${{ github.sha }}",
+			},
+		},
+		{
 			ruleID: "phpcs-rule",
 			shouldMatch: []string{
 				"phpcs", "phpcs --standard=PSR12 src/", "vendor/bin/phpcs -p", "./vendor/bin/phpcs",
@@ -1073,6 +1086,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"zizmor-rule":                {"zizmorcore/zizmor-action"},
 		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
+		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"unit-test-command-rule": {

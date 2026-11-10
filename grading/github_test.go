@@ -135,6 +135,33 @@ jobs:
 	}
 }
 
+// pinact run changes workflow files by default, but --check, --diff and
+// --fix=false turn unpinned actions into a failing CI check.
+func TestPinactRunGradesOnlyCheckingModesAsEnforcing(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"pinact run":                      Advisory,
+		"pinact run --check":              Enforcing,
+		"pinact run --diff":               Enforcing,
+		"pinact run --fix=false --no-api": Enforcing,
+		"aqua exec -- pinact run --check": Enforcing,
+		"pinact run --fix false":          Advisory,
+		"pinact run --checkout-dir x":     Advisory,
+		"pinact run --verify-comment":     Advisory,
+		"pinact run --checkmate":          Advisory,
+		"pinact run --difference":         Advisory,
+		"pinact run --fix=falsehood":      Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/pinact.yml", `
+on: pull_request
+jobs:
+  pin:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Workflow Security"], run)
+	}
+}
+
 // nancy fails on findings unless --no-fail tells it not to.
 func TestNancyNoFailGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
@@ -320,6 +347,33 @@ jobs:
   lint:
     steps:
       - uses: bufbuild/buf-action@v1
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+// lychee-action fails the build on a broken link unless fail is false.
+func TestLycheeActionFailInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default fail is enforcing", expected: Enforcing},
+		{name: "fail disabled is advisory", input: "fail: false", expected: Advisory},
+		{name: "expression is unknown", input: "fail: ${{ inputs.fail }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  links:
+    steps:
+      - uses: lycheeverse/lychee-action@v2
 `
 			if tc.input != "" {
 				workflow += "        with:\n          " + tc.input + "\n"
@@ -550,5 +604,30 @@ func TestEnvSettingsAreRead(t *testing.T) {
 				"    steps:\n      - run: "+tc.run+"\n"+block("        ", tc.stepEnv))
 			assert.Equal(t, tc.expected, verdicts[tc.category])
 		})
+	}
+}
+
+// Invoke-Pester reports failures and sets $LASTEXITCODE without exiting. Only
+// -CI and -EnableExit make the call itself exit non-zero; -CI:$false turns
+// -CI off, and any other invocation leaves the outcome to what runs around
+// it, which the workflow text alone cannot say.
+func TestPesterExitFlagsGradeCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"Invoke-Pester -Path tests -CI":                   Enforcing,
+		"Invoke-Pester -Script ./tests -EnableExit":       Enforcing,
+		"pwsh -Command \"Invoke-Pester -Path tests -CI\"": Enforcing,
+		"pwsh -c 'Invoke-Pester -CI'":                     Enforcing,
+		"Invoke-Pester -Path tests -Output Detailed":      Unknown,
+		"Invoke-Pester -Configuration $config":            Unknown,
+		"Invoke-Pester -Path tests -CI:$false":            Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  pwsh:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Unit Tests"], run)
 	}
 }

@@ -60,6 +60,78 @@ func Unaudited(a Assessment, lockfile string, packages []string) Assessment {
 	return a
 }
 
+// UncoveredEcosystems grades enforcing dependency scanning partial when the
+// enforcing tools do not cover every language detected from repository manifests.
+// An empty tool scope means unrestricted coverage.
+func UncoveredEcosystems(a Assessment, languages []string) Assessment {
+	if a.Verdict != Enforcing || len(languages) == 0 {
+		return a
+	}
+	var names, supported []string
+	for _, tool := range a.Tools {
+		if tool.Verdict != Enforcing {
+			continue
+		}
+		if len(tool.Ecosystems) == 0 {
+			return a
+		}
+		names = append(names, tool.Name)
+		supported = append(supported, tool.Ecosystems...)
+	}
+	if len(names) == 0 {
+		return a
+	}
+	supported = sortedUnique(supported)
+	var missing []string
+	for _, language := range languages {
+		if !slices.Contains(supported, language) {
+			missing = append(missing, language)
+		}
+	}
+	if len(missing) == 0 {
+		return a
+	}
+	verb := "check"
+	names = sortedUnique(names)
+	if len(names) == 1 {
+		verb = "checks"
+	}
+	a.Verdict = Partial
+	a.Reason = fmt.Sprintf("%s %s only %s; %s dependencies detected from repository manifests have no enforcing SCA check",
+		strings.Join(names, ", "), verb, strings.Join(supported, ", "), strings.Join(sortedUnique(missing), ", "))
+	var coverage []string
+	missing = sortedUnique(missing)
+	for _, tool := range a.Tools {
+		if tool.Verdict != Advisory && tool.Verdict != Partial {
+			continue
+		}
+		var covered []string
+		for _, language := range missing {
+			if len(tool.Ecosystems) == 0 || slices.Contains(tool.Ecosystems, language) {
+				covered = append(covered, language)
+			}
+		}
+		if len(covered) == 0 {
+			continue
+		}
+		scope := "them"
+		if len(covered) != len(missing) {
+			scope = strings.Join(covered, ", ") + " dependencies"
+		}
+		coverage = append(coverage, fmt.Sprintf("%s covers %s but cannot block a merge", tool.Name, scope))
+	}
+	if len(coverage) > 0 {
+		a.Reason += " (" + strings.Join(sortedUnique(coverage), "; ") + ")"
+	}
+	return a
+}
+
+func sortedUnique(values []string) []string {
+	values = slices.Clone(values)
+	slices.Sort(values)
+	return slices.Compact(values)
+}
+
 // unauditedNames is how many packages a reason names before it counts the rest.
 const unauditedNames = 3
 
@@ -475,6 +547,9 @@ type Tool struct {
 	Name      string
 	Verdict   Verdict
 	Locations []string
+	// Ecosystems limits SCA coverage to the strongest occurrences of this tool.
+	// Empty means unrestricted; other categories do not use this metadata.
+	Ecosystems []string
 }
 
 // addTool files a finding under its tool, one entry per name whatever the
@@ -488,11 +563,22 @@ func addTool(tools map[string]map[string]*Tool, finding *matcher.Finding, verdic
 	}
 	key := strings.ToLower(name)
 	tool := byName[key]
+	var ecosystems []string
+	if finding.Category == string(models.SCA) && finding.Rule != nil {
+		ecosystems = finding.Rule.Ecosystems
+	}
 	if tool == nil {
-		tool = &Tool{Name: name, Verdict: verdict}
+		tool = &Tool{Name: name, Verdict: verdict, Ecosystems: sortedUnique(ecosystems)}
 		byName[key] = tool
 	} else if stronger(verdict, tool.Verdict) {
 		tool.Verdict = verdict
+		tool.Ecosystems = sortedUnique(ecosystems)
+	} else if verdict == tool.Verdict && len(tool.Ecosystems) > 0 {
+		if len(ecosystems) == 0 {
+			tool.Ecosystems = nil
+		} else {
+			tool.Ecosystems = sortedUnique(append(slices.Clone(tool.Ecosystems), ecosystems...))
+		}
 	}
 	if finding.Location != "" && !slices.Contains(tool.Locations, finding.Location) {
 		tool.Locations = append(tool.Locations, finding.Location)

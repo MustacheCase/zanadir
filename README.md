@@ -627,7 +627,7 @@ than their presence suggests:
 | Verdict | Meaning |
 |---|---|
 | `enforcing` | the control can fail the build on the path that gates a change |
-| `partial` | it can fail a build, but not on that path - pushes only, say |
+| `partial` | it can fail a build, but not on that path, or cannot check everything it should |
 | `advisory` | it runs, and cannot block anything |
 | `unknown` | the configuration cannot be read well enough to say |
 
@@ -650,7 +650,24 @@ A manual run may be the release itself, which the file cannot tell, so it is
 and `continue-on-error` is `advisory` here as everywhere: a signing step that
 can fail silently publishes unsigned artifacts.
 
-SCA is also held to what it can see. A dependency scanner looks packages up
+SCA is also held to the repository's detected ecosystems. If an enforcing
+language-specific scanner leaves another detected language without an enforcing
+SCA check, the category is `partial`, with the gap explained:
+
+```
+  SCA is partial (.github/workflows/ci.yml): govulncheck checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check
+```
+
+This uses the same root and immediate-subdirectory manifests and directory
+skips as [language detection](#language-aware-suggestions), including a
+`package.json` used only for tooling. Manifest contents are not inspected.
+Enforcing tools combine their ecosystem coverage: a Go scanner and a Python
+scanner can cover both languages together. An enforcing multi-ecosystem scanner
+continues to cover them, while advisory dependency bots do not close a gap.
+Only the category verdict changes; individual tool grades stay as reported.
+Existing reasons for weakened controls still apply.
+
+A dependency scanner also looks packages up
 by name and version, so one that `uv.lock` installs from a git repository or a
 direct URL is invisible to every scanner, and an enforcing SCA control in a
 repository with such a package is `partial`, with the packages named:
@@ -1052,6 +1069,23 @@ rules:
     exitsZeroUnless:            # optional, for a tool that only reports by default
       runMatches: '--fail'      # the flag that makes it fail
 ```
+
+A custom SCA rule can declare which ecosystems it checks:
+
+```yaml
+rules:
+  - id: acme-go-audit
+    name: Acme Go Audit
+    applyOn: [Job.Run]
+    categories: [SCA]
+    regex: '\bacme-go-audit\b'
+    ecosystems: [Go]
+```
+
+`ecosystems` accepts the canonical names `Go`, `Python`, `JavaScript`, `Ruby`,
+`Java`, `Rust`, `PHP` and `C#`. Omitting it or setting an empty list leaves
+coverage unrestricted. It affects SCA coverage only; other categories keep
+their existing behavior.
 
 A rule that also matches on `Artifact.Name` can take `unlessPackage`, a regex
 over the workflow's actions: when one matches, the workflow's steps decide and

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/models"
 	"gopkg.in/yaml.v3" // added YAML import
 )
@@ -35,6 +36,8 @@ type FileRule struct {
 	Name       string   `yaml:"name"`
 	ApplyOn    []string `yaml:"applyOn"`
 	Categories []string `yaml:"categories"`
+	// Ecosystems limits SCA coverage to canonical language names; empty is unrestricted.
+	Ecosystems []string `yaml:"ecosystems"`
 	Regex      string   `yaml:"regex"`
 	// Unless excludes a match: on Job.Run a command, such as a test runner
 	// told to skip the tests, and on the other fields their whole text.
@@ -93,6 +96,7 @@ type Rule struct {
 	Name       string
 	ApplyOn    []string
 	Categories []string
+	Ecosystems []string
 	Regex      *regexp.Regexp
 	// Literals are strings one of which a match contains, lowercased.
 	Literals      []string
@@ -193,6 +197,7 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 			Name:          r.Name,
 			ApplyOn:       r.ApplyOn,
 			Categories:    r.Categories,
+			Ecosystems:    slices.Clone(r.Ecosystems),
 			Regex:         regexp.MustCompile(r.Regex),
 			Literals:      requiredLiterals(r.Regex),
 			Unless:        unless,
@@ -205,7 +210,7 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 	return convertedRules
 }
 
-// validateRules rejects unknown applyOn selectors and categories, which would
+// validateRules rejects unknown applyOn selectors, categories and ecosystems, which would
 // otherwise leave the rule silently matching nothing.
 func validateRules(fileRules []FileRule) error {
 	supported := make(map[string]bool, len(SupportedFields))
@@ -217,6 +222,7 @@ func validateRules(fileRules []FileRule) error {
 		knownCategory[string(c)] = true
 	}
 
+	knownEcosystems := language.Names()
 	for _, r := range fileRules {
 		for _, field := range r.ApplyOn {
 			if !supported[field] {
@@ -227,6 +233,11 @@ func validateRules(fileRules []FileRule) error {
 		for _, category := range r.Categories {
 			if !knownCategory[category] {
 				return fmt.Errorf("rule %q: unknown category %q", r.ID, category)
+			}
+		}
+		for _, ecosystem := range r.Ecosystems {
+			if !slices.Contains(knownEcosystems, ecosystem) {
+				return fmt.Errorf("rule %q: unknown ecosystem %q, expected one of %s", r.ID, ecosystem, strings.Join(knownEcosystems, ", "))
 			}
 		}
 		if err := validateUnless(r); err != nil {

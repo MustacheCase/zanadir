@@ -127,6 +127,7 @@ rules:
   - id: acme-scan
     applyOn: [Job.Package, Job.Run]
     categories: [SAST]
+    ecosystems: [Go, Python]
     regex: '\bacme-scan\b'
     weakenedWhen:
       - runMatches: '--report-only'
@@ -139,6 +140,7 @@ rules:
 	require.NoError(t, err)
 	require.Len(t, scan.Rules, 1)
 	assert.Equal(t, "acme-scan", scan.Rules[0].ID)
+	assert.Equal(t, []string{"Go", "Python"}, scan.Rules[0].Ecosystems)
 	assert.Equal(t, "advisory", scan.Rules[0].Weakened[0].Verdict)
 	require.NotNil(t, scan.Rules[0].ExitsZeroUnless)
 	assert.Equal(t, "arguments", scan.Rules[0].ExitsZeroUnless.Input)

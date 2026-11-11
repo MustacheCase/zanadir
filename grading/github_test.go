@@ -182,11 +182,11 @@ jobs:
 // Secretlint does not fail on findings when writing its report with --output.
 func TestSecretlintOutputGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		`npx secretlint "**/*"`:                                    Enforcing,
-		"secretlint --format sarif .":                                Enforcing,
+		`npx secretlint "**/*"`:                                          Enforcing,
+		"secretlint --format sarif .":                                    Enforcing,
 		`npx secretlint "**/*" --format sarif --output secretlint.sarif`: Advisory,
-		"secretlint --output=report.json .":                          Advisory,
-		"secretlint --output-format sarif .":                          Enforcing,
+		"secretlint --output=report.json .":                              Advisory,
+		"secretlint --output-format sarif .":                             Enforcing,
 	} {
 		t.Run(run, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
@@ -493,10 +493,9 @@ jobs:
 	}
 }
 
-
 func TestCSpellNoExitCodeGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		"npx cspell lint .":                 Enforcing,
+		"npx cspell lint .":                Enforcing,
 		"npx cspell lint --no-exit-code .": Advisory,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `

@@ -290,19 +290,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldMatch:    []string{"zizmorcore/zizmor-action", "ZizmorCore/Zizmor-Action"},
 			shouldNotMatch: []string{"zizmorcore/zizmor-action-fork", "zizmor .github/workflows"},
 		},
-	{
-		ruleID: "ghalint-rule",
-		shouldMatch: []string{
-			"ghalint run",
-			"ghalint run-action",
-			"ghalint act",
-			"aqua exec -- ghalint run",
+		{
+			ruleID: "ghalint-rule",
+			shouldMatch: []string{
+				"ghalint run",
+				"ghalint run-action",
+				"ghalint act",
+				"aqua exec -- ghalint run",
+			},
+			shouldNotMatch: []string{
+				"aqua g -i suzuki-shunsuke/ghalint",
+				"ghalints",
+			},
 		},
-		shouldNotMatch: []string{
-			"aqua g -i suzuki-shunsuke/ghalint",
-			"ghalints",
-		},
-	},
 		{
 			// The organisation is also called step-security, and its other
 			// actions and forks of this one are not it. Job.Package arrives
@@ -624,6 +624,52 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID:         "kube-score-rule",
 			shouldMatch:    []string{"kube-score score deploy/*.yaml", "helm template . | kube-score score -", "kube-score score --exit-one-on-warning k8s/", "docker run -v $PWD:/project zegl/kube-score score /project/k8s/*.yaml", "kube-score score"},
 			shouldNotMatch: []string{"kubectl score", "kube-scorecard", "kube-score version", "kube-score help score", "kube-score completion bash", "kube-scorecard score k8s/"},
+		},
+		{
+			ruleID: "kubeconform-rule",
+			shouldMatch: []string{
+				"kubeconform -strict -summary -",
+				"kubeconform -strict -summary -kubernetes-version 1.30.0 rendered.yaml",
+				"./kubeconform -strict -summary -kubernetes-version 1.35.0 weather-rendered deploy/nvidia-device-plugin.yaml",
+				"/kubeconform -summary -output json kubeconfigs/",
+				`docker run --rm -v "$PWD":/manifests ghcr.io/yannh/kubeconform:latest -strict -ignore-missing-schemas -summary /manifests/rendered.yaml`,
+				`docker run --rm -v "$PWD:/deploy:ro" -w /deploy ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e -strict -summary ./*.yaml`,
+				"docker://ghcr.io/yannh/kubeconform",
+				"docker://ghcr.io/yannh/kubeconform:latest",
+				"ghcr.io/yannh/kubeconform:latest-alpine",
+				"helm kubeconform --summary .",
+				"kubeconform",
+			},
+			shouldNotMatch: []string{
+				"grep ' kubeconform-linux-amd64.tar.gz$' kubeconform-CHECKSUMS",
+				"python scripts/security_tools.py actionlint gitleaks trivy kubeconform",
+				"https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz",
+				"helm plugin install https://github.com/jtyr/kubeconform-helm",
+				"kube-score score k8s/",
+				"kubescape scan k8s/",
+				"kube-linter lint k8s/",
+				"kubectl apply --dry-run=server -f k8s/",
+				"hl-infra/kubeconform-runner",
+			},
+		},
+		{
+			ruleID: "kubeval-rule",
+			shouldMatch: []string{
+				"kubeval --strict -d k8s/",
+				"kubeval -v 1.20.0 manifests/*.yaml",
+				"helm kubeval charts/app",
+				"docker run -v $PWD/fixtures:/fixtures garethr/kubeval fixtures/*",
+				"garethr/kubeval:latest",
+				"instrumenta/kubeval-action",
+			},
+			shouldNotMatch: []string{
+				"helm plugin install https://github.com/instrumenta/helm-kubeval",
+				"kube-score score k8s/",
+				"kubescape scan k8s/",
+				"kube-linter lint k8s/",
+				"kubectl apply --dry-run=server -f k8s/",
+				"kubevalidator check",
+			},
 		},
 		{
 			// "snyk" alone is SCA; only the iac sub-command scans infrastructure.
@@ -1212,6 +1258,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
 		"secretlint-rule":            {"npx secretlint --init", "secretlint --init"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
+		"kubeconform-rule":           {"kubeconform -v"},
 		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},

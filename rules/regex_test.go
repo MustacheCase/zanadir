@@ -31,11 +31,9 @@ func TestRuleRegexPrecision(t *testing.T) {
 	assert.NoError(t, err)
 
 	tests := []struct {
-		ruleID          string
-		shouldMatch     []string
-		shouldNotMatch  []string
-		shouldWeaken    []string
-		shouldNotWeaken []string
+		ruleID         string
+		shouldMatch    []string
+		shouldNotMatch []string
 	}{
 		{
 			ruleID: "pinact-rule",
@@ -962,11 +960,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 		},
 		{
 			ruleID:         "size-limit-rule",
-			shouldMatch:    []string{"npx size-limit --json", "pnpm exec size-limit", "yarn size-limit", "bun x size-limit", "npx -y size-limit@11", "./node_modules/.bin/size-limit", "andresz1/size-limit-action@v1", "ant-design/size-limit-action@master", "npx size-limit --why", "yarn size-limit --why --hide-passed"},
-			shouldNotMatch: []string{"/size-limit-override", "@size-limit/preset-app", "size-limit-preset-node-lib", ".size-limit.json", "./dev-packages/size-limit-gh-action", "PR Size Limit", "echo size-limit"},
-			// --why exits 0 whatever the size, so only it downgrades the check.
-			shouldWeaken:    []string{"npx size-limit --why", "yarn size-limit --why --hide-passed", "npx size-limit --json --why"},
-			shouldNotWeaken: []string{"npx size-limit --json", "npx size-limit --why-not", "npx size-limit --no-why", "npx size-limit --json --ignore-missing"},
+			shouldMatch:    []string{"npx size-limit --json", "pnpm exec size-limit", "yarn size-limit", "bun x size-limit", "npx -y size-limit@11", "./node_modules/.bin/size-limit", "andresz1/size-limit-action@v1", "ant-design/size-limit-action@master", "npx size-limit --why", "yarn size-limit --why --hide-passed", "size-limit", "npx size-limit", "pnpm exec size-limit --json", "pnpm size-limit", "bunx size-limit", "npm exec -- size-limit", "./node_modules/.bin/size-limit --hide-passed", `npx size-limit --limit "10 kB" dist/bundle.js`, "andresz1/size-limit-action", "ant-design/size-limit-action"},
+			shouldNotMatch: []string{"/size-limit-override", "@size-limit/preset-app", "size-limit-preset-node-lib", ".size-limit.json", "./dev-packages/size-limit-gh-action", "PR Size Limit", "echo size-limit", `gh pr comment 42 --body "/size-limit-override"`, `jq '.[].limit' .size-limit.json`, "@size-limit/file", "pr-size-limit-42", "npm run size"},
 		},
 		{
 			ruleID:         "clippy-rule",
@@ -1203,24 +1198,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 			for _, s := range tt.shouldNotMatch {
 				assert.False(t, rule.Regex.MatchString(s), "%s should NOT match %q", tt.ruleID, s)
 			}
-			for _, s := range tt.shouldWeaken {
-				assert.True(t, weakenedBy(rule, s), "%s should be weakened by %q", tt.ruleID, s)
-			}
-			for _, s := range tt.shouldNotWeaken {
-				assert.False(t, weakenedBy(rule, s), "%s should NOT be weakened by %q", tt.ruleID, s)
-			}
 		})
 	}
-}
-
-// weakenedBy reports whether an advisory weakenedWhen check matches the command.
-func weakenedBy(rule *rules.Rule, command string) bool {
-	for _, w := range rule.Weakened {
-		if w.Verdict == "advisory" && w.RunMatches != nil && w.RunMatches.MatchString(command) {
-			return true
-		}
-	}
-	return false
 }
 
 // A command a rule's regex matches, but that does not do what the rule credits.

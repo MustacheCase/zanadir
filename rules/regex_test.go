@@ -1130,6 +1130,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"dorny/paths-filter", "actions/upload-artifact"},
 		},
 		{
+			ruleID: "k6-rule",
+			shouldMatch: []string{
+				"k6 run load.js",
+				"k6 cloud script.js",
+				"grafana/run-k6-action@v1",
+			},
+			shouldNotMatch: []string{
+				"grafana/setup-k6-action@v1",
+				"k6 version",
+			},
+		},
+		{
 			// "pester" alone is the module name, which Install-Module and
 			// Import-Module load without running anything; only the
 			// Invoke-Pester cmdlet runs the tests.

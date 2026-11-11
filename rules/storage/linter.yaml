@@ -264,6 +264,25 @@ rules:
         equals: "true"
         verdict: "advisory"
 
+  # lychee checks links and exits 2 when one is broken. Its name also turns up
+  # in its config (lychee.toml), cache (.lycheecache), release tarballs and the
+  # action's report (lychee/out.md), so it only matches as a whole word: after
+  # the start, a space or "/", and before a space, ":" (a Docker tag), "@" or
+  # the end. The action has its own alternative.
+  - id: "lychee-rule"
+    name: "lychee"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])lychee(?:[\\s:@]|$)|\\blycheeverse/lychee-action\\b"
+    # --dump and --dump-inputs only print the links or inputs, checking none.
+    unless: "(?i)(?:^|\\s)--dump(?:-inputs)?(?:\\s|$)"
+    # The action's fail input ("Fail entire pipeline on error") defaults to
+    # true; with fail: false it only reports.
+    weakenedWhen:
+      - input: "fail"
+        equals: "false"
+        verdict: "advisory"
+
   # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
   # and .codespellrc / codespell_lib are not runs of it.
   - id: "codespell-rule"
@@ -278,6 +297,21 @@ rules:
         verdict: "advisory"
       - input: "only_warn"
         equals: "true"
+        verdict: "advisory"
+
+  # CSpell is a different spell checker from codespell. Match it only as the
+  # program being run (or its action), not config files, dictionary packages,
+  # check-spelling "cspell:" refs, or upgrade/cleanup scripts.
+  - id: "cspell-rule"
+    name: "CSpell"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm(?:\\s+(?:exec|dlx))?|yarn(?:\\s+(?:exec|dlx))?|npm\\s+exec|bun\\s+x)(?:\\s+(?:--(?:\\S*)|-\\S+))*\\s+)?(?:\\S*/)?cspell(?:-cli)?(?:@\\S+)?(?:\\s|$)|\\bstreetsidesoftware/cspell-action\\b"
+    weakenedWhen:
+      - runMatches: "--no-exit-code\\b"
+        verdict: "advisory"
+      - input: "strict"
+        equals: "false"
         verdict: "advisory"
 
   - id: "phpcs-rule"

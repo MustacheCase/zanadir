@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/MustacheCase/zanadir/internal/testrepo"
+	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/models"
 
 	"github.com/stretchr/testify/assert"
@@ -180,6 +181,7 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 		entry{name: "owner-repo-abc/tools/.make/go.mod", body: "module make\n"},
 		entry{name: "owner-repo-abc/cmd/main.go", body: "package main\n"},
 		entry{name: "owner-repo-abc/go.mod", body: "module x\n"},
+		entry{name: "owner-repo-abc/requirements.txt", body: "requests\n"},
 		entry{name: "owner-repo-abc/infra/main.tf", body: "resource {}\n"},
 		entry{name: "owner-repo-abc/.github/renovate.json", body: `{"extends": ["config:base"]}`},
 		entry{name: "owner-repo-abc/data/poems.json", body: strings.Repeat("x", headBytes+10)},
@@ -211,6 +213,8 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 	assert.Equal(t, "module make\n", read("tools/.make/go.mod"))
 	assert.Empty(t, read("cmd/main.go"), "Go source outside .make is not read")
 	assert.Empty(t, read("go.mod"), "only the name matters, so the content is not kept")
+	assert.Empty(t, read("requirements.txt"), "ecosystem coverage only needs the manifest name")
+	assert.Equal(t, []string{language.Go, language.JavaScript, language.Python}, language.Detect(dir), "remote placeholders preserve ecosystem detection")
 	assert.Empty(t, read("infra/main.tf"))
 	assert.Equal(t, `{"extends": ["config:base"]}`, read(".github/renovate.json"))
 	assert.Len(t, read("data/poems.json"), headBytes, "of other JSON, only the head IaC detection reads")

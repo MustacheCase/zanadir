@@ -236,3 +236,21 @@ func TestWeakenedMessageFollowsTheReason(t *testing.T) {
 	assert.Contains(t, weakenedMessage(notRequired), "so a failing run does not block a pull request.")
 	assert.Contains(t, weakenedHelp(notRequired), "pull requests go unchecked")
 }
+
+func TestSarifReportsSCAEcosystemGap(t *testing.T) {
+	const reason = "govulncheck checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check"
+	log := buildSarif(nil, "", []Weakness{{Category: "SCA", Verdict: "partial", Reason: reason}})
+	run := log.Runs[0]
+	if !assert.Len(t, run.Results, 1) || !assert.Len(t, run.Tool.Driver.Rules, 1) {
+		return
+	}
+	result := run.Results[0]
+	assert.Equal(t, "note", result.Level)
+	assert.Equal(t, "partial", result.PartialFingerprints["verdict"])
+	assert.Equal(t, "SCA tooling is present but partial: "+reason+".", result.Message.Text)
+	for _, text := range []string{result.Message.Text, run.Tool.Driver.Rules[0].Help.Text} {
+		assert.NotContains(t, text, "pull requests go unchecked")
+		assert.NotContains(t, text, "does not block a pull request")
+		assert.NotContains(t, text, "cannot fail the build")
+	}
+}

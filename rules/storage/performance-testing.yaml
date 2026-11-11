@@ -3,7 +3,7 @@ rules:
     name: "k6"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
-    regex: "(?mi)\\bk6\\s+(?:run|cloud)\\b"
+    regex: "(?mi)\\bk6\\s+(?:run|cloud)\\b|grafana/run-k6-action"
 
   - id: "jmeter-rule"
     name: "JMeter"

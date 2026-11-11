@@ -5,6 +5,16 @@ rules:
     categories: ["Workflow Security"]
     regex: "(?i)\\bactionlint\\b|rhysd/actionlint|reviewdog/action-actionlint"
 
+  # pinact run rewrites unpinned actions by default. Only --check, --diff or
+  # --fix=false makes findings fail the build.
+  - id: "pinact-rule"
+    name: "pinact"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Workflow Security"]
+    regex: "(?i)(?:^|[^\\w-])pinact\\s+run(?:\\s|$)"
+    exitsZeroUnless:
+      runMatches: "(?i)(?:^|\\s)--(?:check|diff|fix=false)(?:\\s|$)"
+
   - id: "zizmor-rule"
     name: "zizmor"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
@@ -75,3 +85,9 @@ rules:
       - input: "egress-policy"
         equals: "audit"
         verdict: "advisory"
+  # ghalint checks GitHub Actions workflows for security best practices.
+  - id: "ghalint-rule"
+    name: "ghalint"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Workflow Security"]
+    regex: "(?i)\\bghalint\\s+(?:run|run-action|act)\\b"

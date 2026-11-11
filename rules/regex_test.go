@@ -36,6 +36,31 @@ func TestRuleRegexPrecision(t *testing.T) {
 		shouldNotMatch []string
 	}{
 		{
+			ruleID: "pinact-rule",
+			shouldMatch: []string{
+				"pinact run --check",
+				"pinact run --diff",
+				"pinact run --fix=false --no-api",
+				"aqua exec -- pinact run --check",
+				"pinact run",
+				"./bin/pinact run --fix false",
+			},
+			shouldNotMatch: []string{
+				"pinact init", "pinact migrate", "./scripts/pin-actions.sh",
+				"pinact runn --check", "my-pinact run --check",
+			},
+		},
+		{
+			ruleID: "secretlint-rule",
+			shouldMatch: []string{
+				`npx secretlint "**/*"`,
+				"secretlint --format sarif .",
+				`secretlint --format @secretlint/secretlint-formatter-sarif "**/*"`,
+				`docker run secretlint/secretlint secretlint "**/*"`,
+			},
+			shouldNotMatch: []string{"secretlinter", "my-secretlint", "secretlint-wrapper", "mysecretlint"},
+		},
+		{
 			ruleID: "github-action-benchmark-rule",
 			shouldMatch: []string{
 				"benchmark-action/github-action-benchmark@v1",
@@ -265,6 +290,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldMatch:    []string{"zizmorcore/zizmor-action", "ZizmorCore/Zizmor-Action"},
 			shouldNotMatch: []string{"zizmorcore/zizmor-action-fork", "zizmor .github/workflows"},
 		},
+	{
+		ruleID: "ghalint-rule",
+		shouldMatch: []string{
+			"ghalint run",
+			"ghalint run-action",
+			"ghalint act",
+			"aqua exec -- ghalint run",
+		},
+		shouldNotMatch: []string{
+			"aqua g -i suzuki-shunsuke/ghalint",
+			"ghalints",
+		},
+	},
 		{
 			// The organisation is also called step-security, and its other
 			// actions and forks of this one are not it. Job.Package arrives
@@ -445,6 +483,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID:         "gitleaks-rule",
 			shouldMatch:    []string{"gitleaks detect --source .", "gitleaks/gitleaks-action"},
 			shouldNotMatch: []string{"gitleaksy"},
+		},
+		{
+			ruleID: "ripsecrets-rule",
+			shouldMatch: []string{
+				"ripsecrets", "ripsecrets src/ config/",
+				"ripsecrets --strict-ignore $(git diff --cached --name-only)",
+				"/usr/local/bin/ripsecrets", "sirwart/ripsecrets@v0.1.8",
+			},
+			shouldNotMatch: []string{
+				"rip secrets", "./ripsecrets-report.py", "grep -r secrets .",
+				"ripsecrets-helper", "myripsecrets",
+			},
 		},
 		{
 			ruleID:         "trufflehog-rule",
@@ -826,6 +876,34 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"npx cspell lint .", "cp .codespellrc /tmp/", "python -m codespell_lib"},
 		},
 		{
+			ruleID: "cspell-rule",
+			shouldMatch: []string{
+				"cspell",
+				`cspell --config ./.cspell/cspell.json "**/*.md"`,
+				`npx cspell "**/*"`,
+				"npx cspell lint .",
+				"npx --yes cspell@9 lint --no-progress .",
+				"pnpm cspell -c ./rfd/cspell.json rfd",
+				`pnpm exec cspell "docs/**/*.md" --no-progress`,
+				"yarn cspell --show-context 'src/**/*.js'",
+				"bunx cspell .",
+				"npm exec -- cspell .",
+				"./node_modules/.bin/cspell .",
+				"cspell-cli lint .",
+				"streetsidesoftware/cspell-action@v9",
+			},
+			shouldNotMatch: []string{
+				"node scripts/clean-cspell.js",
+				"yarn upgrade cspell@^9 --ignore-engines",
+				"cp cspell.json /tmp/",
+				"rm -rf .cspellcache",
+				"@cspell/dict-en_us",
+				"cspell:software-terms/software-terms.txt",
+				"codespell",
+				"Cleanup cspell.json",
+			},
+		},
+		{
 			ruleID: "chart-testing-rule",
 			shouldMatch: []string{
 				"ct lint --target-branch ${{ github.event.repository.default_branch }}",
@@ -942,6 +1020,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"buf generate", "buf push", "buf format -w", "buf config ls-lint-rules", "bufbuild/buf-setup-action@v1"},
 		},
 		{
+			ruleID: "lychee-rule",
+			shouldMatch: []string{
+				"lychee .", "lychee --no-progress --config lychee.toml './**/*.md'", "lychee --scheme https --timeout 60 --exclude-all-private .",
+				"./lychee --offline docs/", "docker run --rm -v $PWD:/input lycheeverse/lychee:latest /input/README.md",
+				"lycheeverse/lychee-action@v2", "lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8",
+			},
+			shouldNotMatch: []string{
+				"cat lychee/out.md", "gh issue create --body-file ./lychee/out.md", "cp lychee.toml /tmp/", "rm -rf .lycheecache",
+				"tar -xzf lychee-x86_64-unknown-linux-gnu.tar.gz", "markdown-link-check README.md",
+				"key: cache-lychee-${{ github.sha }}",
+			},
+		},
+		{
 			ruleID: "phpcs-rule",
 			shouldMatch: []string{
 				"phpcs", "phpcs --standard=PSR12 src/", "vendor/bin/phpcs -p", "./vendor/bin/phpcs",
@@ -1038,6 +1129,52 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 			shouldNotMatch: []string{"dorny/paths-filter", "actions/upload-artifact"},
 		},
+		{
+			ruleID: "njsscan-rule",
+			shouldMatch: []string{
+				"njsscan .",
+				"njsscan --sarif -o results.sarif src/",
+				"ajinabraham/njsscan-action",
+				"docker run -v $PWD:/src opensecurity/njsscan /src",
+			},
+			shouldNotMatch: []string{
+				"nodejsscan",
+				"semgrep --config p/nodejs .",
+				"npm run scan",
+			},
+		},
+		{
+			ruleID: "k6-rule",
+			shouldMatch: []string{
+				"k6 run load.js",
+				"k6 cloud script.js",
+				"grafana/run-k6-action@v1",
+			},
+			shouldNotMatch: []string{
+				"grafana/setup-k6-action@v1",
+				"k6 version",
+			},
+		},
+		{
+			// "pester" alone is the module name, which Install-Module and
+			// Import-Module load without running anything; only the
+			// Invoke-Pester cmdlet runs the tests.
+			ruleID: "pester-rule",
+			shouldMatch: []string{
+				"Invoke-Pester -Path 'pester/*.Tests.ps1' -Output Detailed -CI",
+				"Invoke-Pester -Path \"tests\" -CI",
+				"Invoke-Pester -Configuration $config",
+				"$result = Invoke-Pester -Path test -Output Detailed -PassThru",
+				"Invoke-Pester -Output Detailed",
+				"pwsh -Command \"Invoke-Pester -Path tests -CI\"",
+			},
+			shouldNotMatch: []string{
+				"Install-Module -Name Pester -RequiredVersion 5.8.0 -Force",
+				"Install-PSResource -Name Pester -Version '[5.7.1]'",
+				"Import-Module Pester",
+				"$config = New-PesterConfiguration",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1072,7 +1209,10 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"codeql-rule":                {"codeql database create --language=actions"},
 		"zizmor-rule":                {"zizmorcore/zizmor-action"},
 		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
+		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
+		"secretlint-rule":            {"npx secretlint --init", "secretlint --init"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
+		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"unit-test-command-rule": {

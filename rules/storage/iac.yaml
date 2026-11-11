@@ -46,6 +46,12 @@ rules:
       runMatches: "--severity-threshold\\b|--compliance-threshold[= ]+(?:0*[1-9]|0*\\.\\d*[1-9])"
       unknownWhen: "--fail-threshold\\b|(?:^|\\s)-t[= ]+\\S"
 
+  - id: "kube-linter-rule"
+    name: "KubeLinter"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)(?:^|[\\s/])kube-linter\\s+lint(?:\\s|$)|(?:^|[\\s/])stackrox/kube-linter-action(?:@|\\s|$)"
+
   # kube-score exits 1 on a critical finding by default, so it needs no
   # exitsZeroUnless. Only the score sub-command checks manifests; version,
   # help and completion check nothing.

@@ -51,6 +51,16 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "secretlint-rule",
+			shouldMatch: []string{
+				`npx secretlint "**/*"`,
+				"secretlint --format sarif .",
+				`secretlint --format @secretlint/secretlint-formatter-sarif "**/*"`,
+				`docker run secretlint/secretlint secretlint "**/*"`,
+			},
+			shouldNotMatch: []string{"secretlinter", "my-secretlint", "secretlint-wrapper", "mysecretlint"},
+		},
+		{
 			ruleID: "github-action-benchmark-rule",
 			shouldMatch: []string{
 				"benchmark-action/github-action-benchmark@v1",
@@ -866,6 +876,34 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"npx cspell lint .", "cp .codespellrc /tmp/", "python -m codespell_lib"},
 		},
 		{
+			ruleID: "cspell-rule",
+			shouldMatch: []string{
+				"cspell",
+				`cspell --config ./.cspell/cspell.json "**/*.md"`,
+				`npx cspell "**/*"`,
+				"npx cspell lint .",
+				"npx --yes cspell@9 lint --no-progress .",
+				"pnpm cspell -c ./rfd/cspell.json rfd",
+				`pnpm exec cspell "docs/**/*.md" --no-progress`,
+				"yarn cspell --show-context 'src/**/*.js'",
+				"bunx cspell .",
+				"npm exec -- cspell .",
+				"./node_modules/.bin/cspell .",
+				"cspell-cli lint .",
+				"streetsidesoftware/cspell-action@v9",
+			},
+			shouldNotMatch: []string{
+				"node scripts/clean-cspell.js",
+				"yarn upgrade cspell@^9 --ignore-engines",
+				"cp cspell.json /tmp/",
+				"rm -rf .cspellcache",
+				"@cspell/dict-en_us",
+				"cspell:software-terms/software-terms.txt",
+				"codespell",
+				"Cleanup cspell.json",
+			},
+		},
+		{
 			ruleID: "chart-testing-rule",
 			shouldMatch: []string{
 				"ct lint --target-branch ${{ github.event.repository.default_branch }}",
@@ -1106,6 +1144,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "k6-rule",
+			shouldMatch: []string{
+				"k6 run load.js",
+				"k6 cloud script.js",
+				"grafana/run-k6-action@v1",
+			},
+			shouldNotMatch: []string{
+				"grafana/setup-k6-action@v1",
+				"k6 version",
+			},
+		},
+		{
 			// "pester" alone is the module name, which Install-Module and
 			// Import-Module load without running anything; only the
 			// Invoke-Pester cmdlet runs the tests.
@@ -1160,6 +1210,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"zizmor-rule":                {"zizmorcore/zizmor-action"},
 		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
 		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
+		"secretlint-rule":            {"npx secretlint --init", "secretlint --init"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
 		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},

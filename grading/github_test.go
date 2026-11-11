@@ -179,6 +179,70 @@ jobs:
 	}
 }
 
+// Vale exits 1 on an error-level alert, so the command gates unless --no-exit
+// turns that off. A vale sync step only downloads styles and must not make a
+// job that also runs vale --no-exit look enforcing.
+func TestValeCommandGradesByExitCode(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"vale docs/":                       Enforcing,
+		"vale --minAlertLevel=error docs/": Enforcing,
+		"vale --no-exit docs/":             Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  docs:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"])
+		})
+	}
+
+	t.Run("sync then no-exit", func(t *testing.T) {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  docs:
+    steps:
+      - run: vale sync
+      - run: vale --no-exit docs/
+`)
+		assert.Equal(t, Advisory, verdicts["Linter"])
+	})
+}
+
+// vale-action ignores Vale's exit code and fails the step only with
+// fail_on_error: true; fail_level: none never fails even then.
+func TestValeActionFailOnErrorGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name, uses, with string
+		want             Verdict
+	}{
+		{"default advisory", "vale-cli/vale-action@v3", "", Advisory},
+		{"fail on error true", "vale-cli/vale-action@v3", "fail_on_error: true", Enforcing},
+		{"fail on error false", "vale-cli/vale-action@v3", "fail_on_error: false", Advisory},
+		{"fail level none", "vale-cli/vale-action@v3", "fail_on_error: true\n          fail_level: none", Advisory},
+		{"fail on error expression", "vale-cli/vale-action@v3", "fail_on_error: ${{ inputs.strict }}", Unknown},
+		{"former name", "errata-ai/vale-action@reviewdog", "fail_on_error: true", Enforcing},
+		{"grafana wrapper", "grafana/writers-toolkit/vale-action@vale-action/v2", "fail_on_error: true", Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  docs:
+    steps:
+      - uses: ` + tc.uses + "\n"
+			if tc.with != "" {
+				workflow += "        with:\n          " + tc.with + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.want, verdicts["Linter"])
+		})
+	}
+}
+
 // Secretlint does not fail on findings when writing its report with --output.
 func TestSecretlintOutputGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{

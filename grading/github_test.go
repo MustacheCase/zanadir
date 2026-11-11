@@ -179,6 +179,28 @@ jobs:
 	}
 }
 
+// Secretlint does not fail on findings when writing its report with --output.
+func TestSecretlintOutputGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		`npx secretlint "**/*"`:                                    Enforcing,
+		"secretlint --format sarif .":                                Enforcing,
+		`npx secretlint "**/*" --format sarif --output secretlint.sarif`: Advisory,
+		"secretlint --output=report.json .":                          Advisory,
+		"secretlint --output-format sarif .":                          Enforcing,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Secrets Detection"])
+		})
+	}
+}
+
 // CIFuzz fails on a crash unless dry-run tells it only to report.
 func TestCIFuzzDryRunGradesAdvisory(t *testing.T) {
 	for with, expected := range map[string]Verdict{

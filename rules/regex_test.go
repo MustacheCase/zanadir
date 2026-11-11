@@ -61,6 +61,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"secretlinter", "my-secretlint", "secretlint-wrapper", "mysecretlint"},
 		},
 		{
+			ruleID: "talisman-rule",
+			shouldMatch: []string{
+				"talisman --scan",
+				"talisman --scan --ignoreHistory",
+				"./bin/talisman --scan --reportdirectory=reports",
+				"docker run --rm thoughtworks/talisman --scan",
+			},
+			shouldNotMatch: []string{
+				"talismans --scan", "talisman-installer", "my-talisman --scan", "talisman_scanner",
+			},
+		},
+		{
 			ruleID: "github-action-benchmark-rule",
 			shouldMatch: []string{
 				"benchmark-action/github-action-benchmark@v1",

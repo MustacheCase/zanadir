@@ -179,6 +179,28 @@ jobs:
 	}
 }
 
+// Secretlint does not fail on findings when writing its report with --output.
+func TestSecretlintOutputGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		`npx secretlint "**/*"`:                                    Enforcing,
+		"secretlint --format sarif .":                                Enforcing,
+		`npx secretlint "**/*" --format sarif --output secretlint.sarif`: Advisory,
+		"secretlint --output=report.json .":                          Advisory,
+		"secretlint --output-format sarif .":                          Enforcing,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Secrets Detection"])
+		})
+	}
+}
+
 // CIFuzz fails on a crash unless dry-run tells it only to report.
 func TestCIFuzzDryRunGradesAdvisory(t *testing.T) {
 	for with, expected := range map[string]Verdict{
@@ -461,6 +483,49 @@ jobs:
   spelling:
     steps:
       - uses: codespell-project/actions-codespell@v2
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+
+func TestCSpellNoExitCodeGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx cspell lint .":                 Enforcing,
+		"npx cspell lint --no-exit-code .": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  spelling:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+func TestCSpellActionStrictInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "strict false is advisory", input: "strict: false", expected: Advisory},
+		{name: "expression is unknown", input: "strict: ${{ inputs.strict }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  spelling:
+    steps:
+      - uses: streetsidesoftware/cspell-action@v9
 `
 			if tc.input != "" {
 				workflow += "        with:\n          " + tc.input + "\n"

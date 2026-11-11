@@ -218,6 +218,43 @@ jobs:
 	}
 }
 
+func TestVultureGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"vulture src tests --min-confidence 80":           Enforcing,
+		"uv run vulture --min-confidence 100 .":           Enforcing,
+		"vulture --min-confidence 100 apifuzzer/ || true": Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+func TestVultureActionGradesEnforcing(t *testing.T) {
+	for _, with := range []string{
+		"",
+		"\n        with:\n          args: '--min-confidence 80'",
+	} {
+		t.Run(with, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: gtkacz/vulture-action@1.0.0`+with+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Linter"])
+		})
+	}
+}
+
 // GuardDog reports findings without failing unless explicitly asked to fail.
 func TestGuardDogExitsZeroUnlessFindingFlag(t *testing.T) {
 	for run, expected := range map[string]Verdict{

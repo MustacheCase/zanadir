@@ -61,6 +61,15 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bflake8\\b"
 
+  # Vulture finds dead Python code and exits non-zero (3) on findings.
+  # Match it only as the program being run (not "vulture:" headings or files
+  # like vulture_whitelist.py) or via its GitHub Action.
+  - id: "vulture-rule"
+    name: "Vulture"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])vulture(?:[\\s@]|$)|(?i)(?:^|\\s)gtkacz/vulture-action(?:[\\s@]|$)"
+
   - id: "oxsecurity-super-linter-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Linter" ]

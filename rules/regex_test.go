@@ -1092,6 +1092,20 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"dorny/paths-filter", "actions/upload-artifact"},
 		},
 		{
+			ruleID: "njsscan-rule",
+			shouldMatch: []string{
+				"njsscan .",
+				"njsscan --sarif -o results.sarif src/",
+				"ajinabraham/njsscan-action",
+				"docker run -v $PWD:/src opensecurity/njsscan /src",
+			},
+			shouldNotMatch: []string{
+				"nodejsscan",
+				"semgrep --config p/nodejs .",
+				"npm run scan",
+			},
+		},
+		{
 			// "pester" alone is the module name, which Install-Module and
 			// Import-Module load without running anything; only the
 			// Invoke-Pester cmdlet runs the tests.

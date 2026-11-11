@@ -142,3 +142,9 @@ rules:
     applyOn: ["Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bcargo\\s+(?:\\+\\S+\\s+)?fuzz\\s+run\\b"
+
+  - id: "njsscan-rule"
+    name: "njsscan"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bnjsscan\\b"

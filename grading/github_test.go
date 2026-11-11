@@ -493,6 +493,49 @@ jobs:
 	}
 }
 
+
+func TestCSpellNoExitCodeGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx cspell lint .":                 Enforcing,
+		"npx cspell lint --no-exit-code .": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  spelling:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+func TestCSpellActionStrictInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "strict false is advisory", input: "strict: false", expected: Advisory},
+		{name: "expression is unknown", input: "strict: ${{ inputs.strict }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  spelling:
+    steps:
+      - uses: streetsidesoftware/cspell-action@v9
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
 // github-action-benchmark only comments on a regression unless fail-on-alert
 // is true, and its former name rhysd/ is still in older workflows.
 func TestGithubActionBenchmarkFailOnAlertGradesAdvisory(t *testing.T) {

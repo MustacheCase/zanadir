@@ -182,11 +182,11 @@ jobs:
 // Secretlint does not fail on findings when writing its report with --output.
 func TestSecretlintOutputGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		`npx secretlint "**/*"`:                                    Enforcing,
-		"secretlint --format sarif .":                                Enforcing,
+		`npx secretlint "**/*"`:                                          Enforcing,
+		"secretlint --format sarif .":                                    Enforcing,
 		`npx secretlint "**/*" --format sarif --output secretlint.sarif`: Advisory,
-		"secretlint --output=report.json .":                          Advisory,
-		"secretlint --output-format sarif .":                          Enforcing,
+		"secretlint --output=report.json .":                              Advisory,
+		"secretlint --output-format sarif .":                             Enforcing,
 	} {
 		t.Run(run, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
@@ -198,6 +198,49 @@ jobs:
 `)
 			assert.Equal(t, expected, verdicts["Secrets Detection"])
 		})
+	}
+}
+
+// kubeconform and kubeval fail on an invalid manifest, and no flag stops
+// that; only a swallowed exit status makes them advisory.
+func TestKubeconformKubevalGradesEnforcing(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"helm template ci/helm-chart | kubeconform -strict -summary -": Enforcing,
+		"kubeconform -strict -summary -output json manifests/":         Enforcing,
+		"kubeconform -strict -ignore-missing-schemas manifests/":       Enforcing,
+		"kubeconform -strict manifests/ || true":                       Advisory,
+		"kubeval --strict -d k8s/":                                     Enforcing,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  validate:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["IaC Security"])
+		})
+	}
+}
+
+// The kubeconform image run as a docker:// step enforces unless the step
+// may fail.
+func TestKubeconformDockerStepGradesEnforcing(t *testing.T) {
+	for extra, expected := range map[string]Verdict{
+		"":                                  Enforcing,
+		"\n        continue-on-error: true": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/kubeconform.yml", `
+on: pull_request
+jobs:
+  validate:
+    steps:
+      - uses: docker://ghcr.io/yannh/kubeconform:v0.8.0
+        with:
+          args: -strict k8s/`+extra+`
+`)
+		assert.Equal(t, expected, verdicts["IaC Security"], extra)
 	}
 }
 
@@ -493,10 +536,9 @@ jobs:
 	}
 }
 
-
 func TestCSpellNoExitCodeGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		"npx cspell lint .":                 Enforcing,
+		"npx cspell lint .":                Enforcing,
 		"npx cspell lint --no-exit-code .": Advisory,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `

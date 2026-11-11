@@ -314,6 +314,39 @@ rules:
         equals: "false"
         verdict: "advisory"
 
+  # Vale is a prose linter. It exits 1 on an error-level alert, so the command
+  # gates by default. "vale" is a short word, so match it only as the program
+  # run: at the start of a command or by path, followed by a space, ":" (a
+  # Docker tag) or the end. The jdkato/vale image needs its own alternative
+  # because there the name is not at the start. --no-exit makes it exit 0.
+  # vale sync and the ls-* sub-commands check nothing, so they are excepted.
+  - id: "vale-rule"
+    name: "Vale"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:\\S*/)?vale(?:[\\s:]|$)|\\bjdkato/vale\\b"
+    unless: "(?im)^(?:\\S*/)?vale\\b(?:\\s+\\S+)*\\s+(?:sync|ls-config|ls-dirs|ls-metrics|ls-vars)(?:\\s|$)"
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--no-exit(?:\\s|$)"
+        verdict: "advisory"
+
+  # vale-cli/vale-action (errata-ai/vale-action is its old name, and grafana's
+  # writers-toolkit wraps it) pipes Vale's output to reviewdog and ignores its
+  # exit code, so it fails the step only with fail_on_error: true. fail_level:
+  # none never fails even then.
+  - id: "vale-action-rule"
+    name: "Vale"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^(?:vale-cli/vale-action|errata-ai/vale-action|grafana/writers-toolkit/vale-action)$"
+    exitsZeroUnless:
+      input: "fail_on_error"
+      runMatches: "(?i)^true$"
+    weakenedWhen:
+      - input: "fail_level"
+        equals: "none"
+        verdict: "advisory"
+
   - id: "phpcs-rule"
     name: "PHP_CodeSniffer"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

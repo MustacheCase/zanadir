@@ -837,6 +837,33 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"flutter test", "dart analyzer"},
 		},
 		{
+			// "vale" is a short word, so only the program run or the Docker
+			// image. The sync and ls-* sub-commands match here but are excepted
+			// by unless (see TestRuleUnlessExceptsLookalikeCommands).
+			ruleID: "vale-rule",
+			shouldMatch: []string{
+				"vale docs/",
+				"vale --config .config/vale/.vale.ini --minAlertLevel=error --glob='*.md' README.md docs/",
+				"vale --config .lintrc/docs/vale.ini --output=line --glob='*.{md,rst,adoc,txt}' .",
+				"./bin/vale README.md", "vale --no-exit --output=JSON docs > vale.json",
+				"docker run --rm -v $(pwd):/docs -w /docs jdkato/vale .", "jdkato/vale:latest",
+			},
+			shouldNotMatch: []string{
+				"vale-cli/vale-action", "errata-ai/vale-action", "grafana/writers-toolkit/vale-action",
+				"tar xz -C /usr/local/bin vale", "cp .vale.ini /tmp/", "rm -f vale.zip", "valet install",
+				`node -p "require('./.vale-version.json').version"`,
+			},
+		},
+		{
+			ruleID: "vale-action-rule",
+			shouldMatch: []string{
+				"vale-cli/vale-action", "errata-ai/vale-action", "grafana/writers-toolkit/vale-action",
+			},
+			shouldNotMatch: []string{
+				"vale-cli/vale", "vale-cli/vale-action-extra", "reviewdog/action-actionlint",
+			},
+		},
+		{
 			// Plain tsc is how packages are built, so only --noEmit says
 			// "check, don't write". tsc-alias is another tool, and
 			// --noEmitOnError is a different flag.
@@ -1212,6 +1239,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
 		"secretlint-rule":            {"npx secretlint --init", "secretlint --init"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
+		"vale-rule":                  {"vale sync", "vale --config .lintrc/docs/vale.ini sync", "vale --config=docs/.vale.ini sync", "vale ls-config", "vale ls-dirs", "vale ls-metrics docs/", "vale ls-vars"},
 		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},

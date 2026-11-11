@@ -1130,6 +1130,20 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"dorny/paths-filter", "actions/upload-artifact"},
 		},
 		{
+			ruleID: "njsscan-rule",
+			shouldMatch: []string{
+				"njsscan .",
+				"njsscan --sarif -o results.sarif src/",
+				"ajinabraham/njsscan-action",
+				"docker run -v $PWD:/src opensecurity/njsscan /src",
+			},
+			shouldNotMatch: []string{
+				"nodejsscan",
+				"semgrep --config p/nodejs .",
+				"npm run scan",
+			},
+		},
+		{
 			ruleID: "k6-rule",
 			shouldMatch: []string{
 				"k6 run load.js",

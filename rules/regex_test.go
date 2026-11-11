@@ -36,6 +36,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 		shouldNotMatch []string
 	}{
 		{
+			ruleID: "kube-linter-rule",
+			shouldMatch: []string{
+				"kube-linter lint k8s/",
+				"kube-linter lint --config .kube-linter.yaml charts/",
+				"./bin/kube-linter lint manifests/",
+				"stackrox/kube-linter-action@v1",
+			},
+			shouldNotMatch: []string{
+				"kubectl apply -f k8s/", "kubeval k8s/", "kube-linter --version",
+				"my-kube-linter lint k8s/", "stackrox/kube-linter-action-extra@v1",
+			},
+		},
+		{
 			ruleID: "pinact-rule",
 			shouldMatch: []string{
 				"pinact run --check",

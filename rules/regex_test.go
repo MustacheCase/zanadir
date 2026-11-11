@@ -883,6 +883,30 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"flutter test", "dart analyzer"},
 		},
 		{
+			// "knip" is also a script name, config file and cache path, so only
+			// a command that runs the program counts.
+			ruleID: "knip-rule",
+			shouldMatch: []string{
+				"knip", "knip --production", "knip --no-config-hints",
+				"knip --config ../scripts/knip.config.ts",
+				"knip --exclude exports,nsExports,types,nsTypes,enumMembers,classMembers,duplicates",
+				"knip-bun", "./node_modules/.bin/knip --no-exit-code --reporter json",
+				"npx knip", "npx --yes knip@5 --no-progress --include files,dependencies,unlisted",
+				"bunx knip", "pnpm knip --no-progress --reporter markdown",
+				"pnpm knip --workspace apps/studio --no-progress --reporter symbols --reporter github-actions",
+				"pnpm run knip --production --exclude exports,types", "pnpm exec knip",
+				"pnpm dlx knip@6", "yarn knip --reporter github-actions",
+				"bun run knip --no-exit-code", "npm exec -- knip",
+			},
+			shouldNotMatch: []string{
+				"npm run knip:ci", "pnpm knip:check", "pnpm lint:knip:production",
+				"npx nx run-many -t knip --parallel=1", "rm -rf node_modules/.cache/knip",
+				"test -f config/knip.config.ts", "cp knip.json /tmp/",
+				"knip_json_exit_code=$?", "npm init @knip/config", "pnpm update knip",
+				"Studio Dead Code (knip)",
+			},
+		},
+		{
 			// Plain tsc is how packages are built, so only --noEmit says
 			// "check, don't write". tsc-alias is another tool, and
 			// --noEmitOnError is a different flag.

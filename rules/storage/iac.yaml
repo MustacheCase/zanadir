@@ -50,7 +50,9 @@ rules:
     name: "KubeLinter"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["IaC Security"]
-    regex: "(?i)(?:^|[\\s/])kube-linter\\s+lint(?:\\s|$)|(?:^|[\\s/])stackrox/kube-linter-action(?:@|\\s|$)"
+    # The lint command fails on findings in every output format, so no
+    # exitsZeroUnless is needed.
+    regex: "(?i)(?:^|[^\\w-])kube-linter(?::[\\w.-]+|@sha256:[0-9a-f]+)?\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*lint(?:\\s|$)|(?:^|[\\s/])stackrox/kube-linter-action(?:@|\\s|$)"
 
   # kube-score exits 1 on a critical finding by default, so it needs no
   # exitsZeroUnless. Only the score sub-command checks manifests; version,

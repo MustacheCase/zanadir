@@ -41,11 +41,17 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"kube-linter lint k8s/",
 				"kube-linter lint --config .kube-linter.yaml charts/",
 				"./bin/kube-linter lint manifests/",
+				"kube-linter --config .kube-linter.yaml lint k8s/",
+				"docker run --rm -v $PWD:/w stackrox/kube-linter:v0.7.2 lint /w/k8s",
+				"bash -c \"kube-linter lint k8s/\"",
 				"stackrox/kube-linter-action@v1",
 			},
 			shouldNotMatch: []string{
 				"kubectl apply -f k8s/", "kubeval k8s/", "kube-linter --version",
 				"my-kube-linter lint k8s/", "stackrox/kube-linter-action-extra@v1",
+				"kube-linter --config .kube-linter.yaml --version",
+				"my-kube-linter:v0.7.2 lint k8s/",
+				"docker run --rm stackrox/kube-linter:v0.7.2 --help",
 			},
 		},
 		{

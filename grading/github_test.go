@@ -150,6 +150,25 @@ jobs:
 	}
 }
 
+// HTMLHint fails on findings by default; --warn keeps the linter but makes it
+// advisory because the command exits successfully.
+func TestHTMLHintWarnGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		`npx htmlhint "src" --config .htmlhintrc`: Enforcing,
+		`npx htmlhint . --format sarif`:           Enforcing,
+		`npx htmlhint --warn "src"`:               Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 // pinact run changes workflow files by default, but --check, --diff and
 // --fix=false turn unpinned actions into a failing CI check.
 func TestPinactRunGradesOnlyCheckingModesAsEnforcing(t *testing.T) {

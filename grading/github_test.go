@@ -201,6 +201,56 @@ jobs:
 	}
 }
 
+// Talisman scans fail on findings, but its pre-commit hook only examines
+// staged changes; --checksum merely lists .talismanrc entries.
+func TestTalismanRunGrading(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      Verdict
+	}{
+		{"scan", "talisman --scan", Enforcing},
+		{"scan with path", "./talisman -i . --scan", Enforcing},
+		{"pre-commit long flag", "./talisman --githook pre-commit", Partial},
+		{"pre-commit short flag", "talisman -g pre-commit", Partial},
+		{"pre-push hook", `echo "$LOCAL_REF $LOCAL_SHA $REMOTE_REF $REMOTE_SHA" | ./talisman --githook pre-push`, Enforcing},
+		{"checksum", "talisman --checksum 'config/*'", ""},
+		{"checksum short flag", "talisman -c=config/*", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/talisman.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+tt.run+`
+`)
+			if tt.want == "" {
+				assert.NotContains(t, verdicts, "Secrets Detection")
+			} else {
+				assert.Equal(t, tt.want, verdicts["Secrets Detection"])
+			}
+		})
+	}
+}
+
+func TestTalismanActionsGradeEnforcing(t *testing.T) {
+	for _, action := range []string{
+		"carhartl/talisman-secrets-scan-action@v1.4.0",
+		"digitalservicebund/talisman-secrets-scan-action@0123456789abcdef0123456789abcdef01234567",
+	} {
+		t.Run(action, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/talisman.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - uses: `+action+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Secrets Detection"])
+		})
+	}
+}
+
 // CIFuzz fails on a crash unless dry-run tells it only to report.
 func TestCIFuzzDryRunGradesAdvisory(t *testing.T) {
 	for with, expected := range map[string]Verdict{

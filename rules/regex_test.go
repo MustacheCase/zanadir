@@ -66,10 +66,13 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"talisman --scan",
 				"talisman --scan --ignoreHistory",
 				"./bin/talisman --scan --reportdirectory=reports",
-				"docker run --rm thoughtworks/talisman --scan",
+				"./talisman -i . --scan",
+				"carhartl/talisman-secrets-scan-action",
+				"digitalservicebund/talisman-secrets-scan-action",
 			},
 			shouldNotMatch: []string{
 				"talismans --scan", "talisman-installer", "my-talisman --scan", "talisman_scanner",
+				"flask-talisman", "talisman-secrets-scan-action-helper", "talisman --checksum 'config/*'",
 			},
 		},
 		{
@@ -1203,7 +1206,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 				}
 			}
 			for _, s := range tt.shouldNotMatch {
-				assert.False(t, rule.Regex.MatchString(s), "%s should NOT match %q", tt.ruleID, s)
+				assert.False(t, rule.Regex.MatchString(s) && (rule.Unless == nil || !rule.Unless.MatchString(s)),
+					"%s should NOT match %q", tt.ruleID, s)
 			}
 		})
 	}
@@ -1222,6 +1226,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"zizmor-rule":                {"zizmorcore/zizmor-action"},
 		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
 		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
+		"talisman-rule":              {"talisman --checksum 'config/*'", "talisman -c=config/*"},
 		"secretlint-rule":            {"npx secretlint --init", "secretlint --init"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
 		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},

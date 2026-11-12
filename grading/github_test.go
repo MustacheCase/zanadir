@@ -194,6 +194,28 @@ jobs:
 	}
 }
 
+// c8 wraps the test command and exits with its code, so, like nyc, it is
+// graded by the workflow's triggers and the usual signals, not by a threshold.
+func TestC8GradesByTriggersLikeNyc(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx c8 mocha":  Enforcing,
+		"npx c8 report": Enforcing,
+		"npx c8 --check-coverage --lines 90 npm test": Enforcing,
+		"npx c8 mocha || true":                        Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  coverage:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Coverage"])
+		})
+	}
+}
+
 // Secretlint does not fail on findings when writing its report with --output.
 func TestSecretlintOutputGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{

@@ -65,6 +65,7 @@ func TestToolNamesWhatMatched(t *testing.T) {
 		{"coverage-command-rule", "npx jest --coverage", "jest"},
 		{"coverage-command-rule", "phpunit --coverage-clover clover.xml", "phpunit"},
 		{"coverage-command-rule", "nyc mocha", "nyc"},
+		{"coverage-command-rule", "npx c8 --reporter=lcov mocha", "c8"},
 		{"python-type-checker-rule", "mypy src", "mypy"},
 		{"python-type-checker-rule", "uv run ty check", "ty"},
 		{"npm-audit-rule", "pnpm audit --prod", "pnpm audit"},

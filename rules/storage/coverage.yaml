@@ -31,7 +31,12 @@ rules:
     regex: "(?i)^(?:publishcodecoverageresults|recordcoverage|publishcoverage|coverage_report)$"
 
   # Coverage the test runner measures itself, which needs no upload service.
+  # c8 wraps the test command with Node's built-in V8 coverage and exits with
+  # that command's code, like nyc. "c8" is two characters that turn up in
+  # flags (head -c8), ignore comments, paths and hex, so its alternative is
+  # anchored: it matches only as the program run, at the start of a command,
+  # by path, or right after a package runner, plus node node_modules/c8/bin/c8.js.
   - id: "coverage-command-rule"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Coverage"]
-    regex: "(?i)\\b(?P<name>pytest)\\b[^\\n]*\\s--cov\\b|\\b(?P<name>coverage)\\s+(?:run|report|xml|combine)\\b|\\bdiff-cover\\b|\\b(?P<name>go\\s+test)\\b[^\\n]*\\s-cover(?:profile|pkg|mode)?\\b|\\b(?P<name>jest|vitest)\\b[^\\n]*\\s--coverage\\b|\\bnyc\\b|\\bcargo\\s+(?:tarpaulin|llvm-cov)\\b|\\b(?P<name>phpunit)\\b[^\\n]*\\s--coverage-|\\bcoverlet\\b|XPlat Code Coverage|\\bgo-test-coverage\\b"
+    regex: "(?i)\\b(?P<name>pytest)\\b[^\\n]*\\s--cov\\b|\\b(?P<name>coverage)\\s+(?:run|report|xml|combine)\\b|\\bdiff-cover\\b|\\b(?P<name>go\\s+test)\\b[^\\n]*\\s-cover(?:profile|pkg|mode)?\\b|\\b(?P<name>jest|vitest)\\b[^\\n]*\\s--coverage\\b|\\bnyc\\b|\\bcargo\\s+(?:tarpaulin|llvm-cov)\\b|\\b(?P<name>phpunit)\\b[^\\n]*\\s--coverage-|\\bcoverlet\\b|XPlat Code Coverage|\\bgo-test-coverage\\b|(?:^|\\n)(?:(?:npx|bunx|pnpx|pnpm(?:\\s+(?:exec|dlx))?|yarn(?:\\s+(?:exec|dlx))?|npm\\s+exec|bun\\s+x)(?:\\s+(?:--\\S*|-\\S+))*\\s+)?(?:\\S*/)?(?P<name>c8)(?:@\\S+)?(?:\\s|$)|(?:^|\\n)node\\s+(?:--\\s+)?(?:\\S*/)?(?P<name>c8)\\.js(?:\\s|$)"

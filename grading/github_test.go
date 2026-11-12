@@ -747,3 +747,52 @@ jobs:
 		assert.Equal(t, expected, verdicts["Unit Tests"], run)
 	}
 }
+
+// typos exits 2 when it finds a typo; -w / --write-changes fixes every typo
+// that has a single correction and only fails on the rest, so it is a fixer,
+// not a check.
+func TestTyposWriteChangesGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"typos":                               Enforcing,
+		"typos --config=./.config/typos.toml": Enforcing,
+		"typos -w":                            Advisory,
+		"typos --write-changes":               Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  spelling:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+// The crate-ci/typos action fails on typos unless write_changes fixes them
+// away; a non-literal write_changes input cannot be graded.
+func TestTyposActionWriteChangesInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "write_changes true is advisory", input: "write_changes: true", expected: Advisory},
+		{name: "expression is unknown", input: "write_changes: ${{ inputs.fix }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  spelling:
+    steps:
+      - uses: crate-ci/typos@v1
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}

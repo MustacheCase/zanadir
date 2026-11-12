@@ -380,3 +380,27 @@ rules:
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])(?:tsc|vue-tsc|tsgo)[^\\S\\n](?:[^\\n]*[^\\S\\n])?--noemit\\b"
+
+  # typos (crate-ci) exits 2 on a spelling error. "typos" is an ordinary word,
+  # so the regex keeps it only where it is run: at the start of a command or
+  # after a space, or after a "/", which covers a path (./bin/typos) and the
+  # action (crate-ci/typos@v1.48.0), and before whitespace, "@" or the end.
+  # A workflow's name is prose (supabase has an "Automatically fix typos"
+  # workflow that runs misspell-fixer), so Artifact.Name stays out.
+  - id: "typos-rule"
+    name: "typos"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/\"'])(?P<name>typos)(?:@[\\w.-]+)?(?:\\s|$)"
+    # CSpell reports typos: --report typos / --report=typos is its output
+    # flag, not a run of the typos spell checker.
+    unless: "(?i)(?:^|\\s)--report(?:\\s|=)typos(?:\\s|$)"
+    # -w / --write-changes fixes every typo that has a single correction and
+    # only fails on the rest, so it is a fixer, not a check; the action's
+    # write_changes input does the same when set to true.
+    weakenedWhen:
+      - runMatches: "(?i)(?:^|\\s)(?:-w|--write-changes)(?:\\s|$)"
+        verdict: "advisory"
+      - input: "write_changes"
+        equals: "true"
+        verdict: "advisory"

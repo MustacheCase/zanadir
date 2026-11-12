@@ -936,6 +936,28 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"ansible-playbook site.yml", "ansible-galaxy install -r requirements.yml", "yamllint ."},
 		},
 		{
+			ruleID: "typos-rule",
+			shouldMatch: []string{
+				"typos",
+				"typos --config=./.config/typos.toml",
+				"typos --format brief",
+				"./bin/typos .",
+				"uvx typos",
+				"uvx typos@1.29.0 .",
+				"uv run --only-group check typos",
+				"nix develop -c typos",
+				"pre-commit run typos --all-files",
+				"crate-ci/typos@v1.48.0",
+				"crate-ci/typos@master",
+				"run: typos",
+			},
+			shouldNotMatch: []string{
+				".github/scripts/typos.sh", "./scripts/check-typos.sh", "typos-lsp",
+				"cargo binstall typos-cli", "cp _typos.toml /tmp/", "git commit -m fix-typos",
+				"codespell --skip=typos.toml", "cspell lint --report=typos .",
+			},
+		},
+		{
 			ruleID: "codespell-rule",
 			shouldMatch: []string{
 				"codespell",
@@ -1323,6 +1345,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
+		"typos-rule":                 {"npx cspell --report typos ."},
 		"unit-test-command-rule": {
 			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test", "mvn -B clean install -DskipTests",
 			"./gradlew check --exclude-task test", "cargo test --no-run", "cargo test --all --no-run --locked",

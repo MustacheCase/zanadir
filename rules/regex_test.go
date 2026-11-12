@@ -290,19 +290,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldMatch:    []string{"zizmorcore/zizmor-action", "ZizmorCore/Zizmor-Action"},
 			shouldNotMatch: []string{"zizmorcore/zizmor-action-fork", "zizmor .github/workflows"},
 		},
-	{
-		ruleID: "ghalint-rule",
-		shouldMatch: []string{
-			"ghalint run",
-			"ghalint run-action",
-			"ghalint act",
-			"aqua exec -- ghalint run",
+		{
+			ruleID: "ghalint-rule",
+			shouldMatch: []string{
+				"ghalint run",
+				"ghalint run-action",
+				"ghalint act",
+				"aqua exec -- ghalint run",
+			},
+			shouldNotMatch: []string{
+				"aqua g -i suzuki-shunsuke/ghalint",
+				"ghalints",
+			},
 		},
-		shouldNotMatch: []string{
-			"aqua g -i suzuki-shunsuke/ghalint",
-			"ghalints",
-		},
-	},
 		{
 			// The organisation is also called step-security, and its other
 			// actions and forks of this one are not it. Job.Package arrives
@@ -626,6 +626,52 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"kubectl score", "kube-scorecard", "kube-score version", "kube-score help score", "kube-score completion bash", "kube-scorecard score k8s/"},
 		},
 		{
+			ruleID: "kubeconform-rule",
+			shouldMatch: []string{
+				"kubeconform -strict -summary -",
+				"kubeconform -strict -summary -kubernetes-version 1.30.0 rendered.yaml",
+				"./kubeconform -strict -summary -kubernetes-version 1.35.0 weather-rendered deploy/nvidia-device-plugin.yaml",
+				"/kubeconform -summary -output json kubeconfigs/",
+				`docker run --rm -v "$PWD":/manifests ghcr.io/yannh/kubeconform:latest -strict -ignore-missing-schemas -summary /manifests/rendered.yaml`,
+				`docker run --rm -v "$PWD:/deploy:ro" -w /deploy ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e -strict -summary ./*.yaml`,
+				"docker://ghcr.io/yannh/kubeconform",
+				"docker://ghcr.io/yannh/kubeconform:latest",
+				"ghcr.io/yannh/kubeconform:latest-alpine",
+				"helm kubeconform --summary .",
+				"kubeconform",
+			},
+			shouldNotMatch: []string{
+				"grep ' kubeconform-linux-amd64.tar.gz$' kubeconform-CHECKSUMS",
+				"python scripts/security_tools.py actionlint gitleaks trivy kubeconform",
+				"https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz",
+				"helm plugin install https://github.com/jtyr/kubeconform-helm",
+				"kube-score score k8s/",
+				"kubescape scan k8s/",
+				"kube-linter lint k8s/",
+				"kubectl apply --dry-run=server -f k8s/",
+				"hl-infra/kubeconform-runner",
+			},
+		},
+		{
+			ruleID: "kubeval-rule",
+			shouldMatch: []string{
+				"kubeval --strict -d k8s/",
+				"kubeval -v 1.20.0 manifests/*.yaml",
+				"helm kubeval charts/app",
+				"docker run -v $PWD/fixtures:/fixtures garethr/kubeval fixtures/*",
+				"garethr/kubeval:latest",
+				"instrumenta/kubeval-action",
+			},
+			shouldNotMatch: []string{
+				"helm plugin install https://github.com/instrumenta/helm-kubeval",
+				"kube-score score k8s/",
+				"kubescape scan k8s/",
+				"kube-linter lint k8s/",
+				"kubectl apply --dry-run=server -f k8s/",
+				"kubevalidator check",
+			},
+		},
+		{
 			// "snyk" alone is SCA; only the iac sub-command scans infrastructure.
 			ruleID:         "snyk-iac-rule",
 			shouldMatch:    []string{"snyk iac test", "snyk  iac  test ."},
@@ -837,6 +883,30 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"flutter test", "dart analyzer"},
 		},
 		{
+			// "knip" is also a script name, config file and cache path, so only
+			// a command that runs the program counts.
+			ruleID: "knip-rule",
+			shouldMatch: []string{
+				"knip", "knip --production", "knip --no-config-hints",
+				"knip --config ../scripts/knip.config.ts",
+				"knip --exclude exports,nsExports,types,nsTypes,enumMembers,classMembers,duplicates",
+				"knip-bun", "./node_modules/.bin/knip --no-exit-code --reporter json",
+				"npx knip", "npx --yes knip@5 --no-progress --include files,dependencies,unlisted",
+				"bunx knip", "pnpm knip --no-progress --reporter markdown",
+				"pnpm knip --workspace apps/studio --no-progress --reporter symbols --reporter github-actions",
+				"pnpm run knip --production --exclude exports,types", "pnpm exec knip",
+				"pnpm dlx knip@6", "yarn knip --reporter github-actions",
+				"bun run knip --no-exit-code", "npm exec -- knip",
+			},
+			shouldNotMatch: []string{
+				"npm run knip:ci", "pnpm knip:check", "pnpm lint:knip:production",
+				"npx nx run-many -t knip --parallel=1", "rm -rf node_modules/.cache/knip",
+				"test -f config/knip.config.ts", "cp knip.json /tmp/",
+				"knip_json_exit_code=$?", "npm init @knip/config", "pnpm update knip",
+				"Studio Dead Code (knip)",
+			},
+		},
+		{
 			// Plain tsc is how packages are built, so only --noEmit says
 			// "check, don't write". tsc-alias is another tool, and
 			// --noEmitOnError is a different flag.
@@ -901,6 +971,38 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"cspell:software-terms/software-terms.txt",
 				"codespell",
 				"Cleanup cspell.json",
+			},
+		},
+		{
+			ruleID: "vulture-rule",
+			shouldMatch: []string{
+				"vulture",
+				"vulture src tests --min-confidence 80",
+				"vulture vulture/ tests/",
+				"vulture --min-confidence 100 --exclude _vendor .",
+				`uv run vulture --exclude "contrib,tests,conftest.py,.venv" --min-confidence 100 .`,
+				"uv run vulture app/ vulture_whitelist.py --min-confidence 80",
+				"uvx vulture src tests .vulture_white_list.py",
+				"uvx vulture@2.16 src",
+				"poetry run vulture . --exclude=venv",
+				"python -m vulture --min-confidence 80 congressionalrecord",
+				"python3 -m vulture src",
+				"xargs uvx vulture --min-confidence 80",
+				".venv/bin/vulture src",
+				"vulture mydir --make-whitelist",
+				"pre-commit run vulture --all-files",
+				"gtkacz/vulture-action",
+				"gtkacz/vulture-action@1.0.0",
+			},
+			shouldNotMatch: []string{
+				`section "vulture: $pkg"`,
+				"python vulture_whitelist.py",
+				"python scripts/run_vulture.py",
+				"pytest tests/test_vulture.py",
+				"grep -c . vulture-report.txt",
+				"deadcode .",
+				"pylint --enable=unused-import src",
+				"gtkacz/vulture-action-extra",
 			},
 		},
 		{
@@ -1217,6 +1319,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
 		"secretlint-rule":            {"npx secretlint --init", "secretlint --init"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
+		"kubeconform-rule":           {"kubeconform -v"},
 		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},

@@ -182,11 +182,11 @@ jobs:
 // Secretlint does not fail on findings when writing its report with --output.
 func TestSecretlintOutputGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		`npx secretlint "**/*"`:                                    Enforcing,
-		"secretlint --format sarif .":                                Enforcing,
+		`npx secretlint "**/*"`:                                          Enforcing,
+		"secretlint --format sarif .":                                    Enforcing,
 		`npx secretlint "**/*" --format sarif --output secretlint.sarif`: Advisory,
-		"secretlint --output=report.json .":                          Advisory,
-		"secretlint --output-format sarif .":                          Enforcing,
+		"secretlint --output=report.json .":                              Advisory,
+		"secretlint --output-format sarif .":                             Enforcing,
 	} {
 		t.Run(run, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
@@ -198,6 +198,49 @@ jobs:
 `)
 			assert.Equal(t, expected, verdicts["Secrets Detection"])
 		})
+	}
+}
+
+// kubeconform and kubeval fail on an invalid manifest, and no flag stops
+// that; only a swallowed exit status makes them advisory.
+func TestKubeconformKubevalGradesEnforcing(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"helm template ci/helm-chart | kubeconform -strict -summary -": Enforcing,
+		"kubeconform -strict -summary -output json manifests/":         Enforcing,
+		"kubeconform -strict -ignore-missing-schemas manifests/":       Enforcing,
+		"kubeconform -strict manifests/ || true":                       Advisory,
+		"kubeval --strict -d k8s/":                                     Enforcing,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  validate:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["IaC Security"])
+		})
+	}
+}
+
+// The kubeconform image run as a docker:// step enforces unless the step
+// may fail.
+func TestKubeconformDockerStepGradesEnforcing(t *testing.T) {
+	for extra, expected := range map[string]Verdict{
+		"":                                  Enforcing,
+		"\n        continue-on-error: true": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/kubeconform.yml", `
+on: pull_request
+jobs:
+  validate:
+    steps:
+      - uses: docker://ghcr.io/yannh/kubeconform:v0.8.0
+        with:
+          args: -strict k8s/`+extra+`
+`)
+		assert.Equal(t, expected, verdicts["IaC Security"], extra)
 	}
 }
 
@@ -215,6 +258,43 @@ jobs:
       - uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master`+with+`
 `)
 		assert.Equal(t, expected, verdicts["SAST"], with)
+	}
+}
+
+func TestVultureGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"vulture src tests --min-confidence 80":           Enforcing,
+		"uv run vulture --min-confidence 100 .":           Enforcing,
+		"vulture --min-confidence 100 apifuzzer/ || true": Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+func TestVultureActionGradesEnforcing(t *testing.T) {
+	for _, with := range []string{
+		"",
+		"\n        with:\n          args: '--min-confidence 80'",
+	} {
+		t.Run(with, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: gtkacz/vulture-action@1.0.0`+with+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Linter"])
+		})
 	}
 }
 
@@ -493,10 +573,9 @@ jobs:
 	}
 }
 
-
 func TestCSpellNoExitCodeGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		"npx cspell lint .":                 Enforcing,
+		"npx cspell lint .":                Enforcing,
 		"npx cspell lint --no-exit-code .": Advisory,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
@@ -625,6 +704,15 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 		{"flutter no fatal infos", "Linter", step("run: flutter analyze --no-fatal-infos"), Partial},
 		{"dart no fatal warnings", "Linter", step("run: dart analyze --no-fatal-warnings lib"), Partial},
 		{"dart fatal infos", "Linter", step("run: dart analyze --fatal-infos"), Enforcing},
+		{"knip", "Linter", step("run: npx knip"), Enforcing},
+		{"knip zero budget", "Linter", step("run: knip --max-issues 0"), Enforcing},
+		{"knip no exit code", "Linter", step("run: pnpm knip --no-exit-code"), Advisory},
+		{"knip budget", "Linter", step("run: knip --max-issues 50"), Partial},
+		{"knip budget equals", "Linter", step("run: knip --max-issues=50"), Partial},
+		{"knip fix", "Linter", step("run: pnpm knip --fix"), Partial},
+		{"knip fix type", "Linter", step("run: knip --fix-type exports,types"), Partial},
+		{"knip format flag", "Linter", step("run: knip -F"), Enforcing},
+		{"knip reporter", "Linter", step("run: knip --reporter json > knip.json"), Enforcing},
 		{"pre-commit staged files", "Linter", step("run: pre-commit run --show-diff-on-failure"), Advisory},
 		{"pre-commit one hook", "Linter", step("uses: pre-commit/action@v3.0.1", "with:", "  extra_args: trailing-whitespace"), Advisory},
 		{"pre-commit arguments", "Linter", step("run: pre-commit run $PRE_COMMIT_ARGS"), Unknown},

@@ -55,6 +55,28 @@ rules:
     categories: ["IaC Security"]
     regex: "(?i)\\bkube-score\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*score(?:\\s|$)"
 
+  # kubeconform exits 1 when any resource is invalid or can't be validated,
+  # and no flag turns that off, so it needs no weakenedWhen or
+  # exitsZeroUnless. Match it only where it is the program being run (at the
+  # start of a command or as a Helm plugin) or as the yannh/kubeconform image,
+  # so release URLs, checksum greps and install scripts that name it don't.
+  # `kubeconform -v` only prints the version.
+  - id: "kubeconform-rule"
+    name: "kubeconform"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?im)^(?:\\S*/)?(?:helm\\s+)?kubeconform(?:\\s|$)|\\byannh/kubeconform(?:[:@\\s]|$)"
+    unless: "(?i)^\\S*kubeconform\\s+-v$"
+
+  # kubeval (kubeconform's unmaintained predecessor) exits 1 when a file fails
+  # validation and has no flag that turns that off. Its -v is
+  # --kubernetes-version, so unlike kubeconform it needs no unless.
+  - id: "kubeval-rule"
+    name: "kubeval"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?im)^(?:\\S*/)?(?:helm\\s+)?kubeval(?:\\s|$)|\\bgarethr/kubeval(?:[:@\\s]|$)|\\binstrumenta/kubeval-action\\b"
+
   # Conftest fails on a policy violation by default, so it needs no
   # exitsZeroUnless. Only the test sub-command checks configuration: verify
   # runs the Rego unit tests, and pull, push, fmt and parse check nothing.

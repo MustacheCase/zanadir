@@ -129,7 +129,42 @@ var (
 	installing = set("add", "binstall", "ci", "download", "get", "i", "inject", "install", "require")
 	// Asking a tool for its version or help runs no scan.
 	selfDescribing = set("--help", "--version", "-V", "-h", "-version", "help", "version")
+	// Through a package runner only the flags count: "pnpm changeset version" and
+	// "npx lerna version" bump versions.
+	selfDescribingFlags = set("--help", "--version", "-V", "-h", "-version")
+	// Package runners that run the tool named after them ("npx eslint"). "run" is
+	// never stripped after npm, pnpm or yarn: that runs a package.json script,
+	// which is expanded and read on its own.
+	runners = set("npx", "bunx", "pnpx", "uvx")
+	// The verb a runner needs before the tool.
+	runnerVerbs = map[string]map[string]bool{
+		"bun": set("x"), "hatch": set("run"), "npm": set("exec"), "pdm": set("run"), "pipx": set("run"),
+		"pnpm": set("exec", "dlx"), "poetry": set("run"), "uv": set("run"), "yarn": set("exec", "dlx"),
+	}
+	// Runners that take a bare tool name.
+	bareRunners = set("pnpm", "yarn")
 )
+
+// runnerTool returns the words after a leading package runner and the runner's
+// own flags ("npx --yes eslint --version" gives "eslint --version"), or nil
+// when words do not start with a runner.
+func runnerTool(words []string) []string {
+	program, rest := filepath.Base(words[0]), words[1:]
+	switch {
+	case runners[program]:
+	case program == "uv" && len(rest) > 1 && rest[0] == "tool" && rest[1] == "run":
+		rest = rest[2:]
+	case len(rest) > 0 && runnerVerbs[program][rest[0]]:
+		rest = rest[1:]
+	case bareRunners[program] && len(rest) > 0 && !strings.HasPrefix(rest[0], "-"):
+	default:
+		return nil
+	}
+	for len(rest) > 0 && strings.HasPrefix(rest[0], "-") {
+		rest = rest[1:]
+	}
+	return rest
+}
 
 func set(words ...string) map[string]bool {
 	m := make(map[string]bool, len(words))
@@ -150,6 +185,9 @@ func Passive(words []string) bool {
 	}
 	if len(words) > 2 && strings.HasPrefix(filepath.Base(words[0]), "python") && words[1] == "-m" {
 		words = words[2:]
+	}
+	if tool := runnerTool(words); len(tool) == 2 && selfDescribingFlags[tool[1]] {
+		return true
 	}
 	program := filepath.Base(words[0])
 	switch {

@@ -117,6 +117,21 @@ jobs:
 	}
 }
 
+// Asking a linter for its version through a package runner does not run it (#607).
+func TestRunnerVersionCheckIsNotALinterRun(t *testing.T) {
+	grade := func(run string) map[string]Verdict {
+		return gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+	}
+	assert.NotContains(t, grade("npx eslint --version"), "Linter")
+	assert.Contains(t, grade("npx eslint ."), "Linter")
+}
+
 // Retire.js fails on findings unless --exitwith 0 tells it not to.
 func TestRetireJSExitWithZeroGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{

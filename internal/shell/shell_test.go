@@ -78,6 +78,29 @@ func TestPassive(t *testing.T) {
 		"npm run lint":                 false,
 		"trivy fs --version-check .":   false,
 		"go run ./cmd/gosec ./...":     false,
+
+		// A version or help check through a package runner runs no scan (#607).
+		"npx eslint --version":                true,
+		"npx --yes eslint --help":             true,
+		"pnpm exec biome --version":           true,
+		"pnpm dlx @lhci/cli@0.15.1 --help":    true,
+		"yarn eslint --version":               true,
+		"bunx eslint -V":                      true,
+		"npm exec -- eslint --version":        true,
+		"uvx ruff --version":                  true,
+		"uv run ty --version":                 true,
+		"uv tool run ruff --version":          true,
+		"pipx run ruff --version":             true,
+		"poetry run ruff --version":           true,
+		"npx eslint .":                        false,
+		"pnpm exec eslint --max-warnings 0 .": false,
+		"uv run ruff check .":                 false,
+		"npm run version":                     false,
+		"pnpm run version":                    false,
+		"yarn run version":                    false,
+		"pnpm changeset version":              false,
+		"npx lerna version":                   false,
+		"npx eslint --version-check .":        false,
 	} {
 		assert.Equal(t, want, shell.Passive(strings.Fields(command)), command)
 	}

@@ -645,6 +645,39 @@ jobs:
 	}
 }
 
+// Size Limit fails on an exceeded limit unless --why, which exits 0.
+func TestSizeLimitWhyGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx size-limit":       Enforcing,
+		"npx size-limit --why": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  size:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Performance Testing"], run)
+	}
+}
+
+// Both size-limit actions fail the job when a limit is exceeded.
+func TestSizeLimitActionsGradeEnforcing(t *testing.T) {
+	for _, uses := range []string{"andresz1/size-limit-action@v1", "ant-design/size-limit-action@master"} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  size:
+    steps:
+      - uses: `+uses+`
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+`)
+		assert.Equal(t, Enforcing, verdicts["Performance Testing"], uses)
+	}
+}
+
 // Each of these tools reports and exits 0 in some form, or stops failing on
 // part of what it finds.
 func TestToolFormsThatCannotFail(t *testing.T) {

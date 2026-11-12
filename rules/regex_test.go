@@ -1061,6 +1061,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"cargo build -p warp", "use warp::Filter", "time warp drive", "minio/warpspeed"},
 		},
 		{
+			ruleID:         "size-limit-rule",
+			shouldMatch:    []string{"npx size-limit --json", "pnpm exec size-limit", "yarn size-limit", "bun x size-limit", "npx -y size-limit@11", "./node_modules/.bin/size-limit", "andresz1/size-limit-action@v1", "ant-design/size-limit-action@master", "npx size-limit --why", "yarn size-limit --why --hide-passed", "size-limit", "npx size-limit", "pnpm exec size-limit --json", "pnpm size-limit", "bunx size-limit", "npm exec -- size-limit", "./node_modules/.bin/size-limit --hide-passed", `npx size-limit --limit "10 kB" dist/bundle.js`, "andresz1/size-limit-action", "ant-design/size-limit-action"},
+			shouldNotMatch: []string{"/size-limit-override", "@size-limit/preset-app", "size-limit-preset-node-lib", ".size-limit.json", "./dev-packages/size-limit-gh-action", "PR Size Limit", "echo size-limit", `gh pr comment 42 --body "/size-limit-override"`, `jq '.[].limit' .size-limit.json`, "@size-limit/file", "pr-size-limit-42", "npm run size"},
+		},
+		{
 			ruleID:         "clippy-rule",
 			shouldMatch:    []string{"cargo clippy --all-targets -- -D warnings", "actions-rs/clippy-check"},
 			shouldNotMatch: []string{"cargo build", "clippy.toml"},

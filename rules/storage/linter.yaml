@@ -61,6 +61,15 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bflake8\\b"
 
+  # Vulture finds dead Python code and exits non-zero (3) on findings.
+  # Match it only as the program being run (not "vulture:" headings or files
+  # like vulture_whitelist.py) or via its GitHub Action.
+  - id: "vulture-rule"
+    name: "Vulture"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])vulture(?:[\\s@]|$)|(?i)(?:^|\\s)gtkacz/vulture-action(?:[\\s@]|$)"
+
   - id: "oxsecurity-super-linter-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Linter" ]
@@ -314,6 +323,28 @@ rules:
         equals: "false"
         verdict: "advisory"
 
+  # Knip finds unused files, dependencies and exports in JS/TS projects and
+  # exits non-zero on a finding. "knip" is also a script name (knip:ci),
+  # config (knip.json) and cache (node_modules/.cache/knip), so only match it
+  # as the program being run: at the start of a command, by path, or right
+  # after a package runner, optionally with a version (knip@5). knip-bun is the
+  # same tool on Bun.
+  - id: "knip-rule"
+    name: "Knip"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm(?:\\s+(?:exec|dlx|run))?|yarn(?:\\s+(?:exec|dlx|run))?|npm\\s+(?:exec|run)|bun\\s+(?:run|x))(?:\\s+(?:--(?:\\S*)|-\\S+))*\\s+)?(?:\\S*/)?knip(?:-bun)?(?:@\\S+)?(?:\\s|$)"
+    # --no-exit-code exits 0 on any issue, so it wins when flags are combined.
+    # --max-issues <n> with n of 1 or more fails only above a budget, and the
+    # fixing flags subtract what Knip repairs. -F is --format, not --fix.
+    weakenedWhen:
+      - runMatches: "--no-exit-code\\b"
+        verdict: "advisory"
+      - runMatches: "--max-issues[= ]+[1-9][0-9]*\\b"
+        verdict: "partial"
+      - runMatches: "(?:^|\\s)(?:--fix(?:-type)?|--allow-remove-files|-f)(?:[\\s=]|$)"
+        verdict: "partial"
+
   - id: "phpcs-rule"
     name: "PHP_CodeSniffer"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
@@ -349,3 +380,27 @@ rules:
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])(?:tsc|vue-tsc|tsgo)[^\\S\\n](?:[^\\n]*[^\\S\\n])?--noemit\\b"
+
+  # typos (crate-ci) exits 2 on a spelling error. "typos" is an ordinary word,
+  # so the regex keeps it only where it is run: at the start of a command or
+  # after a space, or after a "/", which covers a path (./bin/typos) and the
+  # action (crate-ci/typos@v1.48.0), and before whitespace, "@" or the end.
+  # A workflow's name is prose (supabase has an "Automatically fix typos"
+  # workflow that runs misspell-fixer), so Artifact.Name stays out.
+  - id: "typos-rule"
+    name: "typos"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/\"'])(?P<name>typos)(?:@[\\w.-]+)?(?:\\s|$)"
+    # CSpell reports typos: --report typos / --report=typos is its output
+    # flag, not a run of the typos spell checker.
+    unless: "(?i)(?:^|\\s)--report(?:\\s|=)typos(?:\\s|$)"
+    # -w / --write-changes fixes every typo that has a single correction and
+    # only fails on the rest, so it is a fixer, not a check; the action's
+    # write_changes input does the same when set to true.
+    weakenedWhen:
+      - runMatches: "(?i)(?:^|\\s)(?:-w|--write-changes)(?:\\s|$)"
+        verdict: "advisory"
+      - input: "write_changes"
+        equals: "true"
+        verdict: "advisory"

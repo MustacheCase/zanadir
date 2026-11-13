@@ -1255,6 +1255,17 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"azure/login", "azure/artifact-signing-action-extra"},
 		},
 		{
+			ruleID: "gradle-wrapper-validation-rule",
+			shouldMatch: []string{
+				"gradle/actions/wrapper-validation", "gradle/wrapper-validation-action", "Gradle/actions/wrapper-validation",
+			},
+			shouldNotMatch: []string{
+				"gradle/actions/dependency-submission", "gradle/gradle-build-action", "gradle-update/update-gradle-wrapper-action",
+				"gradle/actions/wrapper-validation-extra", "Validate Gradle Wrapper", "**/gradle-wrapper.jar",
+				`./gradlew wrapper --gradle-version "$GRADLE_VERSION" --distribution-type bin`,
+			},
+		},
+		{
 			ruleID:         "signpath-rule",
 			shouldMatch:    []string{"signpath/github-action-submit-signing-request"},
 			shouldNotMatch: []string{"./.github/actions/install-signpath-module"},

@@ -887,6 +887,53 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 
 // ty exits 1 on error-level diagnostics unless --exit-zero says otherwise;
 // --exit-zero-on-warning still fails on errors.
+func TestBasedpyrightAndPyreflyGradesEnforcing(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"uv run --no-sync basedpyright":        Enforcing,
+		"basedpyright --level error":           Enforcing,
+		"pyrefly check --output-format=github": Enforcing,
+		"uv run pyrefly check --summary=none":  Enforcing,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  typecheck:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+func TestPyreflyActionGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		args, stepExtra string
+		expected        Verdict
+	}{
+		{name: "no input is enforcing", expected: Enforcing},
+		{name: "args --summarize-errors is still enforcing", args: "--summarize-errors", expected: Enforcing},
+		{name: "continue-on-error is advisory", stepExtra: "continue-on-error: true", expected: Advisory},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  typecheck:
+    steps:
+      - uses: facebook/pyrefly@main
+`
+			if tc.stepExtra != "" {
+				workflow += "        " + tc.stepExtra + "\n"
+			}
+			if tc.args != "" {
+				workflow += "        with:\n          args: " + tc.args + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
 func TestTyExitZeroGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"uv run ty check":                 Enforcing,

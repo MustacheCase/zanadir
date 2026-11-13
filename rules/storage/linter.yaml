@@ -36,7 +36,11 @@ rules:
     # --bin=ty, target/profiling/ty), so only "ty check" counts, with an
     # optional version as in uvx ty@0.0.1 check. --exit-zero makes ty always
     # exit 0, but --exit-zero-on-warning still fails on errors.
-    regex: "(?i)\\b(?:mypy|pyright)\\b|(?:^|[\\s/])(?P<name>ty)(?:@[\\w.-]+)?\\s+check\\b"
+    # basedpyright and pyrefly are bounded the same way: file names hold both
+    # (.basedpyright/baseline.json, pyrefly_diff.txt, ./dev/pyrefly-check-local),
+    # and only "pyrefly check" checks code (init, lsp, infer, suppress and
+    # coverage report do not). The action's Job.Package is the whole text.
+    regex: "(?i)\\b(?:mypy|pyright)\\b|(?:^|[\\s/])(?P<name>ty)(?:@[\\w.-]+)?\\s+check\\b|(?:^|[\\s/])(?P<name>basedpyright)(?:@[\\w.-]+)?(?:\\s|$)|(?:^|[\\s/])(?P<name>pyrefly)(?:@[\\w.-]+)?\\s+check\\b|^(?:facebook|meta)/(?P<name>pyrefly)$"
     weakenedWhen:
       - runMatches: "--exit-zero(?:\\s|$)"
         verdict: "advisory"

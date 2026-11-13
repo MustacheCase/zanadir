@@ -478,6 +478,30 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"retired", "npm run retire-old-builds", "git rm retire.txt", "echo retire", "retire-js"},
 		},
 		{
+			// HTMLHint's name appears in config, matcher, report and script names;
+			// only the command that runs the linter counts.
+			ruleID: "htmlhint-rule",
+			shouldMatch: []string{
+				"htmlhint", `htmlhint "**/*.html" --format unix`,
+				`npx htmlhint "src" --config .htmlhintrc`,
+				`npx --yes htmlhint "$file" --config .htmlhintrc.json`,
+				`npx --yes htmlhint@1 "index.html"`, `npx htmlhint . --format sarif`,
+				`pnpm exec htmlhint "**/*.html"`, `pnpm dlx htmlhint .`,
+				`yarn htmlhint src`, `yarn exec htmlhint .`, `yarn dlx htmlhint .`,
+				`bunx htmlhint .`, `bun x htmlhint .`, `pnpm htmlhint .`,
+				`npm exec -- htmlhint .`, `./node_modules/.bin/htmlhint index.html`,
+				"lint\nhtmlhint index.html",
+			},
+			shouldNotMatch: []string{
+				"cp .htmlhintrc /tmp/",
+				`echo "::add-matcher::.github/workflows/htmlhint-problem-matcher.json"`,
+				`OUT="${GITHUB_WORKSPACE}/quality/analysis/raw/htmlhint.json"`,
+				"test -s htmlhint.json", "cat htmlhint.sarif", "npm run htmlhint-sarif",
+				"Run HTMLHint (SARIF)", "gulp-htmlhint", "htmlhint-loader",
+				"echo htmlhint .", "not-htmlhint index.html",
+			},
+		},
+		{
 			// "nancy" is also a person's name, so only the scanning
 			// sub-commands and the action count.
 			ruleID: "nancy-rule",

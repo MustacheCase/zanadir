@@ -23,6 +23,7 @@ type workflowDef struct {
 	// yaml.v3 keeps "on" a string key rather than folding it to a boolean the
 	// way YAML 1.1 would, so the field needs no alias.
 	On   yaml.Node                 `yaml:"on"`
+	Env  envMap                    `yaml:"env"`
 	Jobs map[string]workflowJobDef `yaml:"jobs"`
 }
 
@@ -33,6 +34,7 @@ type workflowJobDef struct {
 	ContinueOnError continueOnError `yaml:"continue-on-error"`
 	Needs           stringList      `yaml:"needs"`
 	With            map[string]any  `yaml:"with"`
+	Env             envMap          `yaml:"env"`
 	Steps           []stepDef       `yaml:"steps"`
 }
 
@@ -43,6 +45,7 @@ type stepDef struct {
 	If              string          `yaml:"if"`
 	ContinueOnError continueOnError `yaml:"continue-on-error"`
 	With            map[string]any  `yaml:"with"`
+	Env             envMap          `yaml:"env"`
 	Parallel        []stepDef       `yaml:"parallel"`
 }
 
@@ -58,6 +61,30 @@ func flatSteps(steps []stepDef) []stepDef {
 		flat = append(flat, step)
 	}
 	return flat
+}
+
+// envMap is an env: mapping. One set by an expression cannot be read.
+type envMap map[string]string
+
+func (e *envMap) UnmarshalYAML(node *yaml.Node) error {
+	var values map[string]any
+	if node.Kind != yaml.MappingNode || node.Decode(&values) != nil {
+		return nil
+	}
+	*e = stepInputs(values)
+	return nil
+}
+
+func withEnv(outer, inner map[string]string) map[string]string {
+	if len(inner) == 0 {
+		return outer
+	}
+	env := maps.Clone(outer)
+	if env == nil {
+		env = map[string]string{}
+	}
+	maps.Copy(env, inner)
+	return env
 }
 
 // usesRef is a uses: value. "$/" names the workflow's own repository at the
@@ -366,6 +393,7 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 				Package: pkg, Version: version, With: stepInputs(job.With),
 				ContinueOnError: job.ContinueOnError.always, JobIf: joinConditions(job.If, job.ContinueOnError.condition())})
 		}
+		jobEnv := withEnv(wf.Env, job.Env)
 		for _, step := range flatSteps(job.Steps) {
 			record := &models.Job{
 				Name: jobName,
@@ -375,6 +403,7 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 				JobIf:           joinConditions(job.If, job.ContinueOnError.condition()),
 				Needs:           job.Needs,
 				With:            stepInputs(step.With),
+				Env:             withEnv(jobEnv, step.Env),
 				Check:           cmp.Or(job.Name, jobName),
 			}
 
@@ -493,6 +522,7 @@ func (c *composites) steps(uses string, caller *models.Job, depth int) []*models
 		record.ContinueOnError = caller.ContinueOnError || step.ContinueOnError.always
 		record.If = joinConditions(caller.If, joinConditions(step.If, step.ContinueOnError.condition()))
 		record.With = stepInputs(step.With)
+		record.Env = withEnv(caller.Env, step.Env)
 		record.Package, record.Version, record.Run = "", "", step.Run
 		switch {
 		case step.Run != "":

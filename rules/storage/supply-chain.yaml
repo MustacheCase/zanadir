@@ -74,6 +74,14 @@ rules:
     categories: ["Supply Chain"]
     regex: "(?i)^azure/(?:trusted|artifact)-signing-action$"
 
+  # Both action names validate the checked-in Gradle wrapper JAR against
+  # published checksums. The verification fails the step on an unknown JAR.
+  - id: "gradle-wrapper-validation-rule"
+    name: "Gradle Wrapper Validation"
+    applyOn: ["Job.Package"]
+    categories: ["Supply Chain"]
+    regex: "(?i)^gradle/(?:actions/wrapper-validation|wrapper-validation-action)$"
+
   - id: "signpath-rule"
     name: "SignPath"
     applyOn: ["Job.Package"]

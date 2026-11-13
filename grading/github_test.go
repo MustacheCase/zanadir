@@ -382,6 +382,29 @@ jobs:
 	}
 }
 
+func TestGradleWrapperValidationGradesEnforcing(t *testing.T) {
+	for _, tc := range []struct {
+		name, action, inputs string
+	}{
+		{"current", "gradle/actions/wrapper-validation@v6", ""},
+		{"minimum-zero", "gradle/actions/wrapper-validation@v6", "\n        with:\n          min-wrapper-count: 0"},
+		{"snapshots", "gradle/actions/wrapper-validation@v6", "\n        with:\n          allow-snapshots: true"},
+		{"allow-checksums", "gradle/actions/wrapper-validation@v6", "\n        with:\n          allow-checksums: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'"},
+		{"legacy", "gradle/wrapper-validation-action@v1", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  wrapper:
+    steps:
+      - uses: `+tc.action+tc.inputs+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Supply Chain"])
+		})
+	}
+}
+
 // GuardDog reports findings without failing unless explicitly asked to fail.
 func TestGuardDogExitsZeroUnlessFindingFlag(t *testing.T) {
 	for run, expected := range map[string]Verdict{

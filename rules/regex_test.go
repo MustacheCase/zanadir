@@ -49,6 +49,20 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "opengrep-rule",
+			shouldMatch: []string{
+				"opengrep scan --config auto --error", "opengrep scan .",
+				"platform-sec/opengrep-action", "opengrep ci", "opengrep --experimental ci",
+				"opengrep --config auto .", "./bin/opengrep scan --config auto .",
+				"docker run opengrep/opengrep scan -f rules src",
+				"scripts/run-opengrep.sh --changed --sarif --error",
+			},
+			shouldNotMatch: []string{
+				"grep -r foo .", "semgrep scan", "myopengrep scan .",
+				"opengrep test rules/", "opengrep validate rules/",
+			},
+		},
+		{
 			ruleID: "kube-linter-rule",
 			shouldMatch: []string{
 				"kube-linter lint k8s/",
@@ -1414,6 +1428,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
+		"opengrep-rule":              {"opengrep test rules/", "opengrep --experimental validate rules/"},
 		"bundler-audit-rule":         {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},

@@ -175,22 +175,20 @@ func (e *Expander) nx(dir string, args []string) {
 // runAll follows npm-run-all, run-s and run-p: each argument names a script,
 // with its arguments after a space, or a glob over names split at ":".
 func (e *Expander) runAll(dir string, args []string) {
-	flags, pos := nodeArgs(args, "--npm-path", "--max-parallel")
+	_, pos := nodeArgs(args, "--npm-path", "--max-parallel")
 	p := e.pkg(dir)
 	if p == nil {
 		return
 	}
 	names := slices.Sorted(maps.Keys(p.Scripts))
-	e.ignored(hasFlag(flags, "-c", "--continue-on-error"), func() {
-		for _, arg := range pos {
-			pattern, _, _ := strings.Cut(strings.Trim(arg, `"'`), " ")
-			for _, name := range names {
-				if scriptMatches(pattern, name) {
-					e.runScripts([]string{dir}, name, true)
-				}
+	for _, arg := range pos {
+		pattern, _, _ := strings.Cut(strings.Trim(arg, `"'`), " ")
+		for _, name := range names {
+			if scriptMatches(pattern, name) {
+				e.runScripts([]string{dir}, name, true)
 			}
 		}
-	})
+	}
 }
 
 func scriptMatches(pattern, name string) bool {

@@ -13,12 +13,19 @@ import (
 // without running them.
 func Commands(script string) []string {
 	var commands []string
-	for _, command := range split(strings.ReplaceAll(script, "\\\n", " "), true) {
+	for _, command := range split(joinContinuations(script), true) {
 		if command = strings.TrimSpace(command); command != "" {
 			commands = append(commands, command)
 		}
 	}
 	return commands
+}
+
+// A line goes on after a backslash, or PowerShell's backtick after a space.
+var continuation = regexp.MustCompile("\\\\\n|[ \t]`\r?\n")
+
+func joinContinuations(script string) string {
+	return continuation.ReplaceAllString(script, " ")
 }
 
 var heredoc = regexp.MustCompile(`<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
@@ -235,7 +242,7 @@ type statement struct {
 // whether the script discards its failure there.
 func statements(script string) []statement {
 	var found []statement
-	text := strings.ReplaceAll(script, "\\\n", " ")
+	text := joinContinuations(script)
 	textReraise, lineStart := lastReraise(text), 0
 	for _, line := range strings.Split(text, "\n") {
 		lineReraise, start, or := lastReraise(line), 0, -1
@@ -249,6 +256,9 @@ func statements(script string) []statement {
 			handled := or < end[0]
 			command := line[start:min(or, end[0])]
 			later := lineStart + end[0]
+			if close := parenCondition(command); close >= 0 {
+				later = lineStart + start + close
+			}
 			start = end[1]
 
 			words := Words(command)
@@ -266,6 +276,29 @@ func statements(script string) []statement {
 	}
 	return found
 }
+
+// parenCondition returns where an if (...) condition ends, or -1, so that
+// PowerShell's if (...) { exit 1 } counts as a re-raise.
+func parenCondition(command string) int {
+	open := strings.IndexByte(command, '(')
+	if open < 0 || !parenKeywords[strings.TrimSpace(command[:open])] {
+		return -1
+	}
+	depth := 0
+	for i := open; i < len(command); i++ {
+		switch command[i] {
+		case '(':
+			depth++
+		case ')':
+			if depth--; depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+var parenKeywords = set("if", "elif", "while")
 
 // lastReraise returns where the last re-raise in text starts, or -1.
 func lastReraise(text string) int {
@@ -348,7 +381,7 @@ func SwallowedCommands(script string) func(command string) bool {
 // continuations joined, and blank lines, comments and heredoc bodies left
 // out.
 func Lines(script string) []string {
-	text := strings.ReplaceAll(script, "\\\n", " ")
+	text := joinContinuations(script)
 	var lines []string
 	for i := 0; i < len(text); {
 		end := strings.IndexByte(text[i:], '\n')

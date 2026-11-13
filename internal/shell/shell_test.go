@@ -15,6 +15,15 @@ func TestCommands(t *testing.T) {
 	assert.Nil(t, shell.Commands(" \n "))
 }
 
+// A bash backtick that opens a substitution has no space before it.
+func TestCommandsJoinPowerShellContinuations(t *testing.T) {
+	assert.Equal(t, []string{"Invoke-Pester   -Path tests   -CI", "echo done"},
+		shell.Commands("Invoke-Pester `\n  -Path tests `\n  -CI\necho done"))
+	assert.Equal(t, []string{"Invoke-Pester   -CI"}, shell.Commands("Invoke-Pester `\r\n  -CI"))
+	assert.Equal(t, []string{"now=`\ndate`"}, shell.Commands("now=`\ndate`"))
+	assert.Equal(t, []string{"Invoke-ScriptAnalyzer -Path .   -EnableExit"}, shell.Lines("Invoke-ScriptAnalyzer -Path . `\n  -EnableExit"))
+}
+
 func TestWords(t *testing.T) {
 	assert.Equal(t, []string{"make", "lint"}, shell.Words("sudo CI=1 GOFLAGS=-mod=mod make lint"))
 	assert.Empty(t, shell.Words("FOO=bar"))
@@ -64,6 +73,10 @@ func TestSwallowed(t *testing.T) {
 		"echo gitleaks || true":                                                    false,
 		"# gitleaks detect || true":                                                false,
 		"":                                                                         false,
+		"if (gitleaks detect) { echo clean }":                                      true,
+		"if (-not (gitleaks detect --report r.json)) { exit 1 }":                   false,
+		"if(!(gitleaks detect)) { exit 1 }":                                        false,
+		"if (gitleaks detect); then exit 1; fi":                                    false,
 	} {
 		assert.Equal(t, want, shell.Swallowed(script, runs), script)
 	}

@@ -317,6 +317,7 @@ func TestEmbeddedSCAEcosystems(t *testing.T) {
 		"safety-rule":                {language.Python},
 		"bundler-audit-rule":         {language.Ruby},
 		"cargo-audit-rule":           {language.Rust},
+		"cargo-vet-rule":             {language.Rust},
 		"cargo-deny-advisories-rule": {language.Rust},
 		"npm-audit-rule":             {language.JavaScript},
 		"audit-ci-rule":              {language.JavaScript},

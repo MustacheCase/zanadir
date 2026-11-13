@@ -156,6 +156,16 @@ rules:
     ecosystems: ["Rust"]
     regex: "(?i)\\bcargo\\s+audit\\b|\\b(rustsec|actions-rs)/audit-check\\b"
 
+  # cargo vet verifies Rust dependency audits. Administrative commands do not
+  # enforce audit coverage, even with global flags before the subcommand.
+  - id: "cargo-vet-rule"
+    name: "cargo-vet"
+    applyOn: ["Job.Run"]
+    categories: ["SCA"]
+    ecosystems: ["Rust"]
+    regex: "(?i)(?:^|[\\s/])cargo(?:\\s+\\+\\S+)?\\s+vet(?:\\s|$)"
+    unless: "(?i)\\bcargo(?:\\s+\\+\\S+)?\\s+vet(?:\\s+--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?)*\\s+(?:init|suggest|inspect|diff|certify|import|trust|regenerate|add-exemption|record-violation|fmt|prune|aggregate|explain-audit|dump-graph|gc|renew|help|-h|--help|-V|--version)(?:\\s|$)"
+
   # "retire" is an ordinary word, so only the program counts: a command that
   # starts with it, directly, by path or through npx and the like. It exits 13
   # on findings unless --exitwith says otherwise.

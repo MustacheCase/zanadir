@@ -405,6 +405,42 @@ jobs:
 	}
 }
 
+// awesome_bot exits 1 on a dead or duplicate link; no flag makes it exit 0.
+func TestAwesomeBotGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"awesome_bot README.md --allow-dupe --allow-redirect": Enforcing,
+		"awesome_bot README.md --skip-save-results":           Enforcing,
+		"awesome_bot README.md --allow-ssl || true":           Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  links:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+
+	for extra, expected := range map[string]Verdict{
+		"":                                  Enforcing,
+		"\n        continue-on-error: true": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  links:
+    steps:
+      - uses: docker://dkhamsing/awesome_bot:1.20.0
+        with:
+          args: --allow-dupe README.md`+extra+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], extra)
+	}
+}
+
 func TestVultureActionGradesEnforcing(t *testing.T) {
 	for _, with := range []string{
 		"",

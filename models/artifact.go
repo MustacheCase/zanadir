@@ -56,6 +56,8 @@ type Job struct {
 	JobIf string
 	Needs []string
 	With  map[string]string
+	// Env is the step's environment: the workflow's, job's and step's env:.
+	Env map[string]string
 	// Check is the name a GitHub Actions job reports its result under: its
 	// name:, or its id. It may hold an unevaluated ${{ }} expression.
 	Check string

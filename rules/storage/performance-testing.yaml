@@ -68,3 +68,17 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
     regex: "(?i)\\bminio/warp\\b|\\bwarp\\s+(?:mixed|get|put|delete|list|stat|versioned|multipart|multipart-put|append|retention|fanout|snowball|zip|analyze|cmp|merge|client)\\b"
+
+  # Size Limit is a bundle budget: it exits 1 when a check is over its limit,
+  # unless --why, which opens a report and exits 0. Only the program counts,
+  # not the other size-limit names (the PR comment command, config files,
+  # preset and plugin packages, size-limit-* packages). Both actions are
+  # matched by full name.
+  - id: "size-limit-rule"
+    name: "Size Limit"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Performance Testing"]
+    regex: "(?im)^(?:andresz1|ant-design)/size-limit-action(?:@|$)|^\\s*(?:(?:npx|bunx|pnpx|pnpm\\s+(?:dlx|exec)|pnpm|yarn\\s+(?:dlx|exec)|yarn|npm\\s+exec|bun\\s+x)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?size-limit(?:@\\S+)?(?:\\s|$)"
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--why(?:\\s|=|$)"
+        verdict: "advisory"

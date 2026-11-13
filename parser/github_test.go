@@ -230,7 +230,7 @@ func TestParseReraisedFailure(t *testing.T) {
 		{"pwsh exit", "if: success() && steps.scan.outcome == 'failure'\n        shell: pwsh\n        run: exit 1", false},
 		{"github-script", "if: ${{ steps.scan.outcome == 'failure' }}\n        uses: actions/github-script@v7.0.1\n        with:\n          script: |\n            core.setFailed(\"found\")", false},
 		{"github-script that may not fail", "if: steps.scan.outcome == 'failure'\n        uses: actions/github-script@v7\n        with:\n          script: if (found) core.setFailed(\"found\")", true},
-		{"only reports","if: steps.scan.outcome == 'failure'\n        run: gh issue create --title found", true},
+		{"only reports", "if: steps.scan.outcome == 'failure'\n        run: gh issue create --title found", true},
 		{"exits zero first", "if: steps.scan.outcome == 'failure'\n        run: |\n          [ -s report ] || exit 0\n          exit 1", true},
 		{"ends in a block", "if: steps.scan.outcome == 'failure'\n        run: |\n          if [ -s report ]; then\n            exit 1\n          fi", true},
 		{"needs another condition", "if: steps.scan.outcome == 'failure' && github.event_name == 'push'\n        run: exit 1", true},
@@ -883,4 +883,50 @@ func TestReusableWorkflowsGetTheirCallersInputs(t *testing.T) {
 	}
 	assert.Equal(t, []string{"export A=(1, 2)\npnpm lint\n", "echo ${{ export A=(1, 2)\npnpm lint\n && 'x' || 'y' }}", "${{ inputs.missing }}"}, runs,
 		"an expression that is only an input becomes the script itself")
+}
+
+func TestGithubEnvLayers(t *testing.T) {
+	jobs := compositeRepo(t, map[string]string{
+		".github/workflows/ci.yml": `on: pull_request
+env:
+  LEVEL: workflow
+  KEEP: 1
+jobs:
+  scan:
+    env:
+      LEVEL: job
+    steps:
+      - run: trivy fs .
+        env:
+          LEVEL: step
+          ON: true
+      - run: grype dir:.
+      - uses: ./.github/actions/scan
+        env:
+          LEVEL: caller
+`,
+		".github/actions/scan/action.yml": "runs:\n  using: composite\n  steps:\n    - run: semgrep ci\n      shell: bash\n      env:\n        INNER: x\n",
+	})
+	envs := map[string]map[string]string{}
+	for _, job := range jobs {
+		if job.Run != "" {
+			envs[job.Run] = job.Env
+		}
+	}
+	assert.Equal(t, map[string]string{"LEVEL": "step", "KEEP": "1", "ON": "true"}, envs["trivy fs ."])
+	assert.Equal(t, map[string]string{"LEVEL": "job", "KEEP": "1"}, envs["grype dir:."])
+	assert.Equal(t, map[string]string{"LEVEL": "caller", "KEEP": "1", "INNER": "x"}, envs["semgrep ci"])
+
+	unread := parseOne(t, `
+name: w
+on: pull_request
+jobs:
+  a:
+    env: ${{ fromJSON(inputs.env) }}
+    steps:
+      - run: trivy fs .
+        env:
+          TRIVY_EXIT_CODE: 1
+`)
+	assert.Equal(t, map[string]string{"TRIVY_EXIT_CODE": "1"}, unread.Jobs[0].Env)
 }

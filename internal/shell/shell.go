@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -115,11 +116,11 @@ func NormalizeCommand(command string) string {
 	return strings.Join(words, " ")
 }
 
-// passiveCommands handle or fetch a tool's files without running it: making
-// a freshly built grype executable, or downloading its installer, scans
-// nothing.
+// passiveCommands handle, fetch or look up a tool's files without running it:
+// making a freshly built grype executable, or downloading its installer,
+// scans nothing.
 var passiveCommands = set("cat", "chmod", "chown", "cp", "curl", "echo", "file", "install", "ln", "ls",
-	"mkdir", "mv", "printf", "rm", "stat", "tar", "touch", "unzip", "wget", "which")
+	"mkdir", "mv", "printf", "readlink", "realpath", "rm", "stat", "tar", "touch", "type", "unzip", "wget", "which")
 
 // A package manager installs a tool when one of its first two words says so:
 // "pip install bandit", "uv tool install ruff", "go install …/gosec".
@@ -129,7 +130,42 @@ var (
 	installing = set("add", "binstall", "ci", "download", "get", "i", "inject", "install", "require")
 	// Asking a tool for its version or help runs no scan.
 	selfDescribing = set("--help", "--version", "-V", "-h", "-version", "help", "version")
+	// Through a package runner only the flags count: "pnpm changeset version" and
+	// "npx lerna version" bump versions.
+	selfDescribingFlags = set("--help", "--version", "-V", "-h", "-version")
+	// Package runners that run the tool named after them ("npx eslint"). "run" is
+	// never stripped after npm, pnpm or yarn: that runs a package.json script,
+	// which is expanded and read on its own.
+	runners = set("npx", "bunx", "pnpx", "uvx")
+	// The verb a runner needs before the tool.
+	runnerVerbs = map[string]map[string]bool{
+		"bun": set("x"), "hatch": set("run"), "npm": set("exec"), "pdm": set("run"), "pipx": set("run"),
+		"pnpm": set("exec", "dlx"), "poetry": set("run"), "uv": set("run"), "yarn": set("exec", "dlx"),
+	}
+	// Runners that take a bare tool name.
+	bareRunners = set("pnpm", "yarn")
 )
+
+// runnerTool returns the words after a leading package runner and the runner's
+// own flags ("npx --yes eslint --version" gives "eslint --version"), or nil
+// when words do not start with a runner.
+func runnerTool(words []string) []string {
+	program, rest := filepath.Base(words[0]), words[1:]
+	switch {
+	case runners[program]:
+	case program == "uv" && len(rest) > 1 && rest[0] == "tool" && rest[1] == "run":
+		rest = rest[2:]
+	case len(rest) > 0 && runnerVerbs[program][rest[0]]:
+		rest = rest[1:]
+	case bareRunners[program] && len(rest) > 0 && !strings.HasPrefix(rest[0], "-"):
+	default:
+		return nil
+	}
+	for len(rest) > 0 && strings.HasPrefix(rest[0], "-") {
+		rest = rest[1:]
+	}
+	return rest
+}
 
 func set(words ...string) map[string]bool {
 	m := make(map[string]bool, len(words))
@@ -151,9 +187,12 @@ func Passive(words []string) bool {
 	if len(words) > 2 && strings.HasPrefix(filepath.Base(words[0]), "python") && words[1] == "-m" {
 		words = words[2:]
 	}
+	if tool := runnerTool(words); len(tool) == 2 && selfDescribingFlags[tool[1]] {
+		return true
+	}
 	program := filepath.Base(words[0])
 	switch {
-	case passiveCommands[program]:
+	case passiveCommands[program], program == "command" && len(words) > 1 && (words[1] == "-v" || words[1] == "-V"):
 		return true
 	case len(words) == 2 && selfDescribing[words[1]]:
 		return true
@@ -166,7 +205,7 @@ func Passive(words []string) bool {
 var (
 	statementEnd = regexp.MustCompile(`;|&&`)
 	// A failure handed to || is kept only if what follows fails again.
-	reraise    = regexp.MustCompile(`\bexit\s+(?:[1-9]|\$\?)|\bfalse\b|\breturn\s+[1-9]`)
+	reraise    = regexp.MustCompile(`\bexit\s+(?:[1-9]|"?\$(?:\?|\{?[A-Za-z_]))|\bfalse\b|\breturn\s+[1-9]`)
 	conditions = set("if", "elif", "while", "until", "!")
 	tests      = set("[", "[[", "test")
 )
@@ -197,6 +236,11 @@ type statement struct {
 // whether the script discards its failure there.
 func statements(script string) []statement {
 	var found []statement
+	var owners []int
+	var ends []int
+	var relaxed []bool
+	var raw []string
+	errexit := true
 	text := strings.ReplaceAll(script, "\\\n", " ")
 	textReraise, lineStart := lastReraise(text), 0
 	for _, line := range strings.Split(text, "\n") {
@@ -213,20 +257,159 @@ func statements(script string) []statement {
 			later := lineStart + end[0]
 			start = end[1]
 
-			words := Words(command)
+			inner, masked, outer := substitutions(command)
+			words := Words(outer)
+			if trimmed := strings.TrimSpace(command); trimmed == "" || strings.HasPrefix(trimmed, "#") {
+				continue
+			}
+			raw, ends, relaxed = append(raw, command), append(ends, later), append(relaxed, !errexit)
+			errexit = setsErrexit(words, errexit)
 			conditional := false
 			for len(words) > 0 && conditions[words[0]] {
 				words, conditional = words[1:], true
 			}
-			if len(words) == 0 || strings.HasPrefix(words[0], "#") || Passive(words) || tests[words[0]] {
+			swallowed := conditional && textReraise < later || handled && lineReraise < or+2
+			for _, script := range inner {
+				for _, s := range statements(script) {
+					found, owners = append(found, statement{s.command, s.swallowed || masked || swallowed}), append(owners, len(raw)-1)
+				}
+			}
+			if len(words) == 0 || Passive(words) || tests[words[0]] {
 				continue
 			}
-			found = append(found, statement{strings.Join(words, " "),
-				conditional && textReraise < later || handled && lineReraise < or+2})
+			found, owners = append(found, statement{strings.Join(words, " "), swallowed}), append(owners, len(raw)-1)
 		}
 		lineStart += len(line) + 1
 	}
+	// Under set +e a failure is lost when something runs after it and nothing
+	// reads its status, or when a case on the status lets a failing code by.
+	for i, owner := range owners {
+		after := text[ends[owner]:]
+		if relaxed[owner] && (runsLater(raw[owner+1:]) && !readsStatus.MatchString(after) || acceptsFailure(after)) {
+			found[i].swallowed = true
+		}
+	}
 	return found
+}
+
+var readsStatus = regexp.MustCompile(`\$\?|PIPESTATUS`)
+
+// closers end a block or name a case branch, running nothing themselves.
+var closers = set("fi", "done", "esac", "then", "else", "do", "{", "}")
+
+func runsLater(commands []string) bool {
+	return slices.ContainsFunc(commands, func(command string) bool {
+		words := Words(command)
+		return len(words) > 0 && !closers[words[0]] && !strings.HasSuffix(words[0], ")")
+	})
+}
+
+// EndsRelaxed reports whether a script leaves set +e on at its end.
+func EndsRelaxed(script string) bool {
+	errexit := true
+	for _, command := range Commands(script) {
+		errexit = setsErrexit(Words(command), errexit)
+	}
+	return !errexit
+}
+
+// setsErrexit returns whether bash -e is on after words run.
+func setsErrexit(words []string, errexit bool) bool {
+	if len(words) == 0 || words[0] != "set" {
+		return errexit
+	}
+	for i, word := range words[1:] {
+		switch {
+		case (word == "-o" || word == "+o") && i+2 < len(words) && words[i+2] == "errexit":
+			errexit = word == "-o"
+		case len(word) > 1 && (word[0] == '-' || word[0] == '+') && word[1] != 'o' && strings.Contains(word, "e"):
+			errexit = word[0] == '-'
+		}
+	}
+	return errexit
+}
+
+var statusCase = regexp.MustCompile(`(?s)\bcase\s+"?\$\{?(\?|[A-Za-z_]\w*)\}?"?\s+in\b(.*?)\besac\b`)
+
+// acceptsFailure reports whether a case on the exit status lets a non-zero
+// code through, as case $rc in 0|1) does for a scanner's findings.
+func acceptsFailure(text string) bool {
+	m := statusCase.FindStringSubmatch(text)
+	if m == nil || m[1] != "?" && !strings.Contains(text, m[1]+"=$?") {
+		return false
+	}
+	for _, branch := range strings.Split(m[2], ";;") {
+		pattern, body, ok := strings.Cut(branch, ")")
+		if !ok {
+			continue
+		}
+		for _, code := range strings.Split(strings.Trim(strings.TrimSpace(pattern), "("), "|") {
+			if n, err := strconv.Atoi(strings.TrimSpace(code)); err == nil && n != 0 && !reraise.MatchString(body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// Substitutions returns the scripts a command runs in $(...) outside its
+// program word, and whether it hides their status (all but OUT=$(tool) do).
+func Substitutions(command string) (inner []string, masked bool) {
+	inner, masked, _ = substitutions(command)
+	return inner, masked
+}
+
+// substitutions also returns the command with those scripts emptied.
+func substitutions(command string) (inner []string, masked bool, outer string) {
+	words := split(strings.TrimSpace(command), false)
+	program := false
+	for i, word := range words {
+		assignment := !program && strings.Contains(word, "=")
+		if !assignment && !program {
+			program = true
+			continue
+		}
+		var scripts []string
+		scripts, words[i] = substituted(word)
+		inner = append(inner, scripts...)
+	}
+	return inner, program, strings.Join(words, " ")
+}
+
+// substituted skips one-word scripts: $(pwd), or Azure's $(Build.Reason) macro.
+func substituted(word string) ([]string, string) {
+	var scripts []string
+	var kept strings.Builder
+	quoted := false
+	for i := 0; i < len(word); i++ {
+		c := word[i]
+		if c == '\'' {
+			quoted = !quoted
+		}
+		if quoted || c != '$' || i+1 >= len(word) || word[i+1] != '(' || i+2 < len(word) && word[i+2] == '(' {
+			kept.WriteByte(c)
+			continue
+		}
+		depth, end := 0, len(word)
+		for j := i + 1; j < len(word); j++ {
+			if word[j] == '(' {
+				depth++
+			} else if word[j] == ')' {
+				if depth--; depth == 0 {
+					end = j
+					break
+				}
+			}
+		}
+		if script := word[i+2 : end]; len(strings.Fields(script)) > 1 {
+			scripts = append(scripts, script)
+			kept.WriteString("$()")
+		} else {
+			kept.WriteString(word[i:min(end+1, len(word))])
+		}
+		i = end
+	}
+	return scripts, kept.String()
 }
 
 // lastReraise returns where the last re-raise in text starts, or -1.
@@ -258,7 +441,7 @@ func skipHeredoc(text string, newline int, delimiter string) int {
 // image tag - rather than running it. -m is not one: "python -m pyright"
 // runs what it names, and a commit message is quoted anyway.
 var namingFlags = set("--bin", "--package", "--chart", "--charts", "--tag", "-t", "--name", "--title",
-	"--message", "--author", "--label", "--target")
+	"--message", "--author", "--label", "--target", "--repo")
 
 var shells = set("bash", "sh", "zsh", "dash", "pwsh", "powershell", "cmd")
 

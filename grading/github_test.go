@@ -99,7 +99,7 @@ jobs:
 }
 
 // license-checker only lists licences unless --failOn or --onlyAllow makes it
-// fail; a --config file can set either, so that run is unknown.
+// fail.
 func TestLicenseCheckerExitsZeroUnlessFailFlag(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"npx license-checker --json --out licenses.json":                      Advisory,
@@ -117,6 +117,21 @@ jobs:
 	}
 }
 
+// Asking a linter for its version through a package runner does not run it (#607).
+func TestRunnerVersionCheckIsNotALinterRun(t *testing.T) {
+	grade := func(run string) map[string]Verdict {
+		return gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+	}
+	assert.NotContains(t, grade("npx eslint --version"), "Linter")
+	assert.Contains(t, grade("npx eslint ."), "Linter")
+}
+
 // Retire.js fails on findings unless --exitwith 0 tells it not to.
 func TestRetireJSExitWithZeroGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
@@ -132,6 +147,25 @@ jobs:
       - run: `+run+`
 `)
 		assert.Equal(t, expected, verdicts["SCA"], run)
+	}
+}
+
+// HTMLHint fails on findings by default; --warn keeps the linter but makes it
+// advisory because the command exits successfully.
+func TestHTMLHintWarnGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		`npx htmlhint "src" --config .htmlhintrc`: Enforcing,
+		`npx htmlhint . --format sarif`:           Enforcing,
+		`npx htmlhint --warn "src"`:               Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
 	}
 }
 
@@ -181,7 +215,7 @@ jobs:
 
 func TestReraisedFailureGradesEnforcing(t *testing.T) {
 	for raise, expected := range map[string]Verdict{
-		"run: exit 1":                 Enforcing,
+		"run: exit 1":                  Enforcing,
 		"run: gh issue create -t vuln": Advisory,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
@@ -201,14 +235,55 @@ jobs:
 	}
 }
 
+// OUT=$(tool) fails with the tool under bash -e; anything else around the
+// substitution hides its exit status.
+func TestCommandSubstitutionGradesByWhatKeepsTheStatus(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"OUT=$(gitleaks detect --source . 2>&1)":    Enforcing,
+		"OUT=$(gitleaks detect --source .) || true": Advisory,
+		"export OUT=$(gitleaks detect --source .)":  Advisory,
+		`echo "$(gitleaks detect --source .)"`:      Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Secrets Detection"], run)
+	}
+}
+
+// With set +e a scan that is not the last command fails nothing unless its
+// $? is read, and a case that lets its findings code through only reports.
+func TestSetPlusEGradesLostFailuresAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"set +e\n          gitleaks detect --source .\n          echo done":                                                        Advisory,
+		"set +e\n          gitleaks detect --source .\n          rc=$?\n          exit $rc":                                        Enforcing,
+		"set +e\n          gitleaks detect --source .\n          rc=$?\n          case $rc in 0|1) echo ok ;; *) exit $rc ;; esac": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Secrets Detection"], run)
+	}
+}
+
 // Secretlint does not fail on findings when writing its report with --output.
 func TestSecretlintOutputGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		`npx secretlint "**/*"`:                                    Enforcing,
-		"secretlint --format sarif .":                                Enforcing,
+		`npx secretlint "**/*"`:                                          Enforcing,
+		"secretlint --format sarif .":                                    Enforcing,
 		`npx secretlint "**/*" --format sarif --output secretlint.sarif`: Advisory,
-		"secretlint --output=report.json .":                          Advisory,
-		"secretlint --output-format sarif .":                          Enforcing,
+		"secretlint --output=report.json .":                              Advisory,
+		"secretlint --output-format sarif .":                             Enforcing,
 	} {
 		t.Run(run, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
@@ -220,6 +295,99 @@ jobs:
 `)
 			assert.Equal(t, expected, verdicts["Secrets Detection"])
 		})
+	}
+}
+
+// Talisman scans fail on findings, but its pre-commit hook only examines
+// staged changes; --checksum merely lists .talismanrc entries.
+func TestTalismanRunGrading(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      Verdict
+	}{
+		{"scan", "talisman --scan", Enforcing},
+		{"scan with path", "./talisman -i . --scan", Enforcing},
+		{"pre-commit long flag", "./talisman --githook pre-commit", Partial},
+		{"pre-commit short flag", "talisman -g pre-commit", Partial},
+		{"pre-push hook", `echo "$LOCAL_REF $LOCAL_SHA $REMOTE_REF $REMOTE_SHA" | ./talisman --githook pre-push`, Enforcing},
+		{"checksum", "talisman --checksum 'config/*'", ""},
+		{"checksum short flag", "talisman -c=config/*", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/talisman.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+tt.run+`
+`)
+			if tt.want == "" {
+				assert.NotContains(t, verdicts, "Secrets Detection")
+			} else {
+				assert.Equal(t, tt.want, verdicts["Secrets Detection"])
+			}
+		})
+	}
+}
+
+// kubeconform and kubeval fail on an invalid manifest, and no flag stops
+// that; only a swallowed exit status makes them advisory.
+func TestKubeconformKubevalGradesEnforcing(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"helm template ci/helm-chart | kubeconform -strict -summary -": Enforcing,
+		"kubeconform -strict -summary -output json manifests/":         Enforcing,
+		"kubeconform -strict -ignore-missing-schemas manifests/":       Enforcing,
+		"kubeconform -strict manifests/ || true":                       Advisory,
+		"kubeval --strict -d k8s/":                                     Enforcing,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  validate:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["IaC Security"])
+		})
+	}
+}
+
+func TestTalismanActionsGradeEnforcing(t *testing.T) {
+	for _, action := range []string{
+		"carhartl/talisman-secrets-scan-action@v1.4.0",
+		"digitalservicebund/talisman-secrets-scan-action@0123456789abcdef0123456789abcdef01234567",
+	} {
+		t.Run(action, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/talisman.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - uses: `+action+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Secrets Detection"])
+		})
+	}
+}
+
+// The kubeconform image run as a docker:// step enforces unless the step
+// may fail.
+func TestKubeconformDockerStepGradesEnforcing(t *testing.T) {
+	for extra, expected := range map[string]Verdict{
+		"":                                  Enforcing,
+		"\n        continue-on-error: true": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/kubeconform.yml", `
+on: pull_request
+jobs:
+  validate:
+    steps:
+      - uses: docker://ghcr.io/yannh/kubeconform:v0.8.0
+        with:
+          args: -strict k8s/`+extra+`
+`)
+		assert.Equal(t, expected, verdicts["IaC Security"], extra)
 	}
 }
 
@@ -237,6 +405,66 @@ jobs:
       - uses: google/oss-fuzz/infra/cifuzz/actions/run_fuzzers@master`+with+`
 `)
 		assert.Equal(t, expected, verdicts["SAST"], with)
+	}
+}
+
+func TestVultureGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"vulture src tests --min-confidence 80":           Enforcing,
+		"uv run vulture --min-confidence 100 .":           Enforcing,
+		"vulture --min-confidence 100 apifuzzer/ || true": Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+func TestVultureActionGradesEnforcing(t *testing.T) {
+	for _, with := range []string{
+		"",
+		"\n        with:\n          args: '--min-confidence 80'",
+	} {
+		t.Run(with, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: gtkacz/vulture-action@1.0.0`+with+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Linter"])
+		})
+	}
+}
+
+func TestGradleWrapperValidationGradesEnforcing(t *testing.T) {
+	for _, tc := range []struct {
+		name, action, inputs string
+	}{
+		{"current", "gradle/actions/wrapper-validation@v6", ""},
+		{"minimum-zero", "gradle/actions/wrapper-validation@v6", "\n        with:\n          min-wrapper-count: 0"},
+		{"snapshots", "gradle/actions/wrapper-validation@v6", "\n        with:\n          allow-snapshots: true"},
+		{"allow-checksums", "gradle/actions/wrapper-validation@v6", "\n        with:\n          allow-checksums: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'"},
+		{"legacy", "gradle/wrapper-validation-action@v1", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  wrapper:
+    steps:
+      - uses: `+tc.action+tc.inputs+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Supply Chain"])
+		})
 	}
 }
 
@@ -515,10 +743,9 @@ jobs:
 	}
 }
 
-
 func TestCSpellNoExitCodeGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		"npx cspell lint .":                 Enforcing,
+		"npx cspell lint .":                Enforcing,
 		"npx cspell lint --no-exit-code .": Advisory,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
@@ -588,6 +815,39 @@ jobs:
 	}
 }
 
+// Size Limit fails on an exceeded limit unless --why, which exits 0.
+func TestSizeLimitWhyGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx size-limit":       Enforcing,
+		"npx size-limit --why": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  size:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Performance Testing"], run)
+	}
+}
+
+// Both size-limit actions fail the job when a limit is exceeded.
+func TestSizeLimitActionsGradeEnforcing(t *testing.T) {
+	for _, uses := range []string{"andresz1/size-limit-action@v1", "ant-design/size-limit-action@master"} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  size:
+    steps:
+      - uses: `+uses+`
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+`)
+		assert.Equal(t, Enforcing, verdicts["Performance Testing"], uses)
+	}
+}
+
 // Each of these tools reports and exits 0 in some form, or stops failing on
 // part of what it finds.
 func TestToolFormsThatCannotFail(t *testing.T) {
@@ -614,6 +874,15 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 		{"flutter no fatal infos", "Linter", step("run: flutter analyze --no-fatal-infos"), Partial},
 		{"dart no fatal warnings", "Linter", step("run: dart analyze --no-fatal-warnings lib"), Partial},
 		{"dart fatal infos", "Linter", step("run: dart analyze --fatal-infos"), Enforcing},
+		{"knip", "Linter", step("run: npx knip"), Enforcing},
+		{"knip zero budget", "Linter", step("run: knip --max-issues 0"), Enforcing},
+		{"knip no exit code", "Linter", step("run: pnpm knip --no-exit-code"), Advisory},
+		{"knip budget", "Linter", step("run: knip --max-issues 50"), Partial},
+		{"knip budget equals", "Linter", step("run: knip --max-issues=50"), Partial},
+		{"knip fix", "Linter", step("run: pnpm knip --fix"), Partial},
+		{"knip fix type", "Linter", step("run: knip --fix-type exports,types"), Partial},
+		{"knip format flag", "Linter", step("run: knip -F"), Enforcing},
+		{"knip reporter", "Linter", step("run: knip --reporter json > knip.json"), Enforcing},
 		{"pre-commit staged files", "Linter", step("run: pre-commit run --show-diff-on-failure"), Advisory},
 		{"pre-commit one hook", "Linter", step("uses: pre-commit/action@v3.0.1", "with:", "  extra_args: trailing-whitespace"), Advisory},
 		{"pre-commit arguments", "Linter", step("run: pre-commit run $PRE_COMMIT_ARGS"), Unknown},
@@ -657,6 +926,43 @@ jobs:
 	}
 }
 
+// Trivy and grype read their settings from the environment, which a
+// workflow sets as often in env: as before the command.
+func TestEnvSettingsAreRead(t *testing.T) {
+	for _, tc := range []struct {
+		name, workflowEnv, jobEnv, stepEnv, run, category string
+		expected                                          Verdict
+	}{
+		{name: "step env fails", stepEnv: "TRIVY_EXIT_CODE: 1", run: "trivy fs .", category: "SCA", expected: Enforcing},
+		{name: "job env fails", jobEnv: "TRIVY_EXIT_CODE: '1'", run: "trivy fs .", category: "SCA", expected: Enforcing},
+		{name: "workflow env fails", workflowEnv: "TRIVY_EXIT_CODE: 1", run: "trivy fs .", category: "SCA", expected: Enforcing},
+		{name: "step env outranks job env", jobEnv: "TRIVY_EXIT_CODE: 1", stepEnv: "TRIVY_EXIT_CODE: 0", run: "trivy fs .", category: "SCA", expected: Advisory},
+		{name: "env zero", stepEnv: "TRIVY_EXIT_CODE: 0", run: "trivy fs .", category: "SCA", expected: Advisory},
+		{name: "env expression", stepEnv: "TRIVY_EXIT_CODE: ${{ inputs.exit-code }}", run: "trivy fs .", category: "SCA", expected: Unknown},
+		{name: "env config", stepEnv: "TRIVY_CONFIG: ci/trivy.yaml", run: "trivy fs .", category: "SCA", expected: Unknown},
+		{name: "grype severity", stepEnv: "GRYPE_FAIL_ON_SEVERITY: high", run: "grype dir:.", category: "SCA", expected: Enforcing},
+		{name: "unread variables", stepEnv: "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n          CONFIG: ${{ inputs.config }}", run: "trivy fs .", category: "SCA", expected: Advisory},
+		{name: "unread dollar", jobEnv: "PATH_EXTRA: $HOME/bin", run: "pre-commit run --all-files", category: "Linter", expected: Enforcing},
+		{name: "env set by expression", jobEnv: "${{ fromJSON(inputs.env) }}", run: "trivy fs --exit-code 1 .", category: "SCA", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			block := func(indent, env string) string {
+				if env == "" {
+					return ""
+				}
+				if strings.HasPrefix(env, "${{") {
+					return indent + "env: " + env + "\n"
+				}
+				return indent + "env:\n" + indent + "  " + env + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", "on: pull_request\n"+
+				block("", tc.workflowEnv)+"jobs:\n  scan:\n"+block("    ", tc.jobEnv)+
+				"    steps:\n      - run: "+tc.run+"\n"+block("        ", tc.stepEnv))
+			assert.Equal(t, tc.expected, verdicts[tc.category])
+		})
+	}
+}
+
 // Invoke-Pester reports failures and sets $LASTEXITCODE without exiting. Only
 // -CI and -EnableExit make the call itself exit non-zero; -CI:$false turns
 // -CI off, and any other invocation leaves the outcome to what runs around
@@ -679,5 +985,54 @@ jobs:
       - run: `+run+`
 `)
 		assert.Equal(t, expected, verdicts["Unit Tests"], run)
+	}
+}
+
+// typos exits 2 when it finds a typo; -w / --write-changes fixes every typo
+// that has a single correction and only fails on the rest, so it is a fixer,
+// not a check.
+func TestTyposWriteChangesGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"typos":                               Enforcing,
+		"typos --config=./.config/typos.toml": Enforcing,
+		"typos -w":                            Advisory,
+		"typos --write-changes":               Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  spelling:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+// The crate-ci/typos action fails on typos unless write_changes fixes them
+// away; a non-literal write_changes input cannot be graded.
+func TestTyposActionWriteChangesInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "write_changes true is advisory", input: "write_changes: true", expected: Advisory},
+		{name: "expression is unknown", input: "write_changes: ${{ inputs.fix }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  spelling:
+    steps:
+      - uses: crate-ci/typos@v1
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
 	}
 }

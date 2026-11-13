@@ -64,20 +64,91 @@ func TestSwallowed(t *testing.T) {
 		"echo gitleaks || true":                                                    false,
 		"# gitleaks detect || true":                                                false,
 		"":                                                                         false,
+		"OUT=$(gitleaks detect)":                                                   false,
+		"OUT=$(gitleaks detect) || true":                                           true,
+		"export OUT=$(gitleaks detect)":                                            true,
+		`echo "$(gitleaks detect)"`:                                                true,
+
+		// Under set +e only the last command, or one whose $? is read, can fail.
+		"set +e\ngitleaks detect\necho done":                                                  true,
+		"set +eo pipefail\ngitleaks detect\nset -e\nmake":                                     true,
+		"set +e\nOUT=$(gitleaks detect)\nset -e\necho \"$OUT\"":                               true,
+		"set +e\ngitleaks detect\nrc=$?\ncase $rc in 0|1) echo report ;; *) exit $rc ;; esac": true,
+		"set +e\ngitleaks detect":                                                             false,
+		"set +e\ngitleaks detect\nrc=$?\necho done\nexit $rc":                                 false,
+		"set +e\ngitleaks detect\nrc=$?\ncase $rc in 0) ;; *) exit $rc ;; esac":               false,
+		"set +e\nset -e\ngitleaks detect\necho done":                                          false,
+		"set +o errexit\nset -o errexit\ngitleaks detect\necho done":                          false,
+		"set -e\ngitleaks detect\necho done":                                                  false,
+		"set +e\nif true; then\n  gitleaks detect\nfi":                                        false,
+		"set +e\ngitleaks detect | tee log\nstatus=${PIPESTATUS[0]}\nexit \"$status\"":        false,
+		"set +e\ncase $MODE in\n  all) gitleaks detect ;;\nesac\nrc=$?\nexit $rc":             false,
 	} {
 		assert.Equal(t, want, shell.Swallowed(script, runs), script)
 	}
 }
 
+func TestSubstitutions(t *testing.T) {
+	for command, want := range map[string]struct {
+		inner  []string
+		masked bool
+	}{
+		"OUT=$(gitleaks detect --source .)":       {[]string{"gitleaks detect --source ."}, false},
+		`OUT="$(cd src && gitleaks detect)" make`: {[]string{"cd src && gitleaks detect"}, true},
+		`echo "found: $(gitleaks detect)"`:        {[]string{"gitleaks detect"}, true},
+		"$(go env GOPATH)/bin/gosec ./...":        {nil, true},
+		"gosec $(pwd) $((1 + 2))":                 {nil, true},
+		"echo '$(gitleaks detect)'":               {nil, true},
+		"cd $(Build.SourcesDirectory)":            {nil, true},
+	} {
+		inner, masked := shell.Substitutions(command)
+		assert.Equal(t, want.inner, inner, command)
+		assert.Equal(t, want.masked, masked, command)
+	}
+}
+
+func TestEndsRelaxed(t *testing.T) {
+	assert.True(t, shell.EndsRelaxed("set +e\nmake lint"))
+	assert.True(t, shell.EndsRelaxed("set -e\nset +o errexit"))
+	assert.False(t, shell.EndsRelaxed("set +e\nmake lint\nset -euo pipefail"))
+	assert.False(t, shell.EndsRelaxed("make lint"))
+}
+
 func TestPassive(t *testing.T) {
 	for command, want := range map[string]bool{
-		"chmod +x bin/grype":           true,
-		"python -m pip install bandit": true,
-		"uv tool install ruff":         true,
-		"trivy --version":              true,
-		"npm run lint":                 false,
-		"trivy fs --version-check .":   false,
-		"go run ./cmd/gosec ./...":     false,
+		"chmod +x bin/grype":              true,
+		"python -m pip install bandit":    true,
+		"uv tool install ruff":            true,
+		"trivy --version":                 true,
+		"npm run lint":                    false,
+		"trivy fs --version-check .":      false,
+		"go run ./cmd/gosec ./...":        false,
+		"command -v shellcheck":           true,
+		"readlink -f node_modules/vitest": true,
+		"command shellcheck x.sh":         false,
+
+		// A version or help check through a package runner runs no scan (#607).
+		"npx eslint --version":                true,
+		"npx --yes eslint --help":             true,
+		"pnpm exec biome --version":           true,
+		"pnpm dlx @lhci/cli@0.15.1 --help":    true,
+		"yarn eslint --version":               true,
+		"bunx eslint -V":                      true,
+		"npm exec -- eslint --version":        true,
+		"uvx ruff --version":                  true,
+		"uv run ty --version":                 true,
+		"uv tool run ruff --version":          true,
+		"pipx run ruff --version":             true,
+		"poetry run ruff --version":           true,
+		"npx eslint .":                        false,
+		"pnpm exec eslint --max-warnings 0 .": false,
+		"uv run ruff check .":                 false,
+		"npm run version":                     false,
+		"pnpm run version":                    false,
+		"yarn run version":                    false,
+		"pnpm changeset version":              false,
+		"npx lerna version":                   false,
+		"npx eslint --version-check .":        false,
 	} {
 		assert.Equal(t, want, shell.Passive(strings.Fields(command)), command)
 	}
@@ -100,16 +171,17 @@ func TestWordsKeepQuotesAndSubstitutionsWhole(t *testing.T) {
 
 func TestInvoked(t *testing.T) {
 	for command, want := range map[string]string{
-		`addlicense -c "OpenSSF Scorecard Authors" .`:            "addlicense -c .",
-		`git commit -m "chore: bump golangci-lint"`:              "git commit -m",
-		"ct lint-and-install --charts helm/trivy":                "ct lint-and-install --charts",
-		"cargo build --bin ruff":                                 "cargo build --bin",
-		"docker build -t ghcr.io/aquasecurity/trivy:dev .":       "docker build -t .",
-		`bash -c "gitleaks detect --no-git"`:                     `bash -c "gitleaks detect --no-git"`,
-		"docker run --rm -v \"$PWD:/src\" aquasec/trivy fs /src": "docker run --rm -v aquasec/trivy fs /src",
-		"python -m pyright src/requests/":                        "python -m pyright src/requests/",
-		"npx eslint .":                                           "npx eslint .",
-		"mvn org.owasp:dependency-check-maven:check":             "mvn org.owasp:dependency-check-maven:check",
+		`addlicense -c "OpenSSF Scorecard Authors" .`:             "addlicense -c .",
+		`git commit -m "chore: bump golangci-lint"`:               "git commit -m",
+		"ct lint-and-install --charts helm/trivy":                 "ct lint-and-install --charts",
+		"cargo build --bin ruff":                                  "cargo build --bin",
+		"gh release view --repo gitleaks/gitleaks --json tagName": "gh release view --repo --json tagName",
+		"docker build -t ghcr.io/aquasecurity/trivy:dev .":        "docker build -t .",
+		`bash -c "gitleaks detect --no-git"`:                      `bash -c "gitleaks detect --no-git"`,
+		"docker run --rm -v \"$PWD:/src\" aquasec/trivy fs /src":  "docker run --rm -v aquasec/trivy fs /src",
+		"python -m pyright src/requests/":                         "python -m pyright src/requests/",
+		"npx eslint .":                                            "npx eslint .",
+		"mvn org.owasp:dependency-check-maven:check":              "mvn org.owasp:dependency-check-maven:check",
 	} {
 		assert.Equal(t, want, strings.Join(shell.Invoked(shell.Words(command)), " "), command)
 	}

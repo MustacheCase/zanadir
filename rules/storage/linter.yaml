@@ -304,6 +304,14 @@ rules:
         equals: "false"
         verdict: "advisory"
 
+  # Match the command or either action, not config paths or workflow/job names.
+  # Token boundaries exclude filenames like markdown-link-check-config.json.
+  - id: "markdown-link-check-rule"
+    name: "markdown-link-check"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])markdown-link-check(?:[\\s:@]|$)|(?:^|\\s)(?:tcort|gaurav-nelson)/github-action-markdown-link-check(?:[\\s@]|$)"
+
   # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
   # and .codespellrc / codespell_lib are not runs of it.
   - id: "codespell-rule"

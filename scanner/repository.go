@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"github.com/MustacheCase/zanadir/internal/shell"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/MustacheCase/zanadir/wrapper"
@@ -31,6 +32,11 @@ func (r *RepositoryScanner) Scan(root string) ([]*models.Artifact, error) {
 	for _, a := range artifacts {
 		for _, job := range a.Jobs {
 			if wrapped := wrappers.Expand(job.Run); wrapped != "" {
+				// Expanded commands carry their own || true; a set +e left on
+				// in the script does not reach them.
+				if shell.EndsRelaxed(job.Run) {
+					wrapped = "set -e\n" + wrapped
+				}
 				job.Run += "\n" + wrapped
 			}
 		}

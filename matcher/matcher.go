@@ -190,6 +190,10 @@ func eachInvocation(run string, visit func(command, invoked string)) {
 		if words := shell.Words(shell.NormalizeCommand(command)); len(words) > 0 && !shell.Passive(words) {
 			visit(command, strings.Join(shell.Invoked(words), " "))
 		}
+		inner, _ := shell.Substitutions(command)
+		for _, script := range inner {
+			eachInvocation(script, visit)
+		}
 	}
 }
 

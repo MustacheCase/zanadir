@@ -213,6 +213,47 @@ jobs:
 	}
 }
 
+// OUT=$(tool) fails with the tool under bash -e; anything else around the
+// substitution hides its exit status.
+func TestCommandSubstitutionGradesByWhatKeepsTheStatus(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"OUT=$(gitleaks detect --source . 2>&1)":    Enforcing,
+		"OUT=$(gitleaks detect --source .) || true": Advisory,
+		"export OUT=$(gitleaks detect --source .)":  Advisory,
+		`echo "$(gitleaks detect --source .)"`:      Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Secrets Detection"], run)
+	}
+}
+
+// With set +e a scan that is not the last command fails nothing unless its
+// $? is read, and a case that lets its findings code through only reports.
+func TestSetPlusEGradesLostFailuresAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"set +e\n          gitleaks detect --source .\n          echo done":                                                        Advisory,
+		"set +e\n          gitleaks detect --source .\n          rc=$?\n          exit $rc":                                        Enforcing,
+		"set +e\n          gitleaks detect --source .\n          rc=$?\n          case $rc in 0|1) echo ok ;; *) exit $rc ;; esac": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Secrets Detection"], run)
+	}
+}
+
 // Secretlint does not fail on findings when writing its report with --output.
 func TestSecretlintOutputGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{

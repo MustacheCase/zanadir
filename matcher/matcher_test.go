@@ -329,6 +329,7 @@ func TestCommandsAreTheOnesTheRuleMatches(t *testing.T) {
 	assert.Equal(t, []string{"gitleaks detect --exit-code 1", "gitleaks protect"},
 		matcher.Commands("trivy fs --exit-code 0 . && gitleaks detect --exit-code 1\necho gitleaks\ngitleaks --version\ngitleaks protect", gitleaks))
 	assert.Empty(t, matcher.Commands("make lint", gitleaks))
+	assert.Equal(t, []string{"gitleaks detect --source ."}, matcher.Commands(`OUT="$(cd src && gitleaks detect --source .)"`, gitleaks))
 }
 
 func TestUnlessExceptsANameOrWorkflow(t *testing.T) {

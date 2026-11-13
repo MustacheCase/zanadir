@@ -5,6 +5,18 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\beslint\\b"
 
+  # HTMLHint is a linter, but its name also appears in config and report paths.
+  # Match only commands that execute it, directly or through common package
+  # runners. --warn makes findings advisory because HTMLHint exits successfully.
+  - id: "htmlhint-rule"
+    name: "HTMLHint"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm(?:\\s+(?:exec|dlx))?|yarn(?:\\s+(?:exec|dlx))?|npm\\s+exec|bun\\s+x)(?:\\s+(?:--(?:\\S*)|-\\S+))*\\s+)?(?:\\S*/)?htmlhint(?:@\\S+)?(?:\\s|$)"
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--warn(?:\\s|$)"
+        verdict: "advisory"
+
   - id: "pylint-rule"
     name: "Pylint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

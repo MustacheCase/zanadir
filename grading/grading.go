@@ -99,7 +99,7 @@ func UncoveredEcosystems(a Assessment, languages []string) Assessment {
 	a.Verdict = Partial
 	a.Reason = fmt.Sprintf("%s %s only %s; %s dependencies detected from repository manifests have no enforcing SCA check",
 		strings.Join(names, ", "), verb, strings.Join(supported, ", "), strings.Join(sortedUnique(missing), ", "))
-	var coverage []string
+	coverers := map[string][]string{}
 	missing = sortedUnique(missing)
 	for _, tool := range a.Tools {
 		if tool.Verdict != Advisory && tool.Verdict != Partial {
@@ -118,7 +118,16 @@ func UncoveredEcosystems(a Assessment, languages []string) Assessment {
 		if len(covered) != len(missing) {
 			scope = strings.Join(covered, ", ") + " dependencies"
 		}
-		coverage = append(coverage, fmt.Sprintf("%s covers %s but cannot block a merge", tool.Name, scope))
+		coverers[scope] = append(coverers[scope], tool.Name)
+	}
+	var coverage []string
+	for scope, tools := range coverers {
+		tools = sortedUnique(tools)
+		verb := "cover"
+		if len(tools) == 1 {
+			verb = "covers"
+		}
+		coverage = append(coverage, fmt.Sprintf("%s %s %s but cannot block a merge", strings.Join(tools, ", "), verb, scope))
 	}
 	if len(coverage) > 0 {
 		a.Reason += " (" + strings.Join(sortedUnique(coverage), "; ") + ")"
@@ -218,8 +227,9 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 	var matched []string
 	if rule.Regex != nil {
 		if matched = matcher.Commands(job.Run, rule); len(matched) > 0 {
+			env := envAssignments(rule, job.Env)
 			for i, command := range matched {
-				matched[i] = shell.NormalizeCommand(command)
+				matched[i] = env + shell.NormalizeCommand(command)
 			}
 			commands = matched
 		}
@@ -253,6 +263,48 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 		matched = []string{value}
 	}
 	return exitsZero(check, matched, configs)
+}
+
+// envAssignments writes the env: variables a rule's checks name, and only those, as inline assignments.
+func envAssignments(rule *rules.Rule, env map[string]string) string {
+	var checks []string
+	for _, check := range rule.Weakened {
+		if check.RunMatches != nil {
+			checks = append(checks, check.RunMatches.String())
+		}
+	}
+	if e := rule.ExitsZero; e != nil {
+		checks = append(checks, e.RunMatches.String())
+		if e.UnknownWhen != nil {
+			checks = append(checks, e.UnknownWhen.String())
+		}
+	}
+	var assignments []string
+	for name, value := range env {
+		if slices.ContainsFunc(checks, func(check string) bool { return namesVariable(check, name) }) {
+			assignments = append(assignments, name+"="+value+" ")
+		}
+	}
+	slices.Sort(assignments)
+	return strings.Join(assignments, "")
+}
+
+// namesVariable reports whether a check reads name=, so CONFIG is not TRIVY_CONFIG.
+func namesVariable(check, name string) bool {
+	for rest := check; ; {
+		i := strings.Index(rest, name+"=")
+		if i < 0 {
+			return false
+		}
+		if before := rest[:i]; before == "" || strings.HasSuffix(before, `\b`) || !isWordByte(before[len(before)-1]) {
+			return true
+		}
+		rest = rest[i+len(name):]
+	}
+}
+
+func isWordByte(b byte) bool {
+	return b == '_' || '0' <= b && b <= '9' || 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z'
 }
 
 func exitsZero(check *rules.ExitsZeroUnless, commands []string, configs map[string]bool) (Verdict, bool) {

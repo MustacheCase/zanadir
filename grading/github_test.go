@@ -99,7 +99,7 @@ jobs:
 }
 
 // license-checker only lists licences unless --failOn or --onlyAllow makes it
-// fail; a --config file can set either, so that run is unknown.
+// fail.
 func TestLicenseCheckerExitsZeroUnlessFailFlag(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"npx license-checker --json --out licenses.json":                      Advisory,
@@ -150,6 +150,25 @@ jobs:
 	}
 }
 
+// HTMLHint fails on findings by default; --warn keeps the linter but makes it
+// advisory because the command exits successfully.
+func TestHTMLHintWarnGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		`npx htmlhint "src" --config .htmlhintrc`: Enforcing,
+		`npx htmlhint . --format sarif`:           Enforcing,
+		`npx htmlhint --warn "src"`:               Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 // pinact run changes workflow files by default, but --check, --diff and
 // --fix=false turn unpinned actions into a failing CI check.
 func TestPinactRunGradesOnlyCheckingModesAsEnforcing(t *testing.T) {
@@ -191,6 +210,47 @@ jobs:
       - run: `+run+`
 `)
 		assert.Equal(t, expected, verdicts["SCA"], run)
+	}
+}
+
+// OUT=$(tool) fails with the tool under bash -e; anything else around the
+// substitution hides its exit status.
+func TestCommandSubstitutionGradesByWhatKeepsTheStatus(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"OUT=$(gitleaks detect --source . 2>&1)":    Enforcing,
+		"OUT=$(gitleaks detect --source .) || true": Advisory,
+		"export OUT=$(gitleaks detect --source .)":  Advisory,
+		`echo "$(gitleaks detect --source .)"`:      Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Secrets Detection"], run)
+	}
+}
+
+// With set +e a scan that is not the last command fails nothing unless its
+// $? is read, and a case that lets its findings code through only reports.
+func TestSetPlusEGradesLostFailuresAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"set +e\n          gitleaks detect --source .\n          echo done":                                                        Advisory,
+		"set +e\n          gitleaks detect --source .\n          rc=$?\n          exit $rc":                                        Enforcing,
+		"set +e\n          gitleaks detect --source .\n          rc=$?\n          case $rc in 0|1) echo ok ;; *) exit $rc ;; esac": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Secrets Detection"], run)
 	}
 }
 
@@ -359,6 +419,29 @@ jobs:
       - uses: gtkacz/vulture-action@1.0.0`+with+`
 `)
 			assert.Equal(t, Enforcing, verdicts["Linter"])
+		})
+	}
+}
+
+func TestGradleWrapperValidationGradesEnforcing(t *testing.T) {
+	for _, tc := range []struct {
+		name, action, inputs string
+	}{
+		{"current", "gradle/actions/wrapper-validation@v6", ""},
+		{"minimum-zero", "gradle/actions/wrapper-validation@v6", "\n        with:\n          min-wrapper-count: 0"},
+		{"snapshots", "gradle/actions/wrapper-validation@v6", "\n        with:\n          allow-snapshots: true"},
+		{"allow-checksums", "gradle/actions/wrapper-validation@v6", "\n        with:\n          allow-checksums: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'"},
+		{"legacy", "gradle/wrapper-validation-action@v1", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  wrapper:
+    steps:
+      - uses: `+tc.action+tc.inputs+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Supply Chain"])
 		})
 	}
 }
@@ -818,6 +901,43 @@ jobs:
       - run: `+run+`
 `)
 		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+// Trivy and grype read their settings from the environment, which a
+// workflow sets as often in env: as before the command.
+func TestEnvSettingsAreRead(t *testing.T) {
+	for _, tc := range []struct {
+		name, workflowEnv, jobEnv, stepEnv, run, category string
+		expected                                          Verdict
+	}{
+		{name: "step env fails", stepEnv: "TRIVY_EXIT_CODE: 1", run: "trivy fs .", category: "SCA", expected: Enforcing},
+		{name: "job env fails", jobEnv: "TRIVY_EXIT_CODE: '1'", run: "trivy fs .", category: "SCA", expected: Enforcing},
+		{name: "workflow env fails", workflowEnv: "TRIVY_EXIT_CODE: 1", run: "trivy fs .", category: "SCA", expected: Enforcing},
+		{name: "step env outranks job env", jobEnv: "TRIVY_EXIT_CODE: 1", stepEnv: "TRIVY_EXIT_CODE: 0", run: "trivy fs .", category: "SCA", expected: Advisory},
+		{name: "env zero", stepEnv: "TRIVY_EXIT_CODE: 0", run: "trivy fs .", category: "SCA", expected: Advisory},
+		{name: "env expression", stepEnv: "TRIVY_EXIT_CODE: ${{ inputs.exit-code }}", run: "trivy fs .", category: "SCA", expected: Unknown},
+		{name: "env config", stepEnv: "TRIVY_CONFIG: ci/trivy.yaml", run: "trivy fs .", category: "SCA", expected: Unknown},
+		{name: "grype severity", stepEnv: "GRYPE_FAIL_ON_SEVERITY: high", run: "grype dir:.", category: "SCA", expected: Enforcing},
+		{name: "unread variables", stepEnv: "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n          CONFIG: ${{ inputs.config }}", run: "trivy fs .", category: "SCA", expected: Advisory},
+		{name: "unread dollar", jobEnv: "PATH_EXTRA: $HOME/bin", run: "pre-commit run --all-files", category: "Linter", expected: Enforcing},
+		{name: "env set by expression", jobEnv: "${{ fromJSON(inputs.env) }}", run: "trivy fs --exit-code 1 .", category: "SCA", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			block := func(indent, env string) string {
+				if env == "" {
+					return ""
+				}
+				if strings.HasPrefix(env, "${{") {
+					return indent + "env: " + env + "\n"
+				}
+				return indent + "env:\n" + indent + "  " + env + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", "on: pull_request\n"+
+				block("", tc.workflowEnv)+"jobs:\n  scan:\n"+block("    ", tc.jobEnv)+
+				"    steps:\n      - run: "+tc.run+"\n"+block("        ", tc.stepEnv))
+			assert.Equal(t, tc.expected, verdicts[tc.category])
+		})
 	}
 }
 

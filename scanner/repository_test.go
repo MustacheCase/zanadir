@@ -128,3 +128,14 @@ func TestRepositoryScannerFollowsWrappers(t *testing.T) {
 	assert.Equal(t, "make lint\ngolangci-lint run", artifacts[0].Jobs[0].Run)
 	assert.Empty(t, artifacts[0].Jobs[1].Run)
 }
+
+// The step's set +e does not reach what make lint stands for: those commands
+// already carry || true where the step ignores them.
+func TestRepositoryScannerKeepsSetPlusEOffTheExpansion(t *testing.T) {
+	root := testrepo.Write(t, map[string]string{"Makefile": "lint:\n\tgolangci-lint run\n"})
+	ci := &fakeParser{exists: true, artifacts: []*models.Artifact{{Jobs: []*models.Job{{Run: "set +e\nmake lint\nrc=$?\nexit $rc"}}}}}
+	artifacts, err := (&RepositoryScanner{parsers: []parser.Parser{ci}}).Scan(root)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "set +e\nmake lint\nrc=$?\nexit $rc\nset -e\ngolangci-lint run", artifacts[0].Jobs[0].Run)
+}

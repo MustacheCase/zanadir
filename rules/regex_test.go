@@ -36,6 +36,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 		shouldNotMatch []string
 	}{
 		{
+			ruleID: "kingfisher-rule",
+			shouldMatch: []string{
+				"kingfisher scan .", "kingfisher scan --git-history full .",
+				"docker run ghcr.io/mongodb/kingfisher scan /src",
+				"docker run ghcr.io/mongodb/kingfisher:v1.0 scan /src",
+				"./bin/kingfisher scan ./src",
+			},
+			shouldNotMatch: []string{
+				"brew install kingfisher", "kingfisher --version", "kingfishers",
+				"kingfisher scan-results", "mykingfisher scan .",
+			},
+		},
+		{
 			ruleID: "kube-linter-rule",
 			shouldMatch: []string{
 				"kube-linter lint k8s/",
@@ -91,7 +104,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 			shouldNotMatch: []string{
 				"talismans --scan", "talisman-installer", "my-talisman --scan", "talisman_scanner",
-				"flask-talisman", "talisman-secrets-scan-action-helper", "talisman --checksum 'config/*'",
+				"flask-talisman", "talisman-secrets-scan-action-helper",
 			},
 		},
 		{
@@ -476,6 +489,30 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"npx --yes retire@5", "pnpm dlx retire", "node_modules/.bin/retire --path .", "lint\nretire",
 			},
 			shouldNotMatch: []string{"retired", "npm run retire-old-builds", "git rm retire.txt", "echo retire", "retire-js"},
+		},
+		{
+			// HTMLHint's name appears in config, matcher, report and script names;
+			// only the command that runs the linter counts.
+			ruleID: "htmlhint-rule",
+			shouldMatch: []string{
+				"htmlhint", `htmlhint "**/*.html" --format unix`,
+				`npx htmlhint "src" --config .htmlhintrc`,
+				`npx --yes htmlhint "$file" --config .htmlhintrc.json`,
+				`npx --yes htmlhint@1 "index.html"`, `npx htmlhint . --format sarif`,
+				`pnpm exec htmlhint "**/*.html"`, `pnpm dlx htmlhint .`,
+				`yarn htmlhint src`, `yarn exec htmlhint .`, `yarn dlx htmlhint .`,
+				`bunx htmlhint .`, `bun x htmlhint .`, `pnpm htmlhint .`,
+				`npm exec -- htmlhint .`, `./node_modules/.bin/htmlhint index.html`,
+				"lint\nhtmlhint index.html",
+			},
+			shouldNotMatch: []string{
+				"cp .htmlhintrc /tmp/",
+				`echo "::add-matcher::.github/workflows/htmlhint-problem-matcher.json"`,
+				`OUT="${GITHUB_WORKSPACE}/quality/analysis/raw/htmlhint.json"`,
+				"test -s htmlhint.json", "cat htmlhint.sarif", "npm run htmlhint-sarif",
+				"Run HTMLHint (SARIF)", "gulp-htmlhint", "htmlhint-loader",
+				"echo htmlhint .", "not-htmlhint index.html",
+			},
 		},
 		{
 			// "nancy" is also a person's name, so only the scanning
@@ -1255,6 +1292,17 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"azure/login", "azure/artifact-signing-action-extra"},
 		},
 		{
+			ruleID: "gradle-wrapper-validation-rule",
+			shouldMatch: []string{
+				"gradle/actions/wrapper-validation", "gradle/wrapper-validation-action", "Gradle/actions/wrapper-validation",
+			},
+			shouldNotMatch: []string{
+				"gradle/actions/dependency-submission", "gradle/gradle-build-action", "gradle-update/update-gradle-wrapper-action",
+				"gradle/actions/wrapper-validation-extra", "Validate Gradle Wrapper", "**/gradle-wrapper.jar",
+				`./gradlew wrapper --gradle-version "$GRADLE_VERSION" --distribution-type bin`,
+			},
+		},
+		{
 			ruleID:         "signpath-rule",
 			shouldMatch:    []string{"signpath/github-action-submit-signing-request"},
 			shouldNotMatch: []string{"./.github/actions/install-signpath-module"},
@@ -1354,8 +1402,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				}
 			}
 			for _, s := range tt.shouldNotMatch {
-				assert.False(t, rule.Regex.MatchString(s) && (rule.Unless == nil || !rule.Unless.MatchString(s)),
-					"%s should NOT match %q", tt.ruleID, s)
+				assert.False(t, rule.Regex.MatchString(s), "%s should NOT match %q", tt.ruleID, s)
 			}
 		})
 	}

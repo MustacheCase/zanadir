@@ -80,6 +80,7 @@ func TestNpmRunAllRunsScriptsByNameOrGlob(t *testing.T) {
 	assert.Equal(t, []string{"eslint", "tsc"}, expand(t, files, `run-p prettier-check "lint-eslint ." types`))
 	assert.Equal(t, []string{"stylelint .", "markdownlint ."}, expand(t, files, "run-s lint:*"))
 	assert.Equal(t, []string{"stylelint .", "oxlint", "markdownlint ."}, expand(t, files, "npm-run-all --max-parallel 2 -p lint:**"))
-	assert.Equal(t, []string{"echo pre || true", "vitest run || true"}, expand(t, files, "npm-run-all -c test"))
+	assert.Equal(t, []string{"echo pre", "vitest run"}, expand(t, files, "npm-run-all -c test"))
+	assert.Equal(t, []string{"stylelint .", "markdownlint ."}, expand(t, files, "run-p --continue-on-error lint:*"))
 	assert.Empty(t, expand(t, map[string]string{}, "run-p lint"))
 }

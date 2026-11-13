@@ -77,6 +77,8 @@ func TestSwallowed(t *testing.T) {
 		"if (-not (gitleaks detect --report r.json)) { exit 1 }":                   false,
 		"if(!(gitleaks detect)) { exit 1 }":                                        false,
 		"if (gitleaks detect); then exit 1; fi":                                    false,
+		// && splits a bash subshell condition, leaving "if (cd src" unclosed.
+		"if (cd src && gitleaks detect); then echo clean; fi": false,
 	} {
 		assert.Equal(t, want, shell.Swallowed(script, runs), script)
 	}

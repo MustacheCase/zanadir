@@ -36,6 +36,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 		shouldNotMatch []string
 	}{
 		{
+			ruleID: "kingfisher-rule",
+			shouldMatch: []string{
+				"kingfisher scan .", "kingfisher scan --git-history full .",
+				"docker run ghcr.io/mongodb/kingfisher scan /src",
+				"docker run ghcr.io/mongodb/kingfisher:v1.0 scan /src",
+				"./bin/kingfisher scan ./src",
+			},
+			shouldNotMatch: []string{
+				"brew install kingfisher", "kingfisher --version", "kingfishers",
+				"kingfisher scan-results", "mykingfisher scan .",
+			},
+		},
+		{
 			ruleID: "kube-linter-rule",
 			shouldMatch: []string{
 				"kube-linter lint k8s/",

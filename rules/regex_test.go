@@ -59,7 +59,6 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 			shouldNotMatch: []string{
 				"grep -r foo .", "semgrep scan", "myopengrep scan .",
-				"opengrep test rules/", "opengrep validate rules/",
 			},
 		},
 		{

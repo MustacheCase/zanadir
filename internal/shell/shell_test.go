@@ -107,6 +107,13 @@ func TestSubstitutions(t *testing.T) {
 	}
 }
 
+func TestEndsRelaxed(t *testing.T) {
+	assert.True(t, shell.EndsRelaxed("set +e\nmake lint"))
+	assert.True(t, shell.EndsRelaxed("set -e\nset +o errexit"))
+	assert.False(t, shell.EndsRelaxed("set +e\nmake lint\nset -euo pipefail"))
+	assert.False(t, shell.EndsRelaxed("make lint"))
+}
+
 func TestPassive(t *testing.T) {
 	for command, want := range map[string]bool{
 		"chmod +x bin/grype":              true,

@@ -99,7 +99,7 @@ jobs:
 }
 
 // license-checker only lists licences unless --failOn or --onlyAllow makes it
-// fail; a --config file can set either, so that run is unknown.
+// fail.
 func TestLicenseCheckerExitsZeroUnlessFailFlag(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"npx license-checker --json --out licenses.json":                      Advisory,

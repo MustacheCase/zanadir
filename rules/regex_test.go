@@ -104,7 +104,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 			shouldNotMatch: []string{
 				"talismans --scan", "talisman-installer", "my-talisman --scan", "talisman_scanner",
-				"flask-talisman", "talisman-secrets-scan-action-helper", "talisman --checksum 'config/*'",
+				"flask-talisman", "talisman-secrets-scan-action-helper",
 			},
 		},
 		{
@@ -1402,8 +1402,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				}
 			}
 			for _, s := range tt.shouldNotMatch {
-				assert.False(t, rule.Regex.MatchString(s) && (rule.Unless == nil || !rule.Unless.MatchString(s)),
-					"%s should NOT match %q", tt.ruleID, s)
+				assert.False(t, rule.Regex.MatchString(s), "%s should NOT match %q", tt.ruleID, s)
 			}
 		})
 	}

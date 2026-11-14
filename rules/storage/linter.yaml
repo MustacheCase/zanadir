@@ -308,6 +308,16 @@ rules:
         equals: "false"
         verdict: "advisory"
 
+  # awesome_bot checks links and exits 1 on a dead or duplicate one; no flag
+  # makes it exit 0. It only matches as a whole word, like lychee, so the
+  # awesomebot-gh-summary-action, its URL in a link and awesome_bottom_bar
+  # don't. A workflow named after it says nothing, so no Artifact.Name.
+  - id: "awesome-bot-rule"
+    name: "awesome_bot"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])awesome_bot(?:[\\s:@]|$)"
+
   # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
   # and .codespellrc / codespell_lib are not runs of it.
   - id: "codespell-rule"

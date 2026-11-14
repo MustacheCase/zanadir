@@ -1263,6 +1263,24 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "awesome-bot-rule",
+			shouldMatch: []string{
+				"awesome_bot README.md", `awesome_bot "${{ matrix.file }}" --allow-redirect --allow-dupe --allow-ssl`,
+				`awesome_bot check-unique.txt --allow-ssl --allow 302,429,502 --white-list "$WHITELIST"`,
+				"awesome_bot -f README.md,books.md --allow-dupe --allow-redirect --skip-save-results",
+				"awesome_bot applications.json -w https://matrix.org --allow 429", "xargs awesome_bot",
+				"bundle exec awesome_bot README.md", "./bin/awesome_bot README.md",
+				"docker run -ti --rm -v $PWD:/mnt:ro dkhamsing/awesome_bot --allow-dupe --skip-save-results ./templates/ubuntu.md",
+				"docker://dkhamsing/awesome_bot:1.20.0", "dkhamsing/awesome_bot:latest",
+			},
+			shouldNotMatch: []string{
+				"./.github/actions/awesomebot-gh-summary-action",
+				"$text += \"_Link issues :rocket: powered by [``awesome_bot``](https://github.com/dkhamsing/awesome_bot)_.\"",
+				"flutter pub add awesome_bottom_bar", "npx awesome-lint", "lychee README.md", "markdown-link-check README.md",
+				"jq . ab-results-README.md-filtered.json",
+			},
+		},
+		{
 			ruleID: "phpcs-rule",
 			shouldMatch: []string{
 				"phpcs", "phpcs --standard=PSR12 src/", "vendor/bin/phpcs -p", "./vendor/bin/phpcs",

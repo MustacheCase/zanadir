@@ -5,9 +5,11 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/utils"
 )
 
@@ -63,9 +65,20 @@ func Names() []string {
 // It inspects the root and its immediate subdirectories, covering the common
 // monorepo layout without walking the whole tree.
 func Detect(dir string) []string {
+	return detect(dir, func(string, string) bool { return true })
+}
+
+// WithDependencies is Detect for dependency scanning: a pyproject.toml that
+// declares no dependencies, such as one that only configures ruff, names
+// nothing to scan.
+func WithDependencies(dir string) []string {
+	return detect(dir, declaresDependencies)
+}
+
+func detect(dir string, counts func(dir, name string) bool) []string {
 	found := make(map[string]bool)
 
-	collect(dir, found)
+	collect(dir, found, counts)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return slices.Sorted(maps.Keys(found))
@@ -74,13 +87,13 @@ func Detect(dir string) []string {
 		if !entry.IsDir() || utils.IsDependencyDir(entry.Name()) || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
-		collect(filepath.Join(dir, entry.Name()), found)
+		collect(filepath.Join(dir, entry.Name()), found, counts)
 	}
 
 	return slices.Sorted(maps.Keys(found))
 }
 
-func collect(dir string, found map[string]bool) {
+func collect(dir string, found map[string]bool, counts func(dir, name string) bool) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
@@ -91,7 +104,9 @@ func collect(dir string, found map[string]bool) {
 		}
 		name := entry.Name()
 		if lang, ok := markers[name]; ok {
-			found[lang] = true
+			if counts(dir, name) {
+				found[lang] = true
+			}
 			continue
 		}
 		for suffix, lang := range suffixMarkers {
@@ -101,4 +116,25 @@ func collect(dir string, found map[string]bool) {
 			}
 		}
 	}
+}
+
+var (
+	comment         = regexp.MustCompile(`(?m)#.*$`)
+	dependencyTable = regexp.MustCompile(`(?m)^\s*\[(?:project\.optional-dependencies|dependency-groups|tool\.poetry(?:\.group\.[^\]]+)?\.(?:dev-)?dependencies|tool\.pdm\.dev-dependencies)\]`)
+	dependencyList  = regexp.MustCompile(`(?m)^\s*(?:dependencies|dev-dependencies)\s*=\s*\[\s*[^\]\s]`)
+	dynamicList     = regexp.MustCompile(`(?m)^\s*dynamic\s*=\s*\[[^\]]*["']dependencies["']`)
+)
+
+// declaresDependencies reports whether a pyproject.toml lists any dependency;
+// any other manifest, or one it cannot read, counts.
+func declaresDependencies(dir, name string) bool {
+	if name != "pyproject.toml" {
+		return true
+	}
+	data, err := repofs.ReadFile(dir, filepath.Join(dir, name))
+	if err != nil {
+		return true
+	}
+	text := comment.ReplaceAll(data, nil)
+	return dependencyTable.Match(text) || dependencyList.Match(text) || dynamicList.Match(text)
 }

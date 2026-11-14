@@ -35,6 +35,8 @@ func TestAnalyseSCACoversDetectedLanguages(t *testing.T) {
 		{"immediate subdirectory counts", "      - run: govulncheck ./...\n", "partial", map[string]string{"go.mod": "", "backend/requirements.txt": ""}, "Python"},
 		{"dependency and hidden directories do not count", "      - run: govulncheck ./...\n", "enforcing", map[string]string{"go.mod": "", "node_modules/package.json": "{}", ".tools/requirements.txt": "", "services/api/requirements.txt": ""}, ""},
 		{"no detected languages", "      - run: govulncheck ./...\n", "enforcing", nil, ""},
+		{"pyproject without dependencies", "      - run: govulncheck ./...\n", "enforcing", map[string]string{"go.mod": "", "pyproject.toml": "[project]\nname = \"harness\"\ndependencies = []\n\n[tool.ruff]\nline-length = 140\n"}, ""},
+		{"pyproject with dependencies", "      - run: govulncheck ./...\n", "partial", map[string]string{"go.mod": "", "pyproject.toml": "[project]\ndependencies = [\n  \"requests\",\n]\n"}, "Python"},
 		{"existing advisory verdict", "      - run: govulncheck ./...\n        continue-on-error: true\n", "advisory", map[string]string{"go.mod": "", "requirements.txt": ""}, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

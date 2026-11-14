@@ -250,7 +250,8 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	for _, a := range artifacts {
 		a.DefaultBranch, a.ToolConfigs = defaultBranch, configs
 	}
-	weaknesses, covered := graded(skipped, cfg.Dir, languages, findings, waits, debugf)
+	// Suggestions follow every language; dependency scanning only those with dependencies.
+	weaknesses, covered := graded(skipped, cfg.Dir, language.WithDependencies(cfg.Dir), findings, waits, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
 
 	return &scanResult{

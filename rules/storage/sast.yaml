@@ -4,6 +4,9 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bsemgrep\\b"
+    # Validating or testing rules, and the account and editor commands, scan
+    # no code.
+    unless: "(?i)(?:^|\\s)--(?:validate|test)(?:[\\s=]|$)|\\bsemgrep\\s+(?:test|login|logout|lsp|publish|show|install-semgrep-pro)(?:\\s|$)"
     # semgrep ci fails on blocking findings; scan only with --error.
     exitsZeroUnless:
       runMatches: "\\bsemgrep\\s+ci\\b|--error\\b"

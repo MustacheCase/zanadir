@@ -507,6 +507,23 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"snyk test", "agent-scan", "snyk-agent-scanner"},
 		},
 		{
+			ruleID: "stroq-rule",
+			shouldMatch: []string{
+				"AGGIB/stroq-action", "npx stroq inspect --sarif .", "stroq inspect --changed-from HEAD^1 --format github .",
+				"npx --yes --no-workspaces @stroq/cli@0.32.0 inspect . --fail-on any",
+				"pnpm dlx @stroq/cli inspect", "./node_modules/.bin/stroq inspect .",
+			},
+			shouldNotMatch: []string{
+				"AGGIB/stroq-action-extra", "AGGIB/Stroq", "npm i -g @stroq/cli", "npx @stroq/cli", "stroq sent --last",
+				"stroqx inspect .", "my-stroq inspect", "stroq inspection", "kubectl inspect", "node packages/cli/dist/index.js inspect --sarif .",
+			},
+		},
+		{
+			ruleID:         "stroq-vet-rule",
+			shouldMatch:    []string{"stroq vet --from .claude/skills/deploy --json", "npx -y @stroq/cli@0.32.0 vet --online npm:some-mcp"},
+			shouldNotMatch: []string{"stroq inspect .", "stroq veto", "go vet ./...", "cargo vet", "npm i -g @stroq/cli"},
+		},
+		{
 			ruleID:         "actionlint-rule",
 			shouldMatch:    []string{"rhysd/actionlint", "reviewdog/action-actionlint", "actionlint -color"},
 			shouldNotMatch: []string{"actionlinter", "action lint"},
@@ -1586,6 +1603,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"kubeconform-rule":     {"kubeconform -v"},
 		"lychee-rule":          {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule": {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
+		"stroq-rule":           {"stroq inspect --env", "npx @stroq/cli inspect --env >> \"$GITHUB_ENV\""},
 		"trivy-rule":           {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"typos-rule":           {"npx cspell --report typos ."},
 		"unit-test-command-rule": {

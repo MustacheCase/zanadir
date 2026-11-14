@@ -131,6 +131,7 @@ func graded(excluded []string, dir string, languages []string, findings []*match
 	assessments := grading.ByCategory(findings, merge)
 	if sca, covered := assessments[string(models.SCA)]; covered {
 		sca = grading.Unaudited(sca, lockfile.UV, lockfile.Unauditable(dir))
+		sca = grading.Unaudited(sca, lockfile.NPM, lockfile.UnauditableNPM(dir))
 		assessments[string(models.SCA)] = grading.UncoveredEcosystems(sca, languages)
 	}
 	list := make([]output.Weakness, 0, len(assessments))

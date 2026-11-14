@@ -1247,3 +1247,15 @@ func TestWeakenedGradesUnauditableDependenciesPartial(t *testing.T) {
 		Reason:   "uv.lock installs forked from a git or URL source, which no dependency scanner can look up",
 	}, weaknesses[0])
 }
+
+func TestWeakenedGradesUnauditableNPMDependenciesPartial(t *testing.T) {
+	dir := t.TempDir()
+	lock := `{"lockfileVersion": 3, "packages": {"node_modules/forked": {"resolved": "git+ssh://git@github.com/example/forked.git#a"}}}`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte(lock), 0o600))
+	ci := filepath.Join(dir, ".github", "workflows", "ci.yml")
+
+	weaknesses, _ := graded(nil, dir, nil, []*matcher.Finding{weakFinding("SCA", ci, &models.Job{})}, nil, func(string, ...interface{}) {})
+
+	require.Len(t, weaknesses, 1)
+	assert.Equal(t, "package-lock.json installs forked from a git or URL source, which no dependency scanner can look up", weaknesses[0].Reason)
+}

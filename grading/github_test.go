@@ -950,8 +950,7 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 	}
 }
 
-// ty exits 1 on error-level diagnostics unless --exit-zero says otherwise;
-// --exit-zero-on-warning still fails on errors.
+// basedpyright and pyrefly check fail on errors with no flag to turn it off.
 func TestBasedpyrightAndPyreflyGradesEnforcing(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"uv run --no-sync basedpyright":        Enforcing,
@@ -999,6 +998,8 @@ jobs:
 	}
 }
 
+// ty exits 1 on error-level diagnostics unless --exit-zero says otherwise;
+// --exit-zero-on-warning still fails on errors.
 func TestTyExitZeroGradesAdvisory(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"uv run ty check":                 Enforcing,

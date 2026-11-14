@@ -69,8 +69,7 @@ func Detect(dir string) []string {
 }
 
 // WithDependencies is Detect for dependency scanning: a pyproject.toml that
-// declares no dependencies, such as one that only configures ruff, names
-// nothing to scan.
+// declares no dependencies (only a ruff config, say) names nothing to scan.
 func WithDependencies(dir string) []string {
 	return detect(dir, declaresDependencies)
 }

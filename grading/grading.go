@@ -212,6 +212,29 @@ func Grade(finding *matcher.Finding) Verdict {
 	return gradeTriggers(finding.Artifact)
 }
 
+// weakenedRuns grades a step weakened only when every run of the tool in it
+// is: `if govulncheck ./...; then exit 0; fi; govulncheck -format json ./...`
+// gates on the first run and only prints with the second. The step gets the
+// strongest of the runs' weakened verdicts.
+func weakenedRuns(checks []rules.WeakenedWhen, run string, commands []string) (Verdict, bool) {
+	if run == "" {
+		return "", false
+	}
+	var verdict Verdict
+	for _, command := range commands {
+		i := slices.IndexFunc(checks, func(check rules.WeakenedWhen) bool {
+			return check.RunMatches != nil && check.RunMatches.MatchString(command)
+		})
+		if i < 0 {
+			return "", false
+		}
+		if v := Verdict(checks[i].Verdict); verdict == "" || stronger(v, verdict) {
+			verdict = v
+		}
+	}
+	return verdict, verdict != ""
+}
+
 // runtimeExpression is GitHub's ${{ }} or Azure's $( ) and $[ ].
 var runtimeExpression = regexp.MustCompile(`\$\{\{|\$\(|\$\[`)
 
@@ -234,11 +257,11 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 			commands = matched
 		}
 	}
+	if verdict, weakened := weakenedRuns(rule.Weakened, job.Run, commands); weakened {
+		return verdict, true
+	}
 	for _, check := range rule.Weakened {
 		if check.RunMatches != nil {
-			if job.Run != "" && slices.ContainsFunc(commands, check.RunMatches.MatchString) {
-				return Verdict(check.Verdict), true
-			}
 			continue
 		}
 		value, ok := job.With[check.Input]

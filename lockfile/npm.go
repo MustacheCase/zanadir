@@ -64,9 +64,8 @@ func walkNPM(deps map[string]npmDependency, found []string) []string {
 	return found
 }
 
-// unauditableNPM reports whether a resolved source can't be looked up by name
-// and version. Registry tarballs, npm's and its mirrors', sit under "/-/", and
-// GitHub Packages serves its own; file: and link entries are first-party.
+// unauditableNPM: registry tarballs (npm's and mirrors') sit under "/-/", GitHub
+// Packages serves its own, and file: and link entries are first-party.
 func unauditableNPM(resolved string) bool {
 	if gitSpec.MatchString(resolved) {
 		return true

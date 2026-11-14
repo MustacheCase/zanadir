@@ -470,6 +470,34 @@ func TestFetchRecordsDisabledWorkflows(t *testing.T) {
 	assert.Equal(t, ".github/workflows/old.yml\n.github/workflows/nightly.yml\n", string(listed))
 }
 
+// Default setup runs CodeQL in a dynamic workflow, named by its jobs' languages.
+func TestFetchRecordsCodeScanningDefaultSetup(t *testing.T) {
+	workflows := `200 {"total_count": 2, "workflows": [
+		{"id": 7, "path": ".github/workflows/ci.yml", "state": "active"},
+		{"id": 9, "path": "dynamic/github-code-scanning/codeql", "state": "active"}]}`
+	for name, tt := range map[string]struct {
+		routes map[string]string
+		want   string
+	}{
+		"languages": {map[string]string{
+			"/repos/o/r/actions/workflows/9/runs": `200 {"workflow_runs": [{"id": 42}]}`,
+			"/repos/o/r/actions/runs/42/jobs":     `200 {"jobs": [{"name": "Analyze (actions)"}, {"name": "Analyze (go)"}, {"name": "Upload"}]}`,
+		}, "actions\ngo\n"},
+		"no run yet":   {map[string]string{"/repos/o/r/actions/workflows/9/runs": `200 {"workflow_runs": []}`}, ""},
+		"jobs refused": {map[string]string{"/repos/o/r/actions/workflows/9/runs": `200 {"workflow_runs": [{"id": 42}]}`, "/repos/o/r/actions/runs/42/jobs": "403 "}, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tt.routes["/repos/o/r/actions/workflows"] = workflows
+			routes(t, tt.routes)
+			dir := t.TempDir()
+			recordWorkflows(context.Background(), Repository{Owner: "o", Name: "r"}, "", dir)
+			languages, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(models.CodeScanningFile)))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, string(languages))
+		})
+	}
+}
+
 func TestFetchWritesNoDisabledWorkflowsWhenTheListFails(t *testing.T) {
 	routes(t, map[string]string{
 		"/repos/o/r/actions/workflows": "403 ",
@@ -479,6 +507,7 @@ func TestFetchWritesNoDisabledWorkflowsWhenTheListFails(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanup()
 	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
+	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.CodeScanningFile)))
 }
 
 func TestRecordDisabledWorkflowsReadsEveryPage(t *testing.T) {
@@ -490,7 +519,7 @@ func TestRecordDisabledWorkflowsReadsEveryPage(t *testing.T) {
 		_, _ = fmt.Fprintf(w, `{"total_count": 2, "workflows": [{"path": ".github/workflows/%s.yml", "state": %q}]}`, page, state)
 	})
 	dir := t.TempDir()
-	recordDisabledWorkflows(context.Background(), Repository{Owner: "o", Name: "r"}, "", dir)
+	recordWorkflows(context.Background(), Repository{Owner: "o", Name: "r"}, "", dir)
 	listed, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
 	require.NoError(t, err)
 	assert.Equal(t, ".github/workflows/2.yml\n", string(listed))
@@ -502,7 +531,7 @@ func TestRecordDisabledWorkflowsWritesNothingWhenAllAreActive(t *testing.T) {
 		"/repos/o/r/actions/workflows": `200 {"total_count": 1, "workflows": [{"path": ".github/workflows/ci.yml", "state": "active"}]}`,
 	})
 	dir := t.TempDir()
-	recordDisabledWorkflows(context.Background(), Repository{Owner: "o", Name: "r"}, "", dir)
+	recordWorkflows(context.Background(), Repository{Owner: "o", Name: "r"}, "", dir)
 	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
 }
 

@@ -163,7 +163,7 @@ func FetchWith(ctx context.Context, repo Repository, token string, opts Options)
 	err = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
 	if err == nil {
 		recordDefaultBranch(ctx, repo, token, dir)
-		recordDisabledWorkflows(ctx, repo, token, dir)
+		recordWorkflows(ctx, repo, token, dir)
 		skills, listErr := fetchFiles(ctx, repo, token, dir, opts)
 		if listErr != nil {
 			err = resetTo(dir)
@@ -356,14 +356,21 @@ func recordDefaultBranch(ctx context.Context, repo Repository, token, dir string
 // maxWorkflowPages bounds the workflow listing, at 100 workflows a page.
 const maxWorkflowPages = 10
 
-// recordDisabledWorkflows writes models.DisabledWorkflowsFile. A failure
-// leaves it unwritten, and every workflow counts as enabled.
-func recordDisabledWorkflows(ctx context.Context, repo Repository, token, dir string) {
+// codeScanningWorkflow is the dynamic workflow code scanning's default setup
+// runs, which no file in the repository shows.
+const codeScanningWorkflow = "dynamic/github-code-scanning/codeql"
+
+// recordWorkflows writes models.DisabledWorkflowsFile, and
+// models.CodeScanningFile when default setup is on. A failure leaves them
+// unwritten, and every workflow counts as enabled.
+func recordWorkflows(ctx context.Context, repo Repository, token, dir string) {
 	var disabled []string
+	codeScanning := int64(0)
 	for page, seen := 1, 0; page <= maxWorkflowPages; page++ {
 		var list struct {
 			TotalCount int `json:"total_count"`
 			Workflows  []struct {
+				ID    int64  `json:"id"`
 				Path  string `json:"path"`
 				State string `json:"state"`
 			} `json:"workflows"`
@@ -375,6 +382,8 @@ func recordDisabledWorkflows(ctx context.Context, repo Repository, token, dir st
 		for _, workflow := range list.Workflows {
 			if strings.HasPrefix(workflow.State, "disabled") {
 				disabled = append(disabled, workflow.Path)
+			} else if workflow.Path == codeScanningWorkflow {
+				codeScanning = workflow.ID
 			}
 		}
 		seen += len(list.Workflows)
@@ -382,11 +391,51 @@ func recordDisabledWorkflows(ctx context.Context, repo Repository, token, dir st
 			break
 		}
 	}
-	if len(disabled) == 0 {
-		return
+	if codeScanning != 0 {
+		writeLines(dir, models.CodeScanningFile, codeScanningLanguages(ctx, repo, token, codeScanning))
 	}
-	body := strings.Join(disabled, "\n") + "\n"
-	_ = writeFile(filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)), strings.NewReader(body), int64(len(body)))
+	if len(disabled) > 0 {
+		writeLines(dir, models.DisabledWorkflowsFile, disabled)
+	}
+}
+
+var analyzeJob = regexp.MustCompile(`^Analyze \((.+)\)$`)
+
+// codeScanningLanguages reads the languages off the jobs of default setup's
+// latest run, one "Analyze (go)" job a language. Nil means unknown.
+func codeScanningLanguages(ctx context.Context, repo Repository, token string, workflow int64) []string {
+	base := fmt.Sprintf("%s/repos/%s/%s/actions", apiBase, repo.Owner, repo.Name)
+	var runs struct {
+		Runs []struct {
+			ID int64 `json:"id"`
+		} `json:"workflow_runs"`
+	}
+	if getJSON(ctx, fmt.Sprintf("%s/workflows/%d/runs?per_page=1", base, workflow), token, &runs) != nil || len(runs.Runs) == 0 {
+		return nil
+	}
+	var jobs struct {
+		Jobs []struct {
+			Name string `json:"name"`
+		} `json:"jobs"`
+	}
+	if getJSON(ctx, fmt.Sprintf("%s/runs/%d/jobs?per_page=100", base, runs.Runs[0].ID), token, &jobs) != nil {
+		return nil
+	}
+	var languages []string
+	for _, job := range jobs.Jobs {
+		if m := analyzeJob.FindStringSubmatch(job.Name); m != nil {
+			languages = append(languages, m[1])
+		}
+	}
+	return languages
+}
+
+func writeLines(dir, name string, lines []string) {
+	body := strings.Join(lines, "\n")
+	if body != "" {
+		body += "\n"
+	}
+	_ = writeFile(filepath.Join(dir, filepath.FromSlash(name)), strings.NewReader(body), int64(len(body)))
 }
 
 func download(ctx context.Context, repo Repository, token, dir string, skills skillDirs) error {

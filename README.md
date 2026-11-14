@@ -259,8 +259,11 @@ zanadir fix --repo owner/name
 ones zanadir reads (CI and build files, plus the start of JSON files for
 infrastructure detection) into a temporary directory. Every other file is an
 empty placeholder, since only its name matters. It then scans the directory
-exactly as a checkout and removes it. That is three GitHub API requests per
-scan, however large the repository. A repository too large to list in one
+exactly as a checkout and removes it. That is a handful of GitHub API
+requests per scan, however large the repository. The API also shows what no
+file does: workflows GitHub has turned off, which then count for nothing, and
+code scanning's default setup, which counts as the CodeQL workflow it runs,
+for the languages of its latest run. A scan of a checkout can't see it. A repository too large to list in one
 request is downloaded as an archive instead. Public repositories need no
 token; set `GITHUB_TOKEN` (or `GH_TOKEN`) to reach private ones or raise
 GitHub's rate limit of 60 requests an hour without one. GitLab and Bitbucket

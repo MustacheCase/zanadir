@@ -1169,6 +1169,57 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "cargo-machete-rule",
+			shouldMatch: []string{
+				"cargo machete",
+				"cargo machete --skip-target-dir",
+				"cargo machete --with-metadata",
+				"cargo machete --fix",
+				"cargo machete --skip tests --skip examples",
+				"cargo machete crates/",
+				"cargo +stable machete",
+				"cargo-machete",
+				"cargo-machete --skip-target-dir .",
+				"~/.cargo/bin/cargo-machete --json",
+				"bnjbvr/cargo-machete",
+				"docker run --rm -v $(pwd):/src ghcr.io/bnjbvr/cargo-machete:latest",
+				"docker://ghcr.io/bnjbvr/cargo-machete",
+				"ghcr.io/bnjbvr/cargo-machete:latest",
+			},
+			shouldNotMatch: []string{
+				"grep -A3 'package.metadata.cargo-machete' Cargo.toml",
+				"actionlint .github/workflows/cargo-machete.yml",
+				"sha256sum -c cargo-machete-v0.9.2-x86_64-unknown-linux-musl.tar.gz.sha256",
+				"cargo machete-v0.9.2",
+				// Guard against future changes making machete match cargo-shear (#620)
+				"cargo shear",
+				"cargo clippy --all-targets",
+			},
+		},
+		{
+			ruleID: "cargo-udeps-rule",
+			shouldMatch: []string{
+				"cargo udeps",
+				"cargo udeps --locked --all-targets",
+				"cargo udeps --manifest-path ${{ matrix.path }}/Cargo.toml --all-targets --all-features",
+				"cargo +nightly udeps",
+				"cargo +nightly-2025-06-01 udeps --workspace --output json",
+				"cargo-udeps udeps --all-targets",
+				"udeps",
+				// Multiline cases: ^ should match after newline
+				"cargo build\ncargo-udeps udeps --all-targets",
+				"pre-commit run --all-files\nudeps",
+			},
+			shouldNotMatch: []string{
+				"grep -n 'workspace.metadata.cargo-udeps' Cargo.toml",
+				"sha256sum cargo-udeps-v0.1.61-x86_64-unknown-linux-gnu.tar.gz",
+				"Udeps",
+				"Create udeps matrix",
+				"cargo shear",
+				"cargo clippy --all-targets",
+			},
+		},
+		{
 			ruleID: "chart-testing-rule",
 			shouldMatch: []string{
 				"ct lint --target-branch ${{ github.event.repository.default_branch }}",

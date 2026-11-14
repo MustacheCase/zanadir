@@ -86,7 +86,12 @@ func (e *Expander) npm(dir string, args []string) {
 	} else if hasFlag(flags, "-ws", "--workspaces") {
 		dirs = e.workspaces(dir)
 	}
-	e.runScripts(dirs, name, true)
+	// npm passes a run only what follows --.
+	var extra []string
+	if i := slices.Index(args, "--"); i >= 0 {
+		extra = args[i+1:]
+	}
+	e.runScripts(dirs, name, true, extra...)
 }
 
 func (e *Expander) yarn(dir string, args []string) {
@@ -202,16 +207,27 @@ func scriptMatches(pattern, name string) bool {
 // scriptOrBinary runs a script of the package in dir, else, as yarn, pnpm and
 // bun do, the program of that name: "pnpm turbo run lint" runs turbo.
 func (e *Expander) scriptOrBinary(dir string, args []string, name string, prePost bool) {
+	i := slices.Index(args, name)
 	if p := e.pkg(dir); p != nil && p.Scripts[name] != "" {
-		e.runScripts([]string{dir}, name, prePost)
+		var extra []string
+		if i >= 0 {
+			extra = args[i+1:]
+			if len(extra) > 0 && extra[0] == "--" {
+				extra = extra[1:]
+			}
+		}
+		e.runScripts([]string{dir}, name, prePost, extra...)
 		return
 	}
-	if i := slices.Index(args, name); i >= 0 && name != "" {
+	if i >= 0 && name != "" {
 		e.script(dir, strings.Join(args[i:], " "))
 	}
 }
 
-func (e *Expander) runScripts(dirs []string, name string, prePost bool) {
+// runScripts emits a package script, with extra appended to its command as
+// npm, pnpm and yarn pass a run's trailing arguments: `pnpm knip --fix` runs
+// the knip script with --fix.
+func (e *Expander) runScripts(dirs []string, name string, prePost bool, extra ...string) {
 	for _, dir := range dirs {
 		p := e.pkg(dir)
 		if name == "" || p == nil || p.Scripts[name] == "" || !e.once("script "+dir+" "+name) {
@@ -220,7 +236,7 @@ func (e *Expander) runScripts(dirs []string, name string, prePost bool) {
 		if prePost {
 			e.emit(dir, p.Scripts["pre"+name])
 		}
-		e.emit(dir, p.Scripts[name])
+		e.emit(dir, strings.Join(append([]string{p.Scripts[name]}, extra...), " "))
 		if prePost {
 			e.emit(dir, p.Scripts["post"+name])
 		}

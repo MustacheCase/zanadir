@@ -637,6 +637,29 @@ jobs:
 	}
 }
 
+// A step is weakened only when every run of the tool in it is. kolide/launcher
+// gates on the first govulncheck and re-runs it with -format json to print.
+func TestWeakenedOnlyWhenEveryRunIs(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"if govulncheck -C . ./...; then\n  exit 0\nfi\ngovulncheck -C . -format json ./... > govulncheck.json\nexit 1": Enforcing,
+		"govulncheck -format sarif ./... > a.sarif\ngovulncheck -json ./... > b.json":                                   Advisory,
+		"trivy fs --exit-code 0 --format sarif -o t.sarif .\ntrivy fs --exit-code 1 --severity HIGH .":                  Enforcing,
+		"trivy fs --exit-code 0 .": Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+strings.ReplaceAll(run, "\n", "\n          ")+`
+`)
+			assert.Equal(t, expected, verdicts["SCA"])
+		})
+	}
+}
+
 // GuardDog reports findings without failing unless explicitly asked to fail.
 func TestGuardDogExitsZeroUnlessFindingFlag(t *testing.T) {
 	for run, expected := range map[string]Verdict{

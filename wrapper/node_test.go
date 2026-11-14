@@ -20,7 +20,8 @@ func nodeRepo() map[string]string {
 
 func TestNpmRunsPackageScripts(t *testing.T) {
 	files := nodeRepo()
-	assert.Equal(t, []string{"echo pre", "eslint . && npm run types", "tsc --noEmit", "echo post"}, expand(t, files, "npm run lint -- --fix"))
+	// npm appends what follows -- to the script, as a shell would see it.
+	assert.Equal(t, []string{"echo pre", "eslint . && npm run types --fix", "tsc --noEmit", "echo post"}, expand(t, files, "npm run lint -- --fix"))
 	assert.Equal(t, []string{"vitest run"}, expand(t, files, "npm test"))
 	assert.Equal(t, []string{"next lint"}, expand(t, files, "npm run lint -w @acme/web"))
 	assert.Equal(t, []string{"oxlint"}, expand(t, files, "npm run lint --workspace=packages/api"))
@@ -28,6 +29,15 @@ func TestNpmRunsPackageScripts(t *testing.T) {
 	assert.Equal(t, []string{"next lint"}, expand(t, files, "npm --prefix packages/web run lint"))
 	assert.Equal(t, []string{"npm run loop"}, expand(t, files, "npm run loop"), "a script that calls itself stops")
 	assert.Empty(t, expand(t, files, "npm ci && npm run missing && npm"))
+}
+
+// pnpm, yarn and bun pass a script everything after its name.
+func TestRunnersPassTrailingArgumentsToTheScript(t *testing.T) {
+	files := map[string]string{"package.json": `{"scripts": {"knip": "knip", "lint": "eslint ."}}`}
+	assert.Equal(t, []string{"knip --fix"}, expand(t, files, "pnpm knip --fix"))
+	assert.Equal(t, []string{"eslint . --max-warnings 0"}, expand(t, files, "pnpm run lint -- --max-warnings 0"))
+	assert.Equal(t, []string{"eslint . --fix"}, expand(t, files, "yarn lint --fix"))
+	assert.Equal(t, []string{"knip"}, expand(t, files, "npm run knip --fix"), "npm passes only what follows --")
 }
 
 func TestYarnPnpmAndBunRunScriptsOrPrograms(t *testing.T) {

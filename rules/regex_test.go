@@ -62,6 +62,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "opengrep-rule",
+			shouldMatch: []string{
+				"opengrep scan --config auto --error", "opengrep scan .",
+				"platform-sec/opengrep-action", "opengrep ci", "opengrep --experimental ci",
+				"opengrep --config auto .", "./bin/opengrep scan --config auto .",
+				"docker run opengrep/opengrep scan -f rules src",
+				"scripts/run-opengrep.sh --changed --sarif --error",
+			},
+			shouldNotMatch: []string{
+				"grep -r foo .", "semgrep scan", "myopengrep scan .",
+			},
+		},
+		{
 			ruleID: "kube-linter-rule",
 			shouldMatch: []string{
 				"kube-linter lint k8s/",
@@ -676,8 +689,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 		{
 			// A bare "sonar" appears in unrelated project and job names.
 			ruleID:         "sonar-rule",
-			shouldMatch:    []string{"SonarSource/sonarqube-scan-action", "sonar-scanner -Dsonar.host.url=x", "sonarcloud scan"},
-			shouldNotMatch: []string{"sonar", "sonarian", "build-sonar-module"},
+			shouldMatch:    []string{"SonarSource/sonarqube-scan-action", "sonar-scanner -Dsonar.host.url=x", "sonarcloud scan", "npx sonarqube-scanner", "./gradlew sonarqube", "Run SonarCloud"},
+			shouldNotMatch: []string{"sonar", "sonarian", "build-sonar-module", "gcovr -r . --sonarqube coverage.xml", "jest --coverage --coverageReporters=lcov,sonarqube", "vitest --coverage.reporter=sonarqube"},
 		},
 		{
 			ruleID:         "gosec-rule",
@@ -1462,6 +1475,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
+		"opengrep-rule":      {"opengrep test rules/", "opengrep --experimental validate rules/"},
 		"bundler-audit-rule": {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
 		"cargo-vet-rule": {
 			"cargo vet init", "cargo vet suggest", "cargo vet fmt", "cargo vet prune",
@@ -1474,6 +1488,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
+		"sonar-rule":                 {"./gradlew build -x test -x sonarqube", "gradle check --exclude-task sonarqube"},
 		"zizmor-rule":                {"zizmorcore/zizmor-action"},
 		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
 		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},

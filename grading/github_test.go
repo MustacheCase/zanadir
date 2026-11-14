@@ -29,6 +29,13 @@ func TestQuotedToolPathsGradeLikeBareCommands(t *testing.T) {
 		{"quoted semgrep ci", `"./bin/semgrep" ci`, "SAST", Enforcing},
 		{"quoted semgrep scan", `"./bin/semgrep" scan`, "SAST", Advisory},
 		{"quoted semgrep error", `"./bin/semgrep" scan --error`, "SAST", Enforcing},
+		{"quoted opengrep scan", `"./bin/opengrep" scan .`, "SAST", Advisory},
+		{"quoted opengrep error", `"./bin/opengrep" scan --error .`, "SAST", Enforcing},
+		{"opengrep ci", "opengrep ci", "SAST", Enforcing},
+		{"opengrep global flag ci", `"$RUNNER_TEMP/opengrep" --debug ci`, "SAST", Enforcing},
+		{"opengrep scan without subcommand", "opengrep --config auto .", "SAST", Advisory},
+		{"opengrep scan with no-error", "opengrep scan --no-error .", "SAST", Advisory},
+		{"opengrep wrapper script", "scripts/run-opengrep.sh --changed --sarif --error", "SAST", Enforcing},
 		{"quoted trivy fails", `"./bin/trivy" fs --exit-code 1 .`, "SCA", Enforcing},
 		{"quoted trivy reports", `"./bin/trivy" fs .`, "SCA", Advisory},
 		{"quoted trivy zero", `"./bin/trivy" fs --exit-code 0 .`, "SCA", Advisory},
@@ -210,6 +217,28 @@ jobs:
       - run: `+run+`
 `)
 		assert.Equal(t, expected, verdicts["SCA"], run)
+	}
+}
+
+func TestReraisedFailureGradesEnforcing(t *testing.T) {
+	for raise, expected := range map[string]Verdict{
+		"run: exit 1":                  Enforcing,
+		"run: gh issue create -t vuln": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - id: trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          exit-code: "1"
+      - if: steps.trivy.outcome == 'failure'
+        `+raise+`
+`)
+		assert.Equal(t, expected, verdicts["SCA"], raise)
 	}
 }
 

@@ -637,7 +637,7 @@ func keepContent(name string) bool {
 	}
 	base := strings.ToLower(filepath.Base(name))
 	switch filepath.Ext(base) {
-	case ".yml", ".yaml", ".mk", ".sh", ".bash":
+	case ".yml", ".yaml", ".mk", ".sh", ".bash", ".bat", ".cmd":
 		return true
 	}
 	switch base {

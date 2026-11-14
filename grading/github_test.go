@@ -488,6 +488,66 @@ jobs:
 	}
 }
 
+// cargo-machete exits 1 on findings, and --fix still reports what it found.
+func TestCargoMacheteGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"cargo machete":       Enforcing,
+		"cargo machete --fix": Enforcing,
+		"cargo machete --with-metadata --skip-target-dir": Enforcing,
+		"cargo-machete --json":                            Enforcing,
+		"cargo machete --fix || true":                     Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+// cargo-udeps exits 1 on findings and errors on a stable toolchain.
+func TestCargoUdepsGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"cargo +nightly udeps --all-targets":      Enforcing,
+		"cargo udeps --all-targets --output json": Enforcing,
+		"cargo udeps --all-targets || true":       Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+// The cargo-machete action runs the binary, which fails on findings.
+func TestCargoMacheteActionGradesCorrectly(t *testing.T) {
+	for with, expected := range map[string]Verdict{
+		"": Enforcing,
+		"\n        with:\n          args: --fix --with-metadata": Enforcing,
+		"\n        continue-on-error: true":                      Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/cargo-machete.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: bnjbvr/cargo-machete@v0.9.2`+with+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], with)
+	}
+}
+
 func TestGradleWrapperValidationGradesEnforcing(t *testing.T) {
 	for _, tc := range []struct {
 		name, action, inputs string

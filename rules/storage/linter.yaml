@@ -86,6 +86,31 @@ rules:
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])vulture(?:[\\s@]|$)|(?i)(?:^|\\s)gtkacz/vulture-action(?:[\\s@]|$)"
 
+  # cargo-machete reports dependencies in Cargo.toml that the code never uses.
+  # It exits 1 on findings, so it always fails the step as it is. Match it as
+  # the cargo sub-command (with an optional toolchain) or as its own name with
+  # the boundaries of a program or image: ~/.cargo/bin/cargo-machete,
+  # bnjbvr/cargo-machete, ghcr.io/bnjbvr/cargo-machete:latest. Not the
+  # metadata tables, workflow files or release archive names.
+  # Case-sensitive: the tool, its sub-command and the hook id are lower case.
+  - id: "cargo-machete-rule"
+    name: "cargo-machete"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|[\\s/])cargo\\s+(?:\\+\\S+\\s+)?machete(?:\\s|$)|(?:^|[\\s/])cargo-machete(?:[\\s:@]|$)"
+
+  # cargo-udeps reports dependencies the build never uses. It exits 1 on
+  # findings, and on a stable toolchain it stops with an error, so it fails
+  # the step as it is. Match the cargo sub-command (with an optional
+  # toolchain), the binary as "cargo-udeps udeps", or its pre-commit hook id
+  # "udeps" as a whole command. "cargo-udeps" alone names release archives and
+  # Cargo.toml metadata, so it does not count.
+  - id: "cargo-udeps-rule"
+    name: "cargo-udeps"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?m)(?:^|[\\s/])cargo\\s+(?:\\+\\S+\\s+)?udeps(?:\\s|$)|^cargo-udeps\\s+udeps(?:\\s|$)|^udeps(?:\\s|$)"
+
   - id: "oxsecurity-super-linter-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Linter" ]

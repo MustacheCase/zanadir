@@ -179,6 +179,8 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 		entry{name: "owner-repo-abc/package-lock.json", body: strings.Repeat(" ", headBytes) + `{"lockfileVersion": 3}`},
 		entry{name: "owner-repo-abc/web/package-lock.json", body: strings.Repeat(" ", headBytes) + `{"lockfileVersion": 3}`},
 		entry{name: "owner-repo-abc/scripts/lint.sh", body: "golangci-lint run\n"},
+		entry{name: "owner-repo-abc/make.bat", body: ":lint\r\ngolangci-lint run\r\n"},
+		entry{name: "owner-repo-abc/build.CMD", body: "go test ./...\r\n"},
 		entry{name: "owner-repo-abc/.make/main.go", body: "package main\n"},
 		entry{name: "owner-repo-abc/tools/.make/go.mod", body: "module make\n"},
 		entry{name: "owner-repo-abc/cmd/main.go", body: "package main\n"},
@@ -213,6 +215,8 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 	assert.Equal(t, strings.Repeat(" ", headBytes)+`{"lockfileVersion": 3}`, read("package-lock.json"), "the root npm lockfile is read whole")
 	assert.NotContains(t, read("web/package-lock.json"), "lockfileVersion", "a nested npm lockfile keeps only its head")
 	assert.Equal(t, "golangci-lint run\n", read("scripts/lint.sh"), "shell scripts are followed")
+	assert.Equal(t, ":lint\r\ngolangci-lint run\r\n", read("make.bat"), "and batch files")
+	assert.Equal(t, "go test ./...\r\n", read("build.CMD"))
 	assert.Equal(t, "package main\n", read(".make/main.go"))
 	assert.Equal(t, "module make\n", read("tools/.make/go.mod"))
 	assert.Empty(t, read("cmd/main.go"), "Go source outside .make is not read")

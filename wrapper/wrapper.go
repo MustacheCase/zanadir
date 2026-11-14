@@ -121,12 +121,25 @@ func (e *Expander) follow(dir string, words []string) {
 		if len(words) > 1 {
 			e.shellFile(dir, words[1], true)
 		}
+	case "call":
+		if len(words) > 1 {
+			e.follow(dir, words[1:])
+		}
+	case "cmd", "cmd.exe":
+		for i, word := range words {
+			if strings.EqualFold(word, "/c") || strings.EqualFold(word, "/k") {
+				e.script(dir, strings.Trim(strings.Join(words[i+1:], " "), `"`))
+				return
+			}
+		}
 	default:
 		switch {
 		case shells[filepath.Base(words[0])]:
 			e.shellRun(dir, words[1:])
 		case isScriptPath(words[0]):
 			e.shellFile(dir, words[0], false)
+		case isBatchPath(words[0]):
+			e.batchFile(dir, words[0], words[1:])
 		}
 	}
 }

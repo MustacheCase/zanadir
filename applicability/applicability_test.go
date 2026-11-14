@@ -68,6 +68,25 @@ func TestIaCIgnoresACodePackageNamedLikeInfrastructure(t *testing.T) {
 	}
 }
 
+// crossfyre-toolchain's only compose file is a Nuclei template that looks for
+// exposed ones, and nuclei-templates keeps its Kubernetes checks under
+// cloud/kubernetes. A compose file that mentions severity still counts.
+func TestIaCIgnoresNucleiTemplates(t *testing.T) {
+	template := "id: docker-compose-exposure\ninfo:\n  name: Exposed docker-compose.yml\n  severity: medium\nhttp:\n  - method: GET\n"
+	for _, path := range []string{"plessor/templates/exposures/docker-compose.yaml", "cloud/kubernetes/deployments/k8s-cpu-limits-not-set.yml"} {
+		dir := testrepo.Write(t, map[string]string{path: template, "README.md": "x"})
+		assert.Contains(t, applicability.NotApplicable(dir, nil), "IaC Security", path)
+	}
+
+	for _, files := range []map[string]string{
+		{"docker-compose.yaml": "services:\n  id:\n    image: alpine\n    labels:\n      severity: high\n"},
+		{"plessor/templates/exposures/docker-compose.yaml": template, "Dockerfile": "FROM alpine\n"},
+		{"k8s/app.yaml": "id: app\ninfo:\n  owner: ops\n"},
+	} {
+		assert.NotContains(t, applicability.NotApplicable(testrepo.Write(t, files), nil), "IaC Security", files)
+	}
+}
+
 // The tools in the Workflow Security category read GitHub Actions or GitLab
 // CI, so a repository on another platform has nothing to point them at.
 func TestWorkflowSecurityNeedsGithubOrGitlab(t *testing.T) {

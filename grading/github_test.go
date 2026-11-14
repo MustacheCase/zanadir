@@ -161,11 +161,11 @@ jobs:
 // --config may change the exit behavior via .sobelow-conf.
 func TestSobelowExitFlagControlsGating(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		"mix sobelow":                   Advisory,
-		"mix sobelow --exit":            Enforcing,
-		"mix sobelow --exit medium":     Enforcing,
-		"mix sobelow --skip --exit":     Enforcing,
-		"mix sobelow --config":          Unknown,
+		"mix sobelow":               Advisory,
+		"mix sobelow --exit":        Enforcing,
+		"mix sobelow --exit medium": Enforcing,
+		"mix sobelow --skip --exit": Enforcing,
+		"mix sobelow --config":      Unknown,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
 on: pull_request

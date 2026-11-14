@@ -1201,6 +1201,30 @@ func TestAnalyseGradesAToolThatOnlyReports(t *testing.T) {
 		"the flag outranks trivy.yaml")
 }
 
+// blastradius's pre-commit hook passes without a .br-indicators list, and
+// zanadir can't tell whether the list names anything.
+func TestAnalyseGradesTheBlastradiusHookByItsList(t *testing.T) {
+	h, err := Setup()
+	require.NoError(t, err)
+	silent := func(string, ...interface{}) {}
+	dir := testrepo.Write(t, map[string]string{
+		".git/HEAD":                "ref: refs/heads/main\n",
+		".pre-commit-config.yaml":  "repos:\n  - repo: https://github.com/jondot/blastradius\n    rev: v0.1.0\n    hooks:\n      - id: blastradius\n",
+		".github/workflows/ci.yml": "on: pull_request\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pre-commit run --all-files\n",
+	})
+
+	result, err := h.analyse(&config.Config{Dir: dir}, silent, nil)
+	require.NoError(t, err)
+	assert.Contains(t, result.weaknesses, output.Weakness{Category: string(models.SCA), Verdict: "advisory", Location: ".github/workflows/ci.yml"})
+
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".br-indicators"), []byte("npm:evil-dep@1.2.3\n"), 0o600))
+	result, err = h.analyse(&config.Config{Dir: dir}, silent, nil)
+	require.NoError(t, err)
+	for _, weakness := range result.weaknesses {
+		assert.NotEqual(t, string(models.SCA), weakness.Category, "the list may name packages")
+	}
+}
+
 // With --required-checks, a scanner that only reports still holds back a
 // merge when the ruleset blocks on its code scanning alerts.
 func TestAnalyseCountsCodeScanningMergeProtection(t *testing.T) {

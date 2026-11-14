@@ -553,6 +553,30 @@ jobs:
 	}
 }
 
+// br hunt exits 10 on a listed package, and the Action fails the job then
+// whatever fail-on or mode says; only continue-on-error or || true weaken it.
+func TestBlastradiusGradesEnforcing(t *testing.T) {
+	for step, expected := range map[string]Verdict{
+		"run: br hunt npm:evil-dep@1.2.3 --path . --fail-if found":                                       Enforcing,
+		"run: npx -y @jondot/blastradius hunt GHSA-xxxx-xxxx-xxxx --path .":                              Enforcing,
+		"run: br hunt npm:evil-dep@1.2.3 --path . || true":                                               Advisory,
+		"uses: jondot/blastradius@v1\n        with:\n          indicators: npm:evil-dep@1.2.3":           Enforcing,
+		"uses: jondot/blastradius@v1\n        with:\n          fail-on: found\n          mode: advisory": Enforcing,
+		"uses: jondot/blastradius@v1\n        continue-on-error: true":                                   Advisory,
+	} {
+		t.Run(step, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - `+step+`
+`)
+			assert.Equal(t, expected, verdicts["SCA"])
+		})
+	}
+}
+
 // GuardDog reports findings without failing unless explicitly asked to fail.
 func TestGuardDogExitsZeroUnlessFindingFlag(t *testing.T) {
 	for run, expected := range map[string]Verdict{

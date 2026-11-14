@@ -637,6 +637,31 @@ jobs:
 	}
 }
 
+// stroq inspect and its Action exit 1 on findings unless fail-on is none; vet never fails on them.
+func TestStroqGradesByFailOn(t *testing.T) {
+	for step, expected := range map[string]Verdict{
+		"run: npx stroq inspect --sarif .":                                                  Enforcing,
+		"run: npx @stroq/cli@0.32.0 inspect --changed-from HEAD^1 --format github .":        Enforcing,
+		"run: npx stroq inspect --sarif . --fail-on none":                                   Advisory,
+		"run: npx stroq inspect --sarif . > stroq.sarif || [ $? -eq 1 ]":                    Advisory,
+		"run: npx @stroq/cli vet --from .claude/skills/deploy":                              Advisory,
+		"uses: AGGIB/stroq-action@v1":                                                       Enforcing,
+		"uses: AGGIB/stroq-action@v1\n        with:\n          fail-on: none":               Advisory,
+		"uses: AGGIB/stroq-action@v1\n        with:\n          fail-on: ${{ inputs.mode }}": Unknown,
+	} {
+		t.Run(step, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - `+step+`
+`)
+			assert.Equal(t, expected, verdicts["Agent Skill Security"])
+		})
+	}
+}
+
 // A step is weakened only when every run of the tool in it is. kolide/launcher
 // gates on the first govulncheck and re-runs it with -format json to print.
 func TestWeakenedOnlyWhenEveryRunIs(t *testing.T) {

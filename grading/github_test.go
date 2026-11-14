@@ -402,6 +402,58 @@ jobs:
 	}
 }
 
+func TestMarkdownLinkCheckGradesEnforcing(t *testing.T) {
+	for _, tt := range []struct {
+		name, step string
+		want       Verdict
+	}{
+		{"command", "run: markdown-link-check ./docs", Enforcing},
+		{"npx with config", "run: npx markdown-link-check -c .mlc.json README.md", Enforcing},
+		{"swallowed exit status", "run: markdown-link-check ./docs || true", Advisory},
+		{"tcort quiet", "uses: tcort/github-action-markdown-link-check@v1\n        with:\n          use-quiet-mode: yes", Enforcing},
+		{"tcort may fail", "uses: tcort/github-action-markdown-link-check@v1\n        continue-on-error: true\n        with:\n          use-quiet-mode: yes", Advisory},
+		{"gaurav-nelson quiet", "uses: gaurav-nelson/github-action-markdown-link-check@v1\n        with:\n          use-quiet-mode: yes", Enforcing},
+		{"gaurav-nelson may fail", "uses: gaurav-nelson/github-action-markdown-link-check@v1\n        continue-on-error: true\n        with:\n          use-quiet-mode: yes", Advisory},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  links:
+    steps:
+      - `+tt.step+`
+`)
+			assert.Equal(t, tt.want, verdicts["Linter"])
+		})
+	}
+}
+
+func TestMarkdownLinkCheckNamesAndPassiveCommandsDoNotCoverLinter(t *testing.T) {
+	for _, tt := range []struct {
+		name, workflowName, job, run string
+	}{
+		{"workflow name", "markdown-link-check", "checks", "echo unrelated"},
+		{"job name", "CI", "markdown-link-check", "echo unrelated"},
+		{"install", "CI", "checks", "npm install -g markdown-link-check@3.8.7"},
+		{"sudo install", "CI", "checks", "sudo npm install -g markdown-link-check@3.8.7"},
+		{"version", "CI", "checks", "markdown-link-check --version"},
+		{"help", "CI", "checks", "markdown-link-check --help"},
+		{"npx help", "CI", "checks", "npx --yes markdown-link-check --help"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+name: `+tt.workflowName+`
+on: pull_request
+jobs:
+  `+tt.job+`:
+    steps:
+      - run: `+tt.run+`
+`)
+			assert.NotContains(t, verdicts, "Linter")
+		})
+	}
+}
+
 func TestTalismanActionsGradeEnforcing(t *testing.T) {
 	for _, action := range []string{
 		"carhartl/talisman-secrets-scan-action@v1.4.0",

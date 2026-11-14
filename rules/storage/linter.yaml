@@ -333,6 +333,14 @@ rules:
         equals: "false"
         verdict: "advisory"
 
+  # Match the command or either action, not config paths or workflow/job names.
+  # Token boundaries exclude filenames like markdown-link-check-config.json.
+  - id: "markdown-link-check-rule"
+    name: "markdown-link-check"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])markdown-link-check(?:[\\s:@]|$)|(?:^|\\s)(?:tcort|gaurav-nelson)/github-action-markdown-link-check(?:[\\s@]|$)"
+
   # awesome_bot checks links and exits 1 on a dead or duplicate one; no flag
   # makes it exit 0. It only matches as a whole word, like lychee, so the
   # awesomebot-gh-summary-action, its URL in a link and awesome_bottom_bar

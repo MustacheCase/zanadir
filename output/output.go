@@ -209,8 +209,12 @@ func renderMarkdown(w io.Writer, suggestions []*suggester.CategorySuggestion, co
 	if len(weaknesses) > 0 {
 		fmt.Fprintf(&b, "\n**%s**\n\n", weakenedHeadline(len(weaknesses)))
 		for _, weakness := range weaknesses {
-			fmt.Fprintf(&b, "- %s is **%s** in %s%s\n",
-				markdown.Code(weakness.Category), markdown.Text(weakness.Verdict), markdown.Code(weakness.Location), markdown.Text(weakness.because()))
+			where := ""
+			if weakness.Location != "" {
+				where = " in " + markdown.Code(weakness.Location)
+			}
+			fmt.Fprintf(&b, "- %s is **%s**%s%s\n",
+				markdown.Code(weakness.Category), markdown.Text(weakness.Verdict), where, markdown.Text(weakness.because()))
 		}
 	}
 
@@ -291,7 +295,11 @@ func renderWeakened(w io.Writer, weaknesses []Weakness, colour bool) error {
 		return err
 	}
 	for _, weakness := range weaknesses {
-		if _, err := fmt.Fprintf(w, "  %s is %s (%s)%s\n", weakness.Category, weakness.Verdict, utils.Printable(weakness.Location), weakness.because()); err != nil {
+		where := ""
+		if weakness.Location != "" {
+			where = " (" + utils.Printable(weakness.Location) + ")"
+		}
+		if _, err := fmt.Fprintf(w, "  %s is %s%s%s\n", weakness.Category, weakness.Verdict, where, weakness.because()); err != nil {
 			return err
 		}
 	}

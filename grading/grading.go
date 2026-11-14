@@ -5,6 +5,7 @@ package grading
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -560,6 +561,9 @@ func ByCategory(findings []*matcher.Finding, merge *Merge) map[string]Assessment
 		} else {
 			candidate = gated(candidate, finding, merge)
 		}
+		if reason := missedCode(finding); reason != "" && candidate.Verdict == Enforcing {
+			candidate.Verdict, candidate.Reason = Partial, reason
+		}
 		addTool(tools, finding, candidate.Verdict)
 		if current, seen := best[finding.Category]; seen && !stronger(candidate.Verdict, current.Verdict) {
 			continue
@@ -571,6 +575,45 @@ func ByCategory(findings []*matcher.Finding, merge *Merge) map[string]Assessment
 		best[category] = assessment
 	}
 	return best
+}
+
+var languageFlag = regexp.MustCompile(`(?i)--language[= ](\S+)`)
+
+// missedCode explains a run whose --language flags analyse none of the
+// repository's languages that its rule could. A name the rule doesn't list
+// may be code zanadir can't detect, so it covers the repository.
+func missedCode(finding *matcher.Finding) string {
+	rule, job := finding.Rule, finding.Job
+	if rule == nil || len(rule.Languages) == 0 || job == nil || finding.Artifact == nil {
+		return ""
+	}
+	var named, covered []string
+	for _, command := range matcher.Commands(job.Run, rule) {
+		for _, flag := range languageFlag.FindAllStringSubmatch(command, -1) {
+			for _, name := range strings.Split(strings.ToLower(flag[1]), ",") {
+				analysed, known := rule.Languages[name]
+				if !known {
+					return ""
+				}
+				named, covered = append(named, name), append(covered, analysed...)
+			}
+		}
+	}
+	analysable := slices.Concat(slices.Collect(maps.Values(rule.Languages))...)
+	var missed []string
+	for _, language := range finding.Artifact.Languages {
+		if slices.Contains(covered, language) {
+			return ""
+		}
+		if slices.Contains(analysable, language) {
+			missed = append(missed, language)
+		}
+	}
+	if len(named) == 0 || len(missed) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s analyses only %s; the %s code detected from repository manifests is not scanned",
+		cmp.Or(finding.Tool, finding.RuleID), strings.Join(sortedUnique(named), ", "), strings.Join(sortedUnique(missed), ", "))
 }
 
 // Tool is one tool behind a category: its strongest verdict and the files it

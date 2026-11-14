@@ -687,6 +687,20 @@ serves their packages under the same names, and `path`, `directory`,
 `editable`, `file:` and linked sources are the repository's own code. Only the
 lockfiles at the repository root are read.
 
+SAST is held to the detected languages too, more loosely. A CodeQL run whose
+`languages` (or `--language`) names none of them, among those CodeQL analyses,
+is `partial`:
+
+```
+  SAST is partial (.github/workflows/codeql.yml): CodeQL analyses only actions, python; the Java, Rust code detected from repository manifests is not scanned
+```
+
+One analysed language is enough, since a manifest can be there only for
+tooling. A language CodeQL can't analyse, such as PHP, doesn't count against
+it, and one zanadir doesn't detect (`c-cpp`, `swift`) or can't read (a matrix
+expression) counts as covering the code. Kotlin's Gradle build is detected as
+Java, which `java-kotlin` covers.
+
 A weakened control does not fail a scan unless you ask it to. `--enforce` and
 `--fail-on` act only on categories with no tooling; `--fail-on-weakened` is
 what turns a weak control into a failure:
@@ -1093,6 +1107,19 @@ rules:
 `Java`, `Rust`, `PHP` and `C#`. Omitting it or setting an empty list leaves
 coverage unrestricted. It affects SCA coverage only; other categories keep
 their existing behavior.
+
+A rule for a tool that takes `--language=a,b` can map each name to the
+canonical languages it analyses, as the CodeQL rule does. A run that names
+none of the repository's languages that the map covers is `partial`; a name
+the map leaves out counts as covering the code, and an empty list
+(`actions: []`) as covering none of it:
+
+```yaml
+    languages:
+      actions: []
+      java-kotlin: [Java]
+      python: [Python]
+```
 
 A rule that also matches on `Artifact.Name` can take `unlessPackage`, a regex
 over the workflow's actions: when one matches, the workflow's steps decide and

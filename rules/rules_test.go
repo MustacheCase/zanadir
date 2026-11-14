@@ -309,6 +309,29 @@ func TestCustomRuleCarriesEcosystems(t *testing.T) {
 	assert.Equal(t, []string{language.Go, language.Python}, custom.Ecosystems, "compiled metadata must not alias the caller's slice")
 }
 
+func TestCustomRuleCarriesLanguages(t *testing.T) {
+	file := rules.FileRule{
+		ID: "custom-languages", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SAST"}, Regex: "custom",
+		Languages: map[string][]string{"Go": {language.Go}, "go": {language.Go}, "none": {}},
+	}
+	rs, err := rules.NewRulesService(file)
+	require.NoError(t, err)
+	var custom *rules.Rule
+	for _, rule := range rs.GetCategoryRules(models.SAST) {
+		if rule.ID == "custom-languages" {
+			custom = rule
+		}
+	}
+	require.NotNil(t, custom)
+	assert.Equal(t, map[string][]string{"go": {language.Go, language.Go}, "none": nil}, custom.Languages)
+	file.Languages["go"][0] = language.Rust
+	assert.Equal(t, []string{language.Go, language.Go}, custom.Languages["go"], "compiled metadata must not alias the caller's slice")
+
+	file.Languages = map[string][]string{"kotlin": {"Kotlin"}}
+	_, err = rules.NewRulesService(file)
+	require.ErrorContains(t, err, `rule "custom-languages": --language kotlin analyses unknown language "Kotlin"`)
+}
+
 func TestEmbeddedSCAEcosystems(t *testing.T) {
 	want := map[string][]string{
 		"govulncheck-rule":           {language.Go},

@@ -613,6 +613,33 @@ jobs:
 	}
 }
 
+// gh-action-pypi-publish attests only through trusted publishing to PyPI.
+func TestPypiPublishAttestsOnlyThroughTrustedPublishing(t *testing.T) {
+	for step, attests := range map[string]bool{
+		"uses: pypa/gh-action-pypi-publish@release/v1":                                                                         true,
+		"uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          attestations: false":                           false,
+		"uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          password: ${{ secrets.PYPI }}":                 false,
+		"uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          repository-url: https://test.pypi.org/legacy/": false,
+		"uses: sigstore/gh-action-sigstore-python@v3.5.0\n        with:\n          inputs: ./dist/*.whl":                       true,
+		"run: python -m sigstore sign dist/*.whl":                                                                              true,
+	} {
+		t.Run(step, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/publish.yml", `
+on: release
+jobs:
+  publish:
+    steps:
+      - `+step+`
+`)
+			if attests {
+				assert.Equal(t, Enforcing, verdicts["Supply Chain"])
+			} else {
+				assert.NotContains(t, verdicts, "Supply Chain")
+			}
+		})
+	}
+}
+
 // br hunt exits 10 on a listed package, and the Action fails the job then
 // whatever fail-on or mode says; only continue-on-error or || true weaken it.
 func TestBlastradiusGradesEnforcing(t *testing.T) {

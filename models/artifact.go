@@ -21,6 +21,7 @@ type Artifact struct {
 	DefaultBranch string
 	// ToolConfigs are the config files named by rules that the repository has.
 	ToolConfigs map[string]bool
+	Languages   []string
 	// Disabled is a workflow GitHub has turned off and nothing enabled calls,
 	// so it never runs.
 	Disabled bool

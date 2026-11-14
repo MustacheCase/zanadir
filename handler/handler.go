@@ -248,7 +248,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	debugf("Default branch: %q", defaultBranch)
 	configs := toolConfigs(cfg.Dir, h.RulesService)
 	for _, a := range artifacts {
-		a.DefaultBranch, a.ToolConfigs = defaultBranch, configs
+		a.DefaultBranch, a.ToolConfigs, a.Languages = defaultBranch, configs, languages
 	}
 	// Suggestions follow every language; dependency scanning only those with dependencies.
 	weaknesses, covered := graded(skipped, cfg.Dir, language.WithDependencies(cfg.Dir), findings, waits, debugf)

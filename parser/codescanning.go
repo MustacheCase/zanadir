@@ -32,7 +32,7 @@ func (p CodeScanningParser) Parse(root string) ([]*models.Artifact, error) {
 		return nil, nil
 	}
 	return []*models.Artifact{{
-		Name:     "CodeQL default setup",
+		Name:     "Code scanning default setup",
 		Triggers: []models.Trigger{{Event: "push"}, {Event: "pull_request"}, {Event: "schedule"}},
 		Jobs:     []*models.Job{{Name: "Analyze", Run: codeqlCommand(strings.Join(strings.Fields(string(data)), ","))}},
 	}}, nil

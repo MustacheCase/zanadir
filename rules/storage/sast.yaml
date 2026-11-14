@@ -41,6 +41,22 @@ rules:
     categories: ["SAST"]
     regex: "(?i)\\bcodeql\\s+(?:database|query|github|resolve|pack)\\b|advancedsecurity-codeql-"
     unless: "(?i)--language[= ]actions(?:\\s|$)"
+    # What each --language analyses among the languages zanadir detects. A
+    # name left out (c-cpp, swift, an expression) may be code zanadir can't
+    # see, so it counts as covering the repository.
+    languages:
+      actions: []
+      csharp: ["C#"]
+      go: ["Go"]
+      java: ["Java"]
+      kotlin: ["Java"]
+      java-kotlin: ["Java"]
+      javascript: ["JavaScript"]
+      typescript: ["JavaScript"]
+      javascript-typescript: ["JavaScript"]
+      python: ["Python"]
+      ruby: ["Ruby"]
+      rust: ["Rust"]
 
   # A workflow that runs CodeQL's own action is decided by its steps.
   - id: "codeql-name-rule"

@@ -1063,7 +1063,7 @@ same shape as the [built-in rules](rules/storage):
 rules:
   - id: acme-scan
     name: Acme Scan             # optional: the tool the report names; without it, the matched text
-    applyOn: [Job.Run]          # Artifact.Name, Job.Name, Job.Package, Job.Run
+    applyOn: [Job.Run]          # Artifact.Name, Job.Name, Job.Package, Job.Run, Job.Env
     categories: [SAST]
     regex: '\bacme-scan\b'
     unless: '--list-rules'      # optional: a match that does not count, e.g. a command that does not scan

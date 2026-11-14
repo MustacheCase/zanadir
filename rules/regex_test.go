@@ -691,6 +691,13 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"tar -xjf archive.tar.bz2", "coverage run --source=bzt -m nose2", "bzt.yml"},
 		},
 		{
+			ruleID: "npm-provenance-rule",
+			shouldMatch: []string{"npm publish --provenance --access public", "pnpm -r publish --provenance", "yarn npm publish --provenance",
+				"npm publish --provenance=true", "NPM_CONFIG_PROVENANCE=true", "npm_config_provenance=1", "CI=true\nNPM_CONFIG_PROVENANCE='true'"},
+			shouldNotMatch: []string{"npm publish", "npm publish --provenance=false", "NPM_CONFIG_PROVENANCE=false", "MY_NPM_CONFIG_PROVENANCE=true",
+				"actions/attest-build-provenance", "npm view pkg --provenance"},
+		},
+		{
 			ruleID:         "semgrep-rule",
 			shouldMatch:    []string{"semgrep ci", "semgrep/semgrep-action", "semgrep scan --config auto"},
 			shouldNotMatch: []string{"semgreppy", "mysemgrep"},

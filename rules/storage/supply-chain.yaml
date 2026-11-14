@@ -60,6 +60,21 @@ rules:
     categories: ["Supply Chain"]
     regex: "(?im)(?:^|\\s)npm_config_provenance=[\"']?(?:true|1)[\"']?$|\\b(?:npm|pnpm|yarn)\\s+(?:[^\\n]*\\s)?publish\\b[^\\n]*\\s--provenance(?:=true)?(?:\\s|$)"
 
+  # PEP 740 attestations. The parser reads gh-action-pypi-publish as this
+  # command, with the flag only when it publishes through trusted publishing.
+  - id: "pypi-attestations-rule"
+    name: "PyPI attestations"
+    applyOn: ["Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)\\btwine\\s+upload\\b[^\\n]*\\s--attestations(?:\\s|$)|\\bpypi[-_]attestations\\s+sign\\b"
+    unless: "(?i)test\\.pypi\\.org|\\s(?:-r|--repository)[= ]testpypi\\b"
+
+  - id: "sigstore-python-rule"
+    name: "Sigstore"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Supply Chain"]
+    regex: "(?i)^sigstore/gh-action-sigstore-python$|(?:^|\\s)sigstore\\s+(?:-\\S+\\s+)*(?:sign|attest)(?:\\s|$)"
+
   # trivy writes a bill of materials when asked for one as its output format.
   # Its sbom sub-command does the opposite: it scans one, which is SCA.
   - id: "trivy-sbom-rule"

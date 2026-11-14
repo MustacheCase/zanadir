@@ -698,6 +698,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"actions/attest-build-provenance", "npm view pkg --provenance"},
 		},
 		{
+			ruleID:         "pypi-attestations-rule",
+			shouldMatch:    []string{"twine upload --attestations dist/*", "python -m twine upload --attestations --skip-existing dist/*", "python -m pypi_attestations sign dist/*.whl"},
+			shouldNotMatch: []string{"twine upload dist/*", "twine upload --attestations-dir x dist/*", "twine check --attestations dist/*", "pypi-attestations verify attestation --identity x dist/a.whl"},
+		},
+		{
+			ruleID: "sigstore-python-rule",
+			shouldMatch: []string{"sigstore/gh-action-sigstore-python", "sigstore sign dist/*", "python -m sigstore sign dist/x.whl",
+				"uvx sigstore --staging sign x.tar.gz", "sigstore attest --predicate p.json --predicate-type t x.whl"},
+			shouldNotMatch: []string{"sigstore verify identity x.whl", "npm install @sigstore/sign", "cosign sign image",
+				"sigstore/cosign-installer", "sigstore/gh-action-sigstore-python-fork"},
+		},
+		{
 			ruleID:         "semgrep-rule",
 			shouldMatch:    []string{"semgrep ci", "semgrep/semgrep-action", "semgrep scan --config auto"},
 			shouldNotMatch: []string{"semgreppy", "mysemgrep"},
@@ -1574,6 +1586,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
+		"pypi-attestations-rule":     {"twine upload --repository-url https://test.pypi.org/legacy/ --attestations", "twine upload -r testpypi --attestations dist/*"},
 		"sonar-rule":                 {"./gradlew build -x test -x sonarqube", "gradle check --exclude-task sonarqube"},
 		"zizmor-rule":                {"zizmorcore/zizmor-action"},
 		"semgrep-rule": {"semgrep --metrics=off --validate --strict --config=./rules/", "semgrep --test --config rules tests/",

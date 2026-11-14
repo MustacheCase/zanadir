@@ -609,6 +609,24 @@ func TestGithubParserReadsCodeQLInitAsTheDatabaseItCreates(t *testing.T) {
 		"an expression, or no languages, says nothing")
 }
 
+func TestGithubParserReadsPypiPublishAsItsUpload(t *testing.T) {
+	artifact := parseOne(t, "on: release\njobs:\n  publish:\n    runs-on: x\n    steps:\n"+
+		"      - uses: pypa/gh-action-pypi-publish@release/v1\n"+
+		"      - uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          attestations: true\n          repository-url: https://test.pypi.org/legacy/\n"+
+		"      - uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          attestations: false\n"+
+		"      - uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          password: ${{ secrets.PYPI_TOKEN }}\n"+
+		"      - uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          user: alice\n"+
+		"      - uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          repository_url: https://pkgs.example.com/simple/\n"+
+		"      - uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          attestations: ${{ inputs.attest }}\n")
+	var runs []string
+	for _, job := range artifact.Jobs {
+		runs = append(runs, job.Run)
+	}
+	assert.Equal(t, []string{"twine upload --attestations", "twine upload --repository-url https://test.pypi.org/legacy/ --attestations",
+		"twine upload", "twine upload", "twine upload", "twine upload --repository-url https://pkgs.example.com/simple/", "twine upload"}, runs,
+		"only trusted publishing to pypi.org attests")
+}
+
 func TestGithubParserReadsPreCommitActionsAsTheirCommand(t *testing.T) {
 	artifact := parseOne(t, "on: pull_request\njobs:\n  hooks:\n    runs-on: x\n    steps:\n      - uses: pre-commit/action@v3.0.1\n      - uses: pre-commit/action@v3.0.1\n        with:\n          extra_args: --all-files zizmor\n      - uses: j178/prek-action@v1\n      - uses: j178/prek-action@v1\n        with:\n          extra-args: --all-files actionlint\n      - uses: j178/prek-action@v1\n        with:\n          install-only: 'true'\n")
 	var runs []string

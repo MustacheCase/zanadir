@@ -107,6 +107,8 @@ func (e *Expander) follow(dir string, words []string) {
 		e.turbo(dir, words[1:])
 	case "lerna":
 		e.lerna(dir, words[1:])
+	case "changeset":
+		e.changeset(dir, words[1:])
 	case "nx":
 		e.nx(dir, words[1:])
 	case "npm-run-all", "npm-run-all2", "run-s", "run-p":

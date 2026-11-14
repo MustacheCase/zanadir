@@ -52,6 +52,14 @@ rules:
     categories: ["Supply Chain"]
     regex: "(?i)\\bactions/attest(?:-build-provenance|-sbom)?(?:$|[@\\s])"
 
+  # npm signs a provenance statement for a package published with
+  # --provenance or NPM_CONFIG_PROVENANCE, and the publish fails if it can't.
+  - id: "npm-provenance-rule"
+    name: "npm provenance"
+    applyOn: ["Job.Run", "Job.Env"]
+    categories: ["Supply Chain"]
+    regex: "(?im)(?:^|\\s)npm_config_provenance=[\"']?(?:true|1)[\"']?$|\\b(?:npm|pnpm|yarn)\\s+(?:[^\\n]*\\s)?publish\\b[^\\n]*\\s--provenance(?:=true)?(?:\\s|$)"
+
   # trivy writes a bill of materials when asked for one as its output format.
   # Its sbom sub-command does the opposite: it scans one, which is SCA.
   - id: "trivy-sbom-rule"

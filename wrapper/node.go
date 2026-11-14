@@ -18,6 +18,8 @@ type nodePackage struct {
 	Name       string            `json:"name"`
 	Scripts    map[string]string `json:"scripts"`
 	Workspaces json.RawMessage   `json:"workspaces"`
+	// Raw, so that a malformed publishConfig doesn't lose the scripts.
+	PublishConfig json.RawMessage `json:"publishConfig"`
 }
 
 var (
@@ -86,6 +88,12 @@ func (e *Expander) npm(dir string, args []string) {
 	} else if hasFlag(flags, "-ws", "--workspaces") {
 		dirs = e.workspaces(dir)
 	}
+	if pos[0] == "publish" {
+		if flags["--provenance"] != "false" {
+			e.publish(dirs)
+		}
+		return
+	}
 	// npm passes a run only what follows --.
 	var extra []string
 	if i := slices.Index(args, "--"); i >= 0 {
@@ -106,7 +114,13 @@ func (e *Expander) yarn(dir string, args []string) {
 		if rest[0] == "foreach" {
 			rest = rest[1:]
 		}
+		if len(rest) > 1 && rest[0] == "npm" && rest[1] == "publish" {
+			e.publish(e.workspaces(dir))
+			return
+		}
 		e.runScripts(e.workspaces(dir), scriptName(rest), true)
+	case len(pos) > 1 && pos[0] == "npm" && pos[1] == "publish":
+		e.publish([]string{dir})
 	case pos[0] == "run" || !yarnCommands[pos[0]]:
 		e.scriptOrBinary(dir, args, scriptName(pos), true)
 	}
@@ -115,6 +129,15 @@ func (e *Expander) yarn(dir string, args []string) {
 func (e *Expander) pnpm(dir string, args []string) {
 	flags, pos := nodeArgs(args, "-C", "--dir", "--filter", "-F", "--filter-prod", "--workspace-concurrency", "--reporter")
 	dir = e.chdir(dir, flags, "-C", "--dir")
+	recursive := hasFlag(flags, "-r", "--recursive", "--filter", "-F", "--filter-prod")
+	if len(pos) > 0 && pos[0] == "publish" {
+		dirs := []string{dir}
+		if recursive {
+			dirs = e.workspaces(dir)
+		}
+		e.publish(dirs)
+		return
+	}
 	if len(pos) == 0 || pnpmCommands[pos[0]] {
 		return
 	}
@@ -122,7 +145,7 @@ func (e *Expander) pnpm(dir string, args []string) {
 	if pos[0] == "test" || pos[0] == "t" || pos[0] == "tst" {
 		name = "test"
 	}
-	if hasFlag(flags, "-r", "--recursive", "--filter", "-F", "--filter-prod") {
+	if recursive {
 		e.runScripts(e.workspaces(dir), name, false)
 		return
 	}
@@ -239,6 +262,30 @@ func (e *Expander) runScripts(dirs []string, name string, prePost bool, extra ..
 		e.emit(dir, strings.Join(append([]string{p.Scripts[name]}, extra...), " "))
 		if prePost {
 			e.emit(dir, p.Scripts["post"+name])
+		}
+	}
+}
+
+// changeset publishes every public package of the repository.
+func (e *Expander) changeset(dir string, args []string) {
+	if _, pos := nodeArgs(args); len(pos) > 0 && pos[0] == "publish" {
+		e.publish(append([]string{dir}, e.workspaces(dir)...))
+	}
+}
+
+// publish emits `npm publish --provenance` for each package whose
+// publishConfig turns provenance on, which a plain publish then signs.
+func (e *Expander) publish(dirs []string) {
+	for _, dir := range dirs {
+		p := e.pkg(dir)
+		if p == nil || len(p.PublishConfig) == 0 {
+			continue
+		}
+		var config struct {
+			Provenance bool `json:"provenance"`
+		}
+		if json.Unmarshal(p.PublishConfig, &config) == nil && config.Provenance && e.once("publish "+dir) {
+			e.emit(dir, "npm publish --provenance")
 		}
 	}
 }

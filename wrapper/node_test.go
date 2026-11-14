@@ -94,3 +94,24 @@ func TestNpmRunAllRunsScriptsByNameOrGlob(t *testing.T) {
 	assert.Equal(t, []string{"stylelint .", "markdownlint ."}, expand(t, files, "run-p --continue-on-error lint:*"))
 	assert.Empty(t, expand(t, map[string]string{}, "run-p lint"))
 }
+
+func TestPublishConfigProvenanceSignsThePublish(t *testing.T) {
+	files := map[string]string{
+		"package.json":            `{"workspaces": ["packages/*"], "scripts": {"release": "changeset publish"}}`,
+		"packages/a/package.json": `{"name": "a", "publishConfig": {"access": "public", "provenance": true}}`,
+		"packages/b/package.json": `{"name": "b", "publishConfig": {"provenance": false}}`,
+		"packages/c/package.json": `{"name": "c", "publishConfig": "bad", "scripts": {"lint": "eslint ."}}`,
+	}
+	signed := []string{"npm publish --provenance"}
+	assert.Equal(t, []string{"changeset publish", "npm publish --provenance"}, expand(t, files, "npm run release"))
+	assert.Equal(t, signed, expand(t, files, "npx changeset publish"))
+	assert.Equal(t, signed, expand(t, files, "npm publish --workspaces"))
+	assert.Equal(t, signed, expand(t, files, "npm publish -w a"))
+	assert.Equal(t, signed, expand(t, files, "pnpm -r publish"))
+	assert.Equal(t, signed, expand(t, files, "yarn workspaces foreach npm publish"))
+	assert.Equal(t, signed, expand(t, files, "cd packages/a && yarn npm publish"))
+	assert.Empty(t, expand(t, files, "npm publish"), "the root package doesn't set it")
+	assert.Empty(t, expand(t, files, "npm publish -w a --provenance=false"))
+	assert.Empty(t, expand(t, files, "pnpm publish -C packages/b"))
+	assert.Equal(t, []string{"eslint ."}, expand(t, files, "npm run lint -w c"), "a malformed publishConfig keeps the scripts")
+}

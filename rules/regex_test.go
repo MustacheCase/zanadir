@@ -676,8 +676,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 		{
 			// A bare "sonar" appears in unrelated project and job names.
 			ruleID:         "sonar-rule",
-			shouldMatch:    []string{"SonarSource/sonarqube-scan-action", "sonar-scanner -Dsonar.host.url=x", "sonarcloud scan"},
-			shouldNotMatch: []string{"sonar", "sonarian", "build-sonar-module"},
+			shouldMatch:    []string{"SonarSource/sonarqube-scan-action", "sonar-scanner -Dsonar.host.url=x", "sonarcloud scan", "npx sonarqube-scanner", "./gradlew sonarqube", "Run SonarCloud"},
+			shouldNotMatch: []string{"sonar", "sonarian", "build-sonar-module", "gcovr -r . --sonarqube coverage.xml", "jest --coverage --coverageReporters=lcov,sonarqube", "vitest --coverage.reporter=sonarqube"},
 		},
 		{
 			ruleID:         "gosec-rule",
@@ -1474,6 +1474,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
+		"sonar-rule":                 {"./gradlew build -x test -x sonarqube", "gradle check --exclude-task sonarqube"},
 		"zizmor-rule":                {"zizmorcore/zizmor-action"},
 		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
 		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},

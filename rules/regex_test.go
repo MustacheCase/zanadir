@@ -49,6 +49,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "cargo-vet-rule",
+			shouldMatch: []string{
+				"cargo vet", "cargo vet check", "cargo vet --locked",
+				"cargo +stable vet check", "cd workspace && cargo vet check --locked",
+				"cargo vet --locked check", "cargo vet --frozen --locked",
+				"cargo vet --output-format json",
+			},
+			shouldNotMatch: []string{
+				"cargo install cargo-vet", "cargo-vet check", "mycargo vet check",
+				"cargo vendor", "cargo verify-project",
+			},
+		},
+		{
 			ruleID: "kube-linter-rule",
 			shouldMatch: []string{
 				"kube-linter lint k8s/",
@@ -1415,6 +1428,14 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 
 	for id, excepted := range map[string][]string{
 		"bundler-audit-rule":         {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
+		"cargo-vet-rule": {
+			"cargo vet init", "cargo vet suggest", "cargo vet fmt", "cargo vet prune",
+			"cargo vet aggregate --output-file audits.toml sources.list",
+			"cargo vet --output-format=json dump-graph", "cargo vet --locked suggest",
+			"cargo vet --manifest-path foo/Cargo.toml suggest",
+			"cargo vet explain-audit", "cargo vet gc", "cargo vet renew",
+			"cargo vet --help", "cargo vet --version", "cargo +nightly vet init",
+		},
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},

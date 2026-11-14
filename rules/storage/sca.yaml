@@ -9,6 +9,26 @@ rules:
     exitsZeroUnless:
       runMatches: "(?:^|\\s)--exit-non-zero-on-finding(?:\\s|$)"
 
+  # blastradius (jondot/blastradius) fails when a listed bad package, hash or
+  # action ref is found: br hunt exits 10, and its Action fails the job whatever
+  # fail-on or mode says. Its other commands (init, index, hosts, demo) gate nothing.
+  - id: "blastradius-rule"
+    name: "blastradius"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?im)^jondot/blastradius$|^(?:\\S*/)?br\\s+hunt(?:\\s|$)|(?:^|\\s)@jondot/blastradius(?:@\\S+)?\\s+hunt(?:\\s|$)"
+
+  # Its pre-commit hook passes, checking nothing, without a .br-indicators list.
+  # No flag turns it on, so runMatches matches nothing: only the list does.
+  - id: "blastradius-precommit-rule"
+    name: "blastradius"
+    applyOn: ["Job.Run"]
+    categories: ["SCA"]
+    regex: "(?m)^blastradius(?:\\s|$)"
+    exitsZeroUnless:
+      runMatches: "[^\\s\\S]"
+      configFiles: [".br-indicators"]
+
   - id: "grype-rule"
     name: "Grype"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

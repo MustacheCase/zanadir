@@ -155,6 +155,24 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "blastradius-rule",
+			shouldMatch: []string{
+				"jondot/blastradius", "br hunt npm:evil-dep@1.2.3 --path . --fail-if found",
+				"bin/br hunt npm:evil-dep@1.2.3 --path tests/action/bad --format sarif",
+				"npx -y @jondot/blastradius hunt GHSA-xxxx-xxxx-xxxx --path .",
+				"npx -y @jondot/blastradius@0.1.0 hunt npm:x@1.0.0", "cargo build\nbr hunt sha256:00 --path .",
+			},
+			shouldNotMatch: []string{
+				"jondot/blastradius-extra", "br init --org acme", "br index", "br demo", "br hosts add ci --kind runner",
+				"npx -y @jondot/blastradius demo", "git br hunt", "brhunt", "blastradius hunt", "abbr hunt",
+			},
+		},
+		{
+			ruleID:         "blastradius-precommit-rule",
+			shouldMatch:    []string{"blastradius", "pre-commit run --all-files\nblastradius", "blastradius package-lock.json"},
+			shouldNotMatch: []string{"blastradius-scan", "echo blastradius", "./blastradius.sh", "jondot/blastradius"},
+		},
+		{
 			ruleID: "guarddog-rule",
 			shouldMatch: []string{
 				"uvx guarddog pypi verify requirements.txt --exit-non-zero-on-finding",

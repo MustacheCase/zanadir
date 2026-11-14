@@ -4,9 +4,22 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bsemgrep\\b"
+    # Validating or testing rules, and the account and editor commands, scan
+    # no code.
+    unless: "(?i)(?:^|\\s)--(?:validate|test)(?:[\\s=]|$)|\\bsemgrep\\s+(?:test|login|logout|lsp|publish|show|install-semgrep-pro)(?:\\s|$)"
     # semgrep ci fails on blocking findings; scan only with --error.
     exitsZeroUnless:
       runMatches: "\\bsemgrep\\s+ci\\b|--error\\b"
+
+  - id: "opengrep-rule"
+    name: "Opengrep"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bopengrep\\b"
+    unless: "(?i)\\bopengrep(?:\\s+--[\\w-]+)*\\s+(?:test|validate|show|lsp)\\b"
+    # opengrep ci fails on blocking findings; scan only with --error.
+    exitsZeroUnless:
+      runMatches: "\\bopengrep(?:\\s+--[\\w-]+)*\\s+ci\\b|--error\\b"
 
   - id: "flawfinder-rule"
     name: "Flawfinder"
@@ -38,12 +51,16 @@ rules:
     unlessPackage: "(?i)^github/codeql-action/"
 
   # Bare "sonar" appears in unrelated names, so require a product suffix, the
-  # action's org prefix, or the Azure task or Jenkins step that runs it.
+  # action's org prefix, or the Azure task or Jenkins step that runs it. The
+  # name must start a word: as a flag or its value (gcovr --sonarqube, jest
+  # --coverageReporters=lcov,sonarqube) it only names a report format.
   - id: "sonar-rule"
     name: "SonarQube"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
-    regex: "(?i)\\bsonar(qube|cloud|-scanner)\\b|sonarsource/|^sonar(?:qube|cloud)analyze$|^withsonarqubeenv$|^waitforqualitygate$"
+    regex: "(?i)(?:^|[\\s/\"'(])sonar(qube|cloud|-scanner)\\b|sonarsource/|^sonar(?:qube|cloud)analyze$|^withsonarqubeenv$|^waitforqualitygate$"
+    # Gradle's -x skips the task it names.
+    unless: "(?i)(?:^|\\s)(?:-x|--exclude-task)\\s+sonarqube\\b"
     # Jenkins: a quality gate that does not abort the pipeline only reports.
     weakenedWhen:
       - input: "abortPipeline"
@@ -67,6 +84,20 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SAST"]
     regex: "(?i)\\bbrakeman\\b"
+
+  # Sobelow exits 0 on findings unless --exit is specified.
+  # It reads .sobelow-conf only with --config, and that file can set exit.
+  - id: "sobelow-rule"
+    name: "Sobelow"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)(?:^|[\\s/])sobelow(?:[\\s:]|$)|^sobelow/action(?:@|$)"
+    # Installing or compiling it, or asking its version, scans nothing.
+    unless: "(?i)\\bmix\\s+(?:escript\\.install|archive\\.install|deps\\.\\w+|hex\\.\\w+)\\s|\\bsobelow\\s+--version\\b"
+    exitsZeroUnless:
+      input: "flags"
+      runMatches: "--exit\\b"
+      unknownWhen: "(?:^|\\s)--config(?:[= ]|$)"
 
   # "snyk" alone is the SCA rule; only the code sub-command is SAST.
   - id: "snyk-code-rule"

@@ -36,7 +36,11 @@ rules:
     # --bin=ty, target/profiling/ty), so only "ty check" counts, with an
     # optional version as in uvx ty@0.0.1 check. --exit-zero makes ty always
     # exit 0, but --exit-zero-on-warning still fails on errors.
-    regex: "(?i)\\b(?:mypy|pyright)\\b|(?:^|[\\s/])(?P<name>ty)(?:@[\\w.-]+)?\\s+check\\b"
+    # basedpyright and pyrefly are bounded the same way: file names hold both
+    # (.basedpyright/baseline.json, pyrefly_diff.txt, ./dev/pyrefly-check-local),
+    # and only "pyrefly check" checks code (init, lsp, infer, suppress and
+    # coverage report do not). The action's Job.Package is the whole text.
+    regex: "(?i)\\b(?:mypy|pyright)\\b|(?:^|[\\s/])(?P<name>ty)(?:@[\\w.-]+)?\\s+check\\b|(?:^|[\\s/])(?P<name>basedpyright)(?:@[\\w.-]+)?(?:\\s|$)|(?:^|[\\s/])(?P<name>pyrefly)(?:@[\\w.-]+)?\\s+check\\b|^(?:facebook|meta)/(?P<name>pyrefly)$"
     weakenedWhen:
       - runMatches: "--exit-zero(?:\\s|$)"
         verdict: "advisory"
@@ -81,6 +85,31 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])vulture(?:[\\s@]|$)|(?i)(?:^|\\s)gtkacz/vulture-action(?:[\\s@]|$)"
+
+  # cargo-machete reports dependencies in Cargo.toml that the code never uses.
+  # It exits 1 on findings, so it always fails the step as it is. Match it as
+  # the cargo sub-command (with an optional toolchain) or as its own name with
+  # the boundaries of a program or image: ~/.cargo/bin/cargo-machete,
+  # bnjbvr/cargo-machete, ghcr.io/bnjbvr/cargo-machete:latest. Not the
+  # metadata tables, workflow files or release archive names.
+  # Case-sensitive: the tool, its sub-command and the hook id are lower case.
+  - id: "cargo-machete-rule"
+    name: "cargo-machete"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|[\\s/])cargo\\s+(?:\\+\\S+\\s+)?machete(?:\\s|$)|(?:^|[\\s/])cargo-machete(?:[\\s:@]|$)"
+
+  # cargo-udeps reports dependencies the build never uses. It exits 1 on
+  # findings, and on a stable toolchain it stops with an error, so it fails
+  # the step as it is. Match the cargo sub-command (with an optional
+  # toolchain), the binary as "cargo-udeps udeps", or its pre-commit hook id
+  # "udeps" as a whole command. "cargo-udeps" alone names release archives and
+  # Cargo.toml metadata, so it does not count.
+  - id: "cargo-udeps-rule"
+    name: "cargo-udeps"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?m)(?:^|[\\s/])cargo\\s+(?:\\+\\S+\\s+)?udeps(?:\\s|$)|^cargo-udeps\\s+udeps(?:\\s|$)|^udeps(?:\\s|$)"
 
   - id: "oxsecurity-super-linter-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
@@ -312,6 +341,16 @@ rules:
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])markdown-link-check(?:[\\s:@]|$)|(?:^|\\s)(?:tcort|gaurav-nelson)/github-action-markdown-link-check(?:[\\s@]|$)"
 
+  # awesome_bot checks links and exits 1 on a dead or duplicate one; no flag
+  # makes it exit 0. It only matches as a whole word, like lychee, so the
+  # awesomebot-gh-summary-action, its URL in a link and awesome_bottom_bar
+  # don't. A workflow named after it says nothing, so no Artifact.Name.
+  - id: "awesome-bot-rule"
+    name: "awesome_bot"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])awesome_bot(?:[\\s:@]|$)"
+
   # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
   # and .codespellrc / codespell_lib are not runs of it.
   - id: "codespell-rule"
@@ -386,9 +425,10 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\b(?P<name>pre-commit)\\s+run\\b|(?:^|\\n)(?:\\S*/)?(?P<name>prek)(?:\\s+(?:run\\b|-|[\\\"'$])|[ \\t]*(?:\\n|$))|^(?P<name>pre-commit)/action$|^j178/(?P<name>prek)-action$"
     # Without a file selection only staged files are checked, and a CI
-    # checkout has none, so every hook is skipped.
+    # checkout has none, so every hook is skipped. pre-commit takes any unique
+    # prefix of a long option (--all) and short flags together (-av).
     exitsZeroUnless:
-      runMatches: "(?:^|\\s)(?:--all-files|-a|--files|--glob|--directory|-d|--from-ref|--source|-s|--to-ref|--origin|-o|--last-commit)(?:[=\\s]|$)"
+      runMatches: "(?:^|\\s)(?:--a(?:l(?:l(?:-(?:f(?:i(?:l(?:es?)?)?)?)?)?)?)?|--fi(?:l(?:es?)?)?|--fr(?:o(?:m(?:-(?:r(?:ef?)?)?)?)?)?|--so(?:u(?:r(?:ce?)?)?)?|--t(?:o(?:-(?:r(?:ef?)?)?)?)?|--o(?:r(?:i(?:g(?:in?)?)?)?)?|--glob|--directory|--last-commit|-[vq]*[asod]\\S*)(?:[=\\s\\\"';&|)]|$)"
       unknownWhen: "\\$"
 
   # tsc is as often the build as a check, so only --noEmit says "check,

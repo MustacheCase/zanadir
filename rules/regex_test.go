@@ -36,6 +36,15 @@ func TestRuleRegexPrecision(t *testing.T) {
 		shouldNotMatch []string
 	}{
 		{
+			ruleID: "sobelow-rule",
+			shouldMatch: []string{
+				"mix sobelow --exit", "mix sobelow --exit medium --skip", "mix sobelow --config",
+				"mix sobelow", "sobelow/action", "sobelow",
+				"~/.mix/escripts/sobelow --exit low",
+			},
+			shouldNotMatch: []string{"mix credo", "mix deps.audit", "mix test", "my-sobelow-wrapper", "mysobelow"},
+		},
+		{
 			ruleID: "kingfisher-rule",
 			shouldMatch: []string{
 				"kingfisher scan .", "kingfisher scan --git-history full .",
@@ -46,6 +55,32 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{
 				"brew install kingfisher", "kingfisher --version", "kingfishers",
 				"kingfisher scan-results", "mykingfisher scan .",
+			},
+		},
+		{
+			ruleID: "cargo-vet-rule",
+			shouldMatch: []string{
+				"cargo vet", "cargo vet check", "cargo vet --locked",
+				"cargo +stable vet check", "cd workspace && cargo vet check --locked",
+				"cargo vet --locked check", "cargo vet --frozen --locked",
+				"cargo vet --output-format json",
+			},
+			shouldNotMatch: []string{
+				"cargo install cargo-vet", "cargo-vet check", "mycargo vet check",
+				"cargo vendor", "cargo verify-project",
+			},
+		},
+		{
+			ruleID: "opengrep-rule",
+			shouldMatch: []string{
+				"opengrep scan --config auto --error", "opengrep scan .",
+				"platform-sec/opengrep-action", "opengrep ci", "opengrep --experimental ci",
+				"opengrep --config auto .", "./bin/opengrep scan --config auto .",
+				"docker run opengrep/opengrep scan -f rules src",
+				"scripts/run-opengrep.sh --changed --sarif --error",
+			},
+			shouldNotMatch: []string{
+				"grep -r foo .", "semgrep scan", "myopengrep scan .",
 			},
 		},
 		{
@@ -118,6 +153,24 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"cargo bench", "go test -bench=. ./...", "CodSpeedHQ/action@v3",
 				"benchmark-action/github-action-benchmark-extra@v1",
 			},
+		},
+		{
+			ruleID: "blastradius-rule",
+			shouldMatch: []string{
+				"jondot/blastradius", "br hunt npm:evil-dep@1.2.3 --path . --fail-if found",
+				"bin/br hunt npm:evil-dep@1.2.3 --path tests/action/bad --format sarif",
+				"npx -y @jondot/blastradius hunt GHSA-xxxx-xxxx-xxxx --path .",
+				"npx -y @jondot/blastradius@0.1.0 hunt npm:x@1.0.0", "cargo build\nbr hunt sha256:00 --path .",
+			},
+			shouldNotMatch: []string{
+				"jondot/blastradius-extra", "br init --org acme", "br index", "br demo", "br hosts add ci --kind runner",
+				"npx -y @jondot/blastradius demo", "git br hunt", "brhunt", "blastradius hunt", "abbr hunt",
+			},
+		},
+		{
+			ruleID:         "blastradius-precommit-rule",
+			shouldMatch:    []string{"blastradius", "pre-commit run --all-files\nblastradius", "blastradius package-lock.json"},
+			shouldNotMatch: []string{"blastradius-scan", "echo blastradius", "./blastradius.sh", "jondot/blastradius"},
 		},
 		{
 			ruleID: "guarddog-rule",
@@ -296,12 +349,29 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"uvx ty@latest check src", "uv run --python 3.15 --with ty ty check --output-format=github",
 				"ty check --exit-zero-on-warning --output-format=github", "ty check openbb_ecb",
 				"uv run --only-group check ty check python/uv",
+				"basedpyright", "uv run --no-sync basedpyright",
+				"uv run --no-sync basedpyright tests/e2e tests/e2e_harness",
+				"uv run --no-sync basedpyright --pythonpath .venv/bin/python --project tests/typing/pyrightconfig.json",
+				".venv/bin/basedpyright --level error", "basedpyright --gitlabcodequality report.json",
+				"uvx basedpyright@1.40.2", "npx basedpyright",
+				"pyrefly check",
+				"pyrefly check --python-version=3.8 --preset=basic --check-unannotated-defs --summary",
+				"uv run pyrefly check src/", "uv run --project . --dev pyrefly check --summary=none",
+				"uvx pyrefly@1.4.1 check", "pyrefly check --output-format=github",
+				"facebook/pyrefly", "meta/pyrefly",
 			},
 			shouldNotMatch: []string{
 				"mypyc-build", "pyrightish",
 				"ty version", "ty server", "ty explain rule unresolved-import", "uv run ty", "ty checkout",
 				"pretty check", "./scripts/ty-check.sh", "cargo build --profile=profiling --bin=ty",
 				"mv target/profiling/ty ty-new",
+				"git diff --exit-code .basedpyright/baseline.json", "basedpyright-langserver --stdio",
+				"pyrefly init", "pyrefly lsp", "pyrefly dump-config", "pyrefly suppress",
+				"pyrefly coverage report", "uv run --directory api --dev pyrefly report",
+				"pyrefly coverage check --public-only src/", "./dev/pyrefly-check-local \"${targets[@]}\"",
+				"LINTER_GROUP=pyrefly .github/scripts/lintrunner.sh",
+				"diff -u /tmp/pyrefly_base.txt /tmp/pyrefly_pr.txt > pyrefly_diff.txt",
+				"pyrefly checkout",
 			},
 		},
 		{
@@ -621,6 +691,13 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"tar -xjf archive.tar.bz2", "coverage run --source=bzt -m nose2", "bzt.yml"},
 		},
 		{
+			ruleID: "npm-provenance-rule",
+			shouldMatch: []string{"npm publish --provenance --access public", "pnpm -r publish --provenance", "yarn npm publish --provenance",
+				"npm publish --provenance=true", "NPM_CONFIG_PROVENANCE=true", "npm_config_provenance=1", "CI=true\nNPM_CONFIG_PROVENANCE='true'"},
+			shouldNotMatch: []string{"npm publish", "npm publish --provenance=false", "NPM_CONFIG_PROVENANCE=false", "MY_NPM_CONFIG_PROVENANCE=true",
+				"actions/attest-build-provenance", "npm view pkg --provenance"},
+		},
+		{
 			ruleID:         "semgrep-rule",
 			shouldMatch:    []string{"semgrep ci", "semgrep/semgrep-action", "semgrep scan --config auto"},
 			shouldNotMatch: []string{"semgreppy", "mysemgrep"},
@@ -646,8 +723,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 		{
 			// A bare "sonar" appears in unrelated project and job names.
 			ruleID:         "sonar-rule",
-			shouldMatch:    []string{"SonarSource/sonarqube-scan-action", "sonar-scanner -Dsonar.host.url=x", "sonarcloud scan"},
-			shouldNotMatch: []string{"sonar", "sonarian", "build-sonar-module"},
+			shouldMatch:    []string{"SonarSource/sonarqube-scan-action", "sonar-scanner -Dsonar.host.url=x", "sonarcloud scan", "npx sonarqube-scanner", "./gradlew sonarqube", "Run SonarCloud"},
+			shouldNotMatch: []string{"sonar", "sonarian", "build-sonar-module", "gcovr -r . --sonarqube coverage.xml", "jest --coverage --coverageReporters=lcov,sonarqube", "vitest --coverage.reporter=sonarqube"},
 		},
 		{
 			ruleID:         "gosec-rule",
@@ -1099,6 +1176,57 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "cargo-machete-rule",
+			shouldMatch: []string{
+				"cargo machete",
+				"cargo machete --skip-target-dir",
+				"cargo machete --with-metadata",
+				"cargo machete --fix",
+				"cargo machete --skip tests --skip examples",
+				"cargo machete crates/",
+				"cargo +stable machete",
+				"cargo-machete",
+				"cargo-machete --skip-target-dir .",
+				"~/.cargo/bin/cargo-machete --json",
+				"bnjbvr/cargo-machete",
+				"docker run --rm -v $(pwd):/src ghcr.io/bnjbvr/cargo-machete:latest",
+				"docker://ghcr.io/bnjbvr/cargo-machete",
+				"ghcr.io/bnjbvr/cargo-machete:latest",
+			},
+			shouldNotMatch: []string{
+				"grep -A3 'package.metadata.cargo-machete' Cargo.toml",
+				"actionlint .github/workflows/cargo-machete.yml",
+				"sha256sum -c cargo-machete-v0.9.2-x86_64-unknown-linux-musl.tar.gz.sha256",
+				"cargo machete-v0.9.2",
+				// Guard against future changes making machete match cargo-shear (#620)
+				"cargo shear",
+				"cargo clippy --all-targets",
+			},
+		},
+		{
+			ruleID: "cargo-udeps-rule",
+			shouldMatch: []string{
+				"cargo udeps",
+				"cargo udeps --locked --all-targets",
+				"cargo udeps --manifest-path ${{ matrix.path }}/Cargo.toml --all-targets --all-features",
+				"cargo +nightly udeps",
+				"cargo +nightly-2025-06-01 udeps --workspace --output json",
+				"cargo-udeps udeps --all-targets",
+				"udeps",
+				// Multiline cases: ^ should match after newline
+				"cargo build\ncargo-udeps udeps --all-targets",
+				"pre-commit run --all-files\nudeps",
+			},
+			shouldNotMatch: []string{
+				"grep -n 'workspace.metadata.cargo-udeps' Cargo.toml",
+				"sha256sum cargo-udeps-v0.1.61-x86_64-unknown-linux-gnu.tar.gz",
+				"Udeps",
+				"Create udeps matrix",
+				"cargo shear",
+				"cargo clippy --all-targets",
+			},
+		},
+		{
 			ruleID: "chart-testing-rule",
 			shouldMatch: []string{
 				"ct lint --target-branch ${{ github.event.repository.default_branch }}",
@@ -1267,6 +1395,24 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"tcort/github-action-markdown-link-check-extra@v1",
 				"gaurav-nelson/github-action-markdown-link-check-extra@v1",
 				"other/github-action-markdown-link-check@v1",
+			},
+		},
+		{
+			ruleID: "awesome-bot-rule",
+			shouldMatch: []string{
+				"awesome_bot README.md", `awesome_bot "${{ matrix.file }}" --allow-redirect --allow-dupe --allow-ssl`,
+				`awesome_bot check-unique.txt --allow-ssl --allow 302,429,502 --white-list "$WHITELIST"`,
+				"awesome_bot -f README.md,books.md --allow-dupe --allow-redirect --skip-save-results",
+				"awesome_bot applications.json -w https://matrix.org --allow 429", "xargs awesome_bot",
+				"bundle exec awesome_bot README.md", "./bin/awesome_bot README.md",
+				"docker run -ti --rm -v $PWD:/mnt:ro dkhamsing/awesome_bot --allow-dupe --skip-save-results ./templates/ubuntu.md",
+				"docker://dkhamsing/awesome_bot:1.20.0", "dkhamsing/awesome_bot:latest",
+			},
+			shouldNotMatch: []string{
+				"./.github/actions/awesomebot-gh-summary-action",
+				"$text += \"_Link issues :rocket: powered by [``awesome_bot``](https://github.com/dkhamsing/awesome_bot)_.\"",
+				"flutter pub add awesome_bottom_bar", "npx awesome-lint", "lychee README.md", "markdown-link-check README.md",
+				"jq . ab-results-README.md-filtered.json",
 			},
 		},
 		{
@@ -1451,21 +1597,34 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
-		"bundler-audit-rule":         {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
+		"opengrep-rule":      {"opengrep test rules/", "opengrep --experimental validate rules/"},
+		"sobelow-rule":       {"mix escript.install hex sobelow --force", "mix deps.compile jason sobelow", "mix sobelow --version"},
+		"bundler-audit-rule": {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
+		"cargo-vet-rule": {
+			"cargo vet init", "cargo vet suggest", "cargo vet fmt", "cargo vet prune",
+			"cargo vet aggregate --output-file audits.toml sources.list",
+			"cargo vet --output-format=json dump-graph", "cargo vet --locked suggest",
+			"cargo vet --manifest-path foo/Cargo.toml suggest",
+			"cargo vet explain-audit", "cargo vet gc", "cargo vet renew",
+			"cargo vet --help", "cargo vet --version", "cargo +nightly vet init",
+		},
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
+		"sonar-rule":                 {"./gradlew build -x test -x sonarqube", "gradle check --exclude-task sonarqube"},
 		"zizmor-rule":                {"zizmorcore/zizmor-action"},
-		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
-		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
-		"talisman-rule":              {"talisman --checksum 'config/*'", "talisman -c=config/*"},
-		"secretlint-rule":            {"npx secretlint --init", "secretlint --init"},
-		"tflint-rule":                {"tflint --init", "tflint -v"},
-		"kubeconform-rule":           {"kubeconform -v"},
-		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
-		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
-		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
-		"typos-rule":                 {"npx cspell --report typos ."},
+		"semgrep-rule": {"semgrep --metrics=off --validate --strict --config=./rules/", "semgrep --test --config rules tests/",
+			"semgrep test --strict --config rules/x.yaml", "semgrep login", "semgrep install-semgrep-pro"},
+		"npm-audit-rule":       {"npm audit signatures", "npm audit signatures --omit=dev"},
+		"ripsecrets-rule":      {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
+		"talisman-rule":        {"talisman --checksum 'config/*'", "talisman -c=config/*"},
+		"secretlint-rule":      {"npx secretlint --init", "secretlint --init"},
+		"tflint-rule":          {"tflint --init", "tflint -v"},
+		"kubeconform-rule":     {"kubeconform -v"},
+		"lychee-rule":          {"lychee --dump README.md", "lychee --dump-inputs ."},
+		"snyk-agent-scan-rule": {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
+		"trivy-rule":           {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
+		"typos-rule":           {"npx cspell --report typos ."},
 		"unit-test-command-rule": {
 			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test", "mvn -B clean install -DskipTests",
 			"./gradlew check --exclude-task test", "cargo test --no-run", "cargo test --all --no-run --locked",

@@ -9,6 +9,26 @@ rules:
     exitsZeroUnless:
       runMatches: "(?:^|\\s)--exit-non-zero-on-finding(?:\\s|$)"
 
+  # blastradius (jondot/blastradius) fails when a listed bad package, hash or
+  # action ref is found: br hunt exits 10, and its Action fails the job whatever
+  # fail-on or mode says. Its other commands (init, index, hosts, demo) gate nothing.
+  - id: "blastradius-rule"
+    name: "blastradius"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?im)^jondot/blastradius$|^(?:\\S*/)?br\\s+hunt(?:\\s|$)|(?:^|\\s)@jondot/blastradius(?:@\\S+)?\\s+hunt(?:\\s|$)"
+
+  # Its pre-commit hook passes, checking nothing, without a .br-indicators list.
+  # No flag turns it on, so runMatches matches nothing: only the list does.
+  - id: "blastradius-precommit-rule"
+    name: "blastradius"
+    applyOn: ["Job.Run"]
+    categories: ["SCA"]
+    regex: "(?m)^blastradius(?:\\s|$)"
+    exitsZeroUnless:
+      runMatches: "[^\\s\\S]"
+      configFiles: [".br-indicators"]
+
   - id: "grype-rule"
     name: "Grype"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
@@ -155,6 +175,16 @@ rules:
     categories: ["SCA"]
     ecosystems: ["Rust"]
     regex: "(?i)\\bcargo\\s+audit\\b|\\b(rustsec|actions-rs)/audit-check\\b"
+
+  # cargo vet verifies Rust dependency audits. Administrative commands do not
+  # enforce audit coverage, even with global flags before the subcommand.
+  - id: "cargo-vet-rule"
+    name: "cargo-vet"
+    applyOn: ["Job.Run"]
+    categories: ["SCA"]
+    ecosystems: ["Rust"]
+    regex: "(?i)(?:^|[\\s/])cargo(?:\\s+\\+\\S+)?\\s+vet(?:\\s|$)"
+    unless: "(?i)\\bcargo(?:\\s+\\+\\S+)?\\s+vet(?:\\s+--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?)*\\s+(?:init|suggest|inspect|diff|certify|import|trust|regenerate|add-exemption|record-violation|fmt|prune|aggregate|explain-audit|dump-graph|gc|renew|help|-h|--help|-V|--version)(?:\\s|$)"
 
   # "retire" is an ordinary word, so only the program counts: a command that
   # starts with it, directly, by path or through npx and the like. It exits 13

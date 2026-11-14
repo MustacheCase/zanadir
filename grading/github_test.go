@@ -29,6 +29,13 @@ func TestQuotedToolPathsGradeLikeBareCommands(t *testing.T) {
 		{"quoted semgrep ci", `"./bin/semgrep" ci`, "SAST", Enforcing},
 		{"quoted semgrep scan", `"./bin/semgrep" scan`, "SAST", Advisory},
 		{"quoted semgrep error", `"./bin/semgrep" scan --error`, "SAST", Enforcing},
+		{"quoted opengrep scan", `"./bin/opengrep" scan .`, "SAST", Advisory},
+		{"quoted opengrep error", `"./bin/opengrep" scan --error .`, "SAST", Enforcing},
+		{"opengrep ci", "opengrep ci", "SAST", Enforcing},
+		{"opengrep global flag ci", `"$RUNNER_TEMP/opengrep" --debug ci`, "SAST", Enforcing},
+		{"opengrep scan without subcommand", "opengrep --config auto .", "SAST", Advisory},
+		{"opengrep scan with no-error", "opengrep scan --no-error .", "SAST", Advisory},
+		{"opengrep wrapper script", "scripts/run-opengrep.sh --changed --sarif --error", "SAST", Enforcing},
 		{"quoted trivy fails", `"./bin/trivy" fs --exit-code 1 .`, "SCA", Enforcing},
 		{"quoted trivy reports", `"./bin/trivy" fs .`, "SCA", Advisory},
 		{"quoted trivy zero", `"./bin/trivy" fs --exit-code 0 .`, "SCA", Advisory},
@@ -150,6 +157,48 @@ jobs:
 	}
 }
 
+// Sobelow exits successfully on findings unless --exit is present, and
+// --config may change the exit behavior via .sobelow-conf.
+func TestSobelowExitFlagControlsGating(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"mix sobelow":               Advisory,
+		"mix sobelow --exit":        Enforcing,
+		"mix sobelow --exit medium": Enforcing,
+		"mix sobelow --skip --exit": Enforcing,
+		"mix sobelow --config":      Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["SAST"], run)
+	}
+}
+
+// sobelow/action passes its flags input to the same scanning command.
+func TestSobelowActionFlagsControlGating(t *testing.T) {
+	for flags, expected := range map[string]Verdict{
+		"":                 Advisory,
+		"-i Config":        Advisory,
+		"-i Config --exit": Enforcing,
+		"--config":         Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - uses: sobelow/action@v1
+        with:
+          flags: "`+flags+`"
+`)
+		assert.Equal(t, expected, verdicts["SAST"], flags)
+	}
+}
+
 // HTMLHint fails on findings by default; --warn keeps the linter but makes it
 // advisory because the command exits successfully.
 func TestHTMLHintWarnGradesAdvisory(t *testing.T) {
@@ -210,6 +259,28 @@ jobs:
       - run: `+run+`
 `)
 		assert.Equal(t, expected, verdicts["SCA"], run)
+	}
+}
+
+func TestReraisedFailureGradesEnforcing(t *testing.T) {
+	for raise, expected := range map[string]Verdict{
+		"run: exit 1":                  Enforcing,
+		"run: gh issue create -t vuln": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - id: trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          exit-code: "1"
+      - if: steps.trivy.outcome == 'failure'
+        `+raise+`
+`)
+		assert.Equal(t, expected, verdicts["SCA"], raise)
 	}
 }
 
@@ -457,6 +528,42 @@ jobs:
 	}
 }
 
+// awesome_bot exits 1 on a dead or duplicate link; no flag makes it exit 0.
+func TestAwesomeBotGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"awesome_bot README.md --allow-dupe --allow-redirect": Enforcing,
+		"awesome_bot README.md --skip-save-results":           Enforcing,
+		"awesome_bot README.md --allow-ssl || true":           Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  links:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+
+	for extra, expected := range map[string]Verdict{
+		"":                                  Enforcing,
+		"\n        continue-on-error: true": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  links:
+    steps:
+      - uses: docker://dkhamsing/awesome_bot:1.20.0
+        with:
+          args: --allow-dupe README.md`+extra+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], extra)
+	}
+}
+
 func TestVultureActionGradesEnforcing(t *testing.T) {
 	for _, with := range []string{
 		"",
@@ -472,6 +579,66 @@ jobs:
 `)
 			assert.Equal(t, Enforcing, verdicts["Linter"])
 		})
+	}
+}
+
+// cargo-machete exits 1 on findings, and --fix still reports what it found.
+func TestCargoMacheteGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"cargo machete":       Enforcing,
+		"cargo machete --fix": Enforcing,
+		"cargo machete --with-metadata --skip-target-dir": Enforcing,
+		"cargo-machete --json":                            Enforcing,
+		"cargo machete --fix || true":                     Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+// cargo-udeps exits 1 on findings and errors on a stable toolchain.
+func TestCargoUdepsGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"cargo +nightly udeps --all-targets":      Enforcing,
+		"cargo udeps --all-targets --output json": Enforcing,
+		"cargo udeps --all-targets || true":       Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+// The cargo-machete action runs the binary, which fails on findings.
+func TestCargoMacheteActionGradesCorrectly(t *testing.T) {
+	for with, expected := range map[string]Verdict{
+		"": Enforcing,
+		"\n        with:\n          args: --fix --with-metadata": Enforcing,
+		"\n        continue-on-error: true":                      Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/cargo-machete.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: bnjbvr/cargo-machete@v0.9.2`+with+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], with)
 	}
 }
 
@@ -494,6 +661,53 @@ jobs:
       - uses: `+tc.action+tc.inputs+`
 `)
 			assert.Equal(t, Enforcing, verdicts["Supply Chain"])
+		})
+	}
+}
+
+// br hunt exits 10 on a listed package, and the Action fails the job then
+// whatever fail-on or mode says; only continue-on-error or || true weaken it.
+func TestBlastradiusGradesEnforcing(t *testing.T) {
+	for step, expected := range map[string]Verdict{
+		"run: br hunt npm:evil-dep@1.2.3 --path . --fail-if found":                                       Enforcing,
+		"run: npx -y @jondot/blastradius hunt GHSA-xxxx-xxxx-xxxx --path .":                              Enforcing,
+		"run: br hunt npm:evil-dep@1.2.3 --path . || true":                                               Advisory,
+		"uses: jondot/blastradius@v1\n        with:\n          indicators: npm:evil-dep@1.2.3":           Enforcing,
+		"uses: jondot/blastradius@v1\n        with:\n          fail-on: found\n          mode: advisory": Enforcing,
+		"uses: jondot/blastradius@v1\n        continue-on-error: true":                                   Advisory,
+	} {
+		t.Run(step, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - `+step+`
+`)
+			assert.Equal(t, expected, verdicts["SCA"])
+		})
+	}
+}
+
+// A step is weakened only when every run of the tool in it is. kolide/launcher
+// gates on the first govulncheck and re-runs it with -format json to print.
+func TestWeakenedOnlyWhenEveryRunIs(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"if govulncheck -C . ./...; then\n  exit 0\nfi\ngovulncheck -C . -format json ./... > govulncheck.json\nexit 1": Enforcing,
+		"govulncheck -format sarif ./... > a.sarif\ngovulncheck -json ./... > b.json":                                   Advisory,
+		"trivy fs --exit-code 0 --format sarif -o t.sarif .\ntrivy fs --exit-code 1 --severity HIGH .":                  Enforcing,
+		"trivy fs --exit-code 0 .": Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+strings.ReplaceAll(run, "\n", "\n          ")+`
+`)
+			assert.Equal(t, expected, verdicts["SCA"])
 		})
 	}
 }
@@ -918,6 +1132,14 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 		{"pre-commit arguments", "Linter", step("run: pre-commit run $PRE_COMMIT_ARGS"), Unknown},
 		{"pre-commit all files", "Linter", step("run: uv run pre-commit run -a"), Enforcing},
 		{"pre-commit refs", "Linter", step("run: pre-commit run --from-ref origin/main --to-ref HEAD"), Enforcing},
+		{"pre-commit abbreviated all files", "Linter", step("run: pre-commit run --all --show-diff-on-failure"), Enforcing},
+		{"pre-commit shortest abbreviation", "Linter", step("run: pre-commit run --a"), Enforcing},
+		{"pre-commit abbreviated in quotes", "Linter", step(`run: bash -c "pre-commit run --all"`), Enforcing},
+		{"pre-commit abbreviated refs", "Linter", step("run: pre-commit run --fr origin/main --to HEAD"), Enforcing},
+		{"pre-commit short flags together", "Linter", step("run: pre-commit run -av generate-actions-workflow"), Enforcing},
+		{"pre-commit verbose then all", "Linter", step("run: pre-commit run -va"), Enforcing},
+		{"pre-commit show diff abbreviated", "Linter", step("run: pre-commit run --show-diff -v"), Advisory},
+		{"pre-commit config is not a selection", "Linter", step("run: pre-commit run -c .pre-commit-ci.yaml"), Advisory},
 		{"pre-commit action", "Linter", step("uses: pre-commit/action@v3.0.1"), Enforcing},
 		{"prek last commit", "Linter", step("run: prek run --last-commit"), Enforcing},
 		{"osv no fail", "SCA", osv + "    with:\n      fail-on-vuln: false\n", Advisory},
@@ -933,6 +1155,54 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 			workflow := "on: pull_request\njobs:\n  checks:\n" + tt.job
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/checks.yml", workflow)
 			assert.Equal(t, tt.want, verdicts[tt.category])
+		})
+	}
+}
+
+// basedpyright and pyrefly check fail on errors with no flag to turn it off.
+func TestBasedpyrightAndPyreflyGradesEnforcing(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"uv run --no-sync basedpyright":        Enforcing,
+		"basedpyright --level error":           Enforcing,
+		"pyrefly check --output-format=github": Enforcing,
+		"uv run pyrefly check --summary=none":  Enforcing,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  typecheck:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+func TestPyreflyActionGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		args, stepExtra string
+		expected        Verdict
+	}{
+		{name: "no input is enforcing", expected: Enforcing},
+		{name: "args --summarize-errors is still enforcing", args: "--summarize-errors", expected: Enforcing},
+		{name: "continue-on-error is advisory", stepExtra: "continue-on-error: true", expected: Advisory},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  typecheck:
+    steps:
+      - uses: facebook/pyrefly@main
+`
+			if tc.stepExtra != "" {
+				workflow += "        " + tc.stepExtra + "\n"
+			}
+			if tc.args != "" {
+				workflow += "        with:\n          args: " + tc.args + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
 		})
 	}
 }

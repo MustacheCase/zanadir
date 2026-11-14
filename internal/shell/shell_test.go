@@ -15,6 +15,15 @@ func TestCommands(t *testing.T) {
 	assert.Nil(t, shell.Commands(" \n "))
 }
 
+// A bash backtick that opens a substitution has no space before it.
+func TestCommandsJoinPowerShellContinuations(t *testing.T) {
+	assert.Equal(t, []string{"Invoke-Pester   -Path tests   -CI", "echo done"},
+		shell.Commands("Invoke-Pester `\n  -Path tests `\n  -CI\necho done"))
+	assert.Equal(t, []string{"Invoke-Pester   -CI"}, shell.Commands("Invoke-Pester `\r\n  -CI"))
+	assert.Equal(t, []string{"now=`\ndate`"}, shell.Commands("now=`\ndate`"))
+	assert.Equal(t, []string{"Invoke-ScriptAnalyzer -Path .   -EnableExit"}, shell.Lines("Invoke-ScriptAnalyzer -Path . `\n  -EnableExit"))
+}
+
 func TestWords(t *testing.T) {
 	assert.Equal(t, []string{"make", "lint"}, shell.Words("sudo CI=1 GOFLAGS=-mod=mod make lint"))
 	assert.Empty(t, shell.Words("FOO=bar"))
@@ -64,10 +73,16 @@ func TestSwallowed(t *testing.T) {
 		"echo gitleaks || true":                                                    false,
 		"# gitleaks detect || true":                                                false,
 		"":                                                                         false,
-		"OUT=$(gitleaks detect)":                                                   false,
-		"OUT=$(gitleaks detect) || true":                                           true,
-		"export OUT=$(gitleaks detect)":                                            true,
-		`echo "$(gitleaks detect)"`:                                                true,
+		"if (gitleaks detect) { echo clean }":                                      true,
+		"if (-not (gitleaks detect --report r.json)) { exit 1 }":                   false,
+		"if(!(gitleaks detect)) { exit 1 }":                                        false,
+		"if (gitleaks detect); then exit 1; fi":                                    false,
+		// && splits a bash subshell condition, leaving "if (cd src" unclosed.
+		"if (cd src && gitleaks detect); then echo clean; fi": false,
+		"OUT=$(gitleaks detect)":                              false,
+		"OUT=$(gitleaks detect) || true":                      true,
+		"export OUT=$(gitleaks detect)":                       true,
+		`echo "$(gitleaks detect)"`:                           true,
 
 		// Under set +e only the last command, or one whose $? is read, can fail.
 		"set +e\ngitleaks detect\necho done":                                                  true,

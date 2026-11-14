@@ -23,10 +23,12 @@ const (
 	FieldJobName      = "Job.Name"
 	FieldJobPackage   = "Job.Package"
 	FieldJobRun       = "Job.Run"
+	// FieldJobEnv is a step's env:, one NAME=value line per variable.
+	FieldJobEnv = "Job.Env"
 )
 
 // SupportedFields lists every selector matchesRule handles.
-var SupportedFields = []string{FieldArtifactName, FieldJobName, FieldJobPackage, FieldJobRun}
+var SupportedFields = []string{FieldArtifactName, FieldJobName, FieldJobPackage, FieldJobRun, FieldJobEnv}
 
 // FileRule is a rule as written in the catalogue or a config file.
 type FileRule struct {

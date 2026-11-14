@@ -30,6 +30,10 @@ type Artifact struct {
 // off, one path a line. Only GitHub's API says so, not the files.
 const DisabledWorkflowsFile = ".git/zanadir-disabled-workflows"
 
+// CodeScanningFile marks a fetched repository whose code scanning default
+// setup is on, listing the languages it analyses one a line.
+const CodeScanningFile = ".git/zanadir-code-scanning"
+
 // Trigger is one event a CI configuration runs on, with its filters.
 type Trigger struct {
 	Event    string

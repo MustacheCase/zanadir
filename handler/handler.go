@@ -131,6 +131,7 @@ func graded(excluded []string, dir string, languages []string, findings []*match
 	assessments := grading.ByCategory(findings, merge)
 	if sca, covered := assessments[string(models.SCA)]; covered {
 		sca = grading.Unaudited(sca, lockfile.UV, lockfile.Unauditable(dir))
+		sca = grading.Unaudited(sca, lockfile.NPM, lockfile.UnauditableNPM(dir))
 		assessments[string(models.SCA)] = grading.UncoveredEcosystems(sca, languages)
 	}
 	list := make([]output.Weakness, 0, len(assessments))
@@ -249,7 +250,8 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	for _, a := range artifacts {
 		a.DefaultBranch, a.ToolConfigs = defaultBranch, configs
 	}
-	weaknesses, covered := graded(skipped, cfg.Dir, languages, findings, waits, debugf)
+	// Suggestions follow every language; dependency scanning only those with dependencies.
+	weaknesses, covered := graded(skipped, cfg.Dir, language.WithDependencies(cfg.Dir), findings, waits, debugf)
 	debugf("Weakened categories: %d", len(weaknesses))
 
 	return &scanResult{

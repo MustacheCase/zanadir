@@ -35,6 +35,17 @@ rules:
     categories: ["IaC Security"]
     regex: "(?i)\\bkics\\b|checkmarx/kics"
 
+  # Polaris audit reports findings but exits 0 unless an exit-code threshold
+  # is explicitly enabled. Other Polaris commands do not scan IaC in CI.
+  - id: "polaris-rule"
+    name: "Polaris"
+    applyOn: ["Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?i)(?:^|[\\s/])polaris(?::[\\w.-]+|@sha256:[0-9a-f]+)?\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*audit(?:\\s|$)"
+    exitsZeroUnless:
+      runMatches: "--set-exit-code-on-danger(?:=true)?(?:\\s|$)|--set-exit-code-below-score[= ]+(?:[1-9]|[1-9][0-9]|100)(?:\\s|$)"
+      unknownWhen: "--set-exit-code-below-score[= ]+(?:\\$\\{|\\$\\(|\\$[A-Za-z_])|--set-exit-code-on-danger=\\$"
+
   - id: "kubescape-rule"
     name: "Kubescape"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

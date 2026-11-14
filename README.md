@@ -660,7 +660,9 @@ SCA check, the category is `partial`, with the gap explained:
 
 This uses the same root and immediate-subdirectory manifests and directory
 skips as [language detection](#language-aware-suggestions), including a
-`package.json` used only for tooling. Manifest contents are not inspected.
+`package.json` used only for tooling. Manifest contents are not inspected,
+except that a `pyproject.toml` declaring no dependencies (one that only
+configures a linter, say) names no Python packages to scan.
 Enforcing tools combine their ecosystem coverage: a Go scanner and a Python
 scanner can cover both languages together. An enforcing multi-ecosystem scanner
 continues to cover them, while advisory dependency bots do not close a gap.

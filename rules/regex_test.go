@@ -1462,7 +1462,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
-		"bundler-audit-rule":         {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
+		"bundler-audit-rule": {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
 		"cargo-vet-rule": {
 			"cargo vet init", "cargo vet suggest", "cargo vet fmt", "cargo vet prune",
 			"cargo vet aggregate --output-file audits.toml sources.list",

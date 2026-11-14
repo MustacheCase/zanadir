@@ -8,6 +8,16 @@ rules:
     exitsZeroUnless:
       runMatches: "\\bsemgrep\\s+ci\\b|--error\\b"
 
+  - id: "opengrep-rule"
+    name: "Opengrep"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)\\bopengrep\\b"
+    unless: "(?i)\\bopengrep(?:\\s+--[\\w-]+)*\\s+(?:test|validate|show|lsp)\\b"
+    # opengrep ci fails on blocking findings; scan only with --error.
+    exitsZeroUnless:
+      runMatches: "\\bopengrep(?:\\s+--[\\w-]+)*\\s+ci\\b|--error\\b"
+
   - id: "flawfinder-rule"
     name: "Flawfinder"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

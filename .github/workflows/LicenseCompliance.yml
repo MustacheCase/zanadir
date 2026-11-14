@@ -24,6 +24,6 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: License Compliance Scan
-        uses: fossas/fossa-action@7f9093e8e9864a4fd9ab58426a3e34c54040da04 # main
+        uses: fossas/fossa-action@29693cc50323968e039056be419b32989fc5880c # v2.0.0
         with:
           api-key: ${{ secrets.FOSSA_API_KEY }}

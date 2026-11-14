@@ -36,6 +36,15 @@ func TestRuleRegexPrecision(t *testing.T) {
 		shouldNotMatch []string
 	}{
 		{
+			ruleID: "sobelow-rule",
+			shouldMatch: []string{
+				"mix sobelow --exit", "mix sobelow --exit medium --skip", "mix sobelow --config",
+				"mix sobelow", "sobelow/action", "sobelow",
+				"~/.mix/escripts/sobelow --exit low",
+			},
+			shouldNotMatch: []string{"mix credo", "mix deps.audit", "mix test", "my-sobelow-wrapper", "mysobelow"},
+		},
+		{
 			ruleID: "kingfisher-rule",
 			shouldMatch: []string{
 				"kingfisher scan .", "kingfisher scan --git-history full .",
@@ -1476,6 +1485,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 
 	for id, excepted := range map[string][]string{
 		"opengrep-rule":      {"opengrep test rules/", "opengrep --experimental validate rules/"},
+		"sobelow-rule":       {"mix escript.install hex sobelow --force", "mix deps.compile jason sobelow", "mix sobelow --version"},
 		"bundler-audit-rule": {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
 		"cargo-vet-rule": {
 			"cargo vet init", "cargo vet suggest", "cargo vet fmt", "cargo vet prune",

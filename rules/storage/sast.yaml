@@ -82,6 +82,20 @@ rules:
     categories: ["SAST"]
     regex: "(?i)\\bbrakeman\\b"
 
+  # Sobelow exits 0 on findings unless --exit is specified.
+  # It reads .sobelow-conf only with --config, and that file can set exit.
+  - id: "sobelow-rule"
+    name: "Sobelow"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["SAST"]
+    regex: "(?i)(?:^|[\\s/])sobelow(?:[\\s:]|$)|^sobelow/action(?:@|$)"
+    # Installing or compiling it, or asking its version, scans nothing.
+    unless: "(?i)\\bmix\\s+(?:escript\\.install|archive\\.install|deps\\.\\w+|hex\\.\\w+)\\s|\\bsobelow\\s+--version\\b"
+    exitsZeroUnless:
+      input: "flags"
+      runMatches: "--exit\\b"
+      unknownWhen: "(?:^|\\s)--config(?:[= ]|$)"
+
   # "snyk" alone is the SCA rule; only the code sub-command is SAST.
   - id: "snyk-code-rule"
     name: "Snyk Code"

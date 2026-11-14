@@ -157,6 +157,48 @@ jobs:
 	}
 }
 
+// Sobelow exits successfully on findings unless --exit is present, and
+// --config may change the exit behavior via .sobelow-conf.
+func TestSobelowExitFlagControlsGating(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"mix sobelow":                   Advisory,
+		"mix sobelow --exit":            Enforcing,
+		"mix sobelow --exit medium":     Enforcing,
+		"mix sobelow --skip --exit":     Enforcing,
+		"mix sobelow --config":          Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["SAST"], run)
+	}
+}
+
+// sobelow/action passes its flags input to the same scanning command.
+func TestSobelowActionFlagsControlGating(t *testing.T) {
+	for flags, expected := range map[string]Verdict{
+		"":                 Advisory,
+		"-i Config":        Advisory,
+		"-i Config --exit": Enforcing,
+		"--config":         Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - uses: sobelow/action@v1
+        with:
+          flags: "`+flags+`"
+`)
+		assert.Equal(t, expected, verdicts["SAST"], flags)
+	}
+}
+
 // HTMLHint fails on findings by default; --warn keeps the linter but makes it
 // advisory because the command exits successfully.
 func TestHTMLHintWarnGradesAdvisory(t *testing.T) {

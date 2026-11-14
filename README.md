@@ -668,17 +668,19 @@ Only the category verdict changes; individual tool grades stay as reported.
 Existing reasons for weakened controls still apply.
 
 A dependency scanner also looks packages up
-by name and version, so one that `uv.lock` installs from a git repository or a
-direct URL is invisible to every scanner, and an enforcing SCA control in a
-repository with such a package is `partial`, with the packages named:
+by name and version, so one that `uv.lock` or `package-lock.json` installs from
+a git repository or a direct URL is invisible to every scanner, and an
+enforcing SCA control in a repository with such a package is `partial`, with
+the packages named:
 
 ```
   SCA is partial (.github/workflows/ci.yml): uv.lock installs en-core-web-sm from a git or URL source, which no dependency scanner can look up
 ```
 
-A registry other than PyPI does not count, since a mirror or proxy serves
-PyPI's packages under the same names, and `path`, `directory` and `editable`
-sources are the repository's own code.
+A registry other than PyPI or npm's does not count, since a mirror or proxy
+serves their packages under the same names, and `path`, `directory`,
+`editable`, `file:` and linked sources are the repository's own code. Only the
+lockfiles at the repository root are read.
 
 A weakened control does not fail a scan unless you ask it to. `--enforce` and
 `--fail-on` act only on categories with no tooling; `--fail-on-weakened` is

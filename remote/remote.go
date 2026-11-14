@@ -566,7 +566,7 @@ func exists(path string) bool {
 }
 
 // contentOf says how much of a file zanadir reads: CI and build files, the
-// root uv.lock and files of the skills asked for whole, the head of other
+// root lockfiles and files of the skills asked for whole, the head of other
 // JSON for IaC detection, else only the name.
 func contentOf(name string, skills skillDirs) content {
 	if keepContent(name) || skills.holds(name) {
@@ -582,8 +582,8 @@ func keepContent(name string) bool {
 	if slices.Contains(strings.Split(filepath.ToSlash(name), "/"), ".make") {
 		return true
 	}
-	// Only the root lockfile is read; a monorepo can hold hundreds more.
-	if filepath.ToSlash(name) == "uv.lock" {
+	// Only the root lockfiles are read; a monorepo can hold hundreds more.
+	if rel := filepath.ToSlash(name); rel == "uv.lock" || rel == "package-lock.json" {
 		return true
 	}
 	base := strings.ToLower(filepath.Base(name))

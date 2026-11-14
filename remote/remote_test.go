@@ -176,6 +176,8 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 		entry{name: "owner-repo-abc/tox.ini", body: "[tox]\n"},
 		entry{name: "owner-repo-abc/uv.lock", body: "version = 1\n"},
 		entry{name: "owner-repo-abc/libs/pkg/uv.lock", body: "version = 1\n"},
+		entry{name: "owner-repo-abc/package-lock.json", body: strings.Repeat(" ", headBytes) + `{"lockfileVersion": 3}`},
+		entry{name: "owner-repo-abc/web/package-lock.json", body: strings.Repeat(" ", headBytes) + `{"lockfileVersion": 3}`},
 		entry{name: "owner-repo-abc/scripts/lint.sh", body: "golangci-lint run\n"},
 		entry{name: "owner-repo-abc/.make/main.go", body: "package main\n"},
 		entry{name: "owner-repo-abc/tools/.make/go.mod", body: "module make\n"},
@@ -208,6 +210,8 @@ func TestFetchKeepsWhatZanadirReads(t *testing.T) {
 	assert.Equal(t, "[tox]\n", read("tox.ini"))
 	assert.Equal(t, "version = 1\n", read("uv.lock"), "dependency scanning reads its sources")
 	assert.Empty(t, read("libs/pkg/uv.lock"), "only the root lockfile is read")
+	assert.Equal(t, strings.Repeat(" ", headBytes)+`{"lockfileVersion": 3}`, read("package-lock.json"), "the root npm lockfile is read whole")
+	assert.NotContains(t, read("web/package-lock.json"), "lockfileVersion", "a nested npm lockfile keeps only its head")
 	assert.Equal(t, "golangci-lint run\n", read("scripts/lint.sh"), "shell scripts are followed")
 	assert.Equal(t, "package main\n", read(".make/main.go"))
 	assert.Equal(t, "module make\n", read("tools/.make/go.mod"))

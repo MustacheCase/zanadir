@@ -43,6 +43,7 @@ func TestAHostileRepositoryCannotReadOutsideItself(t *testing.T) {
 		"pkg/package.json":              `{"name": "pkg", "scripts": {"lint": "` + leaked + `"}}`,
 		".git/refs/remotes/origin/HEAD": "ref: refs/remotes/origin/main\n",
 		"script.sh":                     "set -e\n" + leaked + "\n",
+		"make.bat":                      ":lint\n" + leaked + "\n",
 	} {
 		write(outside, rel, content)
 	}
@@ -66,6 +67,10 @@ jobs:
       - run: source `+outside+`/script.sh
       - run: ./linked-script.sh
       - run: bash -c "cd .. && bash outside/script.sh"
+      - run: ../outside/make.bat lint
+      - run: call `+outside+`/make.bat lint
+      - run: ./linked.bat lint
+      - run: inside.bat
       - uses: ./../outside/action
       - uses: ./linked-action
   b:
@@ -80,6 +85,8 @@ jobs:
 	link(filepath.Join(outside, "Taskfile.yml"), "Taskfile.yml")
 	link(filepath.Join(outside, "tox.ini"), "tox.ini")
 	link(filepath.Join(outside, "script.sh"), "linked-script.sh")
+	link(filepath.Join(outside, "make.bat"), "linked.bat")
+	write(root, "inside.bat", "call ..\\outside\\make.bat lint\npushd ..\ncall outside\\make.bat lint\n")
 
 	artifacts, err := NewRepositoryScanner().Scan(root)
 	require.NoError(t, err)

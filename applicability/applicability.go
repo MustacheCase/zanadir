@@ -48,6 +48,11 @@ var iacDirs = map[string]bool{
 	"infrastructure": true,
 }
 
+// codeManifests mark a source package. One named like an infrastructure
+// directory, such as packages/adapters/k8s, is code about it, not manifests.
+var codeManifests = []string{"package.json", "go.mod", "Cargo.toml", "pyproject.toml", "setup.py", "pom.xml",
+	"build.gradle", "build.gradle.kts", "Gemfile", "composer.json"}
+
 var manifestExtensions = map[string]bool{".yaml": true, ".yml": true, ".json": true, ".tpl": true, ".hcl": true, ".jsonnet": true}
 
 // A Dockerfile.json is data about a Dockerfile, not one.
@@ -102,10 +107,22 @@ func isManifest(path, name string) bool {
 	return ext != ".json" && k8sAPIVersion.Match(head) && k8sKind.Match(head)
 }
 
+func codePackage(dir string, seen map[string]bool) bool {
+	if is, ok := seen[dir]; ok {
+		return is
+	}
+	seen[dir] = slices.ContainsFunc(codeManifests, func(name string) bool {
+		info, err := os.Lstat(filepath.Join(dir, name))
+		return err == nil && info.Mode().IsRegular()
+	})
+	return seen[dir]
+}
+
 // hasIaC walks until it finds one marker, so only a repository with none is
 // walked in full.
 func hasIaC(dir string) bool {
 	found := false
+	packages := map[string]bool{}
 
 	_ = filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -122,9 +139,14 @@ func hasIaC(dir string) bool {
 			return nil
 		}
 		rel, _ := filepath.Rel(dir, path)
-		inIaCDir := slices.ContainsFunc(strings.Split(filepath.Dir(rel), string(filepath.Separator)), func(part string) bool {
-			return iacDirs[strings.ToLower(part)]
-		})
+		inIaCDir := false
+		parts := strings.Split(filepath.Dir(rel), string(filepath.Separator))
+		for i, part := range parts {
+			if iacDirs[strings.ToLower(part)] && !codePackage(filepath.Join(dir, filepath.Join(parts[:i+1]...)), packages) {
+				inIaCDir = true
+				break
+			}
+		}
 		if isIaCFile(name, inIaCDir) || isManifest(path, name) {
 			found = true
 			return fs.SkipAll

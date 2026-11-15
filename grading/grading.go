@@ -5,6 +5,7 @@ package grading
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -212,6 +213,29 @@ func Grade(finding *matcher.Finding) Verdict {
 	return gradeTriggers(finding.Artifact)
 }
 
+// weakenedRuns grades a step weakened only when every run of the tool in it
+// is: `if govulncheck ./...; then exit 0; fi; govulncheck -format json ./...`
+// gates on the first run and only prints with the second. The step gets the
+// strongest of the runs' weakened verdicts.
+func weakenedRuns(checks []rules.WeakenedWhen, run string, commands []string) (Verdict, bool) {
+	if run == "" {
+		return "", false
+	}
+	var verdict Verdict
+	for _, command := range commands {
+		i := slices.IndexFunc(checks, func(check rules.WeakenedWhen) bool {
+			return check.RunMatches != nil && check.RunMatches.MatchString(command)
+		})
+		if i < 0 {
+			return "", false
+		}
+		if v := Verdict(checks[i].Verdict); verdict == "" || stronger(v, verdict) {
+			verdict = v
+		}
+	}
+	return verdict, verdict != ""
+}
+
 // runtimeExpression is GitHub's ${{ }} or Azure's $( ) and $[ ].
 var runtimeExpression = regexp.MustCompile(`\$\{\{|\$\(|\$\[`)
 
@@ -234,11 +258,11 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 			commands = matched
 		}
 	}
+	if verdict, weakened := weakenedRuns(rule.Weakened, job.Run, commands); weakened {
+		return verdict, true
+	}
 	for _, check := range rule.Weakened {
 		if check.RunMatches != nil {
-			if job.Run != "" && slices.ContainsFunc(commands, check.RunMatches.MatchString) {
-				return Verdict(check.Verdict), true
-			}
 			continue
 		}
 		value, ok := job.With[check.Input]
@@ -537,6 +561,9 @@ func ByCategory(findings []*matcher.Finding, merge *Merge) map[string]Assessment
 		} else {
 			candidate = gated(candidate, finding, merge)
 		}
+		if reason := missedCode(finding); reason != "" && candidate.Verdict == Enforcing {
+			candidate.Verdict, candidate.Reason = Partial, reason
+		}
 		addTool(tools, finding, candidate.Verdict)
 		if current, seen := best[finding.Category]; seen && !stronger(candidate.Verdict, current.Verdict) {
 			continue
@@ -548,6 +575,45 @@ func ByCategory(findings []*matcher.Finding, merge *Merge) map[string]Assessment
 		best[category] = assessment
 	}
 	return best
+}
+
+var languageFlag = regexp.MustCompile(`(?i)--language[= ](\S+)`)
+
+// missedCode explains a run whose --language flags analyse none of the
+// repository's languages that its rule could. A name the rule doesn't list
+// may be code zanadir can't detect, so it covers the repository.
+func missedCode(finding *matcher.Finding) string {
+	rule, job := finding.Rule, finding.Job
+	if rule == nil || len(rule.Languages) == 0 || job == nil || finding.Artifact == nil {
+		return ""
+	}
+	var named, covered []string
+	for _, command := range matcher.Commands(job.Run, rule) {
+		for _, flag := range languageFlag.FindAllStringSubmatch(command, -1) {
+			for _, name := range strings.Split(strings.ToLower(flag[1]), ",") {
+				analysed, known := rule.Languages[name]
+				if !known {
+					return ""
+				}
+				named, covered = append(named, name), append(covered, analysed...)
+			}
+		}
+	}
+	analysable := slices.Concat(slices.Collect(maps.Values(rule.Languages))...)
+	var missed []string
+	for _, language := range finding.Artifact.Languages {
+		if slices.Contains(covered, language) {
+			return ""
+		}
+		if slices.Contains(analysable, language) {
+			missed = append(missed, language)
+		}
+	}
+	if len(named) == 0 || len(missed) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s analyses only %s; the %s code detected from repository manifests is not scanned",
+		cmp.Or(finding.Tool, finding.RuleID), strings.Join(sortedUnique(named), ", "), strings.Join(sortedUnique(missed), ", "))
 }
 
 // Tool is one tool behind a category: its strongest verdict and the files it

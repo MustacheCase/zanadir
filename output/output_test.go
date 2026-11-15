@@ -593,6 +593,25 @@ func TestResponse_MarkdownListsWeakenedControls(t *testing.T) {
 	}
 }
 
+// Code scanning's default setup has no file to name.
+func TestResponse_WeaknessWithoutALocation(t *testing.T) {
+	service := NewOutputService()
+	weakened := []Weakness{{Category: "SAST", Verdict: "partial", Reason: "CodeQL analyses only python"}}
+	for format, want := range map[string]string{
+		config.OutputTable:    "  SAST is partial: CodeQL analyses only python\n",
+		config.OutputMarkdown: "- `SAST` is **partial**: CodeQL analyses only python\n",
+	} {
+		out := captureStdout(func() {
+			if err := service.Response(Report{Format: format, Score: score.Score{Covered: 11, Total: 11}, Weakened: weakened}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+		if !strings.Contains(out, want) {
+			t.Errorf("%s: want %q in:\n%s", format, want, out)
+		}
+	}
+}
+
 // failAfterWriter succeeds for a number of writes and then fails, so an error
 // partway through a multi-line block can be reached.
 type failAfterWriter struct {

@@ -90,8 +90,8 @@ func TestNewRepositoryScanner(t *testing.T) {
 	repoScanner, ok := scanner.(*RepositoryScanner)
 	assert.True(t, ok, "Expected scanner to be of type *RepositoryScanner")
 
-	// One parser per platform, then the dependency bots.
-	assert.Len(t, repoScanner.parsers, len(parser.Platforms)+1)
+	// One parser per platform, then the dependency bots and default setup.
+	assert.Len(t, repoScanner.parsers, len(parser.Platforms)+2)
 	for i, platform := range parser.Platforms {
 		assert.Same(t, platform.Parser, repoScanner.parsers[i], platform.ID)
 	}

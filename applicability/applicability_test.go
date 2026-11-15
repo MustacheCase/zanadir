@@ -51,6 +51,23 @@ func TestIaCIsRuledOutWithoutInfrastructure(t *testing.T) {
 	assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 }
 
+// A code package named like an infrastructure directory holds code about it:
+// cruncher's Kubernetes log adapter is packages/adapters/k8s. A real
+// manifest or IaC file in one still counts.
+func TestIaCIgnoresACodePackageNamedLikeInfrastructure(t *testing.T) {
+	adapter := testrepo.Touch(t, "packages/adapters/k8s/package.json", "packages/adapters/k8s/tsconfig.json",
+		"packages/adapters/k8s/src/index.ts", "packages/adapters/k8s/sample-cluster/k8s-sample.cruncher.config.yaml")
+	assert.Contains(t, applicability.NotApplicable(adapter, nil), "IaC Security")
+
+	for _, files := range [][]string{
+		{"infra/package.json", "infra/cdk.json"},
+		{"k8s/go.mod", "k8s/main.tf"},
+		{"deploy/k8s/app.yaml", "tools/k8s/go.mod"},
+	} {
+		assert.NotContains(t, applicability.NotApplicable(testrepo.Touch(t, files...), nil), "IaC Security", files)
+	}
+}
+
 // The tools in the Workflow Security category read GitHub Actions or GitLab
 // CI, so a repository on another platform has nothing to point them at.
 func TestWorkflowSecurityNeedsGithubOrGitlab(t *testing.T) {

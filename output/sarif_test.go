@@ -211,6 +211,13 @@ func TestSarifWeakenedResultWithNoLocation(t *testing.T) {
 	}
 }
 
+// Default setup has no file, so its weakness points where a missing category does.
+func TestSarifWeakenedResultFallsBackToTheAnchor(t *testing.T) {
+	log := buildSarif(nil, "README.md", []Weakness{{Category: "SAST", Verdict: "partial"}})
+
+	assert.Equal(t, "README.md", log.Runs[0].Results[0].Locations[0].PhysicalLocation.ArtifactLocation.URI)
+}
+
 func TestWeakenedHelpCoversEveryVerdict(t *testing.T) {
 	for _, verdict := range []string{"advisory", "partial", "unknown", ""} {
 		if weakenedHelp(Weakness{Verdict: verdict}) == "" {

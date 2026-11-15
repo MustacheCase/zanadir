@@ -1,6 +1,7 @@
 package output
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"strings"
@@ -95,8 +96,8 @@ func buildSarif(suggestions []*suggester.CategorySuggestion, anchor string, weak
 				"verdict":    weakness.Verdict,
 			},
 			// The workflow that produced the verdict, which is a better
-			// location than the anchor a missing category has to fall back on.
-			Locations: sarif.At(weakness.Location, 1),
+			// location than the anchor, unless no file did (default setup).
+			Locations: sarif.At(cmp.Or(weakness.Location, anchor), 1),
 		})
 	}
 

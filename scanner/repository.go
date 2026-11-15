@@ -44,14 +44,14 @@ func (r *RepositoryScanner) Scan(root string) ([]*models.Artifact, error) {
 	return artifacts, nil
 }
 
-// NewRepositoryScanner returns a Scanner that reads every supported platform and the dependency bots.
+// NewRepositoryScanner returns a Scanner that reads every supported platform, the dependency bots and code scanning's default setup.
 func NewRepositoryScanner() Scanner {
-	parsers := make([]parser.Parser, 0, len(parser.Platforms)+1)
+	parsers := make([]parser.Parser, 0, len(parser.Platforms)+2)
 	for _, platform := range parser.Platforms {
 		parsers = append(parsers, platform.Parser)
 	}
 	// The dependency bots declare themselves in a configuration file rather
 	// than a pipeline, so they are read alongside whichever platform is used.
-	parsers = append(parsers, parser.NewDependencyBotParser())
+	parsers = append(parsers, parser.NewDependencyBotParser(), parser.NewCodeScanningParser())
 	return &RepositoryScanner{parsers: parsers}
 }

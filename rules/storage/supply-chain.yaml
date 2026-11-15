@@ -42,8 +42,10 @@ rules:
     categories: ["Supply Chain"]
     regex: "(?im)^(?:(?:npx|bunx|pnpx|(?:pnpm|yarn)(?:\\s+(?:dlx|exec))?|npm\\s+exec|bun\\s+x)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?lockfile-lint(?:@\\S+)?(?:\\s|$)"
     exitsZeroUnless:
-      # Runner flags such as yarn -s are not validators: read only tool flags.
-      runMatches: "(?:^|\\s)(?:[^\\s=]*/)?lockfile-lint(?:@\\S+)?\\s+(?:[^\\n]*\\s)?(?:--(?:validate-https|allowed-hosts|allowed-schemes|allowed-urls|validate-integrity(?:-strict)?|validate-package-names)|-[saouin])(?:[=\\s]|$)"
+      # Consume known runner options before the executable: a --package value
+      # can itself be lockfile-lint, and yarn -s is not a validator.
+      # Unrecognised runner options conservatively cannot establish enforcement.
+      runMatches: "^(?:(?:sudo|[A-Za-z_][A-Za-z0-9_]*=\\S*)\\s+)*(?:(?:npx|bunx|pnpx|(?:pnpm|yarn)(?:\\s+(?:dlx|exec))?|npm\\s+exec|bun\\s+x)(?:\\s+(?:(?:--package|-p)(?:=\\S+|\\s+\\S+)|--[^=\\s]+=\\S+|--(?:yes|no|ignore-scripts|no-install|silent|quiet)|-[ysq]+|--))*\\s+)?(?:[^\\s=]*/)?lockfile-lint(?:@\\S+)?\\s+(?:[^\\n]*\\s)?(?:--(?:validate-https|allowed-hosts|allowed-schemes|allowed-urls|validate-integrity(?:-strict)?|validate-package-names)|-[saouin])(?:[=\\s]|$)"
       unknownWhen: "(?:^|\\s)(?:[^\\s=]*/)?lockfile-lint(?:@\\S+)?\\s*$"
       configFiles: [".lockfile-lintrc", ".lockfile-lintrc.json", ".lockfile-lintrc.yaml", ".lockfile-lintrc.yml", ".lockfile-lintrc.js", ".lockfile-lintrc.cjs", ".lockfile-lintrc.mjs", "lockfile-lint.config.js", "lockfile-lint.config.cjs", "lockfile-lint.config.mjs"]
 

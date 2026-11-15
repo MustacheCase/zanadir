@@ -96,6 +96,8 @@ func Words(command string) []string {
 
 // NormalizeCommand reduces the executable word to its unquoted basename.
 // Arguments and assignments retain their quoting; no shell expansion is done.
+// Package runner options are joined to their values so a package name cannot
+// be mistaken for the executable or supply its flags.
 func NormalizeCommand(command string) string {
 	words := split(strings.TrimSpace(command), false)
 	for i, word := range words {
@@ -110,6 +112,14 @@ func NormalizeCommand(command string) string {
 		// A dynamic basename or incomplete quoting cannot identify a tool.
 		if program != "" && !strings.HasSuffix(program, "/") && !strings.ContainsAny(program, "`\"'") && !strings.ContainsAny(base, "$\\() \t\n") {
 			words[i] = base
+		}
+		if args := runnerArgs(words[i:]); len(args) > 0 {
+			for j := len(words) - len(args); j < len(words) && strings.HasPrefix(words[j], "-") && words[j] != "--"; j++ {
+				if (words[j] == "--package" || words[j] == "-p") && j+1 < len(words) {
+					words[j] += "=" + words[j+1]
+					words = append(words[:j+1], words[j+2:]...)
+				}
+			}
 		}
 		break
 	}
@@ -146,10 +156,9 @@ var (
 	bareRunners = set("pnpm", "yarn")
 )
 
-// runnerTool returns the words after a leading package runner and the runner's
-// own flags ("npx --yes eslint --version" gives "eslint --version"), or nil
-// when words do not start with a runner.
-func runnerTool(words []string) []string {
+// runnerArgs returns the arguments after a leading package runner and its verb,
+// or nil when words do not start with a runner.
+func runnerArgs(words []string) []string {
 	program, rest := filepath.Base(words[0]), words[1:]
 	switch {
 	case runners[program]:
@@ -161,6 +170,14 @@ func runnerTool(words []string) []string {
 	default:
 		return nil
 	}
+	return rest
+}
+
+// runnerTool returns the words after a leading package runner and the runner's
+// own flags ("npx --yes eslint --version" gives "eslint --version"), or nil
+// when words do not start with a runner.
+func runnerTool(words []string) []string {
+	rest := runnerArgs(words)
 	for len(rest) > 0 && strings.HasPrefix(rest[0], "-") {
 		rest = rest[1:]
 	}

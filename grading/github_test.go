@@ -143,10 +143,20 @@ func TestLockfileLintExitsZeroUnlessValidator(t *testing.T) {
 		{"versioned runner", "npx --yes lockfile-lint@5 --path package-lock.json --type npm --validate-https --allowed-hosts npm", Enforcing},
 		{"short validators", "npx lockfile-lint -p yarn.lock -s -a npm yarn", Enforcing},
 		{"npm exec", "npm exec --no-install lockfile-lint -- --type npm --path package-lock.json --validate-https", Enforcing},
+		{"npx offline", "npx --offline lockfile-lint --path yarn.lock -s", Enforcing},
+		{"npx prefer offline", "npx --prefer-offline lockfile-lint --path yarn.lock -s", Enforcing},
+		{"yarn offline", "yarn --offline lockfile-lint --path yarn.lock -s", Enforcing},
+		{"bun runtime", "bunx --bun lockfile-lint --path yarn.lock -s", Enforcing},
+		{"package with other runner options", "npx --package lockfile-lint@5 --prefer-offline -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
+		{"package with runner validators only", "npx --package lockfile-lint@5 --prefer-offline -s lockfile-lint --path yarn.lock", Advisory},
+		{"quoted package path", `npx --package "/tmp/tool cache/lockfile-lint" --offline lockfile-lint --path yarn.lock -s`, Enforcing},
+		{"quoted package value before runner flag", `npx --package "other lockfile-lint@5" -s lockfile-lint --path yarn.lock`, Advisory},
 		{"no validator", "npx lockfile-lint --path package-lock.json --type npm", Advisory},
 		{"format only", "npx lockfile-lint --path package-lock.json --format plain", Advisory},
 		{"empty hostname only", "npx lockfile-lint --path package-lock.json --empty-hostname false", Advisory},
 		{"package aliases only", "npx lockfile-lint --path package-lock.json --allowed-package-name-aliases example", Advisory},
+		{"package alias named like tool", "npx lockfile-lint --path yarn.lock --allowed-package-name-aliases lockfile-lint", Advisory},
+		{"path named like tool", "npx lockfile-lint --path lockfile-lint", Advisory},
 		{"yarn silent", "yarn -s lockfile-lint --path yarn.lock", Advisory},
 		{"pnpm silent", "pnpm -s lockfile-lint --path yarn.lock", Advisory},
 		{"runner flags before binary", "npx --yes --package=lockfile-lint@5.0.1 lockfile-lint --path package-lock.json", Advisory},
@@ -181,6 +191,24 @@ jobs:
 			assert.Equal(t, tt.want, verdicts["Supply Chain"])
 			assert.NotContains(t, verdicts, "SCA")
 		})
+	}
+}
+
+func TestLockfileLintPackageOptionIsNotAnInvocation(t *testing.T) {
+	for _, run := range []string{
+		"npx --package lockfile-lint@5 other-tool",
+		"npx -p lockfile-lint@5 other-tool",
+		`npx --package "/tmp/tools/lockfile-lint@5" -s other-tool`,
+		`npx --package "other lockfile-lint@5" -s other-tool`,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  check:
+    steps:
+      - run: `+run+`
+`)
+		assert.NotContains(t, verdicts, "Supply Chain", run)
 	}
 }
 

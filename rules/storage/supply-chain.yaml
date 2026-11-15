@@ -40,13 +40,12 @@ rules:
     name: "lockfile-lint"
     applyOn: ["Job.Run"]
     categories: ["Supply Chain"]
-    regex: "(?im)^(?:(?:npx|bunx|pnpx|(?:pnpm|yarn)(?:\\s+(?:dlx|exec))?|npm\\s+exec|bun\\s+x)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?lockfile-lint(?:@\\S+)?(?:\\s|$)"
+    regex: "(?im)^(?:(?:npx|bunx|pnpx|(?:pnpm|yarn)(?:\\s+(?:dlx|exec))?|npm\\s+exec|bun\\s+x)(?:\\s+-(?:[^\\s\"']|\"[^\"]*\"|'[^']*')*)*\\s+)?(?:[^\\s=]*/)?lockfile-lint(?:@\\S+)?(?:\\s|$)"
     exitsZeroUnless:
-      # Consume known runner options before the executable: a --package value
-      # can itself be lockfile-lint, and yarn -s is not a validator.
-      # Unrecognised runner options conservatively cannot establish enforcement.
-      runMatches: "^(?:(?:sudo|[A-Za-z_][A-Za-z0-9_]*=\\S*)\\s+)*(?:(?:npx|bunx|pnpx|(?:pnpm|yarn)(?:\\s+(?:dlx|exec))?|npm\\s+exec|bun\\s+x)(?:\\s+(?:(?:--package|-p)(?:=\\S+|\\s+\\S+)|--[^=\\s]+=\\S+|--(?:yes|no|ignore-scripts|no-install|silent|quiet)|-[ysq]+|--))*\\s+)?(?:[^\\s=]*/)?lockfile-lint(?:@\\S+)?\\s+(?:[^\\n]*\\s)?(?:--(?:validate-https|allowed-hosts|allowed-schemes|allowed-urls|validate-integrity(?:-strict)?|validate-package-names)|-[saouin])(?:[=\\s]|$)"
-      unknownWhen: "(?:^|\\s)(?:[^\\s=]*/)?lockfile-lint(?:@\\S+)?\\s*$"
+      # Runner options precede the executable; yarn -s is not a validator.
+      # Shell normalization joins --package values to their option first.
+      runMatches: "^(?:(?:sudo|[A-Za-z_][A-Za-z0-9_]*=\\S*)\\s+)*(?:(?:npx|bunx|pnpx|(?:pnpm|yarn)(?:\\s+(?:dlx|exec))?|npm\\s+exec|bun\\s+x)(?:\\s+-(?:[^\\s\"']|\"[^\"]*\"|'[^']*')*)*\\s+)?(?:[^\\s=]*/)?lockfile-lint(?:@\\S+)?\\s+(?:[^\\n]*\\s)?(?:--(?:validate-https|allowed-hosts|allowed-schemes|allowed-urls|validate-integrity(?:-strict)?|validate-package-names)|-[saouin])(?:[=\\s]|$)"
+      unknownWhen: "^(?:(?:sudo|[A-Za-z_][A-Za-z0-9_]*=\\S*)\\s+)*(?:(?:npx|bunx|pnpx|(?:pnpm|yarn)(?:\\s+(?:dlx|exec))?|npm\\s+exec|bun\\s+x)(?:\\s+-(?:[^\\s\"']|\"[^\"]*\"|'[^']*')*)*\\s+)?(?:[^\\s=]*/)?lockfile-lint(?:@\\S+)?\\s*$"
       configFiles: [".lockfile-lintrc", ".lockfile-lintrc.json", ".lockfile-lintrc.yaml", ".lockfile-lintrc.yml", ".lockfile-lintrc.js", ".lockfile-lintrc.cjs", ".lockfile-lintrc.mjs", "lockfile-lint.config.js", "lockfile-lint.config.cjs", "lockfile-lint.config.mjs"]
 
   - id: "slsa-rule"

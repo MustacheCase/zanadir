@@ -482,6 +482,34 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"cargo auditable build", "cargo install cargo-auditable", "cargo build", "npm audit"},
 		},
 		{
+			ruleID: "lockfile-lint-rule",
+			shouldMatch: []string{
+				"lockfile-lint",
+				"lockfile-lint --path yarn.lock --allowed-hosts npm yarn --validate-https",
+				"npx --yes lockfile-lint@4.14.0 --type npm --path package-lock.json --validate-https --allowed-hosts npm --validate-integrity --validate-package-names --empty-hostname false",
+				"npx --yes lockfile-lint@5 --path package-lock.json --type npm --validate-https --allowed-hosts registry.npmjs.org",
+				"npx --yes --ignore-scripts --package=lockfile-lint@5.0.1 lockfile-lint --path package-lock.json --type npm --validate-https",
+				`npx lockfile-lint --path package-lock.json --allowed-schemes "https:" "git+https:" --allowed-hosts npm github.com`,
+				"npm exec --no-install lockfile-lint -- --type npm --path package-lock.json --validate-https",
+				"yarn dlx lockfile-lint --type yarn --path yarn.lock --allowed-hosts registry.yarnpkg.com",
+				"pnpm exec lockfile-lint -p package-lock.json -a npm",
+				"./node_modules/.bin/lockfile-lint --path package-lock.json --validate-https",
+				"bunx lockfile-lint --path yarn.lock -s", "pnpx lockfile-lint --path yarn.lock -s",
+				"bun x lockfile-lint --path yarn.lock -s", "pnpm dlx lockfile-lint --path yarn.lock -s",
+				"yarn exec lockfile-lint --path yarn.lock -s", "npm exec -- lockfile-lint --path yarn.lock -s",
+				"yarn -s lockfile-lint --path yarn.lock", "pnpm -s lockfile-lint --path yarn.lock",
+				"lint\nlockfile-lint --path yarn.lock -s",
+			},
+			shouldNotMatch: []string{
+				"npm run lockfile-lint", "yarn lint:lockfile", "yarn lint:lockfile-lint",
+				"npx lockfile-lint-api", "node scripts/lockfile-lint.js", "cat .lockfile-lintrc.json",
+				"test -f lockfile-lint.config.js", `echo "Run lockfile-lint"`,
+				"lockfile-lint-api", "lockfile-lint.config.js", "npx lockfile-lint.config.js",
+				"npm run lockfile-lint -- --validate-https", "yarn run lockfile-lint",
+				"npx --package=lockfile-lint@5 other-tool", "not-lockfile-lint --validate-https",
+			},
+		},
+		{
 			// "retire" is an ordinary word, so only a command that runs it.
 			ruleID: "retire-js-rule",
 			shouldMatch: []string{

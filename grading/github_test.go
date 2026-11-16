@@ -43,6 +43,15 @@ func TestQuotedToolPathsGradeLikeBareCommands(t *testing.T) {
 		{"neighbor flag cannot enforce", "gitleaks detect --exit-code 1\n\"./bin/trivy\" fs .", "SCA", Advisory},
 		{"neighbor flag cannot weaken", "gitleaks detect --exit-code 0\n\"./bin/trivy\" fs --exit-code 1 .", "SCA", Enforcing},
 		{"neighbor failure is unrelated", "gitleaks detect || true\n\"./bin/grant\" check dir:.", "License Compliance", Enforcing},
+		{"trivy behind timeout", `timeout 10m "./bin/trivy" fs --exit-code 1 .`, "SCA", Enforcing},
+		{"trivy behind taskset", `taskset -c 5-7 "$root/trivy" fs --exit-code 1 .`, "SCA", Enforcing},
+		{"trivy behind stacked wrappers", `sudo -E timeout 10m nice -n 5 "./bin/trivy" fs --exit-code 1 .`, "SCA", Enforcing},
+		{"trivy behind timeout reports", `timeout 10m "./bin/trivy" fs .`, "SCA", Advisory},
+		{"swallowed trivy behind timeout", `timeout 10m "./bin/trivy" fs --exit-code 1 . || true`, "SCA", Advisory},
+		{"trivy behind an unknown option", `timeout --frobnicate 5 "./bin/trivy" fs --exit-code 1 .`, "SCA", ""},
+		{"trivy in the background", `sudo -b "./bin/trivy" fs --exit-code 1 .`, "SCA", ""},
+		{"bats behind timeout", "timeout 10m bats --tap test", "Unit Tests", Enforcing},
+		{"quoted bats behind sudo", `sudo -E "./test/bats/bin/bats" --tap test`, "Unit Tests", Enforcing},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `

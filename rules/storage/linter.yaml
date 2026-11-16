@@ -186,6 +186,15 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bdeno\\s+lint\\b"
 
+  # Taplo validates TOML with check/lint/validate. Its fmt/format sub-command
+  # rewrites files and exits 0 unless --check is given (--diff alone still
+  # rewrites), so that form counts only with --check later on the line.
+  - id: "taplo-rule"
+    name: "Taplo"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/\"'])(?:@taplo/cli|taplo)(?:@[0-9][\\w.-]*|==[0-9][\\w.-]*)?\\s+(?:(?:check|lint|validate)|(?:fmt|format)(?:\\s[^\\n]*)?\\s--check)(?:[\\s\"']|$)"
+
   - id: "stylelint-rule"
     name: "Stylelint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

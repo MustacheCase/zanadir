@@ -28,3 +28,27 @@ rules:
     categories: ["Agent Skill Security"]
     regex: "(?i)\\bsnyk-agent-scan\\b"
     unless: "--no-skills\\b"
+
+  # Stroq (@stroq/cli) inspect reads skills, hooks and MCP configs and exits 1
+  # on findings unless --fail-on none, as does its Action; --env only prints.
+  - id: "stroq-rule"
+    name: "Stroq"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Agent Skill Security"]
+    regex: "(?i)^aggib/stroq-action$|(?:^|[\\s/])(?:stroq|@stroq/cli(?:@\\S+)?)\\s+inspect(?:\\s|$)"
+    unless: "(?:^|\\s)--env(?:[\\s=]|$)"
+    weakenedWhen:
+      - runMatches: "(?i)--fail-on[= ]+[\"']?none\\b"
+        verdict: "advisory"
+      - input: "fail-on"
+        equals: "none"
+        verdict: "advisory"
+
+  # stroq vet reads a skill or MCP server and exits 0 whatever it finds.
+  - id: "stroq-vet-rule"
+    name: "Stroq"
+    applyOn: ["Job.Run"]
+    categories: ["Agent Skill Security"]
+    regex: "(?i)(?:^|[\\s/])(?:stroq|@stroq/cli(?:@\\S+)?)\\s+vet(?:\\s|$)"
+    exitsZeroUnless:
+      runMatches: "[^\\s\\S]"

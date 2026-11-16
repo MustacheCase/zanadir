@@ -63,6 +63,10 @@ var (
 	armTemplate    = regexp.MustCompile(`deploymentTemplate\.json`)
 	k8sAPIVersion  = regexp.MustCompile(`(?m)^apiVersion:\s*\S`)
 	k8sKind        = regexp.MustCompile(`(?m)^kind:\s*["']?(?:Deployment|StatefulSet|DaemonSet|ReplicaSet|Pod|Job|CronJob|Service|Ingress|ConfigMap|Secret|Namespace|ServiceAccount|(?:Cluster)?Role(?:Binding)?|PersistentVolume(?:Claim)?|NetworkPolicy|HorizontalPodAutoscaler|CustomResourceDefinition)["']?\s*$`)
+	// A Nuclei template looks for exposed or misconfigured infrastructure.
+	nucleiID       = regexp.MustCompile(`(?m)^id:[ \t]*\S`)
+	nucleiInfo     = regexp.MustCompile(`(?m)^info:[ \t]*$`)
+	nucleiSeverity = regexp.MustCompile(`(?m)^[ \t]+severity:[ \t]*\S`)
 )
 
 func isIaCFile(name string, inIaCDir bool) bool {
@@ -93,18 +97,30 @@ func isManifest(path, name string) bool {
 	if ext != ".yaml" && ext != ".yml" && ext != ".json" {
 		return false
 	}
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	defer func() { _ = f.Close() }()
-	head := make([]byte, 32<<10)
-	n, _ := io.ReadFull(f, head)
-	head = head[:n]
+	head := readHead(path)
 	if cloudFormation.Match(head) || armTemplate.Match(head) {
 		return true
 	}
 	return ext != ".json" && k8sAPIVersion.Match(head) && k8sKind.Match(head)
+}
+
+func readHead(path string) []byte {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	head := make([]byte, 32<<10)
+	n, _ := io.ReadFull(f, head)
+	return head[:n]
+}
+
+func isDetectionTemplate(path, name string) bool {
+	if ext := strings.ToLower(filepath.Ext(name)); ext != ".yaml" && ext != ".yml" {
+		return false
+	}
+	head := readHead(path)
+	return nucleiID.Match(head) && nucleiInfo.Match(head) && nucleiSeverity.Match(head)
 }
 
 func codePackage(dir string, seen map[string]bool) bool {
@@ -147,7 +163,7 @@ func hasIaC(dir string) bool {
 				break
 			}
 		}
-		if isIaCFile(name, inIaCDir) || isManifest(path, name) {
+		if (isIaCFile(name, inIaCDir) || isManifest(path, name)) && !isDetectionTemplate(path, name) {
 			found = true
 			return fs.SkipAll
 		}

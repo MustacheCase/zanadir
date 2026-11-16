@@ -689,6 +689,31 @@ jobs:
 	}
 }
 
+// stroq inspect and its Action exit 1 on findings unless fail-on is none; vet never fails on them.
+func TestStroqGradesByFailOn(t *testing.T) {
+	for step, expected := range map[string]Verdict{
+		"run: npx stroq inspect --sarif .":                                                  Enforcing,
+		"run: npx @stroq/cli@0.32.0 inspect --changed-from HEAD^1 --format github .":        Enforcing,
+		"run: npx stroq inspect --sarif . --fail-on none":                                   Advisory,
+		"run: npx stroq inspect --sarif . > stroq.sarif || [ $? -eq 1 ]":                    Advisory,
+		"run: npx @stroq/cli vet --from .claude/skills/deploy":                              Advisory,
+		"uses: AGGIB/stroq-action@v1":                                                       Enforcing,
+		"uses: AGGIB/stroq-action@v1\n        with:\n          fail-on: none":               Advisory,
+		"uses: AGGIB/stroq-action@v1\n        with:\n          fail-on: ${{ inputs.mode }}": Unknown,
+	} {
+		t.Run(step, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - `+step+`
+`)
+			assert.Equal(t, expected, verdicts["Agent Skill Security"])
+		})
+	}
+}
+
 // A step is weakened only when every run of the tool in it is. kolide/launcher
 // gates on the first govulncheck and re-runs it with -format json to print.
 func TestWeakenedOnlyWhenEveryRunIs(t *testing.T) {
@@ -1330,6 +1355,46 @@ jobs:
 `
 			if tc.input != "" {
 				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+func TestTerraformDocsExitsZeroUnlessOutputCheck(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"terraform-docs --output-check .":                             Enforcing,
+		"terraform-docs -c .terraform-docs.yml --output-check=true .": Enforcing,
+		"terraform-docs markdown table --output-file README.md .":     Advisory,
+		"terraform-docs --output-check=false .":                       Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  docs:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+func TestTerraformDocsActionFailOnDiff(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		inputs   string
+		expected Verdict
+	}{
+		{name: "no inputs is advisory", expected: Advisory},
+		{name: "fail-on-diff true is enforcing", inputs: "          fail-on-diff: true\n", expected: Enforcing},
+		{name: "fail-on-diff true with git-push true is advisory", inputs: "          fail-on-diff: true\n          git-push: true\n", expected: Advisory},
+		{name: "expression input is unknown", inputs: "          fail-on-diff: ${{ inputs.check }}\n", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := "on: pull_request\njobs:\n  docs:\n    steps:\n      - uses: terraform-docs/gh-actions@v1.4.1\n"
+			if tc.inputs != "" {
+				workflow += "        with:\n" + tc.inputs
 			}
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
 			assert.Equal(t, tc.expected, verdicts["Linter"])

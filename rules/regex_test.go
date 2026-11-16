@@ -507,6 +507,23 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"snyk test", "agent-scan", "snyk-agent-scanner"},
 		},
 		{
+			ruleID: "stroq-rule",
+			shouldMatch: []string{
+				"AGGIB/stroq-action", "npx stroq inspect --sarif .", "stroq inspect --changed-from HEAD^1 --format github .",
+				"npx --yes --no-workspaces @stroq/cli@0.32.0 inspect . --fail-on any",
+				"pnpm dlx @stroq/cli inspect", "./node_modules/.bin/stroq inspect .",
+			},
+			shouldNotMatch: []string{
+				"AGGIB/stroq-action-extra", "AGGIB/Stroq", "npm i -g @stroq/cli", "npx @stroq/cli", "stroq sent --last",
+				"stroqx inspect .", "my-stroq inspect", "stroq inspection", "kubectl inspect", "node packages/cli/dist/index.js inspect --sarif .",
+			},
+		},
+		{
+			ruleID:         "stroq-vet-rule",
+			shouldMatch:    []string{"stroq vet --from .claude/skills/deploy --json", "npx -y @stroq/cli@0.32.0 vet --online npm:some-mcp"},
+			shouldNotMatch: []string{"stroq inspect .", "stroq veto", "go vet ./...", "cargo vet", "npm i -g @stroq/cli"},
+		},
+		{
 			ruleID:         "actionlint-rule",
 			shouldMatch:    []string{"rhysd/actionlint", "reviewdog/action-actionlint", "actionlint -color"},
 			shouldNotMatch: []string{"actionlinter", "action lint"},
@@ -772,6 +789,38 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID:         "kube-score-rule",
 			shouldMatch:    []string{"kube-score score deploy/*.yaml", "helm template . | kube-score score -", "kube-score score --exit-one-on-warning k8s/", "docker run -v $PWD:/project zegl/kube-score score /project/k8s/*.yaml", "kube-score score"},
 			shouldNotMatch: []string{"kubectl score", "kube-scorecard", "kube-score version", "kube-score help score", "kube-score completion bash", "kube-scorecard score k8s/"},
+		},
+		{
+			ruleID: "terraform-docs-rule",
+			shouldMatch: []string{
+				"terraform-docs --output-check .",
+				`terraform-docs -c .terraform-docs.yml --output-check "$(dirname "$readme")"`,
+				"terraform-docs . --output-check --config .terraform-docs.yml --recursive --recursive-include-main=false",
+				"terraform-docs --lockfile=false --output-check=true --output-file README.md --output-mode inject markdown table .",
+				"terraform-docs markdown table . > README.md",
+				`if ! terraform-docs --output-check "$module"`,
+				`do terraform-docs -c .terraform-docs.yml --output-check "modules/$m"`,
+				`docker run --rm --volume "$(pwd):/terraform-docs" -u $(id -u) quay.io/terraform-docs/terraform-docs:0.20.0 --output-check /terraform-docs`,
+				"quay.io/terraform-docs/terraform-docs:0.20.0",
+			},
+			shouldNotMatch: []string{
+				"run-terraform-docs.sh markdown table --config .terraform-docs.yml --output-check .",
+				"terraform-docs-automation.sh check",
+				"git clone --branch x --depth 1 $TERRAFORM_DOCS_REPO_URL /tmp/terraform-docs",
+				"go build -C /tmp/terraform-docs -o $(go env GOPATH)/bin/terraform-docs",
+				"yq e '.output.file' .terraform-docs.yml",
+				"pre-commit run terraform-docs-go --all-files",
+				"terraform fmt -check",
+			},
+		},
+		{
+			ruleID: "terraform-docs-action-rule",
+			shouldMatch: []string{
+				"terraform-docs/gh-actions",
+			},
+			shouldNotMatch: []string{
+				"terraform-docs/gh-actions-extra",
+			},
 		},
 		{
 			ruleID: "kubeconform-rule",
@@ -1668,6 +1717,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"kubeconform-rule":     {"kubeconform -v"},
 		"lychee-rule":          {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule": {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
+		"stroq-rule":           {"stroq inspect --env", "npx @stroq/cli inspect --env >> \"$GITHUB_ENV\""},
 		"trivy-rule":           {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
 		"typos-rule":           {"npx cspell --report typos ."},
 		"unit-test-command-rule": {

@@ -5,6 +5,18 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\beslint\\b"
 
+  # HTMLHint is a linter, but its name also appears in config and report paths.
+  # Match only commands that execute it, directly or through common package
+  # runners. --warn makes findings advisory because HTMLHint exits successfully.
+  - id: "htmlhint-rule"
+    name: "HTMLHint"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm(?:\\s+(?:exec|dlx))?|yarn(?:\\s+(?:exec|dlx))?|npm\\s+exec|bun\\s+x)(?:\\s+(?:--(?:\\S*)|-\\S+))*\\s+)?(?:\\S*/)?htmlhint(?:@\\S+)?(?:\\s|$)"
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--warn(?:\\s|$)"
+        verdict: "advisory"
+
   - id: "pylint-rule"
     name: "Pylint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
@@ -20,7 +32,18 @@ rules:
   - id: "python-type-checker-rule"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?i)\\b(?:mypy|pyright)\\b"
+    # "ty" is two letters that turn up inside words and paths (pretty,
+    # --bin=ty, target/profiling/ty), so only "ty check" counts, with an
+    # optional version as in uvx ty@0.0.1 check. --exit-zero makes ty always
+    # exit 0, but --exit-zero-on-warning still fails on errors.
+    # basedpyright and pyrefly are bounded the same way: file names hold both
+    # (.basedpyright/baseline.json, pyrefly_diff.txt, ./dev/pyrefly-check-local),
+    # and only "pyrefly check" checks code (init, lsp, infer, suppress and
+    # coverage report do not). The action's Job.Package is the whole text.
+    regex: "(?i)\\b(?:mypy|pyright)\\b|(?:^|[\\s/])(?P<name>ty)(?:@[\\w.-]+)?\\s+check\\b|(?:^|[\\s/])(?P<name>basedpyright)(?:@[\\w.-]+)?(?:\\s|$)|(?:^|[\\s/])(?P<name>pyrefly)(?:@[\\w.-]+)?\\s+check\\b|^(?:facebook|meta)/(?P<name>pyrefly)$"
+    weakenedWhen:
+      - runMatches: "--exit-zero(?:\\s|$)"
+        verdict: "advisory"
 
   - id: "golangci-lint-rule"
     name: "golangci-lint"
@@ -53,6 +76,40 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bflake8\\b"
+
+  # Vulture finds dead Python code and exits non-zero (3) on findings.
+  # Match it only as the program being run (not "vulture:" headings or files
+  # like vulture_whitelist.py) or via its GitHub Action.
+  - id: "vulture-rule"
+    name: "Vulture"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])vulture(?:[\\s@]|$)|(?i)(?:^|\\s)gtkacz/vulture-action(?:[\\s@]|$)"
+
+  # cargo-machete reports dependencies in Cargo.toml that the code never uses.
+  # It exits 1 on findings, so it always fails the step as it is. Match it as
+  # the cargo sub-command (with an optional toolchain) or as its own name with
+  # the boundaries of a program or image: ~/.cargo/bin/cargo-machete,
+  # bnjbvr/cargo-machete, ghcr.io/bnjbvr/cargo-machete:latest. Not the
+  # metadata tables, workflow files or release archive names.
+  # Case-sensitive: the tool, its sub-command and the hook id are lower case.
+  - id: "cargo-machete-rule"
+    name: "cargo-machete"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|[\\s/])cargo\\s+(?:\\+\\S+\\s+)?machete(?:\\s|$)|(?:^|[\\s/])cargo-machete(?:[\\s:@]|$)"
+
+  # cargo-udeps reports dependencies the build never uses. It exits 1 on
+  # findings, and on a stable toolchain it stops with an error, so it fails
+  # the step as it is. Match the cargo sub-command (with an optional
+  # toolchain), the binary as "cargo-udeps udeps", or its pre-commit hook id
+  # "udeps" as a whole command. "cargo-udeps" alone names release archives and
+  # Cargo.toml metadata, so it does not count.
+  - id: "cargo-udeps-rule"
+    name: "cargo-udeps"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?m)(?:^|[\\s/])cargo\\s+(?:\\+\\S+\\s+)?udeps(?:\\s|$)|^cargo-udeps\\s+udeps(?:\\s|$)|^udeps(?:\\s|$)"
 
   - id: "oxsecurity-super-linter-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
@@ -163,12 +220,20 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\bswiftlint\\b"
+    # --fix only corrects, and --lenient turns every error into a warning.
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--(?:fix|autocorrect|lenient)(?:\\s|$)"
+        verdict: "advisory"
 
   - id: "dart-analyze-rule"
     name: "dart analyze"
     applyOn: ["Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\b(?:dart|flutter)\\s+analyze\\b"
+    # Errors still fail with these, but warnings or infos no longer do.
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--no-fatal-(?:warnings|infos)(?:\\s|$)"
+        verdict: "partial"
 
   - id: "hadolint-rule"
     name: "Hadolint"
@@ -245,11 +310,52 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)(?:\\bbuf\\s+lint\\b|bufbuild/buf(?:-lint)?-action)"
-    # buf-action can publish or check breaking changes without linting.
+    # buf-action can publish or check breaking changes without linting, or
+    # only install buf.
     weakenedWhen:
       - input: "lint"
         equals: "false"
         verdict: "advisory"
+      - input: "setup_only"
+        equals: "true"
+        verdict: "advisory"
+
+  # lychee checks links and exits 2 when one is broken. Its name also turns up
+  # in its config (lychee.toml), cache (.lycheecache), release tarballs and the
+  # action's report (lychee/out.md), so it only matches as a whole word: after
+  # the start, a space or "/", and before a space, ":" (a Docker tag), "@" or
+  # the end. The action has its own alternative.
+  - id: "lychee-rule"
+    name: "lychee"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])lychee(?:[\\s:@]|$)|\\blycheeverse/lychee-action\\b"
+    # --dump and --dump-inputs only print the links or inputs, checking none.
+    unless: "(?i)(?:^|\\s)--dump(?:-inputs)?(?:\\s|$)"
+    # The action's fail input ("Fail entire pipeline on error") defaults to
+    # true; with fail: false it only reports.
+    weakenedWhen:
+      - input: "fail"
+        equals: "false"
+        verdict: "advisory"
+
+  # Match the command or either action, not config paths or workflow/job names.
+  # Token boundaries exclude filenames like markdown-link-check-config.json.
+  - id: "markdown-link-check-rule"
+    name: "markdown-link-check"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])markdown-link-check(?:[\\s:@]|$)|(?:^|\\s)(?:tcort|gaurav-nelson)/github-action-markdown-link-check(?:[\\s@]|$)"
+
+  # awesome_bot checks links and exits 1 on a dead or duplicate one; no flag
+  # makes it exit 0. It only matches as a whole word, like lychee, so the
+  # awesomebot-gh-summary-action, its URL in a link and awesome_bottom_bar
+  # don't. A workflow named after it says nothing, so no Artifact.Name.
+  - id: "awesome-bot-rule"
+    name: "awesome_bot"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])awesome_bot(?:[\\s:@]|$)"
 
   # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
   # and .codespellrc / codespell_lib are not runs of it.
@@ -266,6 +372,43 @@ rules:
       - input: "only_warn"
         equals: "true"
         verdict: "advisory"
+
+  # CSpell is a different spell checker from codespell. Match it only as the
+  # program being run (or its action), not config files, dictionary packages,
+  # check-spelling "cspell:" refs, or upgrade/cleanup scripts.
+  - id: "cspell-rule"
+    name: "CSpell"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm(?:\\s+(?:exec|dlx))?|yarn(?:\\s+(?:exec|dlx))?|npm\\s+exec|bun\\s+x)(?:\\s+(?:--(?:\\S*)|-\\S+))*\\s+)?(?:\\S*/)?cspell(?:-cli)?(?:@\\S+)?(?:\\s|$)|\\bstreetsidesoftware/cspell-action\\b"
+    weakenedWhen:
+      - runMatches: "--no-exit-code\\b"
+        verdict: "advisory"
+      - input: "strict"
+        equals: "false"
+        verdict: "advisory"
+
+  # Knip finds unused files, dependencies and exports in JS/TS projects and
+  # exits non-zero on a finding. "knip" is also a script name (knip:ci),
+  # config (knip.json) and cache (node_modules/.cache/knip), so only match it
+  # as the program being run: at the start of a command, by path, or right
+  # after a package runner, optionally with a version (knip@5). knip-bun is the
+  # same tool on Bun.
+  - id: "knip-rule"
+    name: "Knip"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm(?:\\s+(?:exec|dlx|run))?|yarn(?:\\s+(?:exec|dlx|run))?|npm\\s+(?:exec|run)|bun\\s+(?:run|x))(?:\\s+(?:--(?:\\S*)|-\\S+))*\\s+)?(?:\\S*/)?knip(?:-bun)?(?:@\\S+)?(?:\\s|$)"
+    # --no-exit-code exits 0 on any issue, so it wins when flags are combined.
+    # --max-issues <n> with n of 1 or more fails only above a budget, and the
+    # fixing flags subtract what Knip repairs. -F is --format, not --fix.
+    weakenedWhen:
+      - runMatches: "--no-exit-code\\b"
+        verdict: "advisory"
+      - runMatches: "--max-issues[= ]+[1-9][0-9]*\\b"
+        verdict: "partial"
+      - runMatches: "(?:^|\\s)(?:--fix(?:-type)?|--allow-remove-files|-f)(?:[\\s=]|$)"
+        verdict: "partial"
 
   - id: "phpcs-rule"
     name: "PHP_CodeSniffer"
@@ -287,3 +430,66 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?i)\\b(?P<name>pre-commit)\\s+run\\b|(?:^|\\n)(?:\\S*/)?(?P<name>prek)(?:\\s+(?:run\\b|-|[\\\"'$])|[ \\t]*(?:\\n|$))|^(?P<name>pre-commit)/action$|^j178/(?P<name>prek)-action$"
+    # Without a file selection only staged files are checked, and a CI
+    # checkout has none, so every hook is skipped. pre-commit takes any unique
+    # prefix of a long option (--all) and short flags together (-av).
+    exitsZeroUnless:
+      runMatches: "(?:^|\\s)(?:--a(?:l(?:l(?:-(?:f(?:i(?:l(?:es?)?)?)?)?)?)?)?|--fi(?:l(?:es?)?)?|--fr(?:o(?:m(?:-(?:r(?:ef?)?)?)?)?)?|--so(?:u(?:r(?:ce?)?)?)?|--t(?:o(?:-(?:r(?:ef?)?)?)?)?|--o(?:r(?:i(?:g(?:in?)?)?)?)?|--glob|--directory|--last-commit|-[vq]*[asod]\\S*)(?:[=\\s\\\"';&|)]|$)"
+      unknownWhen: "\\$"
+
+  # tsc is as often the build as a check, so only --noEmit says "check,
+  # don't write". vue-tsc type-checks Vue single-file components and tsgo is
+  # TypeScript's native preview compiler; both take the flag. tsc-alias and
+  # --noEmitOnError are not it.
+  - id: "typescript-noemit-rule"
+    name: "TypeScript"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])(?:tsc|vue-tsc|tsgo)[^\\S\\n](?:[^\\n]*[^\\S\\n])?--noemit\\b"
+
+  # typos (crate-ci) exits 2 on a spelling error. "typos" is an ordinary word,
+  # so the regex keeps it only where it is run: at the start of a command or
+  # after a space, or after a "/", which covers a path (./bin/typos) and the
+  # action (crate-ci/typos@v1.48.0), and before whitespace, "@" or the end.
+  # A workflow's name is prose (supabase has an "Automatically fix typos"
+  # workflow that runs misspell-fixer), so Artifact.Name stays out.
+  - id: "typos-rule"
+    name: "typos"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/\"'])(?P<name>typos)(?:@[\\w.-]+)?(?:\\s|$)"
+    # CSpell reports typos: --report typos / --report=typos is its output
+    # flag, not a run of the typos spell checker.
+    unless: "(?i)(?:^|\\s)--report(?:\\s|=)typos(?:\\s|$)"
+    # -w / --write-changes fixes every typo that has a single correction and
+    # only fails on the rest, so it is a fixer, not a check; the action's
+    # write_changes input does the same when set to true.
+    weakenedWhen:
+      - runMatches: "(?i)(?:^|\\s)(?:-w|--write-changes)(?:\\s|$)"
+        verdict: "advisory"
+      - input: "write_changes"
+        equals: "true"
+        verdict: "advisory"
+
+  # terraform-docs writes updated READMEs and exits 0 by default; only
+  # --output-check makes the CLI fail on a stale README.
+  - id: "terraform-docs-rule"
+    name: "terraform-docs"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:if|elif|while|until|then|do|else)\\s+|!\\s+)*terraform-docs(?:\\s|$)|\\bterraform-docs/terraform-docs(?:[:@\\s]|$)"
+    exitsZeroUnless:
+      runMatches: "(?i)(?:^|\\s)--output-check(?:=true)?(?:\\s|$)"
+
+  - id: "terraform-docs-action-rule"
+    name: "terraform-docs"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^terraform-docs/gh-actions$"
+    exitsZeroUnless:
+      input: "fail-on-diff"
+      runMatches: "(?i)^true$"
+    weakenedWhen:
+      - input: "git-push"
+        equals: "true"
+        verdict: "advisory"

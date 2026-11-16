@@ -48,6 +48,11 @@ var iacDirs = map[string]bool{
 	"infrastructure": true,
 }
 
+// codeManifests mark a source package. One named like an infrastructure
+// directory, such as packages/adapters/k8s, is code about it, not manifests.
+var codeManifests = []string{"package.json", "go.mod", "Cargo.toml", "pyproject.toml", "setup.py", "pom.xml",
+	"build.gradle", "build.gradle.kts", "Gemfile", "composer.json"}
+
 var manifestExtensions = map[string]bool{".yaml": true, ".yml": true, ".json": true, ".tpl": true, ".hcl": true, ".jsonnet": true}
 
 // A Dockerfile.json is data about a Dockerfile, not one.
@@ -58,6 +63,10 @@ var (
 	armTemplate    = regexp.MustCompile(`deploymentTemplate\.json`)
 	k8sAPIVersion  = regexp.MustCompile(`(?m)^apiVersion:\s*\S`)
 	k8sKind        = regexp.MustCompile(`(?m)^kind:\s*["']?(?:Deployment|StatefulSet|DaemonSet|ReplicaSet|Pod|Job|CronJob|Service|Ingress|ConfigMap|Secret|Namespace|ServiceAccount|(?:Cluster)?Role(?:Binding)?|PersistentVolume(?:Claim)?|NetworkPolicy|HorizontalPodAutoscaler|CustomResourceDefinition)["']?\s*$`)
+	// A Nuclei template looks for exposed or misconfigured infrastructure.
+	nucleiID       = regexp.MustCompile(`(?m)^id:[ \t]*\S`)
+	nucleiInfo     = regexp.MustCompile(`(?m)^info:[ \t]*$`)
+	nucleiSeverity = regexp.MustCompile(`(?m)^[ \t]+severity:[ \t]*\S`)
 )
 
 func isIaCFile(name string, inIaCDir bool) bool {
@@ -88,24 +97,48 @@ func isManifest(path, name string) bool {
 	if ext != ".yaml" && ext != ".yml" && ext != ".json" {
 		return false
 	}
-	f, err := os.Open(path)
-	if err != nil {
-		return false
-	}
-	defer func() { _ = f.Close() }()
-	head := make([]byte, 32<<10)
-	n, _ := io.ReadFull(f, head)
-	head = head[:n]
+	head := readHead(path)
 	if cloudFormation.Match(head) || armTemplate.Match(head) {
 		return true
 	}
 	return ext != ".json" && k8sAPIVersion.Match(head) && k8sKind.Match(head)
 }
 
+func readHead(path string) []byte {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	head := make([]byte, 32<<10)
+	n, _ := io.ReadFull(f, head)
+	return head[:n]
+}
+
+func isDetectionTemplate(path, name string) bool {
+	if ext := strings.ToLower(filepath.Ext(name)); ext != ".yaml" && ext != ".yml" {
+		return false
+	}
+	head := readHead(path)
+	return nucleiID.Match(head) && nucleiInfo.Match(head) && nucleiSeverity.Match(head)
+}
+
+func codePackage(dir string, seen map[string]bool) bool {
+	if is, ok := seen[dir]; ok {
+		return is
+	}
+	seen[dir] = slices.ContainsFunc(codeManifests, func(name string) bool {
+		info, err := os.Lstat(filepath.Join(dir, name))
+		return err == nil && info.Mode().IsRegular()
+	})
+	return seen[dir]
+}
+
 // hasIaC walks until it finds one marker, so only a repository with none is
 // walked in full.
 func hasIaC(dir string) bool {
 	found := false
+	packages := map[string]bool{}
 
 	_ = filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -122,10 +155,15 @@ func hasIaC(dir string) bool {
 			return nil
 		}
 		rel, _ := filepath.Rel(dir, path)
-		inIaCDir := slices.ContainsFunc(strings.Split(filepath.Dir(rel), string(filepath.Separator)), func(part string) bool {
-			return iacDirs[strings.ToLower(part)]
-		})
-		if isIaCFile(name, inIaCDir) || isManifest(path, name) {
+		inIaCDir := false
+		parts := strings.Split(filepath.Dir(rel), string(filepath.Separator))
+		for i, part := range parts {
+			if iacDirs[strings.ToLower(part)] && !codePackage(filepath.Join(dir, filepath.Join(parts[:i+1]...)), packages) {
+				inIaCDir = true
+				break
+			}
+		}
+		if (isIaCFile(name, inIaCDir) || isManifest(path, name)) && !isDetectionTemplate(path, name) {
 			found = true
 			return fs.SkipAll
 		}

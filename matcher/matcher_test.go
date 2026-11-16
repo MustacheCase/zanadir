@@ -123,6 +123,28 @@ func TestMatchRunCommands(t *testing.T) {
 	assert.Equal(t, "SCA", findings[0].Category)
 }
 
+func TestMatchStepEnvironment(t *testing.T) {
+	m := matcher.NewMatchService()
+	rule := &rules.Rule{
+		ID:         "npm-provenance-rule",
+		ApplyOn:    []string{rules.FieldJobEnv},
+		Categories: []string{"Supply Chain"},
+		Regex:      regexp.MustCompile("(?im)^npm_config_provenance=true$"),
+	}
+
+	artifacts := []*models.Artifact{{
+		Name: "release",
+		Jobs: []*models.Job{
+			{Name: "build", Run: "npm ci", Env: map[string]string{"CI": "true"}},
+			{Name: "publish", Package: "changesets/action", Env: map[string]string{"NODE_ENV": "production", "NPM_CONFIG_PROVENANCE": "true"}},
+		},
+	}}
+
+	findings := m.Match(artifacts, []*rules.Rule{rule})
+	assert.Len(t, findings, 1)
+	assert.Equal(t, "publish", findings[0].Job.Name)
+}
+
 // unit-tests.yaml declared Job.Name but matchesRule had no case for it.
 func TestMatchJobName(t *testing.T) {
 	m := matcher.NewMatchService()
@@ -329,6 +351,7 @@ func TestCommandsAreTheOnesTheRuleMatches(t *testing.T) {
 	assert.Equal(t, []string{"gitleaks detect --exit-code 1", "gitleaks protect"},
 		matcher.Commands("trivy fs --exit-code 0 . && gitleaks detect --exit-code 1\necho gitleaks\ngitleaks --version\ngitleaks protect", gitleaks))
 	assert.Empty(t, matcher.Commands("make lint", gitleaks))
+	assert.Equal(t, []string{"gitleaks detect --source ."}, matcher.Commands(`OUT="$(cd src && gitleaks detect --source .)"`, gitleaks))
 }
 
 func TestUnlessExceptsANameOrWorkflow(t *testing.T) {

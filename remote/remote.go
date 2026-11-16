@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/utils"
 )
 
@@ -162,6 +163,7 @@ func FetchWith(ctx context.Context, repo Repository, token string, opts Options)
 	err = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
 	if err == nil {
 		recordDefaultBranch(ctx, repo, token, dir)
+		recordWorkflows(ctx, repo, token, dir)
 		skills, listErr := fetchFiles(ctx, repo, token, dir, opts)
 		if listErr != nil {
 			err = resetTo(dir)
@@ -351,6 +353,91 @@ func recordDefaultBranch(ctx context.Context, repo Repository, token, dir string
 	_ = writeFile(filepath.Join(dir, ".git", "refs", "remotes", "origin", "HEAD"), strings.NewReader(head), int64(len(head)))
 }
 
+// maxWorkflowPages bounds the workflow listing, at 100 workflows a page.
+const maxWorkflowPages = 10
+
+// codeScanningWorkflow is the dynamic workflow code scanning's default setup
+// runs, which no file in the repository shows.
+const codeScanningWorkflow = "dynamic/github-code-scanning/codeql"
+
+// recordWorkflows writes models.DisabledWorkflowsFile, and
+// models.CodeScanningFile when default setup is on. A failure leaves them
+// unwritten, and every workflow counts as enabled.
+func recordWorkflows(ctx context.Context, repo Repository, token, dir string) {
+	var disabled []string
+	codeScanning := int64(0)
+	for page, seen := 1, 0; page <= maxWorkflowPages; page++ {
+		var list struct {
+			TotalCount int `json:"total_count"`
+			Workflows  []struct {
+				ID    int64  `json:"id"`
+				Path  string `json:"path"`
+				State string `json:"state"`
+			} `json:"workflows"`
+		}
+		endpoint := fmt.Sprintf("%s/repos/%s/%s/actions/workflows?per_page=100&page=%d", apiBase, repo.Owner, repo.Name, page)
+		if getJSON(ctx, endpoint, token, &list) != nil {
+			return
+		}
+		for _, workflow := range list.Workflows {
+			if strings.HasPrefix(workflow.State, "disabled") {
+				disabled = append(disabled, workflow.Path)
+			} else if workflow.Path == codeScanningWorkflow {
+				codeScanning = workflow.ID
+			}
+		}
+		seen += len(list.Workflows)
+		if len(list.Workflows) == 0 || seen >= list.TotalCount {
+			break
+		}
+	}
+	if codeScanning != 0 {
+		writeLines(dir, models.CodeScanningFile, codeScanningLanguages(ctx, repo, token, codeScanning))
+	}
+	if len(disabled) > 0 {
+		writeLines(dir, models.DisabledWorkflowsFile, disabled)
+	}
+}
+
+var analyzeJob = regexp.MustCompile(`^Analyze \((.+)\)$`)
+
+// codeScanningLanguages reads the languages off the jobs of default setup's
+// latest run, one "Analyze (go)" job a language. Nil means unknown.
+func codeScanningLanguages(ctx context.Context, repo Repository, token string, workflow int64) []string {
+	base := fmt.Sprintf("%s/repos/%s/%s/actions", apiBase, repo.Owner, repo.Name)
+	var runs struct {
+		Runs []struct {
+			ID int64 `json:"id"`
+		} `json:"workflow_runs"`
+	}
+	if getJSON(ctx, fmt.Sprintf("%s/workflows/%d/runs?per_page=1", base, workflow), token, &runs) != nil || len(runs.Runs) == 0 {
+		return nil
+	}
+	var jobs struct {
+		Jobs []struct {
+			Name string `json:"name"`
+		} `json:"jobs"`
+	}
+	if getJSON(ctx, fmt.Sprintf("%s/runs/%d/jobs?per_page=100", base, runs.Runs[0].ID), token, &jobs) != nil {
+		return nil
+	}
+	var languages []string
+	for _, job := range jobs.Jobs {
+		if m := analyzeJob.FindStringSubmatch(job.Name); m != nil {
+			languages = append(languages, m[1])
+		}
+	}
+	return languages
+}
+
+func writeLines(dir, name string, lines []string) {
+	body := strings.Join(lines, "\n")
+	if body != "" {
+		body += "\n"
+	}
+	_ = writeFile(filepath.Join(dir, filepath.FromSlash(name)), strings.NewReader(body), int64(len(body)))
+}
+
 func download(ctx context.Context, repo Repository, token, dir string, skills skillDirs) error {
 	endpoint := fmt.Sprintf("%s/repos/%s/%s/tarball", apiBase, repo.Owner, repo.Name)
 	if repo.Ref != "" {
@@ -528,7 +615,7 @@ func exists(path string) bool {
 }
 
 // contentOf says how much of a file zanadir reads: CI and build files, the
-// root uv.lock and files of the skills asked for whole, the head of other
+// root lockfiles and files of the skills asked for whole, the head of other
 // JSON for IaC detection, else only the name.
 func contentOf(name string, skills skillDirs) content {
 	if keepContent(name) || skills.holds(name) {
@@ -544,13 +631,13 @@ func keepContent(name string) bool {
 	if slices.Contains(strings.Split(filepath.ToSlash(name), "/"), ".make") {
 		return true
 	}
-	// Only the root lockfile is read; a monorepo can hold hundreds more.
-	if filepath.ToSlash(name) == "uv.lock" {
+	// Only the root lockfiles are read; a monorepo can hold hundreds more.
+	if rel := filepath.ToSlash(name); rel == "uv.lock" || rel == "package-lock.json" {
 		return true
 	}
 	base := strings.ToLower(filepath.Base(name))
 	switch filepath.Ext(base) {
-	case ".yml", ".yaml", ".mk", ".sh", ".bash":
+	case ".yml", ".yaml", ".mk", ".sh", ".bash", ".bat", ".cmd":
 		return true
 	}
 	switch base {

@@ -51,6 +51,42 @@ func TestIaCIsRuledOutWithoutInfrastructure(t *testing.T) {
 	assert.Equal(t, []string{"IaC Security", "Agent Skill Security"}, applicability.NotApplicable(dir, nil))
 }
 
+// A code package named like an infrastructure directory holds code about it:
+// cruncher's Kubernetes log adapter is packages/adapters/k8s. A real
+// manifest or IaC file in one still counts.
+func TestIaCIgnoresACodePackageNamedLikeInfrastructure(t *testing.T) {
+	adapter := testrepo.Touch(t, "packages/adapters/k8s/package.json", "packages/adapters/k8s/tsconfig.json",
+		"packages/adapters/k8s/src/index.ts", "packages/adapters/k8s/sample-cluster/k8s-sample.cruncher.config.yaml")
+	assert.Contains(t, applicability.NotApplicable(adapter, nil), "IaC Security")
+
+	for _, files := range [][]string{
+		{"infra/package.json", "infra/cdk.json"},
+		{"k8s/go.mod", "k8s/main.tf"},
+		{"deploy/k8s/app.yaml", "tools/k8s/go.mod"},
+	} {
+		assert.NotContains(t, applicability.NotApplicable(testrepo.Touch(t, files...), nil), "IaC Security", files)
+	}
+}
+
+// crossfyre-toolchain's only compose file is a Nuclei template that looks for
+// exposed ones, and nuclei-templates keeps its Kubernetes checks under
+// cloud/kubernetes. A compose file that mentions severity still counts.
+func TestIaCIgnoresNucleiTemplates(t *testing.T) {
+	template := "id: docker-compose-exposure\ninfo:\n  name: Exposed docker-compose.yml\n  severity: medium\nhttp:\n  - method: GET\n"
+	for _, path := range []string{"plessor/templates/exposures/docker-compose.yaml", "cloud/kubernetes/deployments/k8s-cpu-limits-not-set.yml"} {
+		dir := testrepo.Write(t, map[string]string{path: template, "README.md": "x"})
+		assert.Contains(t, applicability.NotApplicable(dir, nil), "IaC Security", path)
+	}
+
+	for _, files := range []map[string]string{
+		{"docker-compose.yaml": "services:\n  id:\n    image: alpine\n    labels:\n      severity: high\n"},
+		{"plessor/templates/exposures/docker-compose.yaml": template, "Dockerfile": "FROM alpine\n"},
+		{"k8s/app.yaml": "id: app\ninfo:\n  owner: ops\n"},
+	} {
+		assert.NotContains(t, applicability.NotApplicable(testrepo.Write(t, files), nil), "IaC Security", files)
+	}
+}
+
 // The tools in the Workflow Security category read GitHub Actions or GitLab
 // CI, so a repository on another platform has nothing to point them at.
 func TestWorkflowSecurityNeedsGithubOrGitlab(t *testing.T) {

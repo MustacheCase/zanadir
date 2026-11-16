@@ -14,6 +14,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/handler"
 	"github.com/MustacheCase/zanadir/internal/repofs"
+	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/models"
 
 	"github.com/stretchr/testify/assert"
@@ -137,4 +138,24 @@ jobs:
 func TestRunRefusesWhatIsNotARepository(t *testing.T) {
 	_, err := run("not a repository", "json")
 	assert.ErrorContains(t, err, "not a repository")
+}
+
+func TestScanGradesAnUncheckedEcosystemPartial(t *testing.T) {
+	dir := testrepo.Write(t, map[string]string{
+		".git/HEAD": "ref: refs/heads/main\n",
+		"go.mod":    "", "requirements.txt": "",
+		".github/workflows/ci.yml": "on: pull_request\njobs:\n  scan:\n    steps:\n      - run: govulncheck ./...\n",
+	})
+	h, err := handler.Setup()
+	require.NoError(t, err)
+	report, err := scanDir(h, dir, "json")
+	require.NoError(t, err)
+	var parsed struct {
+		Weakened []struct{ Category, Verdict, Reason string }
+	}
+	require.NoError(t, json.Unmarshal([]byte(report), &parsed))
+	require.Len(t, parsed.Weakened, 1)
+	assert.Equal(t, "SCA", parsed.Weakened[0].Category)
+	assert.Equal(t, "partial", parsed.Weakened[0].Verdict)
+	assert.Contains(t, parsed.Weakened[0].Reason, "Python")
 }

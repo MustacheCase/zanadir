@@ -820,6 +820,32 @@ func TestByCategoryCountsCodeScanningMergeProtection(t *testing.T) {
 	}
 }
 
+// A control in a disabled workflow never runs: advisory, saying why, whatever
+// the merge settings or the step.
+func TestByCategoryGradesDisabledWorkflowsAdvisory(t *testing.T) {
+	trivy := &rules.Rule{ID: "trivy-rule", Regex: regexp.MustCompile(`\btrivy\s+fs\b`)}
+	scanned := func(*models.Job) bool { return true }
+	for _, tt := range []struct {
+		name  string
+		job   *models.Job
+		merge *Merge
+	}{
+		{"a gating step", &models.Job{Run: "trivy fs --exit-code 1 ."}, nil},
+		{"a step behind an if", &models.Job{Run: "trivy fs --exit-code 1 .", If: "github.actor != 'bot'"}, nil},
+		{"alerts that would block the merge", &models.Job{Run: "trivy fs --format sarif ."}, &Merge{Scanned: scanned, Required: scanned}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := finding([]models.Trigger{{Event: "pull_request"}}, tt.job)
+			f.Rule = trivy
+			f.Artifact.Disabled = true
+			got := ByCategory([]*matcher.Finding{f}, tt.merge)[f.Category]
+			if got.Verdict != Advisory || got.Reason != TurnedOff {
+				t.Errorf("got %v (%q), want advisory (%q)", got.Verdict, got.Reason, TurnedOff)
+			}
+		})
+	}
+}
+
 // A dependency scanner that cannot look up some of the lockfile is partial,
 // and the reason names what it misses. A weaker verdict is left alone: it
 // already says less than this would.

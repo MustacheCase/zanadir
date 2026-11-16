@@ -259,8 +259,11 @@ zanadir fix --repo owner/name
 ones zanadir reads (CI and build files, plus the start of JSON files for
 infrastructure detection) into a temporary directory. Every other file is an
 empty placeholder, since only its name matters. It then scans the directory
-exactly as a checkout and removes it. That is three GitHub API requests per
-scan, however large the repository. A repository too large to list in one
+exactly as a checkout and removes it. That is a handful of GitHub API
+requests per scan, however large the repository. The API also shows what no
+file does: workflows GitHub has turned off, which then count for nothing, and
+code scanning's default setup, which counts as the CodeQL workflow it runs,
+for the languages of its latest run. A scan of a checkout can't see it. A repository too large to list in one
 request is downloaded as an archive instead. Public repositories need no
 token; set `GITHUB_TOKEN` (or `GH_TOKEN`) to reach private ones or raise
 GitHub's rate limit of 60 requests an hour without one. GitLab and Bitbucket
@@ -627,7 +630,7 @@ than their presence suggests:
 | Verdict | Meaning |
 |---|---|
 | `enforcing` | the control can fail the build on the path that gates a change |
-| `partial` | it can fail a build, but not on that path - pushes only, say |
+| `partial` | it can fail a build, but not on that path, or cannot check everything it should |
 | `advisory` | it runs, and cannot block anything |
 | `unknown` | the configuration cannot be read well enough to say |
 
@@ -650,18 +653,53 @@ A manual run may be the release itself, which the file cannot tell, so it is
 and `continue-on-error` is `advisory` here as everywhere: a signing step that
 can fail silently publishes unsigned artifacts.
 
-SCA is also held to what it can see. A dependency scanner looks packages up
-by name and version, so one that `uv.lock` installs from a git repository or a
-direct URL is invisible to every scanner, and an enforcing SCA control in a
-repository with such a package is `partial`, with the packages named:
+SCA is also held to the repository's detected ecosystems. If an enforcing
+language-specific scanner leaves another detected language without an enforcing
+SCA check, the category is `partial`, with the gap explained:
+
+```
+  SCA is partial (.github/workflows/ci.yml): govulncheck checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check
+```
+
+This uses the same root and immediate-subdirectory manifests and directory
+skips as [language detection](#language-aware-suggestions), including a
+`package.json` used only for tooling. Manifest contents are not inspected,
+except that a `pyproject.toml` declaring no dependencies (one that only
+configures a linter, say) names no Python packages to scan.
+Enforcing tools combine their ecosystem coverage: a Go scanner and a Python
+scanner can cover both languages together. An enforcing multi-ecosystem scanner
+continues to cover them, while advisory dependency bots do not close a gap.
+Only the category verdict changes; individual tool grades stay as reported.
+Existing reasons for weakened controls still apply.
+
+A dependency scanner also looks packages up
+by name and version, so one that `uv.lock` or `package-lock.json` installs from
+a git repository or a direct URL is invisible to every scanner, and an
+enforcing SCA control in a repository with such a package is `partial`, with
+the packages named:
 
 ```
   SCA is partial (.github/workflows/ci.yml): uv.lock installs en-core-web-sm from a git or URL source, which no dependency scanner can look up
 ```
 
-A registry other than PyPI does not count, since a mirror or proxy serves
-PyPI's packages under the same names, and `path`, `directory` and `editable`
-sources are the repository's own code.
+A registry other than PyPI or npm's does not count, since a mirror or proxy
+serves their packages under the same names, and `path`, `directory`,
+`editable`, `file:` and linked sources are the repository's own code. Only the
+lockfiles at the repository root are read.
+
+SAST is held to the detected languages too, more loosely. A CodeQL run whose
+`languages` (or `--language`) names none of them, among those CodeQL analyses,
+is `partial`:
+
+```
+  SAST is partial (.github/workflows/codeql.yml): CodeQL analyses only actions, python; the Java, Rust code detected from repository manifests is not scanned
+```
+
+One analysed language is enough, since a manifest can be there only for
+tooling. A language CodeQL can't analyse, such as PHP, doesn't count against
+it, and one zanadir doesn't detect (`c-cpp`, `swift`) or can't read (a matrix
+expression) counts as covering the code. Kotlin's Gradle build is detected as
+Java, which `java-kotlin` covers.
 
 A weakened control does not fail a scan unless you ask it to. `--enforce` and
 `--fail-on` act only on categories with no tooling; `--fail-on-weakened` is
@@ -1042,7 +1080,7 @@ same shape as the [built-in rules](rules/storage):
 rules:
   - id: acme-scan
     name: Acme Scan             # optional: the tool the report names; without it, the matched text
-    applyOn: [Job.Run]          # Artifact.Name, Job.Name, Job.Package, Job.Run
+    applyOn: [Job.Run]          # Artifact.Name, Job.Name, Job.Package, Job.Run, Job.Env
     categories: [SAST]
     regex: '\bacme-scan\b'
     unless: '--list-rules'      # optional: a match that does not count, e.g. a command that does not scan
@@ -1051,6 +1089,36 @@ rules:
         verdict: advisory       # advisory or partial
     exitsZeroUnless:            # optional, for a tool that only reports by default
       runMatches: '--fail'      # the flag that makes it fail
+```
+
+A custom SCA rule can declare which ecosystems it checks:
+
+```yaml
+rules:
+  - id: acme-go-audit
+    name: Acme Go Audit
+    applyOn: [Job.Run]
+    categories: [SCA]
+    regex: '\bacme-go-audit\b'
+    ecosystems: [Go]
+```
+
+`ecosystems` accepts the canonical names `Go`, `Python`, `JavaScript`, `Ruby`,
+`Java`, `Rust`, `PHP` and `C#`. Omitting it or setting an empty list leaves
+coverage unrestricted. It affects SCA coverage only; other categories keep
+their existing behavior.
+
+A rule for a tool that takes `--language=a,b` can map each name to the
+canonical languages it analyses, as the CodeQL rule does. A run that names
+none of the repository's languages that the map covers is `partial`; a name
+the map leaves out counts as covering the code, and an empty list
+(`actions: []`) as covering none of it:
+
+```yaml
+    languages:
+      actions: []
+      java-kotlin: [Java]
+      python: [Python]
 ```
 
 A rule that also matches on `Artifact.Name` can take `unlessPackage`, a regex

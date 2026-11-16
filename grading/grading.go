@@ -5,6 +5,7 @@ package grading
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -47,6 +48,9 @@ type Merge struct {
 // NotRequired is the reason a control that runs on pull requests is partial.
 const NotRequired = "its check is not required to merge"
 
+// TurnedOff is the reason a control in a disabled workflow is advisory.
+const TurnedOff = "its workflow is disabled in the repository's settings"
+
 // Unaudited grades a dependency scanning control partial when the lockfile
 // installs packages that no scanner can look up, and names them.
 func Unaudited(a Assessment, lockfile string, packages []string) Assessment {
@@ -55,6 +59,87 @@ func Unaudited(a Assessment, lockfile string, packages []string) Assessment {
 	}
 	a.Verdict, a.Reason = Partial, unauditedReason(lockfile, packages)
 	return a
+}
+
+// UncoveredEcosystems grades enforcing dependency scanning partial when the
+// enforcing tools do not cover every language detected from repository manifests.
+// An empty tool scope means unrestricted coverage.
+func UncoveredEcosystems(a Assessment, languages []string) Assessment {
+	if a.Verdict != Enforcing || len(languages) == 0 {
+		return a
+	}
+	var names, supported []string
+	for _, tool := range a.Tools {
+		if tool.Verdict != Enforcing {
+			continue
+		}
+		if len(tool.Ecosystems) == 0 {
+			return a
+		}
+		names = append(names, tool.Name)
+		supported = append(supported, tool.Ecosystems...)
+	}
+	if len(names) == 0 {
+		return a
+	}
+	supported = sortedUnique(supported)
+	var missing []string
+	for _, language := range languages {
+		if !slices.Contains(supported, language) {
+			missing = append(missing, language)
+		}
+	}
+	if len(missing) == 0 {
+		return a
+	}
+	verb := "check"
+	names = sortedUnique(names)
+	if len(names) == 1 {
+		verb = "checks"
+	}
+	a.Verdict = Partial
+	a.Reason = fmt.Sprintf("%s %s only %s; %s dependencies detected from repository manifests have no enforcing SCA check",
+		strings.Join(names, ", "), verb, strings.Join(supported, ", "), strings.Join(sortedUnique(missing), ", "))
+	coverers := map[string][]string{}
+	missing = sortedUnique(missing)
+	for _, tool := range a.Tools {
+		if tool.Verdict != Advisory && tool.Verdict != Partial {
+			continue
+		}
+		var covered []string
+		for _, language := range missing {
+			if len(tool.Ecosystems) == 0 || slices.Contains(tool.Ecosystems, language) {
+				covered = append(covered, language)
+			}
+		}
+		if len(covered) == 0 {
+			continue
+		}
+		scope := "them"
+		if len(covered) != len(missing) {
+			scope = strings.Join(covered, ", ") + " dependencies"
+		}
+		coverers[scope] = append(coverers[scope], tool.Name)
+	}
+	var coverage []string
+	for scope, tools := range coverers {
+		tools = sortedUnique(tools)
+		verb := "cover"
+		if len(tools) == 1 {
+			verb = "covers"
+		}
+		coverage = append(coverage, fmt.Sprintf("%s %s %s but cannot block a merge", strings.Join(tools, ", "), verb, scope))
+	}
+	if len(coverage) > 0 {
+		a.Reason += " (" + strings.Join(sortedUnique(coverage), "; ") + ")"
+	}
+	return a
+}
+
+func sortedUnique(values []string) []string {
+	values = slices.Clone(values)
+	slices.Sort(values)
+	return slices.Compact(values)
 }
 
 // unauditedNames is how many packages a reason names before it counts the rest.
@@ -88,7 +173,7 @@ func Grade(finding *matcher.Finding) Verdict {
 	if finding == nil || finding.Artifact == nil {
 		return Unknown
 	}
-	if finding.Artifact.OutsidePipeline {
+	if finding.Artifact.OutsidePipeline || finding.Artifact.Disabled {
 		return Advisory
 	}
 
@@ -128,6 +213,29 @@ func Grade(finding *matcher.Finding) Verdict {
 	return gradeTriggers(finding.Artifact)
 }
 
+// weakenedRuns grades a step weakened only when every run of the tool in it
+// is: `if govulncheck ./...; then exit 0; fi; govulncheck -format json ./...`
+// gates on the first run and only prints with the second. The step gets the
+// strongest of the runs' weakened verdicts.
+func weakenedRuns(checks []rules.WeakenedWhen, run string, commands []string) (Verdict, bool) {
+	if run == "" {
+		return "", false
+	}
+	var verdict Verdict
+	for _, command := range commands {
+		i := slices.IndexFunc(checks, func(check rules.WeakenedWhen) bool {
+			return check.RunMatches != nil && check.RunMatches.MatchString(command)
+		})
+		if i < 0 {
+			return "", false
+		}
+		if v := Verdict(checks[i].Verdict); verdict == "" || stronger(v, verdict) {
+			verdict = v
+		}
+	}
+	return verdict, verdict != ""
+}
+
 // runtimeExpression is GitHub's ${{ }} or Azure's $( ) and $[ ].
 var runtimeExpression = regexp.MustCompile(`\$\{\{|\$\(|\$\[`)
 
@@ -143,17 +251,18 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 	var matched []string
 	if rule.Regex != nil {
 		if matched = matcher.Commands(job.Run, rule); len(matched) > 0 {
+			env := envAssignments(rule, job.Env)
 			for i, command := range matched {
-				matched[i] = shell.NormalizeCommand(command)
+				matched[i] = env + shell.NormalizeCommand(command)
 			}
 			commands = matched
 		}
 	}
+	if verdict, weakened := weakenedRuns(rule.Weakened, job.Run, commands); weakened {
+		return verdict, true
+	}
 	for _, check := range rule.Weakened {
 		if check.RunMatches != nil {
-			if job.Run != "" && slices.ContainsFunc(commands, check.RunMatches.MatchString) {
-				return Verdict(check.Verdict), true
-			}
 			continue
 		}
 		value, ok := job.With[check.Input]
@@ -178,6 +287,48 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 		matched = []string{value}
 	}
 	return exitsZero(check, matched, configs)
+}
+
+// envAssignments writes the env: variables a rule's checks name, and only those, as inline assignments.
+func envAssignments(rule *rules.Rule, env map[string]string) string {
+	var checks []string
+	for _, check := range rule.Weakened {
+		if check.RunMatches != nil {
+			checks = append(checks, check.RunMatches.String())
+		}
+	}
+	if e := rule.ExitsZero; e != nil {
+		checks = append(checks, e.RunMatches.String())
+		if e.UnknownWhen != nil {
+			checks = append(checks, e.UnknownWhen.String())
+		}
+	}
+	var assignments []string
+	for name, value := range env {
+		if slices.ContainsFunc(checks, func(check string) bool { return namesVariable(check, name) }) {
+			assignments = append(assignments, name+"="+value+" ")
+		}
+	}
+	slices.Sort(assignments)
+	return strings.Join(assignments, "")
+}
+
+// namesVariable reports whether a check reads name=, so CONFIG is not TRIVY_CONFIG.
+func namesVariable(check, name string) bool {
+	for rest := check; ; {
+		i := strings.Index(rest, name+"=")
+		if i < 0 {
+			return false
+		}
+		if before := rest[:i]; before == "" || strings.HasSuffix(before, `\b`) || !isWordByte(before[len(before)-1]) {
+			return true
+		}
+		rest = rest[i+len(name):]
+	}
+}
+
+func isWordByte(b byte) bool {
+	return b == '_' || '0' <= b && b <= '9' || 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z'
 }
 
 func exitsZero(check *rules.ExitsZeroUnless, commands []string, configs map[string]bool) (Verdict, bool) {
@@ -404,7 +555,15 @@ func ByCategory(findings []*matcher.Finding, merge *Merge) map[string]Assessment
 		if finding == nil {
 			continue
 		}
-		candidate := gated(Assessment{Verdict: Grade(finding), Location: finding.Location}, finding, merge)
+		candidate := Assessment{Verdict: Grade(finding), Location: finding.Location}
+		if finding.Artifact != nil && finding.Artifact.Disabled {
+			candidate.Reason = TurnedOff
+		} else {
+			candidate = gated(candidate, finding, merge)
+		}
+		if reason := missedCode(finding); reason != "" && candidate.Verdict == Enforcing {
+			candidate.Verdict, candidate.Reason = Partial, reason
+		}
 		addTool(tools, finding, candidate.Verdict)
 		if current, seen := best[finding.Category]; seen && !stronger(candidate.Verdict, current.Verdict) {
 			continue
@@ -418,12 +577,54 @@ func ByCategory(findings []*matcher.Finding, merge *Merge) map[string]Assessment
 	return best
 }
 
+var languageFlag = regexp.MustCompile(`(?i)--language[= ](\S+)`)
+
+// missedCode explains a run whose --language flags analyse none of the
+// repository's languages that its rule could. A name the rule doesn't list
+// may be code zanadir can't detect, so it covers the repository.
+func missedCode(finding *matcher.Finding) string {
+	rule, job := finding.Rule, finding.Job
+	if rule == nil || len(rule.Languages) == 0 || job == nil || finding.Artifact == nil {
+		return ""
+	}
+	var named, covered []string
+	for _, command := range matcher.Commands(job.Run, rule) {
+		for _, flag := range languageFlag.FindAllStringSubmatch(command, -1) {
+			for _, name := range strings.Split(strings.ToLower(flag[1]), ",") {
+				analysed, known := rule.Languages[name]
+				if !known {
+					return ""
+				}
+				named, covered = append(named, name), append(covered, analysed...)
+			}
+		}
+	}
+	analysable := slices.Concat(slices.Collect(maps.Values(rule.Languages))...)
+	var missed []string
+	for _, language := range finding.Artifact.Languages {
+		if slices.Contains(covered, language) {
+			return ""
+		}
+		if slices.Contains(analysable, language) {
+			missed = append(missed, language)
+		}
+	}
+	if len(named) == 0 || len(missed) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s analyses only %s; the %s code detected from repository manifests is not scanned",
+		cmp.Or(finding.Tool, finding.RuleID), strings.Join(sortedUnique(named), ", "), strings.Join(sortedUnique(missed), ", "))
+}
+
 // Tool is one tool behind a category: its strongest verdict and the files it
 // runs in.
 type Tool struct {
 	Name      string
 	Verdict   Verdict
 	Locations []string
+	// Ecosystems limits SCA coverage to the strongest occurrences of this tool.
+	// Empty means unrestricted; other categories do not use this metadata.
+	Ecosystems []string
 }
 
 // addTool files a finding under its tool, one entry per name whatever the
@@ -437,11 +638,22 @@ func addTool(tools map[string]map[string]*Tool, finding *matcher.Finding, verdic
 	}
 	key := strings.ToLower(name)
 	tool := byName[key]
+	var ecosystems []string
+	if finding.Category == string(models.SCA) && finding.Rule != nil {
+		ecosystems = finding.Rule.Ecosystems
+	}
 	if tool == nil {
-		tool = &Tool{Name: name, Verdict: verdict}
+		tool = &Tool{Name: name, Verdict: verdict, Ecosystems: sortedUnique(ecosystems)}
 		byName[key] = tool
 	} else if stronger(verdict, tool.Verdict) {
 		tool.Verdict = verdict
+		tool.Ecosystems = sortedUnique(ecosystems)
+	} else if verdict == tool.Verdict && len(tool.Ecosystems) > 0 {
+		if len(ecosystems) == 0 {
+			tool.Ecosystems = nil
+		} else {
+			tool.Ecosystems = sortedUnique(append(slices.Clone(tool.Ecosystems), ecosystems...))
+		}
 	}
 	if finding.Location != "" && !slices.Contains(tool.Locations, finding.Location) {
 		tool.Locations = append(tool.Locations, finding.Location)

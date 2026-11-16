@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/models"
 	"gopkg.in/yaml.v3" // added YAML import
 )
@@ -22,10 +23,12 @@ const (
 	FieldJobName      = "Job.Name"
 	FieldJobPackage   = "Job.Package"
 	FieldJobRun       = "Job.Run"
+	// FieldJobEnv is a step's env:, one NAME=value line per variable.
+	FieldJobEnv = "Job.Env"
 )
 
 // SupportedFields lists every selector matchesRule handles.
-var SupportedFields = []string{FieldArtifactName, FieldJobName, FieldJobPackage, FieldJobRun}
+var SupportedFields = []string{FieldArtifactName, FieldJobName, FieldJobPackage, FieldJobRun, FieldJobEnv}
 
 // FileRule is a rule as written in the catalogue or a config file.
 type FileRule struct {
@@ -35,7 +38,12 @@ type FileRule struct {
 	Name       string   `yaml:"name"`
 	ApplyOn    []string `yaml:"applyOn"`
 	Categories []string `yaml:"categories"`
-	Regex      string   `yaml:"regex"`
+	// Ecosystems limits SCA coverage to canonical language names; empty is unrestricted.
+	Ecosystems []string `yaml:"ecosystems"`
+	// Languages maps each name a --language flag can give to the detected
+	// languages it analyses. A run naming none of the repository's is partial.
+	Languages map[string][]string `yaml:"languages"`
+	Regex     string              `yaml:"regex"`
 	// Unless excludes a match: on Job.Run a command, such as a test runner
 	// told to skip the tests, and on the other fields their whole text.
 	Unless string `yaml:"unless"`
@@ -93,6 +101,8 @@ type Rule struct {
 	Name       string
 	ApplyOn    []string
 	Categories []string
+	Ecosystems []string
+	Languages  map[string][]string
 	Regex      *regexp.Regexp
 	// Literals are strings one of which a match contains, lowercased.
 	Literals      []string
@@ -193,6 +203,8 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 			Name:          r.Name,
 			ApplyOn:       r.ApplyOn,
 			Categories:    r.Categories,
+			Ecosystems:    slices.Clone(r.Ecosystems),
+			Languages:     analysedLanguages(r.Languages),
 			Regex:         regexp.MustCompile(r.Regex),
 			Literals:      requiredLiterals(r.Regex),
 			Unless:        unless,
@@ -205,7 +217,20 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 	return convertedRules
 }
 
-// validateRules rejects unknown applyOn selectors and categories, which would
+// analysedLanguages keys a rule's languages as a lowercased flag reads them.
+func analysedLanguages(file map[string][]string) map[string][]string {
+	if len(file) == 0 {
+		return nil
+	}
+	languages := make(map[string][]string, len(file))
+	for name, analysed := range file {
+		key := strings.ToLower(name)
+		languages[key] = append(languages[key], analysed...)
+	}
+	return languages
+}
+
+// validateRules rejects unknown applyOn selectors, categories and ecosystems, which would
 // otherwise leave the rule silently matching nothing.
 func validateRules(fileRules []FileRule) error {
 	supported := make(map[string]bool, len(SupportedFields))
@@ -217,6 +242,7 @@ func validateRules(fileRules []FileRule) error {
 		knownCategory[string(c)] = true
 	}
 
+	knownEcosystems := language.Names()
 	for _, r := range fileRules {
 		for _, field := range r.ApplyOn {
 			if !supported[field] {
@@ -227,6 +253,18 @@ func validateRules(fileRules []FileRule) error {
 		for _, category := range r.Categories {
 			if !knownCategory[category] {
 				return fmt.Errorf("rule %q: unknown category %q", r.ID, category)
+			}
+		}
+		for _, ecosystem := range r.Ecosystems {
+			if !slices.Contains(knownEcosystems, ecosystem) {
+				return fmt.Errorf("rule %q: unknown ecosystem %q, expected one of %s", r.ID, ecosystem, strings.Join(knownEcosystems, ", "))
+			}
+		}
+		for name, languages := range r.Languages {
+			for _, analysed := range languages {
+				if !slices.Contains(knownEcosystems, analysed) {
+					return fmt.Errorf("rule %q: --language %s analyses unknown language %q, expected one of %s", r.ID, name, analysed, strings.Join(knownEcosystems, ", "))
+				}
 			}
 		}
 		if err := validateUnless(r); err != nil {

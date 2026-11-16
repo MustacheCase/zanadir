@@ -3,6 +3,7 @@ package rules_test
 import (
 	"testing"
 
+	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/stretchr/testify/assert"
@@ -255,4 +256,106 @@ func TestCustomRuleExitsZeroInput(t *testing.T) {
 			assert.True(t, rule.ExitsZero.RunMatches.MatchString("--fail"))
 		})
 	}
+}
+
+func TestRuleEcosystemsValidation(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		ecosystems []string
+		invalid    string
+	}{
+		{name: "omitted"},
+		{name: "empty", ecosystems: []string{}},
+		{name: "canonical names", ecosystems: language.Names()},
+		{name: "unknown", ecosystems: []string{"Elixir"}, invalid: "Elixir"},
+		{name: "lowercase", ecosystems: []string{"go"}, invalid: "go"},
+		{name: "empty name", ecosystems: []string{""}, invalid: "empty"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := rules.FileRule{ID: "ecosystem-check", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SCA"}, Regex: "scan", Ecosystems: tt.ecosystems}
+			// Exercise the shared validation directly and the custom loader.
+			err := rules.ValidateRulesForTest([]rules.FileRule{rule})
+			_, loadErr := rules.NewRulesService(rule)
+			if tt.invalid == "" {
+				require.NoError(t, err)
+				require.NoError(t, loadErr)
+			} else {
+				for _, got := range []error{err, loadErr} {
+					require.ErrorContains(t, got, `rule "ecosystem-check": unknown ecosystem`)
+					if tt.invalid != "empty" {
+						assert.Contains(t, got.Error(), tt.invalid)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestCustomRuleCarriesEcosystems(t *testing.T) {
+	ecosystems := []string{language.Go, language.Python}
+	rs, err := rules.NewRulesService(rules.FileRule{
+		ID: "custom-ecosystems", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SCA"}, Regex: "custom", Ecosystems: ecosystems,
+	})
+	require.NoError(t, err)
+	var custom *rules.Rule
+	for _, rule := range rs.GetCategoryRules(models.CategoryTitle("SCA")) {
+		if rule.ID == "custom-ecosystems" {
+			custom = rule
+		}
+	}
+	require.NotNil(t, custom)
+	assert.Equal(t, ecosystems, custom.Ecosystems)
+	ecosystems[0] = language.Rust
+	assert.Equal(t, []string{language.Go, language.Python}, custom.Ecosystems, "compiled metadata must not alias the caller's slice")
+}
+
+func TestCustomRuleCarriesLanguages(t *testing.T) {
+	file := rules.FileRule{
+		ID: "custom-languages", ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"SAST"}, Regex: "custom",
+		Languages: map[string][]string{"Go": {language.Go}, "go": {language.Go}, "none": {}},
+	}
+	rs, err := rules.NewRulesService(file)
+	require.NoError(t, err)
+	var custom *rules.Rule
+	for _, rule := range rs.GetCategoryRules(models.SAST) {
+		if rule.ID == "custom-languages" {
+			custom = rule
+		}
+	}
+	require.NotNil(t, custom)
+	assert.Equal(t, map[string][]string{"go": {language.Go, language.Go}, "none": nil}, custom.Languages)
+	file.Languages["go"][0] = language.Rust
+	assert.Equal(t, []string{language.Go, language.Go}, custom.Languages["go"], "compiled metadata must not alias the caller's slice")
+
+	file.Languages = map[string][]string{"kotlin": {"Kotlin"}}
+	_, err = rules.NewRulesService(file)
+	require.ErrorContains(t, err, `rule "custom-languages": --language kotlin analyses unknown language "Kotlin"`)
+}
+
+func TestEmbeddedSCAEcosystems(t *testing.T) {
+	want := map[string][]string{
+		"govulncheck-rule":           {language.Go},
+		"nancy-rule":                 {language.Go},
+		"pip-audit-rule":             {language.Python},
+		"safety-rule":                {language.Python},
+		"bundler-audit-rule":         {language.Ruby},
+		"cargo-audit-rule":           {language.Rust},
+		"cargo-vet-rule":             {language.Rust},
+		"cargo-deny-advisories-rule": {language.Rust},
+		"npm-audit-rule":             {language.JavaScript},
+		"audit-ci-rule":              {language.JavaScript},
+		"retire-js-rule":             {language.JavaScript},
+		"composer-audit-rule":        {language.PHP},
+	}
+	rs, err := rules.NewRulesService()
+	require.NoError(t, err)
+	for _, rule := range rs.GetCategoryRules(models.CategoryTitle("SCA")) {
+		if ecosystems, ok := want[rule.ID]; ok {
+			assert.Equal(t, ecosystems, rule.Ecosystems, rule.ID)
+			delete(want, rule.ID)
+		} else {
+			assert.Empty(t, rule.Ecosystems, "%s must remain unrestricted", rule.ID)
+		}
+	}
+	assert.Empty(t, want, "all scoped rules must be present")
 }

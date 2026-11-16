@@ -36,6 +36,143 @@ func TestRuleRegexPrecision(t *testing.T) {
 		shouldNotMatch []string
 	}{
 		{
+			ruleID: "sobelow-rule",
+			shouldMatch: []string{
+				"mix sobelow --exit", "mix sobelow --exit medium --skip", "mix sobelow --config",
+				"mix sobelow", "sobelow/action", "sobelow",
+				"~/.mix/escripts/sobelow --exit low",
+			},
+			shouldNotMatch: []string{"mix credo", "mix deps.audit", "mix test", "my-sobelow-wrapper", "mysobelow"},
+		},
+		{
+			ruleID: "kingfisher-rule",
+			shouldMatch: []string{
+				"kingfisher scan .", "kingfisher scan --git-history full .",
+				"docker run ghcr.io/mongodb/kingfisher scan /src",
+				"docker run ghcr.io/mongodb/kingfisher:v1.0 scan /src",
+				"./bin/kingfisher scan ./src",
+			},
+			shouldNotMatch: []string{
+				"brew install kingfisher", "kingfisher --version", "kingfishers",
+				"kingfisher scan-results", "mykingfisher scan .",
+			},
+		},
+		{
+			ruleID: "cargo-vet-rule",
+			shouldMatch: []string{
+				"cargo vet", "cargo vet check", "cargo vet --locked",
+				"cargo +stable vet check", "cd workspace && cargo vet check --locked",
+				"cargo vet --locked check", "cargo vet --frozen --locked",
+				"cargo vet --output-format json",
+			},
+			shouldNotMatch: []string{
+				"cargo install cargo-vet", "cargo-vet check", "mycargo vet check",
+				"cargo vendor", "cargo verify-project",
+			},
+		},
+		{
+			ruleID: "opengrep-rule",
+			shouldMatch: []string{
+				"opengrep scan --config auto --error", "opengrep scan .",
+				"platform-sec/opengrep-action", "opengrep ci", "opengrep --experimental ci",
+				"opengrep --config auto .", "./bin/opengrep scan --config auto .",
+				"docker run opengrep/opengrep scan -f rules src",
+				"scripts/run-opengrep.sh --changed --sarif --error",
+			},
+			shouldNotMatch: []string{
+				"grep -r foo .", "semgrep scan", "myopengrep scan .",
+			},
+		},
+		{
+			ruleID: "kube-linter-rule",
+			shouldMatch: []string{
+				"kube-linter lint k8s/",
+				"kube-linter lint --config .kube-linter.yaml charts/",
+				"./bin/kube-linter lint manifests/",
+				"kube-linter --config .kube-linter.yaml lint k8s/",
+				"docker run --rm -v $PWD:/w stackrox/kube-linter:v0.7.2 lint /w/k8s",
+				"bash -c \"kube-linter lint k8s/\"",
+				"stackrox/kube-linter-action@v1",
+			},
+			shouldNotMatch: []string{
+				"kubectl apply -f k8s/", "kubeval k8s/", "kube-linter --version",
+				"my-kube-linter lint k8s/", "stackrox/kube-linter-action-extra@v1",
+				"kube-linter --config .kube-linter.yaml --version",
+				"my-kube-linter:v0.7.2 lint k8s/",
+				"docker run --rm stackrox/kube-linter:v0.7.2 --help",
+			},
+		},
+		{
+			ruleID: "pinact-rule",
+			shouldMatch: []string{
+				"pinact run --check",
+				"pinact run --diff",
+				"pinact run --fix=false --no-api",
+				"aqua exec -- pinact run --check",
+				"pinact run",
+				"./bin/pinact run --fix false",
+			},
+			shouldNotMatch: []string{
+				"pinact init", "pinact migrate", "./scripts/pin-actions.sh",
+				"pinact runn --check", "my-pinact run --check",
+			},
+		},
+		{
+			ruleID: "secretlint-rule",
+			shouldMatch: []string{
+				`npx secretlint "**/*"`,
+				"secretlint --format sarif .",
+				`secretlint --format @secretlint/secretlint-formatter-sarif "**/*"`,
+				`docker run secretlint/secretlint secretlint "**/*"`,
+			},
+			shouldNotMatch: []string{"secretlinter", "my-secretlint", "secretlint-wrapper", "mysecretlint"},
+		},
+		{
+			ruleID: "talisman-rule",
+			shouldMatch: []string{
+				"talisman --scan",
+				"talisman --scan --ignoreHistory",
+				"./bin/talisman --scan --reportdirectory=reports",
+				"./talisman -i . --scan",
+				"carhartl/talisman-secrets-scan-action",
+				"digitalservicebund/talisman-secrets-scan-action",
+			},
+			shouldNotMatch: []string{
+				"talismans --scan", "talisman-installer", "my-talisman --scan", "talisman_scanner",
+				"flask-talisman", "talisman-secrets-scan-action-helper",
+			},
+		},
+		{
+			ruleID: "github-action-benchmark-rule",
+			shouldMatch: []string{
+				"benchmark-action/github-action-benchmark@v1",
+				"benchmark-action/github-action-benchmark",
+				"rhysd/github-action-benchmark@v1",
+			},
+			shouldNotMatch: []string{
+				"cargo bench", "go test -bench=. ./...", "CodSpeedHQ/action@v3",
+				"benchmark-action/github-action-benchmark-extra@v1",
+			},
+		},
+		{
+			ruleID: "blastradius-rule",
+			shouldMatch: []string{
+				"jondot/blastradius", "br hunt npm:evil-dep@1.2.3 --path . --fail-if found",
+				"bin/br hunt npm:evil-dep@1.2.3 --path tests/action/bad --format sarif",
+				"npx -y @jondot/blastradius hunt GHSA-xxxx-xxxx-xxxx --path .",
+				"npx -y @jondot/blastradius@0.1.0 hunt npm:x@1.0.0", "cargo build\nbr hunt sha256:00 --path .",
+			},
+			shouldNotMatch: []string{
+				"jondot/blastradius-extra", "br init --org acme", "br index", "br demo", "br hosts add ci --kind runner",
+				"npx -y @jondot/blastradius demo", "git br hunt", "brhunt", "blastradius hunt", "abbr hunt",
+			},
+		},
+		{
+			ruleID:         "blastradius-precommit-rule",
+			shouldMatch:    []string{"blastradius", "pre-commit run --all-files\nblastradius", "blastradius package-lock.json"},
+			shouldNotMatch: []string{"blastradius-scan", "echo blastradius", "./blastradius.sh", "jondot/blastradius"},
+		},
+		{
 			ruleID: "guarddog-rule",
 			shouldMatch: []string{
 				"uvx guarddog pypi verify requirements.txt --exit-non-zero-on-finding",
@@ -203,9 +340,39 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"ruffle", "gruff"},
 		},
 		{
-			ruleID:         "python-type-checker-rule",
-			shouldMatch:    []string{"uv run mypy --config-file ./pyproject.toml src", "pyright", "jakebailey/pyright-action"},
-			shouldNotMatch: []string{"mypyc-build", "pyrightish"},
+			// "ty" is two letters that turn up inside words and paths, so only
+			// "ty check" counts, and "ty checkout" is not the sub-command.
+			ruleID: "python-type-checker-rule",
+			shouldMatch: []string{
+				"uv run mypy --config-file ./pyproject.toml src", "pyright", "jakebailey/pyright-action",
+				"ty check", "uv run ty check", "uv run --locked ty check", "uvx ty check",
+				"uvx ty@latest check src", "uv run --python 3.15 --with ty ty check --output-format=github",
+				"ty check --exit-zero-on-warning --output-format=github", "ty check openbb_ecb",
+				"uv run --only-group check ty check python/uv",
+				"basedpyright", "uv run --no-sync basedpyright",
+				"uv run --no-sync basedpyright tests/e2e tests/e2e_harness",
+				"uv run --no-sync basedpyright --pythonpath .venv/bin/python --project tests/typing/pyrightconfig.json",
+				".venv/bin/basedpyright --level error", "basedpyright --gitlabcodequality report.json",
+				"uvx basedpyright@1.40.2", "npx basedpyright",
+				"pyrefly check",
+				"pyrefly check --python-version=3.8 --preset=basic --check-unannotated-defs --summary",
+				"uv run pyrefly check src/", "uv run --project . --dev pyrefly check --summary=none",
+				"uvx pyrefly@1.4.1 check", "pyrefly check --output-format=github",
+				"facebook/pyrefly", "meta/pyrefly",
+			},
+			shouldNotMatch: []string{
+				"mypyc-build", "pyrightish",
+				"ty version", "ty server", "ty explain rule unresolved-import", "uv run ty", "ty checkout",
+				"pretty check", "./scripts/ty-check.sh", "cargo build --profile=profiling --bin=ty",
+				"mv target/profiling/ty ty-new",
+				"git diff --exit-code .basedpyright/baseline.json", "basedpyright-langserver --stdio",
+				"pyrefly init", "pyrefly lsp", "pyrefly dump-config", "pyrefly suppress",
+				"pyrefly coverage report", "uv run --directory api --dev pyrefly report",
+				"pyrefly coverage check --public-only src/", "./dev/pyrefly-check-local \"${targets[@]}\"",
+				"LINTER_GROUP=pyrefly .github/scripts/lintrunner.sh",
+				"diff -u /tmp/pyrefly_base.txt /tmp/pyrefly_pr.txt > pyrefly_diff.txt",
+				"pyrefly checkout",
+			},
 		},
 		{
 			ruleID: "coverage-command-rule",
@@ -232,8 +399,39 @@ func TestRuleRegexPrecision(t *testing.T) {
 		},
 		{
 			ruleID:         "zizmor-rule",
-			shouldMatch:    []string{"zizmorcore/zizmor-action", "zizmor .github/workflows", "pipx run zizmor"},
+			shouldMatch:    []string{"zizmor .github/workflows", "pipx run zizmor", "crazy-max/.github/.github/workflows/zizmor.yml"},
 			shouldNotMatch: []string{"zizmorish", "myzizmor"},
+		},
+		{
+			ruleID:         "zizmor-action-rule",
+			shouldMatch:    []string{"zizmorcore/zizmor-action", "ZizmorCore/Zizmor-Action"},
+			shouldNotMatch: []string{"zizmorcore/zizmor-action-fork", "zizmor .github/workflows"},
+		},
+		{
+			ruleID: "ghalint-rule",
+			shouldMatch: []string{
+				"ghalint run",
+				"ghalint run-action",
+				"ghalint act",
+				"aqua exec -- ghalint run",
+			},
+			shouldNotMatch: []string{
+				"aqua g -i suzuki-shunsuke/ghalint",
+				"ghalints",
+			},
+		},
+		{
+			// The organisation is also called step-security, and its other
+			// actions and forks of this one are not it. Job.Package arrives
+			// without the @version, so the match can be anchored at both ends.
+			ruleID: "harden-runner-rule",
+			shouldMatch: []string{
+				"step-security/harden-runner", "Step-Security/Harden-Runner",
+			},
+			shouldNotMatch: []string{
+				"step-security/changed-files", "step-security/wait-for-secrets",
+				"step-security/harden-runner-fork", "my-org/step-security/harden-runner",
+			},
 		},
 		{
 			ruleID: "glsec-rule",
@@ -309,6 +507,23 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"snyk test", "agent-scan", "snyk-agent-scanner"},
 		},
 		{
+			ruleID: "stroq-rule",
+			shouldMatch: []string{
+				"AGGIB/stroq-action", "npx stroq inspect --sarif .", "stroq inspect --changed-from HEAD^1 --format github .",
+				"npx --yes --no-workspaces @stroq/cli@0.32.0 inspect . --fail-on any",
+				"pnpm dlx @stroq/cli inspect", "./node_modules/.bin/stroq inspect .",
+			},
+			shouldNotMatch: []string{
+				"AGGIB/stroq-action-extra", "AGGIB/Stroq", "npm i -g @stroq/cli", "npx @stroq/cli", "stroq sent --last",
+				"stroqx inspect .", "my-stroq inspect", "stroq inspection", "kubectl inspect", "node packages/cli/dist/index.js inspect --sarif .",
+			},
+		},
+		{
+			ruleID:         "stroq-vet-rule",
+			shouldMatch:    []string{"stroq vet --from .claude/skills/deploy --json", "npx -y @stroq/cli@0.32.0 vet --online npm:some-mcp"},
+			shouldNotMatch: []string{"stroq inspect .", "stroq veto", "go vet ./...", "cargo vet", "npm i -g @stroq/cli"},
+		},
+		{
 			ruleID:         "actionlint-rule",
 			shouldMatch:    []string{"rhysd/actionlint", "reviewdog/action-actionlint", "actionlint -color"},
 			shouldNotMatch: []string{"actionlinter", "action lint"},
@@ -363,6 +578,30 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"retired", "npm run retire-old-builds", "git rm retire.txt", "echo retire", "retire-js"},
 		},
 		{
+			// HTMLHint's name appears in config, matcher, report and script names;
+			// only the command that runs the linter counts.
+			ruleID: "htmlhint-rule",
+			shouldMatch: []string{
+				"htmlhint", `htmlhint "**/*.html" --format unix`,
+				`npx htmlhint "src" --config .htmlhintrc`,
+				`npx --yes htmlhint "$file" --config .htmlhintrc.json`,
+				`npx --yes htmlhint@1 "index.html"`, `npx htmlhint . --format sarif`,
+				`pnpm exec htmlhint "**/*.html"`, `pnpm dlx htmlhint .`,
+				`yarn htmlhint src`, `yarn exec htmlhint .`, `yarn dlx htmlhint .`,
+				`bunx htmlhint .`, `bun x htmlhint .`, `pnpm htmlhint .`,
+				`npm exec -- htmlhint .`, `./node_modules/.bin/htmlhint index.html`,
+				"lint\nhtmlhint index.html",
+			},
+			shouldNotMatch: []string{
+				"cp .htmlhintrc /tmp/",
+				`echo "::add-matcher::.github/workflows/htmlhint-problem-matcher.json"`,
+				`OUT="${GITHUB_WORKSPACE}/quality/analysis/raw/htmlhint.json"`,
+				"test -s htmlhint.json", "cat htmlhint.sarif", "npm run htmlhint-sarif",
+				"Run HTMLHint (SARIF)", "gulp-htmlhint", "htmlhint-loader",
+				"echo htmlhint .", "not-htmlhint index.html",
+			},
+		},
+		{
 			// "nancy" is also a person's name, so only the scanning
 			// sub-commands and the action count.
 			ruleID: "nancy-rule",
@@ -402,6 +641,18 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID:         "gitleaks-rule",
 			shouldMatch:    []string{"gitleaks detect --source .", "gitleaks/gitleaks-action"},
 			shouldNotMatch: []string{"gitleaksy"},
+		},
+		{
+			ruleID: "ripsecrets-rule",
+			shouldMatch: []string{
+				"ripsecrets", "ripsecrets src/ config/",
+				"ripsecrets --strict-ignore $(git diff --cached --name-only)",
+				"/usr/local/bin/ripsecrets", "sirwart/ripsecrets@v0.1.8",
+			},
+			shouldNotMatch: []string{
+				"rip secrets", "./ripsecrets-report.py", "grep -r secrets .",
+				"ripsecrets-helper", "myripsecrets",
+			},
 		},
 		{
 			ruleID:         "trufflehog-rule",
@@ -457,6 +708,13 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"tar -xjf archive.tar.bz2", "coverage run --source=bzt -m nose2", "bzt.yml"},
 		},
 		{
+			ruleID: "npm-provenance-rule",
+			shouldMatch: []string{"npm publish --provenance --access public", "pnpm -r publish --provenance", "yarn npm publish --provenance",
+				"npm publish --provenance=true", "NPM_CONFIG_PROVENANCE=true", "npm_config_provenance=1", "CI=true\nNPM_CONFIG_PROVENANCE='true'"},
+			shouldNotMatch: []string{"npm publish", "npm publish --provenance=false", "NPM_CONFIG_PROVENANCE=false", "MY_NPM_CONFIG_PROVENANCE=true",
+				"actions/attest-build-provenance", "npm view pkg --provenance"},
+		},
+		{
 			ruleID:         "semgrep-rule",
 			shouldMatch:    []string{"semgrep ci", "semgrep/semgrep-action", "semgrep scan --config auto"},
 			shouldNotMatch: []string{"semgreppy", "mysemgrep"},
@@ -482,8 +740,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 		{
 			// A bare "sonar" appears in unrelated project and job names.
 			ruleID:         "sonar-rule",
-			shouldMatch:    []string{"SonarSource/sonarqube-scan-action", "sonar-scanner -Dsonar.host.url=x", "sonarcloud scan"},
-			shouldNotMatch: []string{"sonar", "sonarian", "build-sonar-module"},
+			shouldMatch:    []string{"SonarSource/sonarqube-scan-action", "sonar-scanner -Dsonar.host.url=x", "sonarcloud scan", "npx sonarqube-scanner", "./gradlew sonarqube", "Run SonarCloud"},
+			shouldNotMatch: []string{"sonar", "sonarian", "build-sonar-module", "gcovr -r . --sonarqube coverage.xml", "jest --coverage --coverageReporters=lcov,sonarqube", "vitest --coverage.reporter=sonarqube"},
 		},
 		{
 			ruleID:         "gosec-rule",
@@ -533,6 +791,84 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"kubectl score", "kube-scorecard", "kube-score version", "kube-score help score", "kube-score completion bash", "kube-scorecard score k8s/"},
 		},
 		{
+			ruleID: "terraform-docs-rule",
+			shouldMatch: []string{
+				"terraform-docs --output-check .",
+				`terraform-docs -c .terraform-docs.yml --output-check "$(dirname "$readme")"`,
+				"terraform-docs . --output-check --config .terraform-docs.yml --recursive --recursive-include-main=false",
+				"terraform-docs --lockfile=false --output-check=true --output-file README.md --output-mode inject markdown table .",
+				"terraform-docs markdown table . > README.md",
+				`if ! terraform-docs --output-check "$module"`,
+				`do terraform-docs -c .terraform-docs.yml --output-check "modules/$m"`,
+				`docker run --rm --volume "$(pwd):/terraform-docs" -u $(id -u) quay.io/terraform-docs/terraform-docs:0.20.0 --output-check /terraform-docs`,
+				"quay.io/terraform-docs/terraform-docs:0.20.0",
+			},
+			shouldNotMatch: []string{
+				"run-terraform-docs.sh markdown table --config .terraform-docs.yml --output-check .",
+				"terraform-docs-automation.sh check",
+				"git clone --branch x --depth 1 $TERRAFORM_DOCS_REPO_URL /tmp/terraform-docs",
+				"go build -C /tmp/terraform-docs -o $(go env GOPATH)/bin/terraform-docs",
+				"yq e '.output.file' .terraform-docs.yml",
+				"pre-commit run terraform-docs-go --all-files",
+				"terraform fmt -check",
+			},
+		},
+		{
+			ruleID: "terraform-docs-action-rule",
+			shouldMatch: []string{
+				"terraform-docs/gh-actions",
+			},
+			shouldNotMatch: []string{
+				"terraform-docs/gh-actions-extra",
+			},
+		},
+		{
+			ruleID: "kubeconform-rule",
+			shouldMatch: []string{
+				"kubeconform -strict -summary -",
+				"kubeconform -strict -summary -kubernetes-version 1.30.0 rendered.yaml",
+				"./kubeconform -strict -summary -kubernetes-version 1.35.0 weather-rendered deploy/nvidia-device-plugin.yaml",
+				"/kubeconform -summary -output json kubeconfigs/",
+				`docker run --rm -v "$PWD":/manifests ghcr.io/yannh/kubeconform:latest -strict -ignore-missing-schemas -summary /manifests/rendered.yaml`,
+				`docker run --rm -v "$PWD:/deploy:ro" -w /deploy ghcr.io/yannh/kubeconform:v0.8.0@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e -strict -summary ./*.yaml`,
+				"docker://ghcr.io/yannh/kubeconform",
+				"docker://ghcr.io/yannh/kubeconform:latest",
+				"ghcr.io/yannh/kubeconform:latest-alpine",
+				"helm kubeconform --summary .",
+				"kubeconform",
+			},
+			shouldNotMatch: []string{
+				"grep ' kubeconform-linux-amd64.tar.gz$' kubeconform-CHECKSUMS",
+				"python scripts/security_tools.py actionlint gitleaks trivy kubeconform",
+				"https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz",
+				"helm plugin install https://github.com/jtyr/kubeconform-helm",
+				"kube-score score k8s/",
+				"kubescape scan k8s/",
+				"kube-linter lint k8s/",
+				"kubectl apply --dry-run=server -f k8s/",
+				"hl-infra/kubeconform-runner",
+			},
+		},
+		{
+			ruleID: "kubeval-rule",
+			shouldMatch: []string{
+				"kubeval --strict -d k8s/",
+				"kubeval -v 1.20.0 manifests/*.yaml",
+				"helm kubeval charts/app",
+				"docker run -v $PWD/fixtures:/fixtures garethr/kubeval fixtures/*",
+				"garethr/kubeval:latest",
+				"instrumenta/kubeval-action",
+			},
+			shouldNotMatch: []string{
+				"helm plugin install https://github.com/instrumenta/helm-kubeval",
+				"kube-score score k8s/",
+				"kubescape scan k8s/",
+				"kube-linter lint k8s/",
+				"kubectl apply --dry-run=server -f k8s/",
+				"kubevalidator check",
+			},
+		},
+		{
 			// "snyk" alone is SCA; only the iac sub-command scans infrastructure.
 			ruleID:         "snyk-iac-rule",
 			shouldMatch:    []string{"snyk iac test", "snyk  iac  test ."},
@@ -568,6 +904,16 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"./vendor/bin/pest", "vendor/bin/pest --ci --parallel", "php artisan test --parallel",
 				"composer test", "composer run test", "composer run-script test",
 				"mvn -B clean install", "./mvnw -B package -Pci", "mvn deploy -s settings.xml", "./gradlew build", "./gradlew :app:build --scan",
+				"npx playwright test", "pnpm exec playwright test --shard=1/4", "pnpm -C e2e exec playwright test -c playwright.visual.config.ts",
+				"bunx playwright test --config e2e/playwright.config.ts", "yarn playwright test --project=chromium",
+				"xvfb-run -a pnpm exec playwright test --reporter=list", "node_modules/.bin/playwright test", "npx playwright test --update-snapshots",
+				"helm unittest helm/superset", "helm unittest -f 'tests/*.yaml' charts/app", "helm unittest --strict --with-subchart=false .", "helm unittest charts/*",
+				"docker run --rm -v $(pwd):/apps helmunittest/helm-unittest .", "docker run -ti --rm -v $(pwd):/apps helmunittest/helm-unittest:3.11.1-0.3.0 -o test-output.xml .",
+				"gotestsum -- ./...", "gotestsum --format github-actions ./...",
+				"gotestsum --format github-actions -- -race ./...",
+				"gotestsum --junitfile results.xml --packages ./integration -- -v",
+				"./bin/gotestsum --format testname",
+				"go run gotest.tools/gotestsum@v1.13.0 --rerun-fails=2 --packages=./... -- -v",
 			},
 			shouldNotMatch: []string{
 				"if test -f go.mod; then echo yes; fi", `test -z "$VAR" && exit 1`,
@@ -581,6 +927,24 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"./gradlew assembleRelease --build-cache", "mvn -Dpackage.name=x compile", "mvn dependency:go-offline", "./gradlew publishToMavenLocal", "./gradlew buildEnvironment",
 				"composer validate --strict", "composer run-script lint",
 				"latest", "deploy-latest",
+				"npx playwright install --with-deps chromium", "npx playwright install-deps", "pnpm exec playwright show-report",
+				"npx playwright codegen https://example.com", "npx playwright merge-reports --reporter html ./all-blob-reports",
+				"python -m playwright install --with-deps",
+				"helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.1", "helm lint charts/app", "helm template charts/app",
+				"docker pull helmunittest/helm-unittest:3.11.1-0.3.0", "make helm-unittest",
+				`docker cp "$CTN:c:\gopath\bin\gotestsum.exe" bin\`, "go build -o bin/gotestsum gotest.tools/gotestsum",
+			},
+		},
+		{
+			ruleID: "cypress-rule",
+			shouldMatch: []string{
+				"npx cypress run", "npx cypress run --browser chrome --record --parallel", "yarn cypress run --component",
+				"pnpm exec cypress run --spec cypress/e2e/smoke.cy.ts", "xvfb-run -a npx cypress run",
+				"npx start-server-and-test start http://localhost:3000 'cypress run'", "cypress-io/github-action@v6",
+			},
+			shouldNotMatch: []string{
+				"npx cypress open", "npx cypress verify", "npx cypress install", "npx cypress info",
+				"npx cypress cache path", "npm ci --prefix ./cypress-tests",
 			},
 		},
 		{
@@ -716,6 +1080,49 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"flutter test", "dart analyzer"},
 		},
 		{
+			// "knip" is also a script name, config file and cache path, so only
+			// a command that runs the program counts.
+			ruleID: "knip-rule",
+			shouldMatch: []string{
+				"knip", "knip --production", "knip --no-config-hints",
+				"knip --config ../scripts/knip.config.ts",
+				"knip --exclude exports,nsExports,types,nsTypes,enumMembers,classMembers,duplicates",
+				"knip-bun", "./node_modules/.bin/knip --no-exit-code --reporter json",
+				"npx knip", "npx --yes knip@5 --no-progress --include files,dependencies,unlisted",
+				"bunx knip", "pnpm knip --no-progress --reporter markdown",
+				"pnpm knip --workspace apps/studio --no-progress --reporter symbols --reporter github-actions",
+				"pnpm run knip --production --exclude exports,types", "pnpm exec knip",
+				"pnpm dlx knip@6", "yarn knip --reporter github-actions",
+				"bun run knip --no-exit-code", "npm exec -- knip",
+			},
+			shouldNotMatch: []string{
+				"npm run knip:ci", "pnpm knip:check", "pnpm lint:knip:production",
+				"npx nx run-many -t knip --parallel=1", "rm -rf node_modules/.cache/knip",
+				"test -f config/knip.config.ts", "cp knip.json /tmp/",
+				"knip_json_exit_code=$?", "npm init @knip/config", "pnpm update knip",
+				"Studio Dead Code (knip)",
+			},
+		},
+		{
+			// Plain tsc is how packages are built, so only --noEmit says
+			// "check, don't write". tsc-alias is another tool, and
+			// --noEmitOnError is a different flag.
+			ruleID: "typescript-noemit-rule",
+			shouldMatch: []string{
+				"tsc --noEmit", "npx tsc --noEmit", "pnpm exec tsc --noEmit", "bunx tsc --noEmit",
+				"bun x tsc --noEmit -p scripts/tsconfig.json", "npx tsc -b --noEmit",
+				"npx tsc --noEmit -p convex/tsconfig.json", "./node_modules/.bin/tsc --noEmit",
+				"node script/yarn.js tsc -p tsconfig.spec.json --noEmit", "pnpm exec tsc --noEmit --incremental false",
+				"vue-tsc --noEmit", "pnpm --filter marktext exec vue-tsc --noEmit -p tsconfig.json",
+				"npx tsgo -p packages/twenty-cli/tsconfig.json --noEmit", "tsc --noemit",
+			},
+			shouldNotMatch: []string{
+				"tsc", "pnpm tsc", "tsc -p tsconfig.build.json", "tsc --noEmitOnError", "vue-tsc -b",
+				"bun run typecheck:tsc", "tsc-alias -p tsconfig.json --noEmit",
+				"uv export --frozen --no-dev --no-emit-project", "npm run typecheck",
+			},
+		},
+		{
 			ruleID:         "hadolint-rule",
 			shouldMatch:    []string{"hadolint Dockerfile", "hadolint/hadolint-action"},
 			shouldNotMatch: []string{"hadolints"},
@@ -735,6 +1142,28 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"ansible-playbook site.yml", "ansible-galaxy install -r requirements.yml", "yamllint ."},
 		},
 		{
+			ruleID: "typos-rule",
+			shouldMatch: []string{
+				"typos",
+				"typos --config=./.config/typos.toml",
+				"typos --format brief",
+				"./bin/typos .",
+				"uvx typos",
+				"uvx typos@1.29.0 .",
+				"uv run --only-group check typos",
+				"nix develop -c typos",
+				"pre-commit run typos --all-files",
+				"crate-ci/typos@v1.48.0",
+				"crate-ci/typos@master",
+				"run: typos",
+			},
+			shouldNotMatch: []string{
+				".github/scripts/typos.sh", "./scripts/check-typos.sh", "typos-lsp",
+				"cargo binstall typos-cli", "cp _typos.toml /tmp/", "git commit -m fix-typos",
+				"codespell --skip=typos.toml", "cspell lint --report=typos .",
+			},
+		},
+		{
 			ruleID: "codespell-rule",
 			shouldMatch: []string{
 				"codespell",
@@ -743,6 +1172,117 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"tox -e codespell",
 			},
 			shouldNotMatch: []string{"npx cspell lint .", "cp .codespellrc /tmp/", "python -m codespell_lib"},
+		},
+		{
+			ruleID: "cspell-rule",
+			shouldMatch: []string{
+				"cspell",
+				`cspell --config ./.cspell/cspell.json "**/*.md"`,
+				`npx cspell "**/*"`,
+				"npx cspell lint .",
+				"npx --yes cspell@9 lint --no-progress .",
+				"pnpm cspell -c ./rfd/cspell.json rfd",
+				`pnpm exec cspell "docs/**/*.md" --no-progress`,
+				"yarn cspell --show-context 'src/**/*.js'",
+				"bunx cspell .",
+				"npm exec -- cspell .",
+				"./node_modules/.bin/cspell .",
+				"cspell-cli lint .",
+				"streetsidesoftware/cspell-action@v9",
+			},
+			shouldNotMatch: []string{
+				"node scripts/clean-cspell.js",
+				"yarn upgrade cspell@^9 --ignore-engines",
+				"cp cspell.json /tmp/",
+				"rm -rf .cspellcache",
+				"@cspell/dict-en_us",
+				"cspell:software-terms/software-terms.txt",
+				"codespell",
+				"Cleanup cspell.json",
+			},
+		},
+		{
+			ruleID: "vulture-rule",
+			shouldMatch: []string{
+				"vulture",
+				"vulture src tests --min-confidence 80",
+				"vulture vulture/ tests/",
+				"vulture --min-confidence 100 --exclude _vendor .",
+				`uv run vulture --exclude "contrib,tests,conftest.py,.venv" --min-confidence 100 .`,
+				"uv run vulture app/ vulture_whitelist.py --min-confidence 80",
+				"uvx vulture src tests .vulture_white_list.py",
+				"uvx vulture@2.16 src",
+				"poetry run vulture . --exclude=venv",
+				"python -m vulture --min-confidence 80 congressionalrecord",
+				"python3 -m vulture src",
+				"xargs uvx vulture --min-confidence 80",
+				".venv/bin/vulture src",
+				"vulture mydir --make-whitelist",
+				"pre-commit run vulture --all-files",
+				"gtkacz/vulture-action",
+				"gtkacz/vulture-action@1.0.0",
+			},
+			shouldNotMatch: []string{
+				`section "vulture: $pkg"`,
+				"python vulture_whitelist.py",
+				"python scripts/run_vulture.py",
+				"pytest tests/test_vulture.py",
+				"grep -c . vulture-report.txt",
+				"deadcode .",
+				"pylint --enable=unused-import src",
+				"gtkacz/vulture-action-extra",
+			},
+		},
+		{
+			ruleID: "cargo-machete-rule",
+			shouldMatch: []string{
+				"cargo machete",
+				"cargo machete --skip-target-dir",
+				"cargo machete --with-metadata",
+				"cargo machete --fix",
+				"cargo machete --skip tests --skip examples",
+				"cargo machete crates/",
+				"cargo +stable machete",
+				"cargo-machete",
+				"cargo-machete --skip-target-dir .",
+				"~/.cargo/bin/cargo-machete --json",
+				"bnjbvr/cargo-machete",
+				"docker run --rm -v $(pwd):/src ghcr.io/bnjbvr/cargo-machete:latest",
+				"docker://ghcr.io/bnjbvr/cargo-machete",
+				"ghcr.io/bnjbvr/cargo-machete:latest",
+			},
+			shouldNotMatch: []string{
+				"grep -A3 'package.metadata.cargo-machete' Cargo.toml",
+				"actionlint .github/workflows/cargo-machete.yml",
+				"sha256sum -c cargo-machete-v0.9.2-x86_64-unknown-linux-musl.tar.gz.sha256",
+				"cargo machete-v0.9.2",
+				// Guard against future changes making machete match cargo-shear (#620)
+				"cargo shear",
+				"cargo clippy --all-targets",
+			},
+		},
+		{
+			ruleID: "cargo-udeps-rule",
+			shouldMatch: []string{
+				"cargo udeps",
+				"cargo udeps --locked --all-targets",
+				"cargo udeps --manifest-path ${{ matrix.path }}/Cargo.toml --all-targets --all-features",
+				"cargo +nightly udeps",
+				"cargo +nightly-2025-06-01 udeps --workspace --output json",
+				"cargo-udeps udeps --all-targets",
+				"udeps",
+				// Multiline cases: ^ should match after newline
+				"cargo build\ncargo-udeps udeps --all-targets",
+				"pre-commit run --all-files\nudeps",
+			},
+			shouldNotMatch: []string{
+				"grep -n 'workspace.metadata.cargo-udeps' Cargo.toml",
+				"sha256sum cargo-udeps-v0.1.61-x86_64-unknown-linux-gnu.tar.gz",
+				"Udeps",
+				"Create udeps matrix",
+				"cargo shear",
+				"cargo clippy --all-targets",
+			},
 		},
 		{
 			ruleID: "chart-testing-rule",
@@ -800,6 +1340,11 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"cargo build -p warp", "use warp::Filter", "time warp drive", "minio/warpspeed"},
 		},
 		{
+			ruleID:         "size-limit-rule",
+			shouldMatch:    []string{"npx size-limit --json", "pnpm exec size-limit", "yarn size-limit", "bun x size-limit", "npx -y size-limit@11", "./node_modules/.bin/size-limit", "andresz1/size-limit-action@v1", "ant-design/size-limit-action@master", "npx size-limit --why", "yarn size-limit --why --hide-passed", "size-limit", "npx size-limit", "pnpm exec size-limit --json", "pnpm size-limit", "bunx size-limit", "npm exec -- size-limit", "./node_modules/.bin/size-limit --hide-passed", `npx size-limit --limit "10 kB" dist/bundle.js`, "andresz1/size-limit-action", "ant-design/size-limit-action"},
+			shouldNotMatch: []string{"/size-limit-override", "@size-limit/preset-app", "size-limit-preset-node-lib", ".size-limit.json", "./dev-packages/size-limit-gh-action", "PR Size Limit", "echo size-limit", `gh pr comment 42 --body "/size-limit-override"`, `jq '.[].limit' .size-limit.json`, "@size-limit/file", "pr-size-limit-42", "npm run size"},
+		},
+		{
 			ruleID:         "clippy-rule",
 			shouldMatch:    []string{"cargo clippy --all-targets -- -D warnings", "actions-rs/clippy-check"},
 			shouldNotMatch: []string{"cargo build", "clippy.toml"},
@@ -813,6 +1358,17 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID:         "reuse-rule",
 			shouldMatch:    []string{"reuse lint", "fsfe/reuse-action"},
 			shouldNotMatch: []string{"reuse download --all"},
+		},
+		{
+			ruleID: "license-checker-rule",
+			shouldMatch: []string{
+				"npx license-checker --production --onlyAllow \"MIT;ISC;Apache-2.0\"",
+				"license-checker --failOn \"GPL-3.0;AGPL-3.0\"",
+				"npx license-checker-rseidelsohn --onlyAllow MIT",
+				"npx license-checker --json --out licenses.json",
+				"npx license-checker@4 --onlyAllow MIT",
+			},
+			shouldNotMatch: []string{"addlicense -check .", "licensee detect .", "npm run check-licenses", "pip-license-checker --fail-on GPL", "npx license-checker-webpack-plugin"},
 		},
 		{
 			ruleID:         "cargo-deny-licenses-rule",
@@ -848,6 +1404,74 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID:         "buf-lint-rule",
 			shouldMatch:    []string{"buf lint", "buf lint proto/ --error-format=github-actions", "bufbuild/buf-action@v1", "bufbuild/buf-lint-action@v1"},
 			shouldNotMatch: []string{"buf generate", "buf push", "buf format -w", "buf config ls-lint-rules", "bufbuild/buf-setup-action@v1"},
+		},
+		{
+			ruleID: "lychee-rule",
+			shouldMatch: []string{
+				"lychee .", "lychee --no-progress --config lychee.toml './**/*.md'", "lychee --scheme https --timeout 60 --exclude-all-private .",
+				"./lychee --offline docs/", "docker run --rm -v $PWD:/input lycheeverse/lychee:latest /input/README.md",
+				"lycheeverse/lychee-action@v2", "lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8",
+			},
+			shouldNotMatch: []string{
+				"cat lychee/out.md", "gh issue create --body-file ./lychee/out.md", "cp lychee.toml /tmp/", "rm -rf .lycheecache",
+				"tar -xzf lychee-x86_64-unknown-linux-gnu.tar.gz", "markdown-link-check README.md",
+				"key: cache-lychee-${{ github.sha }}",
+			},
+		},
+		{
+			ruleID: "markdown-link-check-rule",
+			shouldMatch: []string{
+				"markdown-link-check",
+				"markdown-link-check ./docs",
+				"markdown-link-check --reporters junit README.md",
+				"npx markdown-link-check -c .mlc.json README.md",
+				"npx --yes markdown-link-check@3.15.0 README.md",
+				`find . -name \*.md -print0 | xargs -0 -n1 markdown-link-check`,
+				"xargs -0 -n1 npx markdown-link-check -c .markdownlinkcheck.json",
+				`find . -name \*.md -exec markdown-link-check {} \;`,
+				"./node_modules/.bin/markdown-link-check README.md",
+				"docker run -v .:/tmp:ro --rm -i ghcr.io/tcort/markdown-link-check:stable /tmp/README.md",
+				"ghcr.io/tcort/markdown-link-check:3.11.2",
+				"pre-commit run --hook-stage manual markdown-link-check --all-files",
+				"tcort/github-action-markdown-link-check",
+				"tcort/github-action-markdown-link-check@v1",
+				"gaurav-nelson/github-action-markdown-link-check",
+				"gaurav-nelson/github-action-markdown-link-check@v1",
+			},
+			shouldNotMatch: []string{
+				".github/markdown-link-check-config.json",
+				"cat markdown-link-check.fast.json",
+				"python utils/run_markdown_link_check.py",
+				"<!-- markdown-link-check-disable -->",
+				"markdownlint '**/*.md'",
+				"avtodev/markdown-lint",
+				"lychee .",
+				"lycheeverse/lychee-action",
+				"UmbrellaDocs/action-linkspector",
+				"mymarkdown-link-check README.md",
+				"markdown-link-check-extra README.md",
+				"tcort/github-action-markdown-link-check-extra@v1",
+				"gaurav-nelson/github-action-markdown-link-check-extra@v1",
+				"other/github-action-markdown-link-check@v1",
+			},
+		},
+		{
+			ruleID: "awesome-bot-rule",
+			shouldMatch: []string{
+				"awesome_bot README.md", `awesome_bot "${{ matrix.file }}" --allow-redirect --allow-dupe --allow-ssl`,
+				`awesome_bot check-unique.txt --allow-ssl --allow 302,429,502 --white-list "$WHITELIST"`,
+				"awesome_bot -f README.md,books.md --allow-dupe --allow-redirect --skip-save-results",
+				"awesome_bot applications.json -w https://matrix.org --allow 429", "xargs awesome_bot",
+				"bundle exec awesome_bot README.md", "./bin/awesome_bot README.md",
+				"docker run -ti --rm -v $PWD:/mnt:ro dkhamsing/awesome_bot --allow-dupe --skip-save-results ./templates/ubuntu.md",
+				"docker://dkhamsing/awesome_bot:1.20.0", "dkhamsing/awesome_bot:latest",
+			},
+			shouldNotMatch: []string{
+				"./.github/actions/awesomebot-gh-summary-action",
+				"$text += \"_Link issues :rocket: powered by [``awesome_bot``](https://github.com/dkhamsing/awesome_bot)_.\"",
+				"flutter pub add awesome_bottom_bar", "npx awesome-lint", "lychee README.md", "markdown-link-check README.md",
+				"jq . ab-results-README.md-filtered.json",
+			},
 		},
 		{
 			ruleID: "phpcs-rule",
@@ -909,6 +1533,17 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"azure/login", "azure/artifact-signing-action-extra"},
 		},
 		{
+			ruleID: "gradle-wrapper-validation-rule",
+			shouldMatch: []string{
+				"gradle/actions/wrapper-validation", "gradle/wrapper-validation-action", "Gradle/actions/wrapper-validation",
+			},
+			shouldNotMatch: []string{
+				"gradle/actions/dependency-submission", "gradle/gradle-build-action", "gradle-update/update-gradle-wrapper-action",
+				"gradle/actions/wrapper-validation-extra", "Validate Gradle Wrapper", "**/gradle-wrapper.jar",
+				`./gradlew wrapper --gradle-version "$GRADLE_VERSION" --distribution-type bin`,
+			},
+		},
+		{
 			ruleID:         "signpath-rule",
 			shouldMatch:    []string{"signpath/github-action-submit-signing-request"},
 			shouldNotMatch: []string{"./.github/actions/install-signpath-module"},
@@ -946,6 +1581,52 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 			shouldNotMatch: []string{"dorny/paths-filter", "actions/upload-artifact"},
 		},
+		{
+			ruleID: "njsscan-rule",
+			shouldMatch: []string{
+				"njsscan .",
+				"njsscan --sarif -o results.sarif src/",
+				"ajinabraham/njsscan-action",
+				"docker run -v $PWD:/src opensecurity/njsscan /src",
+			},
+			shouldNotMatch: []string{
+				"nodejsscan",
+				"semgrep --config p/nodejs .",
+				"npm run scan",
+			},
+		},
+		{
+			ruleID: "k6-rule",
+			shouldMatch: []string{
+				"k6 run load.js",
+				"k6 cloud script.js",
+				"grafana/run-k6-action@v1",
+			},
+			shouldNotMatch: []string{
+				"grafana/setup-k6-action@v1",
+				"k6 version",
+			},
+		},
+		{
+			// "pester" alone is the module name, which Install-Module and
+			// Import-Module load without running anything; only the
+			// Invoke-Pester cmdlet runs the tests.
+			ruleID: "pester-rule",
+			shouldMatch: []string{
+				"Invoke-Pester -Path 'pester/*.Tests.ps1' -Output Detailed -CI",
+				"Invoke-Pester -Path \"tests\" -CI",
+				"Invoke-Pester -Configuration $config",
+				"$result = Invoke-Pester -Path test -Output Detailed -PassThru",
+				"Invoke-Pester -Output Detailed",
+				"pwsh -Command \"Invoke-Pester -Path tests -CI\"",
+			},
+			shouldNotMatch: []string{
+				"Install-Module -Name Pester -RequiredVersion 5.8.0 -Force",
+				"Install-PSResource -Name Pester -Version '[5.7.1]'",
+				"Import-Module Pester",
+				"$config = New-PesterConfiguration",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -974,19 +1655,44 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
-		"bundler-audit-rule":         {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
+		"opengrep-rule":      {"opengrep test rules/", "opengrep --experimental validate rules/"},
+		"sobelow-rule":       {"mix escript.install hex sobelow --force", "mix deps.compile jason sobelow", "mix sobelow --version"},
+		"bundler-audit-rule": {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},
+		"cargo-vet-rule": {
+			"cargo vet init", "cargo vet suggest", "cargo vet fmt", "cargo vet prune",
+			"cargo vet aggregate --output-file audits.toml sources.list",
+			"cargo vet --output-format=json dump-graph", "cargo vet --locked suggest",
+			"cargo vet --manifest-path foo/Cargo.toml suggest",
+			"cargo vet explain-audit", "cargo vet gc", "cargo vet renew",
+			"cargo vet --help", "cargo vet --version", "cargo +nightly vet init",
+		},
 		"cargo-deny-licenses-rule":   {"cargo deny check advisories", "cargo deny check bans sources"},
 		"cargo-deny-advisories-rule": {"cargo deny check licenses", "cargo deny check bans licenses"},
 		"codeql-rule":                {"codeql database create --language=actions"},
-		"npm-audit-rule":             {"npm audit signatures", "npm audit signatures --omit=dev"},
-		"tflint-rule":                {"tflint --init", "tflint -v"},
-		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
-		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
+		"sonar-rule":                 {"./gradlew build -x test -x sonarqube", "gradle check --exclude-task sonarqube"},
+		"zizmor-rule":                {"zizmorcore/zizmor-action"},
+		"semgrep-rule": {"semgrep --metrics=off --validate --strict --config=./rules/", "semgrep --test --config rules tests/",
+			"semgrep test --strict --config rules/x.yaml", "semgrep login", "semgrep install-semgrep-pro"},
+		"npm-audit-rule":       {"npm audit signatures", "npm audit signatures --omit=dev"},
+		"ripsecrets-rule":      {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
+		"talisman-rule":        {"talisman --checksum 'config/*'", "talisman -c=config/*"},
+		"secretlint-rule":      {"npx secretlint --init", "secretlint --init"},
+		"tflint-rule":          {"tflint --init", "tflint -v"},
+		"kubeconform-rule":     {"kubeconform -v"},
+		"lychee-rule":          {"lychee --dump README.md", "lychee --dump-inputs ."},
+		"snyk-agent-scan-rule": {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
+		"stroq-rule":           {"stroq inspect --env", "npx @stroq/cli inspect --env >> \"$GITHUB_ENV\""},
+		"trivy-rule":           {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},
+		"typos-rule":           {"npx cspell --report typos ."},
 		"unit-test-command-rule": {
 			"mvn package -Dmaven.test.skip=true", "./mvnw -B install -DskipTests test", "gradle build -x test", "mvn -B clean install -DskipTests",
 			"./gradlew check --exclude-task test", "cargo test --no-run", "cargo test --all --no-run --locked",
 			"cargo nextest run --no-run", "cargo nextest run --workspace --no-run --locked",
 			"tox -e lint", "tox -e mypy,docs", "tox --envlist=pre-commit",
+			"npx playwright test --list", "pnpm exec playwright test --config tests/playwright.config.ts --list --reporter=json",
+			"helm unittest --help", "helm unittest --help >/dev/null",
+			"gotestsum tool slowest --jsonfile tests.json --threshold 500ms",
+			"gotestsum tool ci-matrix --timing-files 'tests/*.log' --partitions 4",
 		},
 		"unit-test-rule": {"deploy-test", "publish-test-pypi", "report-test-failure", "tests-result", "set-test-package-matrix", "Snyk Test", "Test GitHub OIDC"},
 		"taurus-rule":    {"pip install bzt", "pip3 install bzt", "bzt --help", "bzt -h"},

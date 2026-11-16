@@ -211,6 +211,13 @@ func TestSarifWeakenedResultWithNoLocation(t *testing.T) {
 	}
 }
 
+// Default setup has no file, so its weakness points where a missing category does.
+func TestSarifWeakenedResultFallsBackToTheAnchor(t *testing.T) {
+	log := buildSarif(nil, "README.md", []Weakness{{Category: "SAST", Verdict: "partial"}})
+
+	assert.Equal(t, "README.md", log.Runs[0].Results[0].Locations[0].PhysicalLocation.ArtifactLocation.URI)
+}
+
 func TestWeakenedHelpCoversEveryVerdict(t *testing.T) {
 	for _, verdict := range []string{"advisory", "partial", "unknown", ""} {
 		if weakenedHelp(Weakness{Verdict: verdict}) == "" {
@@ -235,4 +242,22 @@ func TestWeakenedMessageFollowsTheReason(t *testing.T) {
 	notRequired := Weakness{Category: "SAST", Verdict: "partial", Reason: grading.NotRequired}
 	assert.Contains(t, weakenedMessage(notRequired), "so a failing run does not block a pull request.")
 	assert.Contains(t, weakenedHelp(notRequired), "pull requests go unchecked")
+}
+
+func TestSarifReportsSCAEcosystemGap(t *testing.T) {
+	const reason = "govulncheck checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check"
+	log := buildSarif(nil, "", []Weakness{{Category: "SCA", Verdict: "partial", Reason: reason}})
+	run := log.Runs[0]
+	if !assert.Len(t, run.Results, 1) || !assert.Len(t, run.Tool.Driver.Rules, 1) {
+		return
+	}
+	result := run.Results[0]
+	assert.Equal(t, "note", result.Level)
+	assert.Equal(t, "partial", result.PartialFingerprints["verdict"])
+	assert.Equal(t, "SCA tooling is present but partial: "+reason+".", result.Message.Text)
+	for _, text := range []string{result.Message.Text, run.Tool.Driver.Rules[0].Help.Text} {
+		assert.NotContains(t, text, "pull requests go unchecked")
+		assert.NotContains(t, text, "does not block a pull request")
+		assert.NotContains(t, text, "cannot fail the build")
+	}
 }

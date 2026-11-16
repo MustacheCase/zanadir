@@ -96,6 +96,8 @@ func (runs scripts) matchingSteps(artifact *models.Artifact, rule *rules.Rule, f
 			}
 		case rules.FieldJobRun:
 			text = runs.invocations(job.Run, rule.Unless)
+		case rules.FieldJobEnv:
+			text = envLines(job.Env)
 		default:
 			continue
 		}
@@ -106,6 +108,15 @@ func (runs scripts) matchingSteps(artifact *models.Artifact, rule *rules.Rule, f
 		}
 	}
 	return matched
+}
+
+func envLines(env map[string]string) string {
+	lines := make([]string, 0, len(env))
+	for name, value := range env {
+		lines = append(lines, name+"="+value)
+	}
+	slices.Sort(lines)
+	return strings.Join(lines, "\n")
 }
 
 // packageDecides reports whether a step's package rules a name match out.
@@ -189,6 +200,10 @@ func eachInvocation(run string, visit func(command, invoked string)) {
 	for _, command := range shell.Commands(run) {
 		if words := shell.Words(shell.NormalizeCommand(command)); len(words) > 0 && !shell.Passive(words) {
 			visit(command, strings.Join(shell.Invoked(words), " "))
+		}
+		inner, _ := shell.Substitutions(command)
+		for _, script := range inner {
+			eachInvocation(script, visit)
 		}
 	}
 }

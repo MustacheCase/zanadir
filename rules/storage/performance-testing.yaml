@@ -3,7 +3,7 @@ rules:
     name: "k6"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
-    regex: "(?mi)\\bk6\\s+(?:run|cloud)\\b"
+    regex: "(?mi)\\bk6\\s+(?:run|cloud)\\b|grafana/run-k6-action"
 
   - id: "jmeter-rule"
     name: "JMeter"
@@ -42,6 +42,17 @@ rules:
     regex: "(?i)(?:^|[\\s/])bzt(?:\\s|$)"
     unless: "(?i)\\bpip(?:3)?\\s+install\\b[^\\n]*\\bbzt\\b|\\bbzt\\s+(?:--help|-h)(?:\\s|$)"
 
+  # github-action-benchmark only comments on a regression by default. It fails
+  # the job only with fail-on-alert: true. rhysd/ is its former name.
+  - id: "github-action-benchmark-rule"
+    name: "github-action-benchmark"
+    applyOn: ["Job.Package"]
+    categories: ["Performance Testing"]
+    regex: "(?i)^(?:benchmark-action|rhysd)/github-action-benchmark(?:@|$)"
+    exitsZeroUnless:
+      input: "fail-on-alert"
+      runMatches: "(?i)^true$"
+
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-performance-template-rule"
     name: "GitLab Performance Testing"
@@ -57,3 +68,17 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Performance Testing"]
     regex: "(?i)\\bminio/warp\\b|\\bwarp\\s+(?:mixed|get|put|delete|list|stat|versioned|multipart|multipart-put|append|retention|fanout|snowball|zip|analyze|cmp|merge|client)\\b"
+
+  # Size Limit is a bundle budget: it exits 1 when a check is over its limit,
+  # unless --why, which opens a report and exits 0. Only the program counts,
+  # not the other size-limit names (the PR comment command, config files,
+  # preset and plugin packages, size-limit-* packages). Both actions are
+  # matched by full name.
+  - id: "size-limit-rule"
+    name: "Size Limit"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Performance Testing"]
+    regex: "(?im)^(?:andresz1|ant-design)/size-limit-action(?:@|$)|^\\s*(?:(?:npx|bunx|pnpx|pnpm\\s+(?:dlx|exec)|pnpm|yarn\\s+(?:dlx|exec)|yarn|npm\\s+exec|bun\\s+x)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?size-limit(?:@\\S+)?(?:\\s|$)"
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--why(?:\\s|=|$)"
+        verdict: "advisory"

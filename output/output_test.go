@@ -593,6 +593,25 @@ func TestResponse_MarkdownListsWeakenedControls(t *testing.T) {
 	}
 }
 
+// Code scanning's default setup has no file to name.
+func TestResponse_WeaknessWithoutALocation(t *testing.T) {
+	service := NewOutputService()
+	weakened := []Weakness{{Category: "SAST", Verdict: "partial", Reason: "CodeQL analyses only python"}}
+	for format, want := range map[string]string{
+		config.OutputTable:    "  SAST is partial: CodeQL analyses only python\n",
+		config.OutputMarkdown: "- `SAST` is **partial**: CodeQL analyses only python\n",
+	} {
+		out := captureStdout(func() {
+			if err := service.Response(Report{Format: format, Score: score.Score{Covered: 11, Total: 11}, Weakened: weakened}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+		if !strings.Contains(out, want) {
+			t.Errorf("%s: want %q in:\n%s", format, want, out)
+		}
+	}
+}
+
 // failAfterWriter succeeds for a number of writes and then fails, so an error
 // partway through a multi-line block can be reached.
 type failAfterWriter struct {
@@ -754,6 +773,35 @@ func gatedReport(format string) Report {
 		Weakened: []Weakness{{Category: "SAST", Verdict: "partial", Location: ".github/workflows/codeql.yml", Reason: "its check is not required to merge"}},
 		Gate: &Gate{Branch: "main", Scanning: []string{"zizmor"},
 			Problems: []string{`ruleset "checks" requires "Run tests" but applies to no branch`}},
+	}
+}
+
+func TestResponse_ReportsSCAEcosystemGap(t *testing.T) {
+	const reason = "govulncheck checks only Go; Python dependencies detected from repository manifests have no enforcing SCA check"
+	for _, format := range []string{config.OutputTable, config.OutputMarkdown, config.OutputJSON} {
+		t.Run(format, func(t *testing.T) {
+			out, err := renderString(Report{
+				Format:   format,
+				Weakened: []Weakness{{Category: "SCA", Verdict: "partial", Reason: reason}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out, reason) {
+				t.Errorf("ecosystem gap reason missing:\n%s", out)
+			}
+			if format == config.OutputJSON {
+				var report struct {
+					Weakened []Weakness `json:"weakened"`
+				}
+				if err := json.Unmarshal([]byte(out), &report); err != nil {
+					t.Fatal(err)
+				}
+				if len(report.Weakened) != 1 || report.Weakened[0].Verdict != "partial" || report.Weakened[0].Reason != reason {
+					t.Errorf("unexpected weakened controls: %+v", report.Weakened)
+				}
+			}
+		})
 	}
 }
 

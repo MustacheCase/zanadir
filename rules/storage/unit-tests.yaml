@@ -18,14 +18,20 @@ rules:
   # phases and Gradle's build task run the tests on the way.
   # Bats counts only where a command starts, since `shellcheck --shell bats`
   # names a dialect.
+  # Playwright's install, show-report and merge-reports are its own
+  # sub-commands, so only `playwright test` counts.
+  # helm-unittest runs as the `helm unittest` plugin command, or as the
+  # helmunittest/helm-unittest image, whose entrypoint is that command.
   - id: "unit-test-command-rule"
     applyOn: ["Job.Run"]
     categories: ["Unit Tests"]
-    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\bcomposer\\s+(?:(?:run|run-script)\\s+)?test\\b|\\bphp\\s+artisan\\s+test\\b|\\b(?:pytest|rspec|phpunit|pest|jest|mocha|vitest|ctest|tox)\\b|\\b(?P<name>mvnw?)\\s[^\\n]*\\b(?:test|verify)\\b|\\b(?P<name>gradlew?)\\s[^\\n]*\\b(?:test|check)\\b|\\b(?P<name>mvnw?)\\s(?:[^\\n]*\\s)?(?:package|install|deploy)(?:\\s|$)|\\b(?P<name>gradlew?)\\s(?:[^\\n]*\\s)?(?:\\S*:)?build(?:\\s|$)|\\bpython[\\d.]*\\s+-m\\s+(?P<name>unittest)\\b|\\b(?:bun|deno|swift)\\s+test\\b|\\bbundle\\s+exec\\s+rspec\\b|\\bmeson\\s+test\\b|\\brun[-_]tests?\\.sh\\b|\\bcargo\\s+nextest\\s+(?:run|r)\\b|(?:^|\\n)\\(?\\s*(?:(?:npx|time|xargs)\\s+)?(?:\\S*/)?(?P<name>bats)(?:\\s|$)"
+    regex: "(?i)\\b(?:go|cargo|dotnet)\\s+test\\b|\\b(?:npm|yarn|pnpm)\\s+(?:run\\s+)?test\\b|\\bcomposer\\s+(?:(?:run|run-script)\\s+)?test\\b|\\bphp\\s+artisan\\s+test\\b|\\b(?:pytest|rspec|phpunit|pest|jest|mocha|vitest|ctest|tox)\\b|\\b(?P<name>mvnw?)\\s[^\\n]*\\b(?:test|verify)\\b|\\b(?P<name>gradlew?)\\s[^\\n]*\\b(?:test|check)\\b|\\b(?P<name>mvnw?)\\s(?:[^\\n]*\\s)?(?:package|install|deploy)(?:\\s|$)|\\b(?P<name>gradlew?)\\s(?:[^\\n]*\\s)?(?:\\S*:)?build(?:\\s|$)|\\bpython[\\d.]*\\s+-m\\s+(?P<name>unittest)\\b|\\b(?:bun|deno|swift)\\s+test\\b|\\bbundle\\s+exec\\s+rspec\\b|\\bmeson\\s+test\\b|\\brun[-_]tests?\\.sh\\b|\\bcargo\\s+nextest\\s+(?:run|r)\\b|(?:^|\\n)\\(?\\s*(?:(?:npx|time|xargs)\\s+)?(?:\\S*/)?(?P<name>bats)(?:\\s|$)|(?:^|\\n)\\(?\\s*(?:(?:npx|time|xargs)\\s+)?(?:\\S*/)?(?P<name>gotestsum)(?:\\s|$)|\\bgo\\s+run\\s+gotest\\.tools/(?P<name>gotestsum)\\b|(?:^|[\\s/])(?P<name>playwright\\s+test)\\b|\\bhelm\\s+unittest\\b|\\bdocker\\s+run\\b[^\\n]*\\s(?P<name>helmunittest/helm-unittest)(?:[:@\\s]|$)"
     # Commands that build or check without running the tests: Maven's skip
     # properties, Gradle excluding the test task, cargo's and nextest's --no-run, and tox
-    # environments that only lint, type-check, document or package.
-    unless: "(?i)\\bmvnw?\\s[^\\n]*-D(?:skipTests|maven\\.test\\.skip)(?:=true)?(?:\\s|$)|\\bgradlew?\\s[^\\n]*(?:-x|--exclude-task)[= ]?\\s*test(?:\\s|$)|\\bcargo\\s+test\\b[^\\n]*\\s--no-run\\b|\\bcargo\\s+nextest\\s+(?:run|r)\\b[^\\n]*\\s--no-run\\b|\\btox\\b[^\\n]*(?:\\s-e\\s*|\\s--envlist[= ]?)(?:lint|flake8|pylint|mypy|typing|types?|docs?|pre-commit|precommit|format|fmt|black|isort|ruff|style|pep8|build|package|packaging|release|publish|spell|codespell|bandit|security|safety|audit|manifest|readme|linkcheck|clean)(?:,(?:lint|flake8|pylint|mypy|typing|types?|docs?|pre-commit|precommit|format|fmt|black|isort|ruff|style|pep8|build|package|packaging|release|publish|spell|codespell|bandit|security|safety|audit|manifest|readme|linkcheck|clean))*(?:\\s|$)"
+    # environments that only lint, type-check, document or package. playwright
+    # test --list only lists the tests, for shards to split. helm
+    # unittest --help only proves the plugin is installed.
+    unless: "(?i)\\bmvnw?\\s[^\\n]*-D(?:skipTests|maven\\.test\\.skip)(?:=true)?(?:\\s|$)|\\bgradlew?\\s[^\\n]*(?:-x|--exclude-task)[= ]?\\s*test(?:\\s|$)|\\bcargo\\s+test\\b[^\\n]*\\s--no-run\\b|\\bcargo\\s+nextest\\s+(?:run|r)\\b[^\\n]*\\s--no-run\\b|\\bgotestsum\\s+tool\\b|\\btox\\b[^\\n]*(?:\\s-e\\s*|\\s--envlist[= ]?)(?:lint|flake8|pylint|mypy|typing|types?|docs?|pre-commit|precommit|format|fmt|black|isort|ruff|style|pep8|build|package|packaging|release|publish|spell|codespell|bandit|security|safety|audit|manifest|readme|linkcheck|clean)(?:,(?:lint|flake8|pylint|mypy|typing|types?|docs?|pre-commit|precommit|format|fmt|black|isort|ruff|style|pep8|build|package|packaging|release|publish|spell|codespell|bandit|security|safety|audit|manifest|readme|linkcheck|clean))*(?:\\s|$)|\\bplaywright\\s+test\\b[^\\n]*\\s--list\\b|\\bhelm\\s+unittest\\s+--help\\b"
 
   # Steps that run or publish test results stand in for a test command zanadir
   # cannot see, such as Azure's DotNetCoreCLI test input, a Jenkins junit step
@@ -34,3 +40,35 @@ rules:
     applyOn: ["Job.Package"]
     categories: ["Unit Tests"]
     regex: "(?i)^(?:vstest|publishtestresults|junit|EnricoMi/(?P<name>publish-unit-test-result-action)(?:/\\w+)?|dorny/(?P<name>test-reporter)|mikepenz/(?P<name>action-junit-report)|(?P<name>test-summary)/action)$"
+
+  # Cypress runs browser tests as `cypress run`, or through its action, which
+  # installs dependencies and runs them; only `run` tests anything. With the
+  # action's runTests off it only installs, builds and starts servers, and a
+  # later step often runs the tests another way.
+  - id: "cypress-rule"
+    name: "Cypress"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Unit Tests"]
+    regex: "(?i)\\bcypress\\s+run\\b|cypress-io/github-action"
+    weakenedWhen:
+      - input: "runTests"
+        equals: "false"
+        verdict: "advisory"
+      - input: "runTests"
+        equals: "0"
+        verdict: "advisory"
+  # Pester is PowerShell's test framework. Invoke-Pester reports failures and
+  # sets $LASTEXITCODE without exiting, so whether a bare call fails the step
+  # depends on what runs around it: GitHub's pwsh and powershell shells end
+  # the script with exit $LASTEXITCODE, a native command after it resets it,
+  # and a -Configuration object may or may not set Run.Exit. Only -CI and
+  # -EnableExit make the call exit non-zero (-CI:$false turns -CI off), so
+  # every other invocation is unknown rather than advisory.
+  - id: "pester-rule"
+    name: "Pester"
+    applyOn: ["Job.Run"]
+    categories: ["Unit Tests"]
+    regex: "(?i)\\binvoke-pester\\b"
+    exitsZeroUnless:
+      runMatches: "(?i)(?:(?:^|\\s)-CI(?::\\$true)?|-EnableExit)(?:[\\s\"']|$)"
+      unknownWhen: "(?i)invoke-pester\\b"

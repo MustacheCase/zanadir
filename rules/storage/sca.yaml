@@ -9,6 +9,26 @@ rules:
     exitsZeroUnless:
       runMatches: "(?:^|\\s)--exit-non-zero-on-finding(?:\\s|$)"
 
+  # blastradius (jondot/blastradius) fails when a listed bad package, hash or
+  # action ref is found: br hunt exits 10, and its Action fails the job whatever
+  # fail-on or mode says. Its other commands (init, index, hosts, demo) gate nothing.
+  - id: "blastradius-rule"
+    name: "blastradius"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["SCA"]
+    regex: "(?im)^jondot/blastradius$|^(?:\\S*/)?br\\s+hunt(?:\\s|$)|(?:^|\\s)@jondot/blastradius(?:@\\S+)?\\s+hunt(?:\\s|$)"
+
+  # Its pre-commit hook passes, checking nothing, without a .br-indicators list.
+  # No flag turns it on, so runMatches matches nothing: only the list does.
+  - id: "blastradius-precommit-rule"
+    name: "blastradius"
+    applyOn: ["Job.Run"]
+    categories: ["SCA"]
+    regex: "(?m)^blastradius(?:\\s|$)"
+    exitsZeroUnless:
+      runMatches: "[^\\s\\S]"
+      configFiles: [".br-indicators"]
+
   - id: "grype-rule"
     name: "Grype"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
@@ -89,7 +109,22 @@ rules:
     name: "govulncheck"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Go"]
     regex: "(?i)\\bgovulncheck\\b"
+    # govulncheck exits 0 whatever it finds when it writes JSON, SARIF or
+    # OpenVEX; golang/govulncheck-action passes output-format to -format.
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--?(?:json(?:=true)?(?:\\s|$)|format[= ]+[\"']?(?:json|sarif|openvex)\\b)"
+        verdict: "advisory"
+      - input: "output-format"
+        equals: "json"
+        verdict: "advisory"
+      - input: "output-format"
+        equals: "sarif"
+        verdict: "advisory"
+      - input: "output-format"
+        equals: "openvex"
+        verdict: "advisory"
 
   # bundle-audit, bundler-audit, "bundle audit" and the rake task. Updating
   # the advisory database, or asking for the version, scans nothing.
@@ -97,6 +132,7 @@ rules:
     name: "bundler-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Ruby"]
     regex: "(?i)\\bbundler?[\\s:-]audit\\b"
     unless: "(?i)\\bbundler?[\\s:-]audit(?::|\\s+)(?:update|version|help)\\s*$"
 
@@ -105,11 +141,18 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
     regex: "(?i)\\bosv-scanner\\b|google/osv-scanner-action"
+    # The action's reusable workflows report without failing when fail-on-vuln
+    # is false.
+    weakenedWhen:
+      - input: "fail-on-vuln"
+        equals: "false"
+        verdict: "advisory"
 
   - id: "pip-audit-rule"
     name: "pip-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Python"]
     regex: "(?i)\\bpip-audit\\b|pypa/gh-action-pip-audit"
 
   # "safety" is a common word, so only its check and scan sub-commands, in
@@ -120,6 +163,7 @@ rules:
     name: "Safety"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Python"]
     regex: "(?m)(?:^|[\\s/])safety\\s+(?:--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?\\s+)*(?:check|scan)\\b|\\bpyupio/safety\\b"
     weakenedWhen:
       - runMatches: "--continue-on-error\\b"
@@ -129,7 +173,18 @@ rules:
     name: "cargo-audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Rust"]
     regex: "(?i)\\bcargo\\s+audit\\b|\\b(rustsec|actions-rs)/audit-check\\b"
+
+  # cargo vet verifies Rust dependency audits. Administrative commands do not
+  # enforce audit coverage, even with global flags before the subcommand.
+  - id: "cargo-vet-rule"
+    name: "cargo-vet"
+    applyOn: ["Job.Run"]
+    categories: ["SCA"]
+    ecosystems: ["Rust"]
+    regex: "(?i)(?:^|[\\s/])cargo(?:\\s+\\+\\S+)?\\s+vet(?:\\s|$)"
+    unless: "(?i)\\bcargo(?:\\s+\\+\\S+)?\\s+vet(?:\\s+--?[\\w-]+(?:[= ]+[^\\s-]\\S*)?)*\\s+(?:init|suggest|inspect|diff|certify|import|trust|regenerate|add-exemption|record-violation|fmt|prune|aggregate|explain-audit|dump-graph|gc|renew|help|-h|--help|-V|--version)(?:\\s|$)"
 
   # "retire" is an ordinary word, so only the program counts: a command that
   # starts with it, directly, by path or through npx and the like. It exits 13
@@ -138,6 +193,7 @@ rules:
     name: "Retire.js"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["JavaScript"]
     regex: "(?im)^(?:(?:npx|bunx|pnpx|pnpm\\s+dlx|yarn\\s+dlx|npm\\s+exec)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?retire(?:@\\S+)?(?:\\s|$)"
     weakenedWhen:
       - runMatches: "--exitwith[= ]+0+\\b"
@@ -153,6 +209,7 @@ rules:
     name: "nancy"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Go"]
     regex: "(?i)(?:^|[\\s/])nancy(?:[:@]\\S+)?(?:\\s+-[\\w-]+(?:[=\\s]\\S+)?)*\\s+(?:sleuth|lifecycle|iq)\\b|\\bnancy-github-action\\b"
     weakenedWhen:
       - runMatches: "--no-fail\\b"
@@ -164,6 +221,7 @@ rules:
   - id: "npm-audit-rule"
     applyOn: ["Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["JavaScript"]
     regex: "(?i)\\b(npm|yarn|pnpm)\\s+audit\\b"
     # `npm audit signatures` verifies registry signatures and provenance;
     # it is a supply-chain check (npm-audit-signatures-rule), not SCA.
@@ -178,6 +236,7 @@ rules:
     name: "composer audit"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["PHP"]
     regex: "(?i)\\bcomposer(?:\\.phar)?\\s+(?:-\\S+\\s+)*audit(?:\\s|$)"
 
   # GitHub Advanced Security for Azure DevOps.
@@ -207,6 +266,7 @@ rules:
     name: "audit-ci"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["JavaScript"]
     regex: "(?i)\\baudit-ci(?:@\\S*)?(?:\\s|$)"
 
   # Fails a pull request that adds a dependency with a known vulnerability.
@@ -225,6 +285,7 @@ rules:
     name: "cargo-deny"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["SCA"]
+    ecosystems: ["Rust"]
     regex: "(?i)\\bcargo[\\s-]deny\\b[^\\n]*\\bcheck\\b|embarkstudios/cargo-deny-action"
     unless: "(?i)\\bcheck\\s+(?:(?:licenses|bans|sources)\\s*)+$"
 

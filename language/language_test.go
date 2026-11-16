@@ -1,12 +1,15 @@
 package language_test
 
 import (
+	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/language"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDetectByManifest(t *testing.T) {
@@ -74,4 +77,43 @@ func TestDetectSkipsHiddenDirectories(t *testing.T) {
 
 func TestDetectMissingDirectory(t *testing.T) {
 	assert.Empty(t, language.Detect(filepath.Join(t.TempDir(), "nope")))
+}
+
+func TestNames(t *testing.T) {
+	want := []string{language.CSharp, language.Go, language.Java, language.JavaScript, language.PHP, language.Python, language.Ruby, language.Rust}
+	assert.Equal(t, want, language.Names())
+	// Callers may change the returned slice without changing the registry.
+	names := language.Names()
+	names[0] = "changed"
+	assert.Equal(t, want, language.Names())
+}
+
+// A pyproject.toml that declares nothing to install, such as one that only
+// configures ruff, names no packages for dependency scanning.
+func TestWithDependenciesSkipsAPyprojectWithoutDependencies(t *testing.T) {
+	for content, want := range map[string]bool{
+		"[project]\nname = \"harness\"\ndependencies = []\n\n[tool.ruff]\nline-length = 140\n": false,
+		"[tool.ruff]\nselect = [\"E\"]\n": false,
+		"[build-system]\nrequires = [\"hatchling\"]\n[project]\ndependencies = [ # none yet\n]\n": false,
+		"[project]\ndependencies = [\"requests>=2\"]\n":                                           true,
+		"[project]\ndependencies = [\n  \"requests\",\n]\n":                                       true,
+		"[project]\ndynamic = [\"version\", \"dependencies\"]\n":                                  true,
+		"[project.optional-dependencies]\ntest = [\"pytest\"]\n":                                  true,
+		"[dependency-groups]\ndev = [\"ruff\"]\n":                                                 true,
+		"[tool.poetry.dependencies]\npython = \"^3.11\"\n":                                        true,
+		"[tool.uv]\ndev-dependencies = [\"pytest\"]\n":                                            true,
+	} {
+		dir := testrepo.Write(t, map[string]string{"pyproject.toml": content})
+		assert.Equal(t, want, slices.Contains(language.WithDependencies(dir), language.Python), content)
+		assert.Equal(t, []string{language.Python}, language.Detect(dir), "suggestions still see Python")
+	}
+	other := testrepo.Write(t, map[string]string{"pyproject.toml": "[tool.ruff]\n", "requirements.txt": "requests\n"})
+	assert.Equal(t, []string{language.Python}, language.WithDependencies(other))
+
+	// One it can't read, here a link out of the repository, still counts.
+	outside := filepath.Join(t.TempDir(), "pyproject.toml")
+	require.NoError(t, os.WriteFile(outside, []byte("[tool.ruff]\n"), 0o600))
+	linked := t.TempDir()
+	require.NoError(t, os.Symlink(outside, filepath.Join(linked, "pyproject.toml")))
+	assert.Equal(t, []string{language.Python}, language.WithDependencies(linked))
 }

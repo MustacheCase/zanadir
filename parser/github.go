@@ -23,6 +23,7 @@ type workflowDef struct {
 	// yaml.v3 keeps "on" a string key rather than folding it to a boolean the
 	// way YAML 1.1 would, so the field needs no alias.
 	On   yaml.Node                 `yaml:"on"`
+	Env  envMap                    `yaml:"env"`
 	Jobs map[string]workflowJobDef `yaml:"jobs"`
 }
 
@@ -33,16 +34,132 @@ type workflowJobDef struct {
 	ContinueOnError continueOnError `yaml:"continue-on-error"`
 	Needs           stringList      `yaml:"needs"`
 	With            map[string]any  `yaml:"with"`
+	Env             envMap          `yaml:"env"`
 	Steps           []stepDef       `yaml:"steps"`
 }
 
 type stepDef struct {
+	ID              string          `yaml:"id"`
 	Name            string          `yaml:"name"`
 	Uses            usesRef         `yaml:"uses"`
 	Run             string          `yaml:"run"`
 	If              string          `yaml:"if"`
 	ContinueOnError continueOnError `yaml:"continue-on-error"`
 	With            map[string]any  `yaml:"with"`
+	Env             envMap          `yaml:"env"`
+	Parallel        []stepDef       `yaml:"parallel"`
+}
+
+// flatSteps lists the steps of parallel: groups in place of the group. Each
+// still fails the job, at the wait the group ends with.
+func flatSteps(steps []stepDef) []stepDef {
+	var flat []stepDef
+	for _, step := range steps {
+		if step.Parallel != nil {
+			flat = append(flat, flatSteps(step.Parallel)...)
+			continue
+		}
+		flat = append(flat, step)
+	}
+	return flat
+}
+
+// reraised lists the steps that continue on error but whose failure a later step re-raises.
+func reraised(steps []stepDef) map[string]bool {
+	raised := map[string]bool{}
+	for _, step := range steps {
+		if step.ContinueOnError != (continueOnError{}) || !alwaysFails(step) {
+			continue
+		}
+		for _, id := range failedOutcomes(step.If) {
+			raised[id] = true
+		}
+	}
+	return raised
+}
+
+var (
+	failedOutcome = regexp.MustCompile(`^(?:steps\.([\w-]+)\.outcome\s*(?:==\s*'failure'|!=\s*'success')|'failure'\s*==\s*steps\.([\w-]+)\.outcome)$`)
+	// success() is still true after a step that continued on error.
+	statusChecks = strings.NewReplacer("always()", "true", "!cancelled()", "true", "success()", "true")
+	failingExit  = regexp.MustCompile(`^(?:[^|#]*(?:;|&&)\s*)?exit\s+0*[1-9]\d*\s*(?:#.*)?$`)
+)
+
+// failedOutcomes lists the steps whose failure alone makes the condition hold.
+func failedOutcomes(condition string) []string {
+	condition = strings.TrimSpace(condition)
+	if inner, ok := strings.CutPrefix(condition, "${{"); ok {
+		condition, _ = strings.CutSuffix(strings.TrimSpace(inner), "}}")
+	}
+	condition = statusChecks.Replace(condition)
+	if strings.ContainsAny(strings.ReplaceAll(condition, "!=", ""), "()!") {
+		return nil
+	}
+	var ids []string
+	for _, alternative := range strings.Split(condition, "||") {
+		var id string
+		for _, term := range strings.Split(alternative, "&&") {
+			term = strings.TrimSpace(term)
+			if term == "true" {
+				continue
+			}
+			m := failedOutcome.FindStringSubmatch(term)
+			if m == nil || id != "" {
+				id = ""
+				break
+			}
+			id = m[1] + m[2]
+		}
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+// alwaysFails reports whether a step fails whatever happened before it.
+func alwaysFails(step stepDef) bool {
+	if pkg, _ := parseStepUsageStatement(string(step.Uses)); pkg == "actions/github-script" {
+		script, _ := step.With["script"].(string)
+		return strings.HasPrefix(strings.TrimSpace(script), "core.setFailed(")
+	}
+	var last string
+	exits := 0
+	for _, line := range strings.Split(step.Run, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		last = line
+		if strings.Contains(line, "exit") {
+			exits++
+		}
+	}
+	return exits == 1 && failingExit.MatchString(last)
+}
+
+// envMap is an env: mapping. One set by an expression cannot be read.
+type envMap map[string]string
+
+func (e *envMap) UnmarshalYAML(node *yaml.Node) error {
+	var values map[string]any
+	if node.Kind != yaml.MappingNode || node.Decode(&values) != nil {
+		return nil
+	}
+	*e = stepInputs(values)
+	return nil
+}
+
+func withEnv(outer, inner map[string]string) map[string]string {
+	if len(inner) == 0 {
+		return outer
+	}
+	env := maps.Clone(outer)
+	if env == nil {
+		env = map[string]string{}
+	}
+	maps.Copy(env, inner)
+	return env
 }
 
 // usesRef is a uses: value. "$/" names the workflow's own repository at the
@@ -165,16 +282,41 @@ func (g *GithubParser) Exists(root string) bool {
 func (g *GithubParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 	defaults := map[*models.Artifact]map[string]string{}
+	disabled := disabledWorkflows(root)
 	for _, path := range GithubWorkflows(root) {
 		artifact, inputs, err := g.parseGithubWorkflow(root, path)
 		if err != nil {
 			return nil, err
 		}
+		if rel, err := filepath.Rel(root, path); err == nil && disabled[filepath.ToSlash(rel)] {
+			// Turned off, it still runs when another workflow calls it.
+			artifact.Disabled = true
+			artifact.Triggers = slices.DeleteFunc(artifact.Triggers, func(t models.Trigger) bool { return t.Event != "workflow_call" })
+		}
 		artifacts = append(artifacts, artifact)
 		defaults[artifact] = inputs
 	}
 	inheritCallers(artifacts, defaults)
+	for _, a := range artifacts {
+		a.Disabled = a.Disabled && !slices.ContainsFunc(a.Triggers, func(t models.Trigger) bool { return t.Event != "workflow_call" })
+	}
 	return artifacts, nil
+}
+
+// disabledWorkflows reads models.DisabledWorkflowsFile, which only a fetch
+// writes.
+func disabledWorkflows(root string) map[string]bool {
+	data, err := repofs.ReadFile(root, filepath.Join(root, filepath.FromSlash(models.DisabledWorkflowsFile)))
+	if err != nil {
+		return nil
+	}
+	paths := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			paths[line] = true
+		}
+	}
+	return paths
 }
 
 const localWorkflows = "./.github/workflows/"
@@ -326,15 +468,19 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 				Package: pkg, Version: version, With: stepInputs(job.With),
 				ContinueOnError: job.ContinueOnError.always, JobIf: joinConditions(job.If, job.ContinueOnError.condition())})
 		}
-		for _, step := range job.Steps {
+		jobEnv := withEnv(wf.Env, job.Env)
+		steps := flatSteps(job.Steps)
+		raised := reraised(steps)
+		for _, step := range steps {
 			record := &models.Job{
 				Name: jobName,
 				// Either level means a failure here cannot fail the build.
-				ContinueOnError: step.ContinueOnError.always || job.ContinueOnError.always,
+				ContinueOnError: step.ContinueOnError.always && !raised[step.ID] || job.ContinueOnError.always,
 				If:              joinConditions(step.If, step.ContinueOnError.condition()),
 				JobIf:           joinConditions(job.If, job.ContinueOnError.condition()),
 				Needs:           job.Needs,
 				With:            stepInputs(step.With),
+				Env:             withEnv(jobEnv, step.Env),
 				Check:           cmp.Or(job.Name, jobName),
 			}
 
@@ -448,11 +594,14 @@ func (c *composites) steps(uses string, caller *models.Job, depth int) []*models
 	}
 
 	var jobs []*models.Job
-	for _, step := range action.Runs.Steps {
+	steps := flatSteps(action.Runs.Steps)
+	raised := reraised(steps)
+	for _, step := range steps {
 		record := *caller
-		record.ContinueOnError = caller.ContinueOnError || step.ContinueOnError.always
+		record.ContinueOnError = caller.ContinueOnError || step.ContinueOnError.always && !raised[step.ID]
 		record.If = joinConditions(caller.If, joinConditions(step.If, step.ContinueOnError.condition()))
 		record.With = stepInputs(step.With)
+		record.Env = withEnv(caller.Env, step.Env)
 		record.Package, record.Version, record.Run = "", "", step.Run
 		switch {
 		case step.Run != "":

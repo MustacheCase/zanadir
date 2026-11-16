@@ -217,6 +217,62 @@ jobs:
 	assert.Empty(t, semgrep.If)
 }
 
+// A step that continues on error still fails the job when a later step runs
+// on its failed outcome and always fails (opencost, apache/dubbo).
+func TestParseReraisedFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name, raise string
+		swallowed   bool
+	}{
+		{"exit 1", "if: steps.scan.outcome == 'failure'\n        run: |\n          # fail the job\n          echo found\n          exit 1 # explicitly", false},
+		{"expression with always", "if: ${{ always() && steps.scan.outcome != 'success' }}\n        run: echo found && exit 2", false},
+		{"one of several outcomes", "if: steps.lint.outcome == 'failure' || 'failure' == steps.scan.outcome\n        run: exit 1", false},
+		{"pwsh exit", "if: success() && steps.scan.outcome == 'failure'\n        shell: pwsh\n        run: exit 1", false},
+		{"github-script", "if: ${{ steps.scan.outcome == 'failure' }}\n        uses: actions/github-script@v7.0.1\n        with:\n          script: |\n            core.setFailed(\"found\")", false},
+		{"github-script that may not fail", "if: steps.scan.outcome == 'failure'\n        uses: actions/github-script@v7\n        with:\n          script: if (found) core.setFailed(\"found\")", true},
+		{"only reports", "if: steps.scan.outcome == 'failure'\n        run: gh issue create --title found", true},
+		{"exits zero first", "if: steps.scan.outcome == 'failure'\n        run: |\n          [ -s report ] || exit 0\n          exit 1", true},
+		{"ends in a block", "if: steps.scan.outcome == 'failure'\n        run: |\n          if [ -s report ]; then\n            exit 1\n          fi", true},
+		{"needs another condition", "if: steps.scan.outcome == 'failure' && github.event_name == 'push'\n        run: exit 1", true},
+		{"needs both outcomes", "if: steps.lint.outcome == 'failure' && steps.scan.outcome == 'failure'\n        run: exit 1", true},
+		{"after a failure", "if: failure() && steps.scan.outcome == 'failure'\n        run: exit 1", true},
+		{"negated", "if: \"!(steps.scan.outcome == 'success')\"\n        run: exit 1", true},
+		{"conclusion stays success", "if: steps.scan.conclusion == 'failure'\n        run: exit 1", true},
+		{"other step", "if: steps.lint.outcome == 'failure'\n        run: exit 1", true},
+		{"itself continues", "if: steps.scan.outcome == 'failure'\n        continue-on-error: true\n        run: exit 1", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			artifact := parseOne(t, `
+name: w
+on: pull_request
+jobs:
+  a:
+    steps:
+      - id: scan
+        run: trivy fs --exit-code 1 .
+        continue-on-error: true
+      - `+tc.raise+`
+`)
+			assert.Equal(t, tc.swallowed, artifact.Jobs[0].ContinueOnError)
+		})
+	}
+
+	jobLevel := parseOne(t, `
+name: w
+on: pull_request
+jobs:
+  a:
+    continue-on-error: true
+    steps:
+      - id: scan
+        run: trivy fs --exit-code 1 .
+        continue-on-error: true
+      - if: steps.scan.outcome == 'failure'
+        run: exit 1
+`)
+	assert.True(t, jobLevel.Jobs[0].ContinueOnError, "the job itself may still fail")
+}
+
 // Both conditions gate the step and they are separate expressions, so merging
 // them would lose which one is responsible.
 func TestParseConditionsStaySeparate(t *testing.T) {
@@ -665,6 +721,96 @@ runs:
 	assert.Equal(t, map[string]string{"aquasecurity/setup-trivy": "v0.3.1", "./.github/actions/nested": "", "./.github/actions/scan": ""}, packages)
 }
 
+func TestGithubCompositeReraisedFailure(t *testing.T) {
+	jobs := compositeRepo(t, map[string]string{
+		".github/workflows/ci.yml": "on: pull_request\njobs:\n  scan:\n    steps:\n      - uses: ./.github/actions/scan\n",
+		".github/actions/scan/action.yml": `runs:
+  using: composite
+  steps:
+    - id: trivy
+      run: trivy fs --exit-code 1 .
+      shell: bash
+      continue-on-error: true
+    - if: steps.trivy.outcome == 'failure'
+      run: exit 1
+      shell: bash
+`,
+	})
+	assert.False(t, jobs[0].ContinueOnError)
+}
+
+// A disabled workflow never runs on its own triggers, but still runs when an
+// enabled workflow calls it, and calls nothing itself.
+func TestGithubDisabledWorkflowsRunOnlyWhenCalled(t *testing.T) {
+	artifacts, err := parser.NewGithubParser().Parse(testrepo.Write(t, map[string]string{
+		models.DisabledWorkflowsFile:   ".github/workflows/old.yml\n.github/workflows/lib.yml\n.github/workflows/legacy.yml\n",
+		".github/workflows/old.yml":    "on: pull_request\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - run: gitleaks detect\n",
+		".github/workflows/lib.yml":    "on: [workflow_call, push]\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - run: semgrep ci\n",
+		".github/workflows/ci.yml":     "on: pull_request\njobs:\n  call:\n    uses: ./.github/workflows/lib.yml\n",
+		".github/workflows/legacy.yml": "on: pull_request\njobs:\n  call:\n    uses: ./.github/workflows/shared.yml\n",
+		".github/workflows/shared.yml": "on: workflow_call\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - run: trivy fs .\n",
+	}))
+	require.NoError(t, err)
+	byFile := map[string]*models.Artifact{}
+	for _, a := range artifacts {
+		byFile[filepath.Base(a.Location)] = a
+	}
+	events := func(a *models.Artifact) []string {
+		var found []string
+		for _, trigger := range a.Triggers {
+			found = append(found, trigger.Event)
+		}
+		return found
+	}
+
+	assert.True(t, byFile["old.yml"].Disabled)
+	assert.Empty(t, events(byFile["old.yml"]))
+	assert.False(t, byFile["lib.yml"].Disabled, "an enabled caller runs it")
+	assert.ElementsMatch(t, []string{"workflow_call", "pull_request"}, events(byFile["lib.yml"]), "its own push no longer runs it")
+	assert.True(t, byFile["legacy.yml"].Disabled)
+	assert.Equal(t, []string{"workflow_call"}, events(byFile["shared.yml"]), "a disabled caller passes on no triggers")
+	assert.False(t, byFile["ci.yml"].Disabled)
+}
+
+func TestGithubWorkflowsAreEnabledWithoutTheList(t *testing.T) {
+	artifacts, err := parser.NewGithubParser().Parse(testrepo.Write(t, map[string]string{
+		".github/workflows/old.yml": "on: pull_request\njobs:\n  scan:\n    runs-on: x\n    steps:\n      - run: gitleaks detect\n",
+	}))
+	require.NoError(t, err)
+	require.Len(t, artifacts, 1)
+	assert.False(t, artifacts[0].Disabled)
+	assert.Len(t, artifacts[0].Triggers, 1)
+}
+
+func TestGithubReadsParallelStepGroups(t *testing.T) {
+	jobs := compositeRepo(t, map[string]string{
+		".github/workflows/ci.yml": `on: pull_request
+jobs:
+  checks:
+    runs-on: x
+    steps:
+      - uses: actions/checkout@v6
+      - parallel:
+          - name: Secrets
+            run: gitleaks detect
+          - name: Shell
+            run: shellcheck *.sh
+            continue-on-error: true
+          - uses: ./.github/actions/lint
+      - run: go test ./...
+`,
+		".github/actions/lint/action.yml": "runs:\n  using: composite\n  steps:\n    - parallel:\n        - run: golangci-lint run\n          shell: bash\n",
+	})
+
+	assert.Equal(t, []string{"gitleaks detect", "shellcheck *.sh", "golangci-lint run", "go test ./..."}, runs(jobs))
+	ignored := map[string]bool{}
+	for _, job := range jobs {
+		ignored[job.Run] = job.ContinueOnError
+	}
+	assert.False(t, ignored["gitleaks detect"])
+	assert.True(t, ignored["shellcheck *.sh"], "a step in a group keeps its own continue-on-error")
+}
+
 func TestGithubReadsOnlyCompositeLocalActions(t *testing.T) {
 	jobs := compositeRepo(t, map[string]string{
 		".github/workflows/ci.yml": `on: pull_request
@@ -737,4 +883,50 @@ func TestReusableWorkflowsGetTheirCallersInputs(t *testing.T) {
 	}
 	assert.Equal(t, []string{"export A=(1, 2)\npnpm lint\n", "echo ${{ export A=(1, 2)\npnpm lint\n && 'x' || 'y' }}", "${{ inputs.missing }}"}, runs,
 		"an expression that is only an input becomes the script itself")
+}
+
+func TestGithubEnvLayers(t *testing.T) {
+	jobs := compositeRepo(t, map[string]string{
+		".github/workflows/ci.yml": `on: pull_request
+env:
+  LEVEL: workflow
+  KEEP: 1
+jobs:
+  scan:
+    env:
+      LEVEL: job
+    steps:
+      - run: trivy fs .
+        env:
+          LEVEL: step
+          ON: true
+      - run: grype dir:.
+      - uses: ./.github/actions/scan
+        env:
+          LEVEL: caller
+`,
+		".github/actions/scan/action.yml": "runs:\n  using: composite\n  steps:\n    - run: semgrep ci\n      shell: bash\n      env:\n        INNER: x\n",
+	})
+	envs := map[string]map[string]string{}
+	for _, job := range jobs {
+		if job.Run != "" {
+			envs[job.Run] = job.Env
+		}
+	}
+	assert.Equal(t, map[string]string{"LEVEL": "step", "KEEP": "1", "ON": "true"}, envs["trivy fs ."])
+	assert.Equal(t, map[string]string{"LEVEL": "job", "KEEP": "1"}, envs["grype dir:."])
+	assert.Equal(t, map[string]string{"LEVEL": "caller", "KEEP": "1", "INNER": "x"}, envs["semgrep ci"])
+
+	unread := parseOne(t, `
+name: w
+on: pull_request
+jobs:
+  a:
+    env: ${{ fromJSON(inputs.env) }}
+    steps:
+      - run: trivy fs .
+        env:
+          TRIVY_EXIT_CODE: 1
+`)
+	assert.Equal(t, map[string]string{"TRIVY_EXIT_CODE": "1"}, unread.Jobs[0].Env)
 }

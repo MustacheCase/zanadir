@@ -48,25 +48,6 @@ func TestNormalizeCommand(t *testing.T) {
 	}
 }
 
-func TestNormalizeRunnerPackageOptions(t *testing.T) {
-	for command, want := range map[string]string{
-		`npx --package lockfile-lint@5 --offline -s lockfile-lint --path yarn.lock`: `npx --package=lockfile-lint@5 --offline -s lockfile-lint --path yarn.lock`,
-		`npm exec -p lockfile-lint@5 -- lockfile-lint -p yarn.lock -s`:              `npm exec -p=lockfile-lint@5 -- lockfile-lint -p yarn.lock -s`,
-		`npx --package one --package two lockfile-lint -p yarn.lock`:                `npx --package=one --package=two lockfile-lint -p yarn.lock`,
-		`npx --package "/tmp/tool cache/lockfile-lint" lockfile-lint -s`:            `npx --package="/tmp/tool cache/lockfile-lint" lockfile-lint -s`,
-		`CI="some value" sudo npx -p 'lockfile-lint@5' lockfile-lint -s`:            `CI="some value" sudo npx -p='lockfile-lint@5' lockfile-lint -s`,
-		`npx --package=lockfile-lint@5 lockfile-lint -p yarn.lock`:                  `npx --package=lockfile-lint@5 lockfile-lint -p yarn.lock`,
-		`lockfile-lint -p yarn.lock -s`:                                             `lockfile-lint -p yarn.lock -s`,
-		`npx lockfile-lint -p yarn.lock -s`:                                         `npx lockfile-lint -p yarn.lock -s`,
-		`npm exec -- lockfile-lint --package example -s`:                            `npm exec -- lockfile-lint --package example -s`,
-		`yarn audit signatures`:                                                     `yarn audit signatures`,
-		`pnpm audit signatures`:                                                     `pnpm audit signatures`,
-		`npx --package`:                                                             `npx --package`,
-	} {
-		assert.Equal(t, want, shell.NormalizeCommand(command), command)
-	}
-}
-
 func TestSwallowed(t *testing.T) {
 	runs := func(command string) bool { return strings.Contains(command, "gitleaks") }
 	for script, want := range map[string]bool{

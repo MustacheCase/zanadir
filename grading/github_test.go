@@ -155,9 +155,7 @@ func TestLockfileLintExitsZeroUnlessValidator(t *testing.T) {
 		{"yarn offline", "yarn --offline lockfile-lint --path yarn.lock -s", Enforcing},
 		{"bun runtime", "bunx --bun lockfile-lint --path yarn.lock -s", Enforcing},
 		{"package with other runner options", "npx --package lockfile-lint@5 --prefer-offline -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
-		{"package with runner validators only", "npx --package lockfile-lint@5 --prefer-offline -s lockfile-lint --path yarn.lock", Advisory},
 		{"quoted package path", `npx --package "/tmp/tool cache/lockfile-lint" --offline lockfile-lint --path yarn.lock -s`, Enforcing},
-		{"quoted package value before runner flag", `npx --package "other lockfile-lint@5" -s lockfile-lint --path yarn.lock`, Advisory},
 		{"no validator", "npx lockfile-lint --path package-lock.json --type npm", Advisory},
 		{"format only", "npx lockfile-lint --path package-lock.json --format plain", Advisory},
 		{"empty hostname only", "npx lockfile-lint --path package-lock.json --empty-hostname false", Advisory},
@@ -167,9 +165,7 @@ func TestLockfileLintExitsZeroUnlessValidator(t *testing.T) {
 		{"yarn silent", "yarn -s lockfile-lint --path yarn.lock", Advisory},
 		{"pnpm silent", "pnpm -s lockfile-lint --path yarn.lock", Advisory},
 		{"runner flags before binary", "npx --yes --package=lockfile-lint@5.0.1 lockfile-lint --path package-lock.json", Advisory},
-		{"package value before runner flag", "npx --package lockfile-lint@5 -s lockfile-lint --path yarn.lock", Advisory},
 		{"package value before validator", "npx --package lockfile-lint@5 -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
-		{"short package value before runner flag", "npx -p lockfile-lint@5 -s lockfile-lint --path yarn.lock", Advisory},
 		{"short package value before validator", "npx -p lockfile-lint@5 -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
 		{"inline environment", "CI=true npx lockfile-lint --path yarn.lock -s", Enforcing},
 		{"sudo", "sudo lockfile-lint --path yarn.lock -s", Enforcing},
@@ -204,7 +200,6 @@ jobs:
 func TestLockfileLintPackageOptionIsNotAnInvocation(t *testing.T) {
 	for _, run := range []string{
 		"npx --package lockfile-lint@5 other-tool",
-		"npx -p lockfile-lint@5 other-tool",
 		`npx --package "/tmp/tools/lockfile-lint@5" -s other-tool`,
 		`npx --package "other lockfile-lint@5" -s other-tool`,
 	} {

@@ -1401,3 +1401,36 @@ func TestTerraformDocsActionFailOnDiff(t *testing.T) {
 		})
 	}
 }
+
+// editorconfig-checker exits 1 on any violation, but -fix repairs most of them
+// before checking. Its action only puts the binary on PATH, so alone it checks
+// nothing, even in a workflow named after the tool.
+func TestEditorconfigCheckerGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"editorconfig-checker":                        Enforcing,
+		"editorconfig-checker -format github-actions": Enforcing,
+		"xargs ec/bin/ec-linux-amd64 -v":              Enforcing,
+		"editorconfig-checker -fix":                   Advisory,
+		"editorconfig-checker --fix":                  Advisory,
+		"editorconfig-checker -fix=true":              Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  editorconfig:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+
+	verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+name: editorconfig-checker
+on: pull_request
+jobs:
+  editorconfig:
+    steps:
+      - uses: editorconfig-checker/action-editorconfig-checker@v3.0.0
+`)
+	assert.NotContains(t, verdicts, "Linter")
+}

@@ -774,6 +774,38 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"kubectl score", "kube-scorecard", "kube-score version", "kube-score help score", "kube-score completion bash", "kube-scorecard score k8s/"},
 		},
 		{
+			ruleID: "terraform-docs-rule",
+			shouldMatch: []string{
+				"terraform-docs --output-check .",
+				`terraform-docs -c .terraform-docs.yml --output-check "$(dirname "$readme")"`,
+				"terraform-docs . --output-check --config .terraform-docs.yml --recursive --recursive-include-main=false",
+				"terraform-docs --lockfile=false --output-check=true --output-file README.md --output-mode inject markdown table .",
+				"terraform-docs markdown table . > README.md",
+				`if ! terraform-docs --output-check "$module"`,
+				`do terraform-docs -c .terraform-docs.yml --output-check "modules/$m"`,
+				`docker run --rm --volume "$(pwd):/terraform-docs" -u $(id -u) quay.io/terraform-docs/terraform-docs:0.20.0 --output-check /terraform-docs`,
+				"quay.io/terraform-docs/terraform-docs:0.20.0",
+			},
+			shouldNotMatch: []string{
+				"run-terraform-docs.sh markdown table --config .terraform-docs.yml --output-check .",
+				"terraform-docs-automation.sh check",
+				"git clone --branch x --depth 1 $TERRAFORM_DOCS_REPO_URL /tmp/terraform-docs",
+				"go build -C /tmp/terraform-docs -o $(go env GOPATH)/bin/terraform-docs",
+				"yq e '.output.file' .terraform-docs.yml",
+				"pre-commit run terraform-docs-go --all-files",
+				"terraform fmt -check",
+			},
+		},
+		{
+			ruleID: "terraform-docs-action-rule",
+			shouldMatch: []string{
+				"terraform-docs/gh-actions",
+			},
+			shouldNotMatch: []string{
+				"terraform-docs/gh-actions-extra",
+			},
+		},
+		{
 			ruleID: "kubeconform-rule",
 			shouldMatch: []string{
 				"kubeconform -strict -summary -",

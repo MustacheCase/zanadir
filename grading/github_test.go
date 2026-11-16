@@ -492,6 +492,40 @@ jobs:
 	}
 }
 
+func TestDockleCliAndActionExitCodes(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"dockle --input image.tar":                             Advisory,
+		"dockle --exit-code 1 myapp:latest":                   Enforcing,
+		"dockle --exit-code=0 myapp:latest":                   Advisory,
+		"docker run --rm goodwithtech/dockle -c 1 myapp:latest": Enforcing,
+		"docker run --rm goodwithtech/dockle -c 0 myapp:latest": Advisory,
+		"dockle --exit-code ${{ inputs.code }} myapp:latest":   Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["IaC Security"], run)
+	}
+	for input, expected := range map[string]Verdict{
+		"":                      Enforcing,
+		"\n        with:\n          exit-code: '0'": Advisory,
+		"\n        with:\n          exit-code: '1'": Enforcing,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - uses: goodwithtech/dockle-action@main`+input+`
+`)
+		assert.Equal(t, expected, verdicts["IaC Security"], input)
+	}
+}
+
 // CIFuzz fails on a crash unless dry-run tells it only to report.
 func TestCIFuzzDryRunGradesAdvisory(t *testing.T) {
 	for with, expected := range map[string]Verdict{

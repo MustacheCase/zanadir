@@ -41,7 +41,7 @@ rules:
     name: "Polaris"
     applyOn: ["Job.Run"]
     categories: ["IaC Security"]
-    regex: "(?i)(?:^|[\\s/])polaris(?::[\\w.-]+|@sha256:[0-9a-f]+)?\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*audit(?:\\s|$)"
+    regex: "(?im)(?:^(?:\\S*/)?|/)polaris(?::[\\w.-]+|@sha256:[0-9a-f]+)?\\s+(?:-[\\w-]+(?:[= ]\\S+)?\\s+)*audit(?:\\s|$)"
     exitsZeroUnless:
       runMatches: "--set-exit-code-on-danger(?:=true)?(?:\\s|$)|--set-exit-code-below-score[= ]+(?:[1-9]|[1-9][0-9]|100)(?:\\s|$)"
       unknownWhen: "--set-exit-code-below-score[= ]+(?:\\$\\{|\\$\\(|\\$[A-Za-z_])|--set-exit-code-on-danger=\\$"

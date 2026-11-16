@@ -772,14 +772,20 @@ func TestRuleRegexPrecision(t *testing.T) {
 			ruleID: "polaris-rule",
 			shouldMatch: []string{
 				"polaris audit --audit-path deploy/",
+				"polaris audit --audit-path ./deploy --set-exit-code-on-danger",
+				"polaris audit --audit-path k8s/ --set-exit-code-below-score 90 --format=pretty",
+				"polaris audit --helm-chart ./chart --helm-values values.yaml",
 				"./bin/polaris audit --set-exit-code-on-danger",
 				"docker run --rm us-docker.pkg.dev/fairwinds-ops/oss/polaris:v10.2.0 audit --audit-path .",
+				"docker run quay.io/fairwinds/polaris:v10.2.0 audit --audit-path k8s/",
 				"polaris -c config.yaml audit --set-exit-code-below-score 90",
 			},
 			shouldNotMatch: []string{
 				"polaris dashboard", "polaris fix --files-path deploy/",
 				"polaris --version", "shopify-polaris audit",
 				"my-polaris audit", "polaris audit-report", "curl -O polaris",
+				"@shopify/polaris", "polaris-react", "echo polaris audit done",
+				`echo "run polaris audit"`,
 			},
 		},
 		{

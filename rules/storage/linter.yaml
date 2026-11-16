@@ -86,6 +86,21 @@ rules:
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])vulture(?:[\\s@]|$)|(?i)(?:^|\\s)gtkacz/vulture-action(?:[\\s@]|$)"
 
+  # interrogate exits 1 when docstring coverage is below --fail-under (default
+  # 80). A threshold of zero can never fail. Match the word only as the program:
+  # "interrogate" also names scripts, badges and reports.
+  - id: "interrogate-rule"
+    name: "interrogate"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])interrogate(?:\\s|@|==|$)|(?i)(?:^|\\s)[\\w.-]+/python-interrogate-check(?:[\\s@]|$)"
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)(?:--fail-under[= ]+|-f[= ]?)0+(?:\\.0+)?(?:\\s|$)"
+        verdict: "advisory"
+      - input: "fail-under"
+        equals: "0"
+        verdict: "advisory"
+
   # cargo-machete reports dependencies in Cargo.toml that the code never uses.
   # It exits 1 on findings, so it always fails the step as it is. Match it as
   # the cargo sub-command (with an optional toolchain) or as its own name with

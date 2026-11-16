@@ -528,6 +528,62 @@ jobs:
 	}
 }
 
+func TestInterrogateGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"interrogate -v --fail-under 80 mmengine":                       Enforcing,
+		"uv run --with interrogate interrogate --config=pyproject.toml": Enforcing,
+		"pipx run interrogate -v .":                                     Enforcing,
+		"interrogate -f 33.0 sycret":                                    Enforcing,
+		"interrogate --fail-under 0.5 src":                              Enforcing,
+		"interrogate --fail-under 0 src":                                Advisory,
+		"interrogate --fail-under=0 src":                                Advisory,
+		"interrogate -f 0 src":                                          Advisory,
+		"interrogate -f0 src":                                           Advisory,
+		"interrogate --fail-under 0.0 src":                              Advisory,
+		"interrogate huixiangdou -v || true":                            Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+func TestInterrogateActionFailUnderGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "fail-under 0 is advisory", input: "fail-under: '0'", expected: Advisory},
+		{name: "fail-under 95 is enforcing", input: "fail-under: 95", expected: Enforcing},
+		{name: "expression is unknown", input: "fail-under: ${{ inputs.fail-under }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  docstrings:
+    steps:
+      - uses: JackMcKew/python-interrogate-check@main
+        with:
+          path: braces
+`
+			if tc.input != "" {
+				workflow += "          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
 // awesome_bot exits 1 on a dead or duplicate link; no flag makes it exit 0.
 func TestAwesomeBotGradesCorrectly(t *testing.T) {
 	for run, expected := range map[string]Verdict{

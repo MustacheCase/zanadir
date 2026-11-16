@@ -473,5 +473,5 @@ rules:
     name: "check-jsonschema"
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?im)^(?:(?:(?:uvx|pipx\\s+run|uv\\s+run|xargs)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?check-jsonschema(?:(?:==|@)\\S+)?|(?:python3?|py)(?:\\s+-\\S+)*\\s+-m\\s+check_jsonschema|check-(?:metaschema|github-workflows(?:-require-timeout)?|github-actions|dependabot|readthedocs|renovate|gitlab-ci|circle-ci|azure-pipelines|compose-spec|taskfile))(?:[\\s:@]|$)"
+    regex: "(?im)^(?:(?:(?:uvx|pipx\\s+run|uv\\s+run|xargs)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?check-jsonschema(?:(?:==|@)\\S+)?|(?:python3?|py)(?:\\s+-\\S+)*\\s+-m\\s+check_jsonschema|check-(?:metaschema|azure-pipelines|bamboo-spec|bitbucket-pipelines|buildkite|changie|circle-ci|citation-file-format|cloudbuild|codecov|compose-spec|dependabot|drone-ci|github-(?:actions|discussion|issue-config|issue-forms|workflows(?:-require-timeout)?)|gitlab-ci|meltano|mergify|readthedocs|renovate|snapcraft|taskfile|travis|woodpecker-ci))(?:\\s|$)"
 

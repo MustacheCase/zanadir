@@ -1342,6 +1342,7 @@ func TestCheckJsonschemaGradesCorrectly(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml":          Enforcing,
 		"uvx check-jsonschema --schemafile schema.json data.json":                             Enforcing,
+		"check-jsonschema --disable-formats '*' --schemafile schema.json data.json":          Enforcing,
 		"check-github-workflows":                                                              Enforcing,
 		"check-dependabot":                                                                    Enforcing,
 		"check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml || true": Advisory,
@@ -1349,7 +1350,7 @@ func TestCheckJsonschemaGradesCorrectly(t *testing.T) {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
 on: pull_request
 jobs:
-  schema:
+  lint:
     steps:
       - run: `+run+`
 `)

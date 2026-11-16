@@ -46,6 +46,23 @@ rules:
       runMatches: "--severity-threshold\\b|--compliance-threshold[= ]+(?:0*[1-9]|0*\\.\\d*[1-9])"
       unknownWhen: "--fail-threshold\\b|(?:^|\\s)-t[= ]+\\S"
 
+  # Dockle's CLI only fails with a non-zero exit code, while its GitHub action
+  # fails by default unless the exit-code input explicitly disables the gate.
+  - id: "dockle-rule"
+    name: "Dockle"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["IaC Security"]
+    regex: "(?im)^(?:\\S*/)?dockle(?:\\s|$)|(?:^|[\\s/])goodwithtech/dockle(?:-action)?(?::[\\w.-]+|@[\\w.:-]+)?(?:\\s|$)"
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)(?:--exit-code|-c)[= ]+0+(?:\\s|$)"
+        verdict: "advisory"
+      - input: "exit-code"
+        equals: "0"
+        verdict: "advisory"
+    exitsZeroUnless:
+      runMatches: "(?:^|\\s)(?:--exit-code|-c)[= ]+0*[1-9][0-9]*(?:\\s|$)"
+      unknownWhen: "(?:^|\\s)(?:--exit-code|-c)(?:[= ]|$)"
+
   - id: "kube-linter-rule"
     name: "KubeLinter"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

@@ -103,6 +103,19 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "dockle-rule",
+			shouldMatch: []string{
+				"dockle --exit-code 1 myapp:latest", "dockle --input image.tar",
+				"./bin/dockle -c 1 image.tar", "docker run --rm goodwithtech/dockle -c 1 myapp:latest",
+				"docker run goodwithtech/dockle:v0.4.15 -c 1 image:latest",
+				"goodwithtech/dockle-action@main",
+			},
+			shouldNotMatch: []string{
+				"docker build -t myapp .", "hadolint Dockerfile", "dockless",
+				"echo dockle --input image.tar", "goodwithtech/dockle-action-extra@main",
+			},
+		},
+		{
 			ruleID: "pinact-rule",
 			shouldMatch: []string{
 				"pinact run --check",

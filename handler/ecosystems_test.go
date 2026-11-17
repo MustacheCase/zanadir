@@ -14,6 +14,7 @@ import (
 	"github.com/MustacheCase/zanadir/output"
 	"github.com/MustacheCase/zanadir/rules"
 	"github.com/MustacheCase/zanadir/score"
+	"github.com/MustacheCase/zanadir/suggester"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +32,7 @@ func TestAnalyseSCACoversDetectedLanguages(t *testing.T) {
 		{"advisory unrestricted scanner", "      - run: govulncheck ./...\n      - run: trivy fs .\n", "partial", map[string]string{"go.mod": "", "requirements.txt": ""}, "Python"},
 		{"advisory Python scanner", "      - run: govulncheck ./...\n      - run: pip-audit\n        continue-on-error: true\n", "partial", map[string]string{"go.mod": "", "requirements.txt": ""}, "Python"},
 		{"dependency bot cannot close the gap", "      - run: govulncheck ./...\n", "partial", map[string]string{"go.mod": "", "requirements.txt": "", ".github/dependabot.yml": "version: 2\nupdates:\n  - package-ecosystem: pip\n    directory: /\n    schedule:\n      interval: daily\n"}, "Python"},
+		{"settings dependency bot cannot close the gap", "      - run: govulncheck ./...\n", "partial", map[string]string{"go.mod": "", "requirements.txt": "", models.DependabotSecurityUpdatesFile: "pip\n"}, "Python"},
 		{"tooling dependencies count", "      - run: govulncheck ./...\n", "partial", map[string]string{"go.mod": "", "package.json": `{"devDependencies":{"prettier":"3.0.0"}}`}, "JavaScript"},
 		{"immediate subdirectory counts", "      - run: govulncheck ./...\n", "partial", map[string]string{"go.mod": "", "backend/requirements.txt": ""}, "Python"},
 		{"dependency and hidden directories do not count", "      - run: govulncheck ./...\n", "enforcing", map[string]string{"go.mod": "", "node_modules/package.json": "{}", ".tools/requirements.txt": "", "services/api/requirements.txt": ""}, ""},
@@ -66,6 +68,61 @@ func TestAnalyseSCACoversDetectedLanguages(t *testing.T) {
 			}
 			for _, suggestion := range result.suggestions {
 				assert.NotEqual(t, string(models.SCA), suggestion.ID, "SCA remains covered")
+			}
+		})
+	}
+}
+
+func TestAnalyseDependabotSecurityUpdatesMatchesConfiguration(t *testing.T) {
+	for _, tt := range []struct {
+		name, marker, configuration string
+		covered                     bool
+	}{
+		{"two ecosystems", "npm_and_yarn\npip\n", "updates:\n  - package-ecosystem: npm\n  - package-ecosystem: pip\n", true},
+		{"unknown ecosystems", "", "version: 2\n", true},
+		{"unrecognised ecosystem", "future-manager\n", "updates:\n  - package-ecosystem: future-manager\n", true},
+		{"only tooling", "github-actions\ndevcontainers\n", "updates:\n  - package-ecosystem: github-actions\n  - package-ecosystem: devcontainers\n", false},
+		{"tooling and dependencies", "github-actions\npip\n", "updates:\n  - package-ecosystem: github-actions\n  - package-ecosystem: pip\n", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for name, source := range map[string]map[string]string{
+				"settings":      {models.DependabotSecurityUpdatesFile: tt.marker},
+				"configuration": {".github/dependabot.yml": tt.configuration},
+			} {
+				t.Run(name, func(t *testing.T) {
+					files := map[string]string{
+						".git/HEAD":        "ref: refs/heads/main\n",
+						"package.json":     `{"dependencies":{"example":"1.0.0"}}`,
+						"requirements.txt": "requests\n",
+					}
+					for path, content := range source {
+						files[path] = content
+					}
+					h, err := Setup()
+					require.NoError(t, err)
+					result, err := h.analyse(&config.Config{Dir: testrepo.Write(t, files)}, func(string, ...interface{}) {}, nil)
+					require.NoError(t, err)
+					index := slices.IndexFunc(result.covered, func(c output.Coverage) bool { return c.Category == "SCA" })
+					suggested := slices.ContainsFunc(result.suggestions, func(s *suggester.CategorySuggestion) bool { return s.ID == "SCA" })
+					if !tt.covered {
+						assert.Equal(t, -1, index)
+						assert.True(t, suggested)
+						return
+					}
+					require.NotEqual(t, -1, index)
+					assert.False(t, suggested)
+					coverage := result.covered[index]
+					assert.Equal(t, "advisory", coverage.Verdict)
+					require.Len(t, coverage.Tools, 1)
+					assert.Equal(t, "Dependabot", coverage.Tools[0].Name)
+					assert.Equal(t, "advisory", coverage.Tools[0].Verdict)
+					if name == "settings" {
+						assert.Empty(t, coverage.Tools[0].Locations)
+					}
+					weakness := slices.IndexFunc(result.weaknesses, func(w output.Weakness) bool { return w.Category == "SCA" })
+					require.NotEqual(t, -1, weakness)
+					assert.Equal(t, "advisory", result.weaknesses[weakness].Verdict)
+				})
 			}
 		})
 	}

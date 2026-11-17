@@ -261,9 +261,14 @@ infrastructure detection) into a temporary directory. Every other file is an
 empty placeholder, since only its name matters. It then scans the directory
 exactly as a checkout and removes it. That is a handful of GitHub API
 requests per scan, however large the repository. The API also shows what no
-file does: workflows GitHub has turned off, which then count for nothing, and
+file does: workflows GitHub has turned off, which then count for nothing;
 code scanning's default setup, which counts as the CodeQL workflow it runs,
-for the languages of its latest run. A scan of a checkout can't see it. A repository too large to list in one
+for the languages of its latest run; and Dependabot security updates enabled
+in settings without a configuration file, which count as advisory SCA.
+Dependabot's ecosystems are read from up to 100 recent runs in one additional
+request, only when no Dependabot configuration exists. If the runs cannot be
+read, Dependabot still counts with unknown ecosystems. A scan of a checkout
+can't see these settings. A repository too large to list in one
 request is downloaded as an archive instead. Public repositories need no
 token; set `GITHUB_TOKEN` (or `GH_TOKEN`) to reach private ones or raise
 GitHub's rate limit of 60 requests an hour without one. GitLab and Bitbucket
@@ -837,6 +842,9 @@ settings are still outside what zanadir can see.
 Dependabot and Renovate are detected from their configuration -
 `.github/dependabot.yml`, `renovate.json` and the other names Renovate
 accepts - not from a CI job, because that is not where they live.
+Remote scans also detect Dependabot security updates enabled in GitHub's
+settings without a configuration file. When a Dependabot configuration exists,
+it remains the source of truth. Dependabot alerts alone do not count.
 
 They are graded `advisory`. Both run on the forge's own schedule and open pull
 requests; neither can fail a build. So a repository whose only dependency

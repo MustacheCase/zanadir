@@ -163,7 +163,7 @@ func FetchWith(ctx context.Context, repo Repository, token string, opts Options)
 	err = os.Mkdir(filepath.Join(dir, ".git"), 0o755)
 	if err == nil {
 		recordDefaultBranch(ctx, repo, token, dir)
-		recordWorkflows(ctx, repo, token, dir)
+		dependabot := recordWorkflows(ctx, repo, token, dir)
 		skills, listErr := fetchFiles(ctx, repo, token, dir, opts)
 		if listErr != nil {
 			err = resetTo(dir)
@@ -177,6 +177,9 @@ func FetchWith(ctx context.Context, repo Repository, token string, opts Options)
 			if err == nil {
 				err = restoreExportIgnored(ctx, repo, token, dir, skills)
 			}
+		}
+		if err == nil {
+			recordDependabotSecurityUpdates(ctx, repo, token, dir, dependabot)
 		}
 	}
 	if err != nil {
@@ -360,12 +363,16 @@ const maxWorkflowPages = 10
 // runs, which no file in the repository shows.
 const codeScanningWorkflow = "dynamic/github-code-scanning/codeql"
 
+const dependabotSecurityUpdatesWorkflow = "dynamic/dependabot/dependabot-updates"
+
 // recordWorkflows writes models.DisabledWorkflowsFile, and
 // models.CodeScanningFile when default setup is on. A failure leaves them
-// unwritten, and every workflow counts as enabled.
-func recordWorkflows(ctx context.Context, repo Repository, token, dir string) {
+// unwritten, and every workflow counts as enabled. It returns the active
+// Dependabot security updates workflow ID, or zero if it is absent or unknown.
+func recordWorkflows(ctx context.Context, repo Repository, token, dir string) int64 {
 	var disabled []string
 	codeScanning := int64(0)
+	dependabot := int64(0)
 	for page, seen := 1, 0; page <= maxWorkflowPages; page++ {
 		var list struct {
 			TotalCount int `json:"total_count"`
@@ -377,13 +384,16 @@ func recordWorkflows(ctx context.Context, repo Repository, token, dir string) {
 		}
 		endpoint := fmt.Sprintf("%s/repos/%s/%s/actions/workflows?per_page=100&page=%d", apiBase, repo.Owner, repo.Name, page)
 		if getJSON(ctx, endpoint, token, &list) != nil {
-			return
+			return 0
 		}
 		for _, workflow := range list.Workflows {
 			if strings.HasPrefix(workflow.State, "disabled") {
 				disabled = append(disabled, workflow.Path)
 			} else if workflow.Path == codeScanningWorkflow {
 				codeScanning = workflow.ID
+			}
+			if workflow.Path == dependabotSecurityUpdatesWorkflow && workflow.State == "active" {
+				dependabot = workflow.ID
 			}
 		}
 		seen += len(list.Workflows)
@@ -397,6 +407,38 @@ func recordWorkflows(ctx context.Context, repo Repository, token, dir string) {
 	if len(disabled) > 0 {
 		writeLines(dir, models.DisabledWorkflowsFile, disabled)
 	}
+	return dependabot
+}
+
+var dependabotRun = regexp.MustCompile(`^(\S+) in (\S+) for `)
+
+// recordDependabotSecurityUpdates records ecosystems only when no explicit
+// configuration exists, after archive fallback has restored export-ignored files.
+func recordDependabotSecurityUpdates(ctx context.Context, repo Repository, token, dir string, workflow int64) {
+	if workflow == 0 || utils.FirstFile(dir, ".github/dependabot.yml", ".github/dependabot.yaml") != "" {
+		return
+	}
+	var runs struct {
+		Runs []struct {
+			DisplayTitle string `json:"display_title"`
+			Name         string `json:"name"`
+		} `json:"workflow_runs"`
+	}
+	endpoint := fmt.Sprintf("%s/repos/%s/%s/actions/workflows/%d/runs?per_page=100", apiBase, repo.Owner, repo.Name, workflow)
+	var ecosystems []string
+	if getJSON(ctx, endpoint, token, &runs) == nil {
+		for _, run := range runs.Runs {
+			match := dependabotRun.FindStringSubmatch(run.DisplayTitle)
+			if match == nil {
+				match = dependabotRun.FindStringSubmatch(run.Name)
+			}
+			if match != nil {
+				ecosystems = append(ecosystems, match[1])
+			}
+		}
+	}
+	slices.Sort(ecosystems)
+	writeLines(dir, models.DependabotSecurityUpdatesFile, slices.Compact(ecosystems))
 }
 
 var analyzeJob = regexp.MustCompile(`^Analyze \((.+)\)$`)

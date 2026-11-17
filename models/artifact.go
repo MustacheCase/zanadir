@@ -35,6 +35,11 @@ const DisabledWorkflowsFile = ".git/zanadir-disabled-workflows"
 // setup is on, listing the languages it analyses one a line.
 const CodeScanningFile = ".git/zanadir-code-scanning"
 
+// DependabotSecurityUpdatesFile marks a fetched repository with security updates
+// enabled without a Dependabot configuration, listing ecosystems one a line.
+// An empty file means the ecosystems could not be determined.
+const DependabotSecurityUpdatesFile = ".git/zanadir-dependabot-security-updates"
+
 // Trigger is one event a CI configuration runs on, with its filters.
 type Trigger struct {
 	Event    string

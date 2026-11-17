@@ -823,6 +823,43 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			// The action only installs the binary, and its name holds the tool's
+			// name twice. The old ec-<os>-<arch> binaries only count when run.
+			ruleID: "editorconfig-checker-rule",
+			shouldMatch: []string{
+				"editorconfig-checker",
+				"editorconfig-checker -format github-actions",
+				"editorconfig-checker -exclude vendor",
+				"editorconfig-checker -fix",
+				"./bin/editorconfig-checker",
+				"npx editorconfig-checker",
+				"npx --yes editorconfig-checker",
+				"docker run --rm --volume=$PWD:/check mstruebing/editorconfig-checker:4.0.2",
+				"docker run --rm --volume=$PWD:/check ghcr.io/editorconfig-checker/editorconfig-checker:4.0.2",
+				"mstruebing/editorconfig-checker",
+				"pre-commit run editorconfig-checker --all-files",
+				"nix run nixpkgs#editorconfig-checker",
+				"bin/ec-linux-amd64",
+				"xargs ec/bin/ec-linux-amd64 -v",
+				"ec-windows-amd64.exe",
+				"ec-darwin-arm64 -exclude vendor",
+			},
+			shouldNotMatch: []string{
+				"editorconfig-checker/action-editorconfig-checker@v3.0.0",
+				"editorconfig-checker/action-editorconfig-checker",
+				"cp .editorconfig-checker.json /tmp/",
+				"ec",
+				"ec validate image --policy policy.yaml",
+				"./murphysec-linux-amd64 scan .",
+				"tar -xzf ec-linux-amd64.tar.gz -C ec",
+				".github/workflows/install-executable.sh ec https://github.com/editorconfig-checker/editorconfig-checker/releases/download/2.6.0/ec-linux-amd64 23e29f5b",
+				"sha256sum ec-linux-amd64.tar.gz",
+				"ec-linux-amd64.tar.gz",
+				"./scripts/ec-deploy-prod",
+				"eclint check",
+			},
+		},
+		{
 			ruleID: "kubeconform-rule",
 			shouldMatch: []string{
 				"kubeconform -strict -summary -",

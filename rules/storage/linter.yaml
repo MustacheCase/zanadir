@@ -496,3 +496,20 @@ rules:
       - input: "git-push"
         equals: "true"
         verdict: "advisory"
+
+  # editorconfig-checker exits 1 when a file breaks the .editorconfig. Its
+  # action only puts the binary on PATH, so the action and a workflow named
+  # after it don't count, only the command. The name has to be a whole word:
+  # editorconfig-checker/ (the organisation) and action-editorconfig-checker
+  # don't match. Up to v3 the binaries were ec-<os>-<arch>. They only count as
+  # the program being run, since anywhere else on the line they are a
+  # download, and bare "ec" is another tool. -fix repairs whitespace, line
+  # endings and final newlines before checking, so they can't fail the step.
+  - id: "editorconfig-checker-rule"
+    name: "editorconfig-checker"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)(?:^|[\\s/#])editorconfig-checker(?:[\\s:@]|$)|^(?:xargs(?:\\s+-\\S+)*\\s+)?(?:\\S*/)?ec-(?:linux|darwin|windows|freebsd|netbsd|openbsd|dragonfly|solaris|plan9)-[a-z0-9]+(?:\\.exe)?(?:\\s|$)"
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--?fix(?:=true)?(?:\\s|$)"
+        verdict: "advisory"

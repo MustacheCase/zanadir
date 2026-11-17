@@ -92,40 +92,168 @@ func split(text string, commands bool) []string {
 	return parts
 }
 
-// Words returns a command's program and arguments, past sudo and VAR=value.
+// Words returns a command's program and arguments, past VAR=value and the
+// wrappers that run it.
 func Words(command string) []string {
-	words := split(strings.TrimSpace(command), false)
-	for len(words) > 0 && (words[0] == "sudo" || strings.Contains(words[0], "=")) {
-		words = words[1:]
-	}
-	return words
+	return Unwrap(split(strings.TrimSpace(command), false))
 }
 
-// NormalizeCommand reduces the executable word to its unquoted basename.
-// Arguments and assignments retain their quoting; no shell expansion is done.
-func NormalizeCommand(command string) string {
-	words := split(strings.TrimSpace(command), false)
-	for i, word := range words {
-		if word == "sudo" || conditions[word] || strings.Contains(word, "=") {
+// Unwrap returns words from the program a command runs, past VAR=value and
+// the wrappers that run it with their options and arguments. It returns
+// nothing when a wrapper runs nothing, and words from that wrapper on when it
+// has an option Unwrap doesn't know.
+func Unwrap(words []string) []string {
+	i, _ := program(words, false)
+	return words[i:]
+}
+
+// A wrapper runs the command that follows it. flags take no value, valued
+// options take the next word or an attached one (-oL, --user=x), describing
+// options make it run nothing the step waits for, and positional is how many
+// arguments of its own come before the command.
+type wrapper struct {
+	flags, valued, describing map[string]bool
+	positional                int
+	// numeric accepts nice's old -N form.
+	numeric bool
+}
+
+// nohup is left out: it runs a command in the background, where it cannot
+// fail the step.
+var wrappers = map[string]wrapper{
+	// -b runs the command in the background, like nohup.
+	"sudo": {
+		flags: set("-A", "--askpass", "-B", "--bell", "-E", "--preserve-env", "-H", "--set-home",
+			"-i", "--login", "-k", "--reset-timestamp", "-n", "--non-interactive", "-P", "--preserve-groups",
+			"-S", "--stdin", "-s", "--shell"),
+		valued: set("-u", "--user", "-g", "--group", "-C", "--close-from", "-D", "--chdir", "-h", "--host",
+			"-p", "--prompt", "-r", "--role", "-t", "--type", "-T", "--command-timeout", "-U", "--other-user"),
+		describing: set("-b", "--background"),
+	},
+	"env": {
+		flags:  set("-", "-i", "--ignore-environment", "-0", "--null", "-v", "--debug"),
+		valued: set("-u", "--unset", "-C", "--chdir", "-S", "--split-string"),
+	},
+	"timeout": {
+		flags:      set("--preserve-status", "--foreground", "-v", "--verbose"),
+		valued:     set("-s", "--signal", "-k", "--kill-after"),
+		positional: 1,
+	},
+	// The first argument is a mask, or with -c a CPU list.
+	"taskset": {
+		flags:      set("-a", "--all-tasks", "-c", "--cpu-list"),
+		describing: set("-p", "--pid"),
+		positional: 1,
+	},
+	"nice":    {valued: set("-n", "--adjustment"), numeric: true},
+	"stdbuf":  {valued: set("-i", "--input", "-o", "--output", "-e", "--error")},
+	"time":    {flags: set("-p", "--portability", "-v", "--verbose", "-a", "--append", "-q", "--quiet"), valued: set("-f", "--format", "-o", "--output")},
+	"command": {flags: set("-p"), describing: set("-v", "-V")},
+	"exec":    {flags: set("-c", "-l"), valued: set("-a")},
+	"xvfb-run": {
+		flags: set("-a", "--auto-servernum", "-l", "--listen-tcp"),
+		valued: set("-e", "--error-file", "-f", "--auth-file", "-n", "--server-num", "-p", "--xauth-protocol",
+			"-s", "--server-args", "-w", "--wait"),
+	},
+}
+
+// adjustment reports nice's old -N and --N forms.
+func adjustment(word string) bool {
+	n := strings.TrimPrefix(word[1:], "-")
+	return n != "" && strings.Trim(n, "0123456789") == ""
+}
+
+// skip returns the index past the wrapper's options and arguments that start
+// at words[i], whether the wrapper runs a command and whether it knows each
+// option.
+func (w wrapper) skip(words []string, i int) (next int, runs, known bool) {
+	for i < len(words) && strings.HasPrefix(words[i], "-") {
+		word := words[i]
+		i++
+		if word == "--" {
+			break
+		}
+		if w.numeric && adjustment(word) {
 			continue
 		}
-		program := word
-		if len(program) >= 2 && (program[0] == '\'' || program[0] == '"') && program[len(program)-1] == program[0] {
-			program = program[1 : len(program)-1]
+		name, attached := word, false
+		if k := strings.IndexByte(word, '='); strings.HasPrefix(word, "--") && k > 0 {
+			name, attached = word[:k], true
+		} else if !strings.HasPrefix(word, "--") && len(word) > 2 {
+			name, attached = word[:2], true
 		}
-		base := path.Base(program)
-		// A dynamic basename or incomplete quoting cannot identify a tool.
-		if program != "" && !strings.HasSuffix(program, "/") && !strings.ContainsAny(program, "`\"'") && !strings.ContainsAny(base, "$\\() \t\n") {
-			words[i] = base
+		switch {
+		case w.describing[name]:
+			return i, false, true
+		case w.valued[name]:
+			if !attached {
+				i++
+			}
+		case w.flags[name] && (!attached || strings.HasPrefix(word, "--")):
+		default:
+			return i, true, false
 		}
-		break
+	}
+	return min(i+w.positional, len(words)), true, true
+}
+
+// program returns the index in words of the program a command runs, past
+// VAR=value and the wrappers that run it, and past if, while and ! when
+// conditional is set. It is len(words) when the command runs nothing. ok is
+// false when a wrapper has an option it doesn't know: the index is then that
+// wrapper's, as a missed match is better than an argument taken for a program.
+func program(words []string, conditional bool) (i int, ok bool) {
+	for i < len(words) {
+		word := words[i]
+		if conditional && conditions[word] || strings.Contains(word, "=") {
+			i++
+			continue
+		}
+		w, wraps := wrappers[executable(word)]
+		if !wraps {
+			return i, true
+		}
+		next, runs, known := w.skip(words, i+1)
+		switch {
+		case !known:
+			return i, false
+		case !runs:
+			return len(words), true
+		}
+		i = next
+	}
+	return len(words), true
+}
+
+// NormalizeCommand reduces the executable word, past the wrappers that run
+// it, to its unquoted basename. Arguments, assignments and wrappers retain
+// their quoting; no shell expansion is done.
+func NormalizeCommand(command string) string {
+	words := split(strings.TrimSpace(command), false)
+	if i, ok := program(words, true); ok && i < len(words) {
+		words[i] = executable(words[i])
 	}
 	return strings.Join(words, " ")
 }
 
-// passiveCommands handle, fetch or look up a tool's files without running it:
-// making a freshly built grype executable, or downloading its installer,
-// scans nothing.
+// executable reduces word to its unquoted basename when that can name a
+// tool, and returns it as it is otherwise.
+func executable(word string) string {
+	program := word
+	if len(program) >= 2 && (program[0] == '\'' || program[0] == '"') && program[len(program)-1] == program[0] {
+		program = program[1 : len(program)-1]
+	}
+	base := path.Base(program)
+	// A dynamic basename or incomplete quoting cannot identify a tool.
+	if program != "" && !strings.HasSuffix(program, "/") && !strings.ContainsAny(program, "`\"'") && !strings.ContainsAny(base, "$\\() \t\n") {
+		return base
+	}
+	return word
+}
+
+// passiveCommands handle or fetch a tool's files without running it: making
+// a freshly built grype executable, or downloading its installer, scans
+// nothing.
 var passiveCommands = set("cat", "chmod", "chown", "cp", "curl", "echo", "file", "install", "ln", "ls",
 	"mkdir", "mv", "printf", "readlink", "realpath", "rm", "stat", "tar", "touch", "type", "unzip", "wget", "which")
 
@@ -188,6 +316,7 @@ func Passive(words []string) bool {
 	for len(words) > 0 && conditions[words[0]] {
 		words = words[1:]
 	}
+	words = Unwrap(words)
 	if len(words) == 0 || tests[words[0]] {
 		return true
 	}
@@ -199,7 +328,7 @@ func Passive(words []string) bool {
 	}
 	program := filepath.Base(words[0])
 	switch {
-	case passiveCommands[program], program == "command" && len(words) > 1 && (words[1] == "-v" || words[1] == "-V"):
+	case passiveCommands[program]:
 		return true
 	case len(words) == 2 && selfDescribing[words[1]]:
 		return true

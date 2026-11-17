@@ -241,6 +241,15 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bhadolint\\b"
 
+  - id: "sqlfluff-rule"
+    name: "SQLFluff"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bsqlfluff\\s+lint\\b"
+    weakenedWhen:
+      - runMatches: "--nofail(?:\\s|$)"
+        verdict: "advisory"
+
   - id: "ansible-lint-rule"
     name: "ansible-lint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

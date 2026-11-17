@@ -492,6 +492,23 @@ jobs:
 	}
 }
 
+func TestSQLFluffNoFailGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"sqlfluff lint models/":                             Enforcing,
+		"sqlfluff lint models/ --nofail":                    Advisory,
+		"python -m sqlfluff lint --nofail --dialect ansi .": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 // CIFuzz fails on a crash unless dry-run tells it only to report.
 func TestCIFuzzDryRunGradesAdvisory(t *testing.T) {
 	for with, expected := range map[string]Verdict{

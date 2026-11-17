@@ -496,3 +496,13 @@ rules:
       - input: "git-push"
         equals: "true"
         verdict: "advisory"
+
+  # check-jsonschema validates JSON, YAML and TOML against JSON Schemas.
+  # It exits 1 on errors and runs either directly, through runners (uvx, uv run,
+  # pipx run, python -m), or as official pre-commit hooks (check-github-workflows,
+  # check-dependabot, check-metaschema, etc.).
+  - id: "check-jsonschema-rule"
+    name: "check-jsonschema"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:(?:uvx|pipx\\s+run|uv\\s+run|xargs)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?check-jsonschema(?:(?:==|@)\\S+)?|(?:python3?|py)(?:\\s+-\\S+)*\\s+-m\\s+check_jsonschema|check-(?:metaschema|azure-pipelines|bamboo-spec|bitbucket-pipelines|buildkite|changie|circle-ci|citation-file-format|cloudbuild|codecov|compose-spec|dependabot|drone-ci|github-(?:actions|discussion|issue-config|issue-forms|workflows(?:-require-timeout)?)|gitlab-ci|meltano|mergify|readthedocs|renovate|snapcraft|taskfile|travis|woodpecker-ci))(?:\\s|$)"

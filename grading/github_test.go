@@ -124,6 +124,124 @@ jobs:
 	}
 }
 
+// lockfile-lint checks nothing unless a validator is enabled; a bare command
+// may get its path and validators from configuration that is not read here.
+func TestLockfileLintExitsZeroUnlessValidator(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      Verdict
+	}{
+		{"https", "npx lockfile-lint --path package-lock.json --validate-https", Enforcing},
+		{"hosts", "npx lockfile-lint --path yarn.lock --allowed-hosts npm yarn", Enforcing},
+		{"schemes", `npx lockfile-lint --path yarn.lock --allowed-schemes "https:" "git+https:"`, Enforcing},
+		{"urls", "npx lockfile-lint --path yarn.lock --allowed-urls https://example.com/package.tgz", Enforcing},
+		{"integrity", "npx lockfile-lint --path yarn.lock --validate-integrity", Enforcing},
+		{"strict integrity", "npx lockfile-lint --path yarn.lock --validate-integrity-strict", Enforcing},
+		{"package names", "npx lockfile-lint --path yarn.lock --validate-package-names", Enforcing},
+		{"short https", "npx lockfile-lint -p yarn.lock -s", Enforcing},
+		{"short hosts", "npx lockfile-lint -p yarn.lock -a npm yarn", Enforcing},
+		{"short schemes", "npx lockfile-lint -p yarn.lock -o https:", Enforcing},
+		{"short urls", "npx lockfile-lint -p yarn.lock -u https://example.com/package.tgz", Enforcing},
+		{"short integrity", "npx lockfile-lint -p yarn.lock -i", Enforcing},
+		{"short package names", "npx lockfile-lint -p yarn.lock -n", Enforcing},
+		{"long equals", "npx lockfile-lint --path yarn.lock --allowed-hosts=npm", Enforcing},
+		{"boolean equals", "npx lockfile-lint --path yarn.lock --validate-https=true", Enforcing},
+		{"short equals", "npx lockfile-lint -p yarn.lock -a=npm", Enforcing},
+		{"versioned runner", "npx --yes lockfile-lint@5 --path package-lock.json --type npm --validate-https --allowed-hosts npm", Enforcing},
+		{"short validators", "npx lockfile-lint -p yarn.lock -s -a npm yarn", Enforcing},
+		{"npm exec", "npm exec --no-install lockfile-lint -- --type npm --path package-lock.json --validate-https", Enforcing},
+		{"npx offline", "npx --offline lockfile-lint --path yarn.lock -s", Enforcing},
+		{"npx prefer offline", "npx --prefer-offline lockfile-lint --path yarn.lock -s", Enforcing},
+		{"yarn offline", "yarn --offline lockfile-lint --path yarn.lock -s", Enforcing},
+		{"bun runtime", "bunx --bun lockfile-lint --path yarn.lock -s", Enforcing},
+		{"package with other runner options", "npx --package lockfile-lint@5 --prefer-offline -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
+		{"quoted package path", `npx --package "/tmp/tool cache/lockfile-lint" --offline lockfile-lint --path yarn.lock -s`, Enforcing},
+		{"no validator", "npx lockfile-lint --path package-lock.json --type npm", Advisory},
+		{"format only", "npx lockfile-lint --path package-lock.json --format plain", Advisory},
+		{"empty hostname only", "npx lockfile-lint --path package-lock.json --empty-hostname false", Advisory},
+		{"package aliases only", "npx lockfile-lint --path package-lock.json --allowed-package-name-aliases example", Advisory},
+		{"package alias named like tool", "npx lockfile-lint --path yarn.lock --allowed-package-name-aliases lockfile-lint", Advisory},
+		{"path named like tool", "npx lockfile-lint --path lockfile-lint", Advisory},
+		{"yarn silent", "yarn -s lockfile-lint --path yarn.lock", Advisory},
+		{"pnpm silent", "pnpm -s lockfile-lint --path yarn.lock", Advisory},
+		{"runner flags before binary", "npx --yes --package=lockfile-lint@5.0.1 lockfile-lint --path package-lock.json", Advisory},
+		{"package value before validator", "npx --package lockfile-lint@5 -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
+		{"short package value before validator", "npx -p lockfile-lint@5 -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
+		{"inline environment", "CI=true npx lockfile-lint --path yarn.lock -s", Enforcing},
+		{"sudo", "sudo lockfile-lint --path yarn.lock -s", Enforcing},
+		{"long flag suffix", "npx lockfile-lint --path yarn.lock --validate-https-extra", Advisory},
+		{"short flag suffix", "npx lockfile-lint --path yarn.lock -something", Advisory},
+		{"flag case", "npx lockfile-lint --path yarn.lock --VALIDATE-HTTPS", Advisory},
+		{"bare", "lockfile-lint", Unknown},
+		{"bare runner", "npx lockfile-lint", Unknown},
+		{"bare versioned runner", "npx --yes lockfile-lint@5", Unknown},
+		{"quoted binary", `"$RUNNER_TEMP/promptfoo-ci-tools/node_modules/.bin/lockfile-lint" --path yarn.lock --validate-https`, Enforcing},
+		{"continued command", "npx lockfile-lint \\\n  --path package-lock.json \\\n  --validate-https", Enforcing},
+		{"neighbor flag", "echo --validate-https\nnpx lockfile-lint --path package-lock.json", Advisory},
+		{"following flag", "npx lockfile-lint --path package-lock.json; echo --validate-https", Advisory},
+		{"one validator suffices", "npx lockfile-lint --path package-lock.json\nnpx lockfile-lint --path yarn.lock --validate-https", Enforcing},
+		{"swallowed validation", "npx lockfile-lint --path package-lock.json --validate-https || true", Advisory},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lockfile:
+    steps:
+      - run: |
+          `+strings.ReplaceAll(tt.run, "\n", "\n          ")+`
+`)
+			assert.Equal(t, tt.want, verdicts["Supply Chain"])
+			assert.NotContains(t, verdicts, "SCA")
+		})
+	}
+}
+
+func TestLockfileLintPackageOptionIsNotAnInvocation(t *testing.T) {
+	for _, run := range []string{
+		"npx --package lockfile-lint@5 other-tool",
+		`npx --package "/tmp/tools/lockfile-lint@5" -s other-tool`,
+		`npx --package "other lockfile-lint@5" -s other-tool`,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  check:
+    steps:
+      - run: `+run+`
+`)
+		assert.NotContains(t, verdicts, "Supply Chain", run)
+	}
+}
+
+func TestLockfileLintFoldedCommand(t *testing.T) {
+	verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lockfile:
+    steps:
+      - run: >
+          npx --yes lockfile-lint@5
+          --path package-lock.json --type npm
+          --validate-https --allowed-hosts npm
+`)
+	assert.Equal(t, Enforcing, verdicts["Supply Chain"])
+	assert.NotContains(t, verdicts, "SCA")
+}
+
+func TestLockfileLintContinueOnErrorGradesAdvisory(t *testing.T) {
+	verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lockfile:
+    steps:
+      - run: npx lockfile-lint --path package-lock.json --validate-https
+        continue-on-error: true
+`)
+	assert.Equal(t, Advisory, verdicts["Supply Chain"])
+	assert.NotContains(t, verdicts, "SCA")
+}
+
 // Asking a linter for its version through a package runner does not run it (#607).
 func TestRunnerVersionCheckIsNotALinterRun(t *testing.T) {
 	grade := func(run string) map[string]Verdict {

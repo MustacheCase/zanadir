@@ -1537,6 +1537,36 @@ jobs:
 	}
 }
 
+func TestTaploCheckGradesEnforcing(t *testing.T) {
+	for _, run := range []string{
+		"taplo fmt --check --diff",
+		`taplo lint --schema "file://${GITHUB_WORKSPACE}/schema.json" presets/*.toml`,
+		"npx --yes @taplo/cli@0.7.0 fmt --check",
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  toml:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, Enforcing, verdicts["Linter"], run)
+	}
+}
+
+func TestTaploFmtWithoutCheckIsNotALinter(t *testing.T) {
+	for _, run := range []string{"taplo fmt", "taplo fmt --diff"} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  toml:
+    steps:
+      - run: `+run+`
+`)
+		assert.NotContains(t, verdicts, "Linter", run)
+	}
+}
+
 func TestTerraformDocsActionFailOnDiff(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

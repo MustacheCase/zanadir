@@ -472,6 +472,28 @@ jobs:
 	}
 }
 
+func TestPolarisAuditGradesExitCodeSettings(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"polaris audit --audit-path deploy/": Advisory,
+		"polaris audit --set-exit-code-on-danger --audit-path deploy/": Enforcing,
+		"polaris audit --set-exit-code-on-danger=true": Enforcing,
+		"polaris audit --set-exit-code-below-score=90": Enforcing,
+		"polaris audit --set-exit-code-on-danger=false": Advisory,
+		"polaris audit --set-exit-code-below-score ${{ inputs.min_score }}": Unknown,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/polaris.yml", `
+on: pull_request
+jobs:
+  audit:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["IaC Security"], run)
+		})
+	}
+}
+
 // The kubeconform image run as a docker:// step enforces unless the step
 // may fail.
 func TestKubeconformDockerStepGradesEnforcing(t *testing.T) {

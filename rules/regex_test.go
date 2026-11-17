@@ -786,6 +786,26 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"kicks", "nkics"},
 		},
 		{
+			ruleID: "polaris-rule",
+			shouldMatch: []string{
+				"polaris audit --audit-path deploy/",
+				"polaris audit --audit-path ./deploy --set-exit-code-on-danger",
+				"polaris audit --audit-path k8s/ --set-exit-code-below-score 90 --format=pretty",
+				"polaris audit --helm-chart ./chart --helm-values values.yaml",
+				"./bin/polaris audit --set-exit-code-on-danger",
+				"docker run --rm us-docker.pkg.dev/fairwinds-ops/oss/polaris:v10.2.0 audit --audit-path .",
+				"docker run quay.io/fairwinds/polaris:v10.2.0 audit --audit-path k8s/",
+				"polaris -c config.yaml audit --set-exit-code-below-score 90",
+			},
+			shouldNotMatch: []string{
+				"polaris dashboard", "polaris fix --files-path deploy/",
+				"polaris --version", "shopify-polaris audit",
+				"my-polaris audit", "polaris audit-report", "curl -O polaris",
+				"@shopify/polaris", "polaris-react", "echo polaris audit done",
+				`echo "run polaris audit"`,
+			},
+		},
+		{
 			ruleID:         "kube-score-rule",
 			shouldMatch:    []string{"kube-score score deploy/*.yaml", "helm template . | kube-score score -", "kube-score score --exit-one-on-warning k8s/", "docker run -v $PWD:/project zegl/kube-score score /project/k8s/*.yaml", "kube-score score"},
 			shouldNotMatch: []string{"kubectl score", "kube-scorecard", "kube-score version", "kube-score help score", "kube-score completion bash", "kube-scorecard score k8s/"},

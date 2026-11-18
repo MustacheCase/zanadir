@@ -741,6 +741,56 @@ jobs:
 	}
 }
 
+// Scalafix's --check fails the run on a pending rewrite. Without it rewrites
+// are applied and only a linter rule in .scalafix.conf can fail the run, which
+// the command doesn't show, so it is unknown.
+func TestScalafixCheckGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		`sbt "scalafixAll --check"`:                                Enforcing,
+		`sbt 'rootJVM/scalafixAll --check'`:                        Enforcing,
+		`sbt "Test / scalafix --test"`:                             Enforcing,
+		"sbt scalafixCheckAll":                                     Enforcing,
+		"./mill __.fix --check":                                    Enforcing,
+		"./mill -i __.fix --check":                                 Enforcing,
+		"scalafix --check --syntactic src":                         Enforcing,
+		"cs launch scalafix -- --check":                            Enforcing,
+		`sbt "scalafixAll --check" || true`:                        Advisory,
+		"sbt scalafixAll":                                          Unknown,
+		`sbt "scalafixAll RemoveUnused"`:                           Unknown,
+		`sbt "scalafixAll" "test --check"`:                         Unknown,
+		"./mill __.fix":                                            Unknown,
+		"./mill __.fix + __.test --check":                          Unknown,
+		"scalafix --rules OrganizeImports":                         Unknown,
+		"./mill 'core[2.13.16].fix' --check":                       Enforcing,
+		`./mill "__.fix" --check`:                                  Enforcing,
+		"|\n          sbt \\\n            \"scalafixAll --check\"": Enforcing,
+		"|\n          cd scalafix\n          sbt test":             "",
+		"cd modules/scalafix && sbt test":                          "",
+		"git clone https://github.com/scalacenter/scalafix":        "",
+		"./mill __.test | tee scalafix":                            "",
+		"mvn -pl mill fix":                                         "",
+		"make -C mill fix":                                         "",
+		"./mill __.compile fix":                                    "",
+		"./mill resolve __.fix":                                    "",
+		"./mill __.test 2>&1 > fix":                                "",
+		`'nix develop .#${{ matrix.java }} -c sbt ''project ${{ matrix.project }}'' ''++ ${{ matrix.scala }}'' ''scalafixAll --check'''`: Enforcing,
+		`timeout 30m sbt "scalafixAll --check"`:    Enforcing,
+		"cs launch scalafix:0.14.3 -- --check src": Enforcing,
+		"./mill -j 4 __.fix --check":               Enforcing,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
 // awesome_bot exits 1 on a dead or duplicate link; no flag makes it exit 0.
 func TestAwesomeBotGradesCorrectly(t *testing.T) {
 	for run, expected := range map[string]Verdict{

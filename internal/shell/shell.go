@@ -210,12 +210,65 @@ func Passive(words []string) bool {
 }
 
 var (
-	statementEnd = regexp.MustCompile(`;|&&`)
 	// A failure handed to || is kept only if what follows fails again.
 	reraise    = regexp.MustCompile(`\bexit\s+(?:[1-9]|"?\$(?:\?|\{?[A-Za-z_]))|\bfalse\b|\breturn\s+[1-9]`)
 	conditions = set("if", "elif", "while", "until", "!")
 	tests      = set("[", "[[", "test")
 )
+
+// unquoted reports, for each byte of line, whether it sits outside single
+// quotes, double quotes and backslash escapes, the way split reads them, so a
+// ; or || inside bash -c '...' belongs to the quoted script, not to the line.
+func unquoted(line string) []bool {
+	open := make([]bool, len(line))
+	quote := byte(0)
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		switch {
+		case c == '\\' && quote != '\'' && i+1 < len(line):
+			i++
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '\'' || c == '"':
+			quote = c
+		default:
+			open[i] = true
+		}
+	}
+	return open
+}
+
+// statementEnds returns the [start, end) of each ; and && in line that is not
+// quoted or escaped.
+func statementEnds(line string) [][]int {
+	open := unquoted(line)
+	var ends [][]int
+	for i := 0; i < len(line); i++ {
+		switch {
+		case !open[i]:
+		case line[i] == ';':
+			ends = append(ends, []int{i, i + 1})
+		case line[i] == '&' && i+1 < len(line) && line[i+1] == '&' && open[i+1]:
+			ends = append(ends, []int{i, i + 2})
+			i++
+		}
+	}
+	return ends
+}
+
+// unquotedIndex is strings.Index for a separator that is not quoted or
+// escaped.
+func unquotedIndex(text, separator string) int {
+	open := unquoted(text)
+	for i := 0; i+len(separator) <= len(text); i++ {
+		if open[i] && strings.HasPrefix(text[i:], separator) {
+			return i
+		}
+	}
+	return -1
+}
 
 // Swallowed reports whether a script discards the failure of every command
 // that runs reports true for: one followed by || and anything but a
@@ -252,10 +305,10 @@ func statements(script string) []statement {
 	textReraise, lineStart := lastReraise(text), 0
 	for _, line := range strings.Split(text, "\n") {
 		lineReraise, start, or := lastReraise(line), 0, -1
-		for _, end := range append(statementEnd.FindAllStringIndex(line, -1), []int{len(line), len(line)}) {
+		for _, end := range append(statementEnds(line), []int{len(line), len(line)}) {
 			if or < start {
 				or = len(line)
-				if i := strings.Index(line[start:], "||"); i >= 0 {
+				if i := unquotedIndex(line[start:], "||"); i >= 0 {
 					or = start + i
 				}
 			}

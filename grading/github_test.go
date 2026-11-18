@@ -402,6 +402,26 @@ jobs:
 	}
 }
 
+// A ; inside a quoted bash -c script does not end the outer command, so its
+// || true still weakens the tool the script runs (#679).
+func TestQuotedSemicolonKeepsTheOuterOr(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"bash -c 'gitleaks detect --no-git' || true":            Advisory,
+		"bash -c 'gitleaks detect --no-git; echo done' || true": Advisory,
+		"bash -c 'gitleaks detect --no-git; echo done'":         Enforcing,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Secrets Detection"], run)
+	}
+}
+
 // OUT=$(tool) fails with the tool under bash -e; anything else around the
 // substitution hides its exit status.
 func TestCommandSubstitutionGradesByWhatKeepsTheStatus(t *testing.T) {
@@ -592,11 +612,11 @@ jobs:
 
 func TestPolarisAuditGradesExitCodeSettings(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		"polaris audit --audit-path deploy/": Advisory,
-		"polaris audit --set-exit-code-on-danger --audit-path deploy/": Enforcing,
-		"polaris audit --set-exit-code-on-danger=true": Enforcing,
-		"polaris audit --set-exit-code-below-score=90": Enforcing,
-		"polaris audit --set-exit-code-on-danger=false": Advisory,
+		"polaris audit --audit-path deploy/":                                Advisory,
+		"polaris audit --set-exit-code-on-danger --audit-path deploy/":      Enforcing,
+		"polaris audit --set-exit-code-on-danger=true":                      Enforcing,
+		"polaris audit --set-exit-code-below-score=90":                      Enforcing,
+		"polaris audit --set-exit-code-on-danger=false":                     Advisory,
 		"polaris audit --set-exit-code-below-score ${{ inputs.min_score }}": Unknown,
 	} {
 		t.Run(run, func(t *testing.T) {
@@ -1648,11 +1668,11 @@ func TestTerraformDocsActionFailOnDiff(t *testing.T) {
 // check-jsonschema validates JSON, YAML, and TOML schemas and exits 1 on failure.
 func TestCheckJsonschemaGradesCorrectly(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		"check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml":          Enforcing,
-		"uvx check-jsonschema --schemafile schema.json data.json":                             Enforcing,
-		"check-jsonschema --disable-formats '*' --schemafile schema.json data.json":          Enforcing,
-		"check-github-workflows":                                                              Enforcing,
-		"check-dependabot":                                                                    Enforcing,
+		"check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml": Enforcing,
+		"uvx check-jsonschema --schemafile schema.json data.json":                    Enforcing,
+		"check-jsonschema --disable-formats '*' --schemafile schema.json data.json":  Enforcing,
+		"check-github-workflows": Enforcing,
+		"check-dependabot":       Enforcing,
 		"check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml || true": Advisory,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `

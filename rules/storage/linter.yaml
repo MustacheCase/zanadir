@@ -483,6 +483,9 @@ rules:
     exitsZeroUnless:
       input: "args"
       runMatches: "(?:^|\\s)(?:--check|-c)(?:\\s|$)"
+      # StyLua's own hooks run it without --check, and pre-commit fails a
+      # hook that changes a file.
+      hookRewrites: true
 
   # pre-commit and prek run whatever hooks the config lists, counted as linting
   # without reading the config. prek runs the hooks when given no subcommand.

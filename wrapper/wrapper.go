@@ -34,7 +34,15 @@ type Expander struct {
 	// ignoring counts the wrappers, around what is being followed, that
 	// discard a failure.
 	ignoring int
+	// hooked counts the pre-commit hooks around what is being followed.
+	hooked int
 }
+
+// HookMark starts a command a pre-commit hook runs. pre-commit fails a hook
+// that changes a file, so a formatter that rewrites files fails there as if it
+// checked them. No workflow writes the name, so a step cannot pass for a hook;
+// as an assignment it is left out wherever a command's program is matched.
+const HookMark = "ZANADIR_PRECOMMIT_HOOK=1 "
 
 // New returns an Expander for the repository at root.
 func New(root string) *Expander {
@@ -150,6 +158,9 @@ func (e *Expander) emit(dir, command string) {
 		return
 	}
 	line := command
+	if e.hooked > 0 {
+		line = HookMark + line
+	}
 	if e.ignoring > 0 {
 		line += " || true"
 	}

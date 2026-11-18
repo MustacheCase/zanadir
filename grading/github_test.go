@@ -795,6 +795,51 @@ jobs:
 	}
 }
 
+func TestLegacyLinterActionsGradeEnforcing(t *testing.T) {
+	for _, uses := range []string{
+		"github/super-linter/slim@v4",
+		"github/super-linter@v4.9.7",
+		"megalinter/megalinter/flavors/go@v8.4.2",
+		"nvuillam/mega-linter@v4",
+		"docker://ghcr.io/github/super-linter:slim-v4",
+	} {
+		t.Run(uses, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: `+uses+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Linter"])
+		})
+	}
+}
+
+func TestLegacyLinterShellSteps(t *testing.T) {
+	t.Run("Docker invocation grades enforcing", func(t *testing.T) {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: docker run --env-file ".github/super-linter.env" ghcr.io/github/super-linter:slim-v4
+`)
+		assert.Equal(t, Enforcing, verdicts["Linter"])
+	})
+
+	t.Run("config-only step has no linter verdict", func(t *testing.T) {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: grep -v '^#' .github/super-linter.env >> "$GITHUB_ENV"
+`)
+		assert.NotContains(t, verdicts, "Linter")
+	})
+}
+
 // cargo-machete exits 1 on findings, and --fix still reports what it found.
 func TestCargoMacheteGradesCorrectly(t *testing.T) {
 	for run, expected := range map[string]Verdict{

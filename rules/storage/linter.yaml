@@ -129,7 +129,8 @@ rules:
   - id: "oxsecurity-super-linter-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Linter" ]
-    regex: "(?i)((?P<name>super-linter)/super-linter|oxsecurity/(?P<name>megalinter))"
+    # Bound the old Super-linter name to skip .github/super-linter.env.
+    regex: "(?i)((?P<name>super-linter)/super-linter|oxsecurity/(?P<name>megalinter)|(?:^|[\\s/])github/(?P<name>super-linter)(?:[\\s:@/]|$)|megalinter/(?P<name>megalinter)|nvuillam/(?P<name>mega-linter))"
 
   # GitLab's own templates and CI/CD components, recorded by name from include:.
   - id: "gitlab-code-quality-template-rule"

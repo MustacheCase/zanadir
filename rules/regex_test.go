@@ -710,6 +710,26 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"golangci-lint run", "./scripts/revive-db.sh", "revived", "Revive stale issues"},
 		},
 		{
+			ruleID: "oxsecurity-super-linter-rule",
+			shouldMatch: []string{
+				"github/super-linter", "github/super-linter/slim", "github/super-linter@v4.9.7",
+				"docker://ghcr.io/github/super-linter:slim-v4", "ghcr.io/github/super-linter:v4",
+				`docker run -e RUN_LOCAL=true -v $PWD:/tmp/lint github/super-linter:v3`,
+				"megalinter/megalinter", "megalinter/megalinter/flavors/go", "megalinter/megalinter-python:v5",
+				`docker run -v $PWD:/tmp/lint megalinter/megalinter:v5`,
+				"nvuillam/mega-linter", "nvuillam/mega-linter/flavors/python", "docker://nvuillam/mega-linter-python:v4",
+				"super-linter/super-linter/slim", "ghcr.io/super-linter/super-linter:latest",
+				"oxsecurity/megalinter/flavors/python", "ghcr.io/oxsecurity/megalinter:v10",
+				`docker run --env-file ".github/super-linter.env" ghcr.io/super-linter/super-linter:latest`,
+			},
+			shouldNotMatch: []string{
+				`grep -v '^#' .github/super-linter.env >> "$GITHUB_ENV"`,
+				"notgithub/super-linter", "github/super-linter.env",
+				"cp .mega-linter.yml /tmp/", "cat megalinter-reports/megalinter.log",
+				"super-linter", "megalinter", "mega-linter",
+			},
+		},
+		{
 			ruleID:         "eslint-rule",
 			shouldMatch:    []string{"eslint .", "npx eslint --fix"},
 			shouldNotMatch: []string{"eslintrc", "myeslint"},

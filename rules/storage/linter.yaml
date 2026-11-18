@@ -101,6 +101,23 @@ rules:
         equals: "0"
         verdict: "advisory"
 
+  # Scalafix runs the rules in .scalafix.conf, through sbt-scalafix's scalafix
+  # and scalafixAll tasks, a scalafixCheck(All) alias, mill-scalafix's fix
+  # command or the CLI. With --check (or --test) a pending rewrite fails the
+  # run; without it rewrites are applied and only a linter rule's finding
+  # fails, which the command doesn't show, so that run is unknown. sbt task
+  # names are case-sensitive. Each form is tied to the program the command
+  # runs (sbt, mill, scalafix, cs launch), so cd scalafix, a clone of its repo
+  # or ./mill __.compile fix is not a run; cs install/fetch only download it.
+  - id: "scalafix-rule"
+    name: "scalafix"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?m)(?:^|\\s)(?:\\S*/)?sbtn?\\s(?:[^\\n]*[\\s\"';+/:])?scalafix(?:All|Check|CheckAll)?(?:[\\s\"';]|$)|^(?:\\S*/)?scalafix(?:\\s|$)|^(?:\\S*/)?(?:cs|coursier)\\s+launch\\s+(?:-\\S+\\s+)*scalafix(?:[\\s:]|$)|^(?:\\S*/)?mill(?:w|\\.bat)?(?:\\s+-\\S+(?:\\s+\\d+)?)*\\s+(?:all\\s(?:[^\\n]*\\s)?|[^\\n]*\\s\\+\\s+)?[\"']?(?:[^\\s\"']*[.\\]])?fix[\"']?(?:[\\s+]|$)"
+    exitsZeroUnless:
+      runMatches: "(?:^|[\\s\"';+/:.\\]])(?:scalafix(?:All)?(?::\\S+)?|fix[\"']?)\\s(?:[^;\"'+\\n]*\\s)?--(?:check|test)(?:[\\s\"';+]|$)|scalafixCheck"
+      unknownWhen: "scalafix|fix"
+
   # cargo-machete reports dependencies in Cargo.toml that the code never uses.
   # It exits 1 on findings, so it always fails the step as it is. Match it as
   # the cargo sub-command (with an optional toolchain) or as its own name with

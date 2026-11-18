@@ -412,6 +412,21 @@ func recordWorkflows(ctx context.Context, repo Repository, token, dir string) in
 
 var dependabotRun = regexp.MustCompile(`^(\S+) in (\S+) for `)
 
+// Run titles use Dependabot's internal package-manager names. The marker uses
+// package-ecosystem names, like dependabot.yml and the parser's tooling filter.
+// See dependabot-core/common/lib/dependabot/config/file.rb's PACKAGE_MANAGER_LOOKUP.
+var dependabotEcosystems = map[string]string{
+	"github_actions": "github-actions",
+	"npm_and_yarn":   "npm",
+	"go_modules":     "gomod",
+	"submodules":     "gitsubmodule",
+	"hex":            "mix",
+	"docker_compose": "docker-compose",
+	"dotnet_sdk":     "dotnet-sdk",
+	"pre_commit":     "pre-commit",
+	"rust_toolchain": "rust-toolchain",
+}
+
 // recordDependabotSecurityUpdates records ecosystems only when no explicit
 // configuration exists, after archive fallback has restored export-ignored files.
 func recordDependabotSecurityUpdates(ctx context.Context, repo Repository, token, dir string, workflow int64) {
@@ -433,7 +448,7 @@ func recordDependabotSecurityUpdates(ctx context.Context, repo Repository, token
 				match = dependabotRun.FindStringSubmatch(run.Name)
 			}
 			if match != nil {
-				ecosystems = append(ecosystems, match[1])
+				ecosystems = append(ecosystems, cmp.Or(dependabotEcosystems[match[1]], match[1]))
 			}
 		}
 	}

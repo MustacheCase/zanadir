@@ -21,6 +21,7 @@ import (
 	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/parser"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -553,7 +554,7 @@ func TestFetchRecordsDependabotSecurityUpdates(t *testing.T) {
 			{"display_title":"","name":"pip in / for requests - Update #1"},
 			{"display_title":"unrecognized","name":"npm_and_yarn in /other for compression - Update #2"},
 			{"display_title":"Update cargo in / for example"},
-			{"display_title":"gomod in /web"},
+			{"display_title":"go_modules in /web"},
 			{"display_title":"npm_and_yarn in /. for minimatch - Update #3"}]}`,
 		"/repos/o/r/actions/workflows/9/runs": `200 {"workflow_runs":[{"id":42}]}`,
 		"/repos/o/r/actions/runs/42/jobs":     `200 {"jobs":[{"name":"Analyze (go)"}]}`,
@@ -562,7 +563,7 @@ func TestFetchRecordsDependabotSecurityUpdates(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanup()
 	for marker, want := range map[string]string{
-		models.DependabotSecurityUpdatesFile: "npm_and_yarn\npip\n",
+		models.DependabotSecurityUpdatesFile: "npm\npip\n",
 		models.CodeScanningFile:              "go\n",
 	} {
 		body, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(marker)))
@@ -576,6 +577,46 @@ func TestFetchRecordsDependabotSecurityUpdates(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, requests)
+}
+
+func TestFetchNormalizesDependabotEcosystems(t *testing.T) {
+	for internal, ecosystem := range map[string]string{
+		"github_actions": "github-actions",
+		"npm_and_yarn":   "npm",
+		"go_modules":     "gomod",
+		"submodules":     "gitsubmodule",
+		"hex":            "mix",
+		"docker_compose": "docker-compose",
+		"dotnet_sdk":     "dotnet-sdk",
+		"pre_commit":     "pre-commit",
+		"rust_toolchain": "rust-toolchain",
+		"docker":         "docker",
+		"devcontainers":  "devcontainers",
+		"pip":            "pip",
+		"future_manager": "future_manager",
+	} {
+		t.Run(internal, func(t *testing.T) {
+			fileList(t, "HEAD", `{"tree":[]}`, nil, map[string]string{
+				"/repos/o/r/actions/workflows": `200 {"total_count":1,"workflows":[{"id":7,"path":"dynamic/dependabot/dependabot-updates","state":"active"}]}`,
+				"/repos/o/r/actions/workflows/7/runs": fmt.Sprintf(`200 {"workflow_runs":[{"display_title":%q}]}`,
+					internal+" in / for actions/checkout - Update #1"),
+			})
+			dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+			require.NoError(t, err)
+			defer cleanup()
+			body, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(models.DependabotSecurityUpdatesFile)))
+			require.NoError(t, err)
+			assert.Equal(t, ecosystem+"\n", string(body))
+			artifacts, err := parser.NewDependencyBotParser().Parse(dir)
+			require.NoError(t, err)
+			if ecosystem == "github-actions" || ecosystem == "devcontainers" {
+				assert.Empty(t, artifacts, "tooling-only runs must not count as SCA")
+			} else {
+				require.Len(t, artifacts, 1)
+				assert.True(t, artifacts[0].OutsidePipeline)
+			}
+		})
+	}
 }
 
 func TestFetchSkipsDependabotSecurityUpdatesWithConfig(t *testing.T) {
@@ -655,7 +696,7 @@ func TestDependabotSecurityUpdatesRunsRequest(t *testing.T) {
 			require.NoError(t, err)
 			want := ""
 			if name == "success" {
-				want = "npm_and_yarn\n"
+				want = "npm\n"
 			}
 			assert.Equal(t, want, string(body))
 			assert.Equal(t, 1, requests)

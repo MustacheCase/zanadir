@@ -110,7 +110,7 @@ func TestRepositoryScannerFindsEveryPlatform(t *testing.T) {
 		{
 			name: "dependabot security updates",
 			files: map[string]string{
-				models.DependabotSecurityUpdatesFile: "npm_and_yarn\n",
+				models.DependabotSecurityUpdatesFile: "npm\n",
 			},
 		},
 	}

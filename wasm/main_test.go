@@ -141,7 +141,7 @@ func TestRunRefusesWhatIsNotARepository(t *testing.T) {
 }
 
 func TestScanCountsDependabotSecurityUpdates(t *testing.T) {
-	for _, ecosystems := range []string{"npm_and_yarn\n", ""} {
+	for _, ecosystems := range []string{"npm\n", ""} {
 		dir := testrepo.Write(t, map[string]string{
 			".git/HEAD":                          "ref: refs/heads/main\n",
 			"package.json":                       `{"dependencies":{"example":"1.0.0"}}`,

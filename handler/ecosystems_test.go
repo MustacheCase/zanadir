@@ -78,7 +78,7 @@ func TestAnalyseDependabotSecurityUpdatesMatchesConfiguration(t *testing.T) {
 		name, marker, configuration string
 		covered                     bool
 	}{
-		{"two ecosystems", "npm_and_yarn\npip\n", "updates:\n  - package-ecosystem: npm\n  - package-ecosystem: pip\n", true},
+		{"two ecosystems", "npm\npip\n", "updates:\n  - package-ecosystem: npm\n  - package-ecosystem: pip\n", true},
 		{"unknown ecosystems", "", "version: 2\n", true},
 		{"unrecognised ecosystem", "future-manager\n", "updates:\n  - package-ecosystem: future-manager\n", true},
 		{"only tooling", "github-actions\ndevcontainers\n", "updates:\n  - package-ecosystem: github-actions\n  - package-ecosystem: devcontainers\n", false},

@@ -29,6 +29,26 @@ func TestWords(t *testing.T) {
 	assert.Empty(t, shell.Words("FOO=bar"))
 }
 
+func TestAssigns(t *testing.T) {
+	for command, want := range map[string]bool{
+		"CI=1 make lint":             true,
+		"GOFLAGS=-mod=mod CI=1 make": true,
+		"sudo CI=1 make lint":        true,
+		"  CI=1 make lint  ":         true,
+		"CI=1":                       true,
+		"make lint CI=1":             false,
+		"make CI=1 lint":             false,
+		`echo "CI=1"`:                false,
+		"CI=10 make lint":            false,
+		"GOFLAGS=-mod=mod make lint": false,
+		"sudo make lint":             false,
+		"make lint":                  false,
+		"":                           false,
+	} {
+		assert.Equal(t, want, shell.Assigns(command, "CI=1"), command)
+	}
+}
+
 func TestNormalizeCommand(t *testing.T) {
 	for command, want := range map[string]string{
 		`"/tmp/my grant" check .`:                       `"/tmp/my grant" check .`,

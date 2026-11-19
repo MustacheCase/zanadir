@@ -11,6 +11,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
+	"github.com/MustacheCase/zanadir/wrapper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -204,6 +205,14 @@ func TestBlocks(t *testing.T) {
 	}
 	assert.False(t, g.Scans(&models.Job{Check: "Unit tests"}), "a required check is not code scanning")
 	assert.True(t, g.Scans(&models.Job{Run: "zizmor --format sarif ."}))
+}
+
+// The mark the pre-commit wrapper puts on each hook command names zanadir,
+// whose own code scanning alerts a ruleset may block on.
+func TestScansIgnoresHookMark(t *testing.T) {
+	g := &Gate{Scanning: []string{"zanadir"}}
+	assert.False(t, g.Scans(&models.Job{Run: "pre-commit run --all-files\n" + wrapper.HookMark + "stylua ."}))
+	assert.True(t, g.Scans(&models.Job{Run: wrapper.HookMark + "zanadir scan"}))
 }
 
 // GitHub lists 30 items a page by default; a repository with more rules

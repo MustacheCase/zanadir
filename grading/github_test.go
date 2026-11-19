@@ -1187,6 +1187,10 @@ func TestStyLuaExitsZeroUnlessCheck(t *testing.T) {
 		"npx @johnnymorganz/stylua-bin --check .": Enforcing,
 		"stylua .":                                Advisory,
 		"stylua --verify lua/":                    Advisory,
+		// The pre-commit wrapper marks a hook command; pre-commit fails a hook that changes a file.
+		"ZANADIR_PRECOMMIT_HOOK=1 stylua .":        Enforcing,
+		"CI=1 ZANADIR_PRECOMMIT_HOOK=1 stylua .":   Enforcing,
+		"stylua --glob ZANADIR_PRECOMMIT_HOOK=1 .": Advisory,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
 on: pull_request

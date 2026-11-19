@@ -95,10 +95,23 @@ func split(text string, commands bool) []string {
 // Words returns a command's program and arguments, past sudo and VAR=value.
 func Words(command string) []string {
 	words := split(strings.TrimSpace(command), false)
-	for len(words) > 0 && (words[0] == "sudo" || strings.Contains(words[0], "=")) {
-		words = words[1:]
+	return words[leading(words):]
+}
+
+// Assigns reports whether a command sets assignment, written as VAR=value,
+// before its program rather than in an argument.
+func Assigns(command, assignment string) bool {
+	words := split(strings.TrimSpace(command), false)
+	return slices.Contains(words[:leading(words)], assignment)
+}
+
+// leading counts the sudo and VAR=value words before a command's program.
+func leading(words []string) int {
+	n := 0
+	for n < len(words) && (words[n] == "sudo" || strings.Contains(words[n], "=")) {
+		n++
 	}
-	return words
+	return n
 }
 
 // NormalizeCommand reduces the executable word to its unquoted basename.

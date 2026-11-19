@@ -40,8 +40,8 @@ type Expander struct {
 
 // HookMark starts a command a pre-commit hook runs. pre-commit fails a hook
 // that changes a file, so a formatter that rewrites files fails there as if it
-// checked them. No workflow writes the name, so a step cannot pass for a hook;
-// as an assignment it is left out wherever a command's program is matched.
+// checked them. A step that writes the assignment itself is graded as a hook
+// too. As an assignment it is left out wherever a command's program is matched.
 const HookMark = "ZANADIR_PRECOMMIT_HOOK=1 "
 
 // New returns an Expander for the repository at root.

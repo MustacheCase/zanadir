@@ -336,7 +336,7 @@ func exitsZero(check *rules.ExitsZeroUnless, commands []string, configs map[stri
 	fails := func(command string) bool {
 		// The mark follows any env: assignments written before it.
 		return check.RunMatches.MatchString(command) || check.HookRewrites &&
-			(strings.HasPrefix(command, wrapper.HookMark) || strings.Contains(command, " "+wrapper.HookMark))
+			shell.Assigns(command, strings.TrimSpace(wrapper.HookMark))
 	}
 	if check == nil || len(commands) == 0 || slices.ContainsFunc(commands, fails) {
 		return "", false

@@ -19,6 +19,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/remote"
+	"github.com/MustacheCase/zanadir/wrapper"
 )
 
 // actionsApp is the GitHub App that reports GitHub Actions jobs as checks.
@@ -47,8 +48,9 @@ func (g *Gate) Blocks(job *models.Job) bool {
 }
 
 // Scans reports whether a job's tool has code scanning alerts that block a merge.
+// The mark on a pre-commit hook's command names zanadir without running it.
 func (g *Gate) Scans(job *models.Job) bool {
-	text := strings.ToLower(job.Package + " " + job.Run)
+	text := strings.ToLower(job.Package + " " + strings.ReplaceAll(job.Run, wrapper.HookMark, ""))
 	return slices.ContainsFunc(g.Scanning, func(tool string) bool {
 		name, _, _ := strings.Cut(strings.ToLower(tool), " ")
 		return name != "" && strings.Contains(text, name)

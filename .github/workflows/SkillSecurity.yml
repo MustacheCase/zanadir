@@ -22,3 +22,22 @@ jobs:
     # The step fixer/templates.yaml suggests, unchanged, so CI checks it too.
     - name: Scan agent skills
       run: pipx run --spec cisco-ai-skill-scanner==2.3.1 skill-scanner scan-all . --recursive --fail-on-severity high
+
+  skillspector:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    # SkillSpector is not on PyPI: v2.13.6 is installed from its release commit.
+    # --no-llm keeps it to static analysis, which needs no model credentials.
+    - name: Scan the plugin with SkillSpector
+      run: >-
+        pipx run --python python3.12
+        --spec git+https://github.com/NVIDIA/SkillSpector.git@e2674da339b0bddc6e565d059c0577c6d9cd25da
+        skillspector scan plugins/zanadir --no-llm --fail-on-findings --fail-on-incomplete
+        --baseline .github/skillspector-baseline.yaml

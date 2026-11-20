@@ -61,6 +61,25 @@ or Docker.
   `zanadir scan --required-checks` call the GitHub API too, and use
   `GITHUB_TOKEN` or `GH_TOKEN` from your environment if one is set.
 
+## Security checks
+
+Every pull request and push to main scans this plugin with two skill security
+scanners, in the
+[Agent Skill Security workflow](https://github.com/MustacheCase/zanadir/actions/workflows/SkillSecurity.yml):
+
+- **[NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector)**, static
+  analysis only, over the whole plugin folder: the skill, the launcher script
+  and the MCP configuration. The job fails on any finding or on an incomplete
+  scan. One finding is suppressed: a known false positive that takes the
+  first option of the launcher's Docker command for an unpinned image
+  ([NVIDIA/SkillSpector#781](https://github.com/NVIDIA/SkillSpector/issues/781));
+  the suppression and its reason are in `.github/skillspector-baseline.yaml`.
+- **[Cisco skill-scanner](https://github.com/cisco-ai-defense/skill-scanner)**,
+  which fails on any high-severity finding.
+
+The skill's [skill card](skills/improve-ci/skill-card.md) lists its owner,
+intended use, output, and known risks with their mitigations.
+
 ## License
 
 MIT, like zanadir itself.

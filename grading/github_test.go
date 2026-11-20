@@ -1810,3 +1810,39 @@ jobs:
 		assert.Equal(t, expected, verdicts["Linter"], run)
 	}
 }
+
+func TestGcovrGradesByTriggers(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"gcovr --root . --xml-pretty -o coverage.xml":         Enforcing,
+		"gcovr -r . --fail-under-line 80":                     Enforcing,
+		"uv run --locked gcovr --root . --txt":                Enforcing,
+		"gcovr --root . --xml-pretty -o coverage.xml || true": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  coverage:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Coverage"], run)
+	}
+}
+
+func TestGcovrActionGradesEnforcing(t *testing.T) {
+	for _, with := range []string{
+		"",
+		"\n        with:\n          fail-under-line: 80",
+	} {
+		t.Run(with, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  coverage:
+    steps:
+      - uses: threeal/gcovr-action@v1.2.0`+with+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Coverage"])
+		})
+	}
+}

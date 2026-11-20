@@ -956,8 +956,12 @@ immediate subdirectories, so common monorepo layouts work:
 | C#         | `*.csproj`, `*.sln`                                        |
 
 `node_modules`, `vendor` and other dependency directories are skipped, since
-their manifests describe code the project did not write. If no language is
-recognised, every tool is suggested, exactly as before.
+their manifests describe code the project did not write. With no manifest,
+source files at the same depth are used instead (`.py`, `.js`, `.ts`, `.go`,
+`.rb`, `.java`, `.rs`, `.php`, `.cs`); they never count for dependency
+scanning, since a source file declares no dependencies. If no language is
+recognised, every tool is suggested, and `fix` skips tools for a single
+language, reporting the category as a gap when nothing else fits.
 
 ### Advanced Usage
 

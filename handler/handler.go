@@ -182,6 +182,7 @@ type scanResult struct {
 	notApplicable []string
 	covered       []output.Coverage
 	platforms     []string
+	languages     []string
 	gate          *gate.Gate
 	// skipped is every category left out of the score: excluded by the
 	// operator or not applicable to the repository.
@@ -261,6 +262,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 		notApplicable: notApplicable,
 		covered:       covered,
 		platforms:     platforms,
+		languages:     languages,
 		gate:          merge,
 		skipped:       skipped,
 	}, nil
@@ -316,7 +318,7 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 	platform := parser.Detect(cfg.Dir)
 	debugf("Detected platform: %s", platform.ID)
 
-	plan := fixService.Plan(suggestions, platform.ID, cfg.Dir)
+	plan := fixService.Plan(suggestions, platform.ID, cfg.Dir, result.languages)
 
 	if !cfg.Write {
 		return fixer.Render(w, plan, platform)

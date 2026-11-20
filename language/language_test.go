@@ -79,6 +79,24 @@ func TestDetectMissingDirectory(t *testing.T) {
 	assert.Empty(t, language.Detect(filepath.Join(t.TempDir(), "nope")))
 }
 
+// A repository with no manifest, such as a folder of scripts, is detected by
+// its source files, at the same depth and with the same skipped directories.
+func TestDetectFallsBackToSourceFiles(t *testing.T) {
+	assert.Equal(t, []string{language.Python}, language.Detect(testrepo.Touch(t, "src/tool.py")))
+	assert.Equal(t, []string{language.Go, language.JavaScript}, language.Detect(testrepo.Touch(t, "main.go", "web/app.ts")))
+	assert.Empty(t, language.Detect(testrepo.Touch(t, "a/b/deep.py", "node_modules/x/index.js", ".github/check.py", ".eslintrc.js")))
+}
+
+// Manifests win: a source file never adds a language to a repository that has one.
+func TestDetectPrefersManifestsToSourceFiles(t *testing.T) {
+	assert.Equal(t, []string{language.Go}, language.Detect(testrepo.Touch(t, "go.mod", "scripts/release.py")))
+}
+
+// A source file declares no dependencies, so dependency scanning ignores it.
+func TestWithDependenciesIgnoresSourceFiles(t *testing.T) {
+	assert.Empty(t, language.WithDependencies(testrepo.Touch(t, "src/tool.py")))
+}
+
 func TestNames(t *testing.T) {
 	want := []string{language.CSharp, language.Go, language.Java, language.JavaScript, language.PHP, language.Python, language.Ruby, language.Rust}
 	assert.Equal(t, want, language.Names())

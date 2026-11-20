@@ -65,7 +65,7 @@ type Plan struct {
 
 // Fixer turns uncovered categories into CI configuration snippets for a platform.
 type Fixer interface {
-	Plan(suggestions []*suggester.CategorySuggestion, platform, dir string) Plan
+	Plan(suggestions []*suggester.CategorySuggestion, platform, dir string, languages []string) Plan
 }
 
 type service struct {
@@ -82,11 +82,12 @@ func categoryKey(tool, platform, category string) string {
 
 // Plan picks, for each uncovered category, the first suggested tool with a
 // template for this platform whose required files dir has. A category with
-// none is reported as a gap rather than guessed at.
-func (s *service) Plan(suggestions []*suggester.CategorySuggestion, platform, dir string) Plan {
+// none is reported as a gap rather than guessed at. With no languages
+// detected, a tool for one language is not picked: it would be a guess.
+func (s *service) Plan(suggestions []*suggester.CategorySuggestion, platform, dir string, languages []string) Plan {
 	var plan Plan
 	for _, category := range suggestions {
-		if snippet, gap := s.pick(category, platform, dir); snippet != nil {
+		if snippet, gap := s.pick(category, platform, dir, len(languages) > 0); snippet != nil {
 			plan.Snippets = append(plan.Snippets, *snippet)
 		} else {
 			plan.Gaps = append(plan.Gaps, gap)
@@ -95,11 +96,16 @@ func (s *service) Plan(suggestions []*suggester.CategorySuggestion, platform, di
 	return plan
 }
 
-func (s *service) pick(category *suggester.CategorySuggestion, platform, dir string) (*Snippet, Gap) {
+func (s *service) pick(category *suggester.CategorySuggestion, platform, dir string, languageKnown bool) (*Snippet, Gap) {
 	var unmet string
+	var guessed bool
 	names := make([]string, 0, len(category.Suggestions))
 	for _, tool := range category.Suggestions {
 		names = append(names, tool.Name)
+		if !languageKnown && tool.Language != "" {
+			guessed = true
+			continue
+		}
 		tmpl, ok := s.byToolPlatform[categoryKey(tool.Name, platform, category.ID)]
 		if !ok {
 			tmpl, ok = s.byToolPlatform[key(tool.Name, platform)]
@@ -122,6 +128,9 @@ func (s *service) pick(category *suggester.CategorySuggestion, platform, dir str
 	}
 	if unmet != "" {
 		return nil, Gap{Category: category.Name, Reason: unmet}
+	}
+	if guessed {
+		return nil, Gap{Category: category.Name, Reason: "could not tell the repository's language; add a manifest or pick one of: " + strings.Join(names, ", ") + "."}
 	}
 	reason := "no ready-made snippet for this repository"
 	if len(names) > 0 {

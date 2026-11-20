@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: swallowed-secrets-scan
+context:
+  scaffold_script: scaffold.sh

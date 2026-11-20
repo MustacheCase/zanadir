@@ -21,6 +21,7 @@ import (
 	"github.com/MustacheCase/zanadir/internal/testrepo"
 	"github.com/MustacheCase/zanadir/language"
 	"github.com/MustacheCase/zanadir/models"
+	"github.com/MustacheCase/zanadir/parser"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -503,7 +504,7 @@ func TestFetchRecordsCodeScanningDefaultSetup(t *testing.T) {
 }
 
 func TestFetchWritesNoDisabledWorkflowsWhenTheListFails(t *testing.T) {
-	routes(t, map[string]string{
+	asked := routes(t, map[string]string{
 		"/repos/o/r/actions/workflows": "403 ",
 		"/repos/o/r/tarball":           "200 " + string(tarball(t, entry{name: "o-r-1/go.mod", body: "module x"})),
 	})
@@ -512,6 +513,10 @@ func TestFetchWritesNoDisabledWorkflowsWhenTheListFails(t *testing.T) {
 	defer cleanup()
 	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
 	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.CodeScanningFile)))
+	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DependabotSecurityUpdatesFile)))
+	for _, path := range asked() {
+		assert.NotContains(t, path, "/runs")
+	}
 }
 
 func TestRecordDisabledWorkflowsReadsEveryPage(t *testing.T) {
@@ -537,6 +542,196 @@ func TestRecordDisabledWorkflowsWritesNothingWhenAllAreActive(t *testing.T) {
 	dir := t.TempDir()
 	recordWorkflows(context.Background(), Repository{Owner: "o", Name: "r"}, "", dir)
 	assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DisabledWorkflowsFile)))
+}
+
+func TestFetchRecordsDependabotSecurityUpdates(t *testing.T) {
+	asked := fileList(t, "HEAD", `{"tree":[]}`, nil, map[string]string{
+		"/repos/o/r/actions/workflows": `200 {"total_count":2,"workflows":[
+			{"id":7,"path":"dynamic/dependabot/dependabot-updates","state":"active"},
+			{"id":9,"path":"dynamic/github-code-scanning/codeql","state":"active"}]}`,
+		"/repos/o/r/actions/workflows/7/runs": `200 {"workflow_runs":[
+			{"display_title":"npm_and_yarn in /. for brace-expansion - Update #1625561024","name":"pip in /ignored for requests"},
+			{"display_title":"","name":"pip in / for requests - Update #1"},
+			{"display_title":"unrecognized","name":"npm_and_yarn in /other for compression - Update #2"},
+			{"display_title":"Update cargo in / for example"},
+			{"display_title":"go_modules in /web"},
+			{"display_title":"npm_and_yarn in /. for minimatch - Update #3"}]}`,
+		"/repos/o/r/actions/workflows/9/runs": `200 {"workflow_runs":[{"id":42}]}`,
+		"/repos/o/r/actions/runs/42/jobs":     `200 {"jobs":[{"name":"Analyze (go)"}]}`,
+	})
+	dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "token")
+	require.NoError(t, err)
+	defer cleanup()
+	for marker, want := range map[string]string{
+		models.DependabotSecurityUpdatesFile: "npm\npip\n",
+		models.CodeScanningFile:              "go\n",
+	} {
+		body, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(marker)))
+		require.NoError(t, err)
+		assert.Equal(t, want, string(body))
+	}
+	requests := 0
+	for _, path := range asked() {
+		if path == "/repos/o/r/actions/workflows/7/runs" {
+			requests++
+		}
+	}
+	assert.Equal(t, 1, requests)
+}
+
+func TestFetchNormalizesDependabotEcosystems(t *testing.T) {
+	for internal, ecosystem := range map[string]string{
+		"github_actions": "github-actions",
+		"npm_and_yarn":   "npm",
+		"go_modules":     "gomod",
+		"submodules":     "gitsubmodule",
+		"hex":            "mix",
+		"docker_compose": "docker-compose",
+		"dotnet_sdk":     "dotnet-sdk",
+		"pre_commit":     "pre-commit",
+		"rust_toolchain": "rust-toolchain",
+		"docker":         "docker",
+		"devcontainers":  "devcontainers",
+		"pip":            "pip",
+		"future_manager": "future_manager",
+	} {
+		t.Run(internal, func(t *testing.T) {
+			fileList(t, "HEAD", `{"tree":[]}`, nil, map[string]string{
+				"/repos/o/r/actions/workflows": `200 {"total_count":1,"workflows":[{"id":7,"path":"dynamic/dependabot/dependabot-updates","state":"active"}]}`,
+				"/repos/o/r/actions/workflows/7/runs": fmt.Sprintf(`200 {"workflow_runs":[{"display_title":%q}]}`,
+					internal+" in / for actions/checkout - Update #1"),
+			})
+			dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+			require.NoError(t, err)
+			defer cleanup()
+			body, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(models.DependabotSecurityUpdatesFile)))
+			require.NoError(t, err)
+			assert.Equal(t, ecosystem+"\n", string(body))
+			artifacts, err := parser.NewDependencyBotParser().Parse(dir)
+			require.NoError(t, err)
+			if ecosystem == "github-actions" || ecosystem == "devcontainers" {
+				assert.Empty(t, artifacts, "tooling-only runs must not count as SCA")
+			} else {
+				require.Len(t, artifacts, 1)
+				assert.True(t, artifacts[0].OutsidePipeline)
+			}
+		})
+	}
+}
+
+func TestFetchSkipsDependabotSecurityUpdatesWithConfig(t *testing.T) {
+	for _, extension := range []string{"yml", "yaml"} {
+		for _, body := range []string{"", "malformed: ["} {
+			for _, restored := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%q/restored=%t", extension, body, restored), func(t *testing.T) {
+					config := ".github/dependabot." + extension
+					workflows := `200 {"total_count":1,"workflows":[{"id":7,"path":"dynamic/dependabot/dependabot-updates","state":"active"}]}`
+					var asked func() []string
+					if restored {
+						asked = routes(t, map[string]string{
+							"/repos/o/r/actions/workflows": workflows,
+							"/repos/o/r/tarball":           "200 " + string(tarball(t, entry{name: "o-r-1/.gitattributes", body: "/.github export-ignore"})),
+							"/repos/o/r/git/trees/HEAD":    tree(config + "#" + strconv.Itoa(len(body))),
+							"/raw/o/r/HEAD/" + config:      "200 " + body,
+						})
+					} else {
+						asked = fileList(t, "HEAD", fmt.Sprintf(`{"tree":[{"path":%q,"type":"blob","mode":"100644","size":%d}]}`, config, len(body)), map[string]string{config: body}, map[string]string{"/repos/o/r/actions/workflows": workflows})
+					}
+					dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+					require.NoError(t, err)
+					defer cleanup()
+					assert.FileExists(t, filepath.Join(dir, config))
+					assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DependabotSecurityUpdatesFile)))
+					assert.NotContains(t, asked(), "/repos/o/r/actions/workflows/7/runs")
+				})
+			}
+		}
+	}
+}
+
+func TestFetchIgnoresOtherDependabotWorkflows(t *testing.T) {
+	for name, workflow := range map[string]string{
+		"absent":        `{"id":7,"path":".github/workflows/ci.yml","state":"active"}`,
+		"disabled":      `{"id":7,"path":"dynamic/dependabot/dependabot-updates","state":"disabled_manually"}`,
+		"unknown state": `{"id":7,"path":"dynamic/dependabot/dependabot-updates","state":"deleted"}`,
+		"update graph":  `{"id":7,"path":"dynamic/dependabot/update-graph","state":"active"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			asked := fileList(t, "HEAD", `{"tree":[]}`, nil, map[string]string{
+				"/repos/o/r/actions/workflows": `200 {"total_count":1,"workflows":[` + workflow + `]}`,
+			})
+			dir, cleanup, err := Fetch(Repository{Owner: "o", Name: "r"}, "")
+			require.NoError(t, err)
+			defer cleanup()
+			assert.NoFileExists(t, filepath.Join(dir, filepath.FromSlash(models.DependabotSecurityUpdatesFile)))
+			assert.NotContains(t, asked(), "/repos/o/r/actions/workflows/7/runs")
+		})
+	}
+}
+
+func TestDependabotSecurityUpdatesRunsRequest(t *testing.T) {
+	for name, answer := range map[string]string{
+		"success":        `200 {"workflow_runs":[{"display_title":"npm_and_yarn in /. for minimatch - Update #1"}]}`,
+		"refused":        "403 ",
+		"decode failure": `200 {"workflow_runs":[{"display_title":"npm_and_yarn in /. for minimatch - Update #1"}],`,
+		"no runs":        `200 {"workflow_runs":[]}`,
+		"no matches":     `200 {"workflow_runs":[{"name":"Update npm in / for example"},{"display_title":"npm in /"},{"name":"pip in / for"}]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			requests := 0
+			github(t, func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				assert.Equal(t, http.MethodGet, r.Method)
+				assert.Equal(t, "/repos/o/r/actions/workflows/7/runs", r.URL.Path)
+				assert.Equal(t, "per_page=100", r.URL.RawQuery)
+				assert.Equal(t, "Bearer secret", r.Header.Get("Authorization"))
+				status, body, _ := strings.Cut(answer, " ")
+				code, _ := strconv.Atoi(status)
+				w.WriteHeader(code)
+				_, _ = w.Write([]byte(body))
+			})
+			dir := t.TempDir()
+			recordDependabotSecurityUpdates(context.Background(), Repository{Owner: "o", Name: "r"}, "secret", dir, 7)
+			body, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(models.DependabotSecurityUpdatesFile)))
+			require.NoError(t, err)
+			want := ""
+			if name == "success" {
+				want = "npm\n"
+			}
+			assert.Equal(t, want, string(body))
+			assert.Equal(t, 1, requests)
+		})
+	}
+}
+
+func TestRecordDependabotWorkflowPagination(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failure=%t", fail), func(t *testing.T) {
+			var pages []string
+			github(t, func(w http.ResponseWriter, r *http.Request) {
+				page := r.URL.Query().Get("page")
+				pages = append(pages, page)
+				assert.Equal(t, "100", r.URL.Query().Get("per_page"))
+				if page == "2" && fail {
+					w.WriteHeader(http.StatusForbidden)
+					return
+				}
+				path := ".github/workflows/ci.yml"
+				if page == "2" || fail {
+					path = dependabotSecurityUpdatesWorkflow
+				}
+				_, _ = fmt.Fprintf(w, `{"total_count":2,"workflows":[{"id":%s,"path":%q,"state":"active"}]}`, page, path)
+			})
+			dir := t.TempDir()
+			id := recordWorkflows(context.Background(), Repository{Owner: "o", Name: "r"}, "", dir)
+			if fail {
+				assert.Zero(t, id)
+			} else {
+				assert.Equal(t, int64(2), id)
+			}
+			assert.Equal(t, []string{"1", "2"}, pages)
+		})
+	}
 }
 
 // A fetched repository gets origin/HEAD, as git clone writes it.

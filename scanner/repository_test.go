@@ -107,6 +107,12 @@ func TestRepositoryScannerFindsEveryPlatform(t *testing.T) {
 				".github/dependabot.yml": "version: 2\n",
 			},
 		},
+		{
+			name: "dependabot security updates",
+			files: map[string]string{
+				models.DependabotSecurityUpdatesFile: "npm\n",
+			},
+		},
 	}
 
 	for _, tt := range tests {

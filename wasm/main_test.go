@@ -140,6 +140,38 @@ func TestRunRefusesWhatIsNotARepository(t *testing.T) {
 	assert.ErrorContains(t, err, "not a repository")
 }
 
+func TestScanCountsDependabotSecurityUpdates(t *testing.T) {
+	for _, ecosystems := range []string{"npm\n", ""} {
+		dir := testrepo.Write(t, map[string]string{
+			".git/HEAD":                          "ref: refs/heads/main\n",
+			"package.json":                       `{"dependencies":{"example":"1.0.0"}}`,
+			models.DependabotSecurityUpdatesFile: ecosystems,
+		})
+		h, err := handler.Setup()
+		require.NoError(t, err)
+		report, err := scanDir(h, dir, "json")
+		require.NoError(t, err)
+		var parsed struct {
+			Covered []struct {
+				Category, Verdict string
+				Tools             []struct{ Name, Verdict string }
+			}
+			Uncovered []struct{ ID string }
+		}
+		require.NoError(t, json.Unmarshal([]byte(report), &parsed))
+		index := slices.IndexFunc(parsed.Covered, func(c struct {
+			Category, Verdict string
+			Tools             []struct{ Name, Verdict string }
+		}) bool {
+			return c.Category == "SCA"
+		})
+		require.NotEqual(t, -1, index)
+		assert.Equal(t, "advisory", parsed.Covered[index].Verdict)
+		assert.Contains(t, parsed.Covered[index].Tools, struct{ Name, Verdict string }{"Dependabot", "advisory"})
+		assert.False(t, slices.ContainsFunc(parsed.Uncovered, func(c struct{ ID string }) bool { return c.ID == "SCA" }))
+	}
+}
+
 func TestScanGradesAnUncheckedEcosystemPartial(t *testing.T) {
 	dir := testrepo.Write(t, map[string]string{
 		".git/HEAD": "ref: refs/heads/main\n",

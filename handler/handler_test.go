@@ -1308,6 +1308,32 @@ func TestAnalyseGradesTheBlastradiusHookByItsList(t *testing.T) {
 	}
 }
 
+// StyLua's hook runs it without --check, but pre-commit fails a hook that
+// changes a file, so the hook can fail the build as "stylua --check" can.
+func TestAnalyseGradesAFormatterHookAsAFailingCheck(t *testing.T) {
+	h, err := Setup()
+	require.NoError(t, err)
+	for run, verdict := range map[string]string{
+		"pre-commit run --all-files":         "enforcing",
+		"pre-commit run --all-files || true": "advisory",
+		"stylua .":                           "advisory",
+		"PRE_COMMIT=1 stylua .":              "advisory",
+	} {
+		dir := testrepo.Write(t, map[string]string{
+			".git/HEAD":                "ref: refs/heads/main\n",
+			".pre-commit-config.yaml":  "repos:\n  - repo: https://github.com/JohnnyMorganz/StyLua\n    rev: v2.1.0\n    hooks:\n      - id: stylua\n",
+			".github/workflows/ci.yml": "on: pull_request\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: " + run + "\n",
+		})
+		result, err := h.analyse(&config.Config{Dir: dir}, func(string, ...interface{}) {}, nil)
+		require.NoError(t, err)
+		var tools []output.Tool
+		for _, covered := range result.covered {
+			tools = append(tools, covered.Tools...)
+		}
+		assert.Contains(t, tools, output.Tool{Name: "StyLua", Verdict: verdict, Locations: []string{".github/workflows/ci.yml"}}, run)
+	}
+}
+
 // With --required-checks, a scanner that only reports still holds back a
 // merge when the ruleset blocks on its code scanning alerts.
 func TestAnalyseCountsCodeScanningMergeProtection(t *testing.T) {

@@ -63,6 +63,9 @@ type FileExitsZeroUnless struct {
 	Input       string   `yaml:"input"`
 	UnknownWhen string   `yaml:"unknownWhen"`
 	ConfigFiles []string `yaml:"configFiles"`
+	// HookRewrites marks a formatter that rewrites files unless told to
+	// check: run by a pre-commit hook it fails the hook, as if it checked.
+	HookRewrites bool `yaml:"hookRewrites"`
 }
 
 // FileWeakenedWhen is one way a tool can be configured so that it cannot
@@ -115,10 +118,11 @@ type Rule struct {
 
 // ExitsZeroUnless is a compiled FileExitsZeroUnless.
 type ExitsZeroUnless struct {
-	RunMatches  *regexp.Regexp
-	Input       string
-	UnknownWhen *regexp.Regexp
-	ConfigFiles []string
+	RunMatches   *regexp.Regexp
+	Input        string
+	UnknownWhen  *regexp.Regexp
+	ConfigFiles  []string
+	HookRewrites bool
 }
 
 // WeakenedWhen is a compiled FileWeakenedWhen.
@@ -185,7 +189,7 @@ func (s *service) convertRules(rules []FileRule) []*Rule {
 
 		var exitsZero *ExitsZeroUnless
 		if e := r.ExitsZeroUnless; e != nil {
-			exitsZero = &ExitsZeroUnless{RunMatches: regexp.MustCompile(e.RunMatches), Input: e.Input, ConfigFiles: e.ConfigFiles}
+			exitsZero = &ExitsZeroUnless{RunMatches: regexp.MustCompile(e.RunMatches), Input: e.Input, ConfigFiles: e.ConfigFiles, HookRewrites: e.HookRewrites}
 			if e.UnknownWhen != "" {
 				exitsZero.UnknownWhen = regexp.MustCompile(e.UnknownWhen)
 			}

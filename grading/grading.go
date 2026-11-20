@@ -14,6 +14,7 @@ import (
 	"github.com/MustacheCase/zanadir/matcher"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/rules"
+	"github.com/MustacheCase/zanadir/wrapper"
 )
 
 // Verdict says whether a control can fail a build.
@@ -332,7 +333,12 @@ func isWordByte(b byte) bool {
 }
 
 func exitsZero(check *rules.ExitsZeroUnless, commands []string, configs map[string]bool) (Verdict, bool) {
-	if check == nil || len(commands) == 0 || slices.ContainsFunc(commands, check.RunMatches.MatchString) {
+	fails := func(command string) bool {
+		// The mark follows any env: assignments written before it.
+		return check.RunMatches.MatchString(command) || check.HookRewrites &&
+			shell.Assigns(command, strings.TrimSpace(wrapper.HookMark))
+	}
+	if check == nil || len(commands) == 0 || slices.ContainsFunc(commands, fails) {
 		return "", false
 	}
 	unclear := func(command string) bool {

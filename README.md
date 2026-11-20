@@ -1089,6 +1089,7 @@ rules:
         verdict: advisory       # advisory or partial
     exitsZeroUnless:            # optional, for a tool that only reports by default
       runMatches: '--fail'      # the flag that makes it fail
+      hookRewrites: true        # optional: a formatter that rewrites files; run by a pre-commit hook, it fails
 ```
 
 A custom SCA rule can declare which ecosystems it checks:

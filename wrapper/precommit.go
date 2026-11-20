@@ -87,7 +87,9 @@ func (e *Expander) precommit(dir string, args []string) {
 			if repo.Repo == "local" && hook.Entry != "" {
 				command = hook.Entry
 			}
+			e.hooked++
 			e.emit(filepath.Dir(path), strings.Join(append([]string{command}, hook.Args...), " "))
+			e.hooked--
 		}
 	}
 }

@@ -520,6 +520,8 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 					record.Run = trivyCommand(scanType(with["scan-type"], "image"), with["scanners"], with["exit-code"], with["format"], config)
 				case "github/codeql-action/init":
 					record.Run = codeqlCommand(record.With["languages"])
+				case "pypa/gh-action-pypi-publish":
+					record.Run = pypiUpload(record.With)
 				}
 				jobs = append(jobs, record)
 			}
@@ -662,6 +664,22 @@ func codeqlCommand(languages string) string {
 		return "codeql database create"
 	}
 	return "codeql database create --language=" + strings.Join(fields, ",")
+}
+
+// pypiUpload is the twine command gh-action-pypi-publish runs. It attests only
+// through trusted publishing, which a password turns off, and only to pypi.org.
+func pypiUpload(with map[string]string) string {
+	command := "twine upload"
+	url := cmp.Or(with["repository-url"], with["repository_url"])
+	if url != "" {
+		command += " --repository-url " + url
+	}
+	attest := with["attestations"] == "" || strings.EqualFold(with["attestations"], "true")
+	if attest && cmp.Or(with["user"], "__token__") == "__token__" && with["password"] == "" &&
+		(url == "" || strings.Contains(url, "pypi.org")) {
+		command += " --attestations"
+	}
+	return command
 }
 
 // trivyCommand is the command a trivy action or task runs, so one set of

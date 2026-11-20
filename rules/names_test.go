@@ -65,6 +65,8 @@ func TestToolNamesWhatMatched(t *testing.T) {
 		{"coverage-command-rule", "npx jest --coverage", "jest"},
 		{"coverage-command-rule", "phpunit --coverage-clover clover.xml", "phpunit"},
 		{"coverage-command-rule", "nyc mocha", "nyc"},
+		{"coverage-command-rule", "uv run --project .. --locked --no-sync gcovr . -r ../src", "gcovr"},
+		{"coverage-command-rule", "threeal/gcovr-action", "gcovr"},
 		{"python-type-checker-rule", "mypy src", "mypy"},
 		{"python-type-checker-rule", "uv run ty check", "ty"},
 		{"python-type-checker-rule", "uv run --no-sync basedpyright", "basedpyright"},

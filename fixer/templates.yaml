@@ -147,6 +147,8 @@ templates:
 
   - tool: "gosec"
     platform: "github"
+    requires: ["go.mod"]
+    missing: "gosec needs a Go module, and there is no go.mod at the repository root"
     step: |
       - name: Static analysis
         uses: securego/gosec@5eb1d104ef85ff2c905c877eb600e8c1dee33a22 # v2.30.0
@@ -222,6 +224,8 @@ templates:
 
   - tool: "go-test-coverage"
     platform: "github"
+    requires: ["go.mod"]
+    missing: "go test needs a Go module, and there is no go.mod at the repository root"
     step: |
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -237,6 +241,8 @@ templates:
 
   - tool: "GolangCI-Lint"
     platform: "github"
+    requires: ["go.mod"]
+    missing: "golangci-lint needs a Go module, and there is no go.mod at the repository root"
     step: |
       - name: Lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
@@ -251,6 +257,8 @@ templates:
 
   - tool: "ESLint"
     platform: "github"
+    requires: ["package-lock.json", "npm-shrinkwrap.json"]
+    missing: "npm ci needs a package-lock.json or npm-shrinkwrap.json at the repository root"
     step: |
       - name: Lint
         run: |

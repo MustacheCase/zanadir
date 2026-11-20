@@ -568,7 +568,7 @@ func TestPlanDoesNotGuessALanguage(t *testing.T) {
 	assert.Empty(t, plan.Snippets)
 	assert.Equal(t, []Gap{{Category: "Linting Tools", Reason: "could not tell the repository's language; add a manifest or pick one of: ESLint, Ruff, OxSecurity MegaLinter."}}, plan.Gaps)
 
-	plan = testFixer(t).Plan(linter, parser.GitHub, "", []string{"JavaScript"})
+	plan = testFixer(t).Plan(linter, parser.GitHub, testrepo.Touch(t, "package-lock.json"), []string{"JavaScript"})
 	require.Len(t, plan.Snippets, 1)
 	assert.Equal(t, "ESLint", plan.Snippets[0].Tool, "a known language keeps the first templated tool")
 

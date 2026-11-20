@@ -573,6 +573,15 @@ func TestFixFollowsSourceFilesWithoutAManifest(t *testing.T) {
 	assert.NotContains(t, out, "eslint")
 	assert.Contains(t, out, "ruff")
 
+	// A JavaScript file found without a manifest has no lockfile for npm ci.
+	out = fix(map[string]string{"app.py": "print()\n", "static/app.js": "x()\n"})
+	assert.NotContains(t, out, "eslint")
+	assert.Contains(t, out, "ruff")
+
+	out = fix(map[string]string{"main.go": "package main\n"})
+	assert.NotContains(t, out, "go test -coverprofile")
+	assert.Contains(t, out, "no go.mod at the repository root")
+
 	out = fix(map[string]string{"README.md": "scripts\n"})
 	assert.NotContains(t, out, "eslint")
 	assert.Contains(t, out, "Linting Tools: could not tell the repository's language")

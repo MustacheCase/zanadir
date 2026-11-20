@@ -80,12 +80,18 @@ func Names() []string {
 // monorepo layout without walking the whole tree. With no manifest it falls
 // back to source file extensions at the same depth.
 func Detect(dir string) []string {
-	if found := detect(dir, func(dir string, found map[string]bool) {
-		collect(dir, found, func(string, string) bool { return true })
-	}); len(found) > 0 {
+	if found := Manifests(dir); len(found) > 0 {
 		return found
 	}
 	return detect(dir, sources)
+}
+
+// Manifests is Detect without the source file fallback, for checks that
+// report what the manifests declare.
+func Manifests(dir string) []string {
+	return detect(dir, func(dir string, found map[string]bool) {
+		collect(dir, found, func(string, string) bool { return true })
+	})
 }
 
 // WithDependencies is Detect for dependency scanning: a pyproject.toml that

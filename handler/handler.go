@@ -223,7 +223,9 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	}
 	debugf("Total findings: %d", len(findings))
 
-	languages := language.Detect(cfg.Dir)
+	// Suggestions and fix use every detected language; grading reports what
+	// the manifests declare, so it never sees the source file fallback.
+	languages, manifests := language.Detect(cfg.Dir), language.Manifests(cfg.Dir)
 	debugf("Detected languages: %v", languages)
 
 	// A category the operator excluded is out of the report already.
@@ -249,7 +251,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	debugf("Default branch: %q", defaultBranch)
 	configs := toolConfigs(cfg.Dir, h.RulesService)
 	for _, a := range artifacts {
-		a.DefaultBranch, a.ToolConfigs, a.Languages = defaultBranch, configs, languages
+		a.DefaultBranch, a.ToolConfigs, a.Languages = defaultBranch, configs, manifests
 	}
 	// Suggestions follow every language; dependency scanning only those with dependencies.
 	weaknesses, covered := graded(skipped, cfg.Dir, language.WithDependencies(cfg.Dir), findings, waits, debugf)

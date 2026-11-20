@@ -102,15 +102,15 @@ func (s *service) pick(category *suggester.CategorySuggestion, platform, dir str
 	names := make([]string, 0, len(category.Suggestions))
 	for _, tool := range category.Suggestions {
 		names = append(names, tool.Name)
-		if !languageKnown && tool.Language != "" {
-			guessed = true
-			continue
-		}
 		tmpl, ok := s.byToolPlatform[categoryKey(tool.Name, platform, category.ID)]
 		if !ok {
 			tmpl, ok = s.byToolPlatform[key(tool.Name, platform)]
 		}
 		if !ok {
+			continue
+		}
+		if !languageKnown && tool.Language != "" {
+			guessed = true
 			continue
 		}
 		if len(tmpl.Requires) > 0 && !slices.ContainsFunc(tmpl.Requires, func(f string) bool { return repofs.Exists(dir, filepath.Join(dir, f)) }) {

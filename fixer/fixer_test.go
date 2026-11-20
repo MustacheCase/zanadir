@@ -568,12 +568,18 @@ func TestPlanDoesNotGuessALanguage(t *testing.T) {
 	assert.Empty(t, plan.Snippets)
 	assert.Equal(t, []Gap{{Category: "Linting Tools", Reason: "could not tell the repository's language; add a manifest or pick one of: ESLint, Ruff, OxSecurity MegaLinter."}}, plan.Gaps)
 
-	plan = testFixer(t).Plan(linter, parser.GitHub, testrepo.Touch(t, "package-lock.json"), []string{"JavaScript"})
+	plan = testFixer(t).Plan(linter, parser.GitHub, testrepo.Touch(t, "package.json"), []string{"JavaScript"})
 	require.Len(t, plan.Snippets, 1)
 	assert.Equal(t, "ESLint", plan.Snippets[0].Tool, "a known language keeps the first templated tool")
 
 	secrets := []*suggester.CategorySuggestion{{ID: "Secrets Detection", Name: "Secrets", Suggestions: []*suggester.Suggestion{{Name: "Gitleaks"}}}}
 	assert.Len(t, testFixer(t).Plan(secrets, parser.GitHub, "", nil).Snippets, 1)
+
+	// Language-specific tools with no template are not a guess fix could make.
+	tests := []*suggester.CategorySuggestion{{ID: "Unit Tests", Name: "Unit Tests", Suggestions: []*suggester.Suggestion{
+		{Name: "JUnit", Language: "Java"}, {Name: "pytest", Language: "Python"},
+	}}}
+	assert.Equal(t, []Gap{{Category: "Unit Tests", Reason: "no ready-made snippet for this repository; suggested tools: JUnit, pytest."}}, testFixer(t).Plan(tests, parser.GitHub, "", nil).Gaps)
 }
 
 func TestValidateRejectsUnknownCategory(t *testing.T) {

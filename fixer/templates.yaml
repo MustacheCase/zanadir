@@ -257,8 +257,8 @@ templates:
 
   - tool: "ESLint"
     platform: "github"
-    requires: ["package-lock.json", "npm-shrinkwrap.json"]
-    missing: "npm ci needs a package-lock.json or npm-shrinkwrap.json at the repository root"
+    requires: ["package.json"]
+    missing: "ESLint needs a package.json at the repository root"
     step: |
       - name: Lint
         run: |

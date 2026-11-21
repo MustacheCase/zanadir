@@ -24,7 +24,7 @@ var frontmatterField = regexp.MustCompile(`(?m)^(name|description|allowed-tools)
 func readSkill(t *testing.T, plugin string) (map[string]string, string) {
 	data, err := os.ReadFile(filepath.Join(plugin, skill))
 	require.NoError(t, err)
-	parts := strings.SplitN(string(data), "---\n", 3)
+	parts := strings.SplitN(strings.ReplaceAll(string(data), "\r\n", "\n"), "---\n", 3)
 	require.Len(t, parts, 3, plugin)
 	fields := map[string]string{}
 	for _, m := range frontmatterField.FindAllStringSubmatch(parts[1], -1) {

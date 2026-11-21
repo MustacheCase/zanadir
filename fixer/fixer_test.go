@@ -73,7 +73,7 @@ func TestSnippetsOnePerCategory(t *testing.T) {
 		},
 	}
 
-	snippets := testFixer(t).Plan(suggestions, parser.GitHub, "").Snippets
+	snippets := testFixer(t).Plan(suggestions, parser.GitHub, "", nil).Snippets
 
 	assert.Len(t, snippets, 1, "one snippet per category, not per tool")
 	assert.Equal(t, "Gitleaks", snippets[0].Tool)
@@ -92,7 +92,7 @@ func TestSnippetsFallsThroughToATemplatedTool(t *testing.T) {
 		},
 	}
 
-	snippets := testFixer(t).Plan(suggestions, parser.GitHub, "").Snippets
+	snippets := testFixer(t).Plan(suggestions, parser.GitHub, "", nil).Snippets
 
 	assert.Len(t, snippets, 1)
 	assert.Equal(t, "Trivy", snippets[0].Tool)
@@ -104,11 +104,11 @@ func TestSnippetsSkipsUntemplatedCategory(t *testing.T) {
 			Suggestions: []*suggester.Suggestion{{Name: "JUnit"}, {Name: "pytest"}}},
 	}
 
-	plan := testFixer(t).Plan(suggestions, parser.GitHub, "")
+	plan := testFixer(t).Plan(suggestions, parser.GitHub, "", nil)
 	assert.Empty(t, plan.Snippets, "a category with no template is reported rather than guessed at")
 	assert.Equal(t, []Gap{{Category: "Unit Tests", Reason: "no ready-made snippet for this repository; suggested tools: JUnit, pytest."}}, plan.Gaps)
 
-	plan = testFixer(t).Plan([]*suggester.CategorySuggestion{{ID: "Linter", Name: "Linting Tools"}}, parser.GitHub, "")
+	plan = testFixer(t).Plan([]*suggester.CategorySuggestion{{ID: "Linter", Name: "Linting Tools"}}, parser.GitHub, "", nil)
 	assert.Equal(t, []Gap{{Category: "Linting Tools", Reason: "no ready-made snippet for this repository."}}, plan.Gaps)
 }
 
@@ -120,7 +120,7 @@ func TestPlanNeedsTheFilesATemplateRequires(t *testing.T) {
 	perf := []*suggester.CategorySuggestion{{ID: "Performance Testing", Name: "Performance",
 		Suggestions: []*suggester.Suggestion{{Name: "k6"}}}}
 
-	plan := testFixer(t).Plan(append(eol, perf...), parser.GitHub, testrepo.Touch(t, "go.mod"))
+	plan := testFixer(t).Plan(append(eol, perf...), parser.GitHub, testrepo.Touch(t, "go.mod"), nil)
 	assert.Empty(t, plan.Snippets)
 	require.Len(t, plan.Gaps, 2)
 	assert.Equal(t, "End-of-Life Package Checkers", plan.Gaps[0].Category)
@@ -128,7 +128,7 @@ func TestPlanNeedsTheFilesATemplateRequires(t *testing.T) {
 	assert.Contains(t, plan.Gaps[0].Reason, `exclude it with -e "End Of Life".`)
 	assert.Contains(t, plan.Gaps[1].Reason, "load-test.js")
 
-	plan = testFixer(t).Plan(append(eol, perf...), parser.GitHub, testrepo.Touch(t, "Dockerfile", "load-test.js"))
+	plan = testFixer(t).Plan(append(eol, perf...), parser.GitHub, testrepo.Touch(t, "Dockerfile", "load-test.js"), nil)
 	assert.Empty(t, plan.Gaps)
 	require.Len(t, plan.Snippets, 2)
 	assert.Contains(t, plan.Snippets[1].Step, "k6 run load-test.js")
@@ -214,8 +214,8 @@ func TestSnippetsArePlatformSpecific(t *testing.T) {
 			Suggestions: []*suggester.Suggestion{{Name: "Gitleaks"}}},
 	}
 
-	gh := testFixer(t).Plan(suggestions, parser.GitHub, "").Snippets
-	gl := testFixer(t).Plan(suggestions, parser.GitLab, "").Snippets
+	gh := testFixer(t).Plan(suggestions, parser.GitHub, "", nil).Snippets
+	gl := testFixer(t).Plan(suggestions, parser.GitLab, "", nil).Snippets
 
 	assert.Contains(t, gh[0].Step, "- name: Detect secrets")
 	assert.NotContains(t, gh[0].Step, "secret_detection:")
@@ -229,7 +229,7 @@ func TestSnippetsEmptyForCircleCI(t *testing.T) {
 			Suggestions: []*suggester.Suggestion{{Name: "Gitleaks"}}},
 	}
 
-	assert.Empty(t, testFixer(t).Plan(suggestions, parser.CircleCI, "").Snippets)
+	assert.Empty(t, testFixer(t).Plan(suggestions, parser.CircleCI, "", nil).Snippets)
 }
 
 func TestShippedTemplatesLookLikeYAML(t *testing.T) {
@@ -543,17 +543,43 @@ func TestSnippetsPickTheTemplateForTheCategory(t *testing.T) {
 
 	eol := f.Plan([]*suggester.CategorySuggestion{
 		{ID: "End Of Life", Name: "End-of-Life Package Checkers", Suggestions: trivy},
-	}, parser.GitHub, testrepo.Touch(t, "Dockerfile")).Snippets
+	}, parser.GitHub, testrepo.Touch(t, "Dockerfile"), nil).Snippets
 	assert.Len(t, eol, 1)
 	assert.Contains(t, eol[0].Step, "--exit-on-eol")
 	assert.NotContains(t, eol[0].Step, "scan-type: fs")
 
 	sca := f.Plan([]*suggester.CategorySuggestion{
 		{ID: "SCA", Name: "Software Composition Analysis", Suggestions: trivy},
-	}, parser.GitHub, "").Snippets
+	}, parser.GitHub, "", nil).Snippets
 	assert.Len(t, sca, 1)
 	assert.Contains(t, sca[0].Step, "scan-type: fs")
 	assert.NotContains(t, sca[0].Step, "--exit-on-eol")
+}
+
+// With no language detected, a tool for one language is a guess: ESLint's
+// npm ci is no help to a Python repository without a manifest. A tool with
+// no language is still picked.
+func TestPlanDoesNotGuessALanguage(t *testing.T) {
+	linter := []*suggester.CategorySuggestion{{ID: "Linter", Name: "Linting Tools", Suggestions: []*suggester.Suggestion{
+		{Name: "ESLint", Language: "JavaScript"}, {Name: "Ruff", Language: "Python"}, {Name: "OxSecurity MegaLinter"},
+	}}}
+
+	plan := testFixer(t).Plan(linter, parser.GitHub, "", nil)
+	assert.Empty(t, plan.Snippets)
+	assert.Equal(t, []Gap{{Category: "Linting Tools", Reason: "could not tell the repository's language; add a manifest or pick one of: ESLint, Ruff, OxSecurity MegaLinter."}}, plan.Gaps)
+
+	plan = testFixer(t).Plan(linter, parser.GitHub, testrepo.Touch(t, "package.json"), []string{"JavaScript"})
+	require.Len(t, plan.Snippets, 1)
+	assert.Equal(t, "ESLint", plan.Snippets[0].Tool, "a known language keeps the first templated tool")
+
+	secrets := []*suggester.CategorySuggestion{{ID: "Secrets Detection", Name: "Secrets", Suggestions: []*suggester.Suggestion{{Name: "Gitleaks"}}}}
+	assert.Len(t, testFixer(t).Plan(secrets, parser.GitHub, "", nil).Snippets, 1)
+
+	// Language-specific tools with no template are not a guess fix could make.
+	tests := []*suggester.CategorySuggestion{{ID: "Unit Tests", Name: "Unit Tests", Suggestions: []*suggester.Suggestion{
+		{Name: "JUnit", Language: "Java"}, {Name: "pytest", Language: "Python"},
+	}}}
+	assert.Equal(t, []Gap{{Category: "Unit Tests", Reason: "no ready-made snippet for this repository; suggested tools: JUnit, pytest."}}, testFixer(t).Plan(tests, parser.GitHub, "", nil).Gaps)
 }
 
 func TestValidateRejectsUnknownCategory(t *testing.T) {

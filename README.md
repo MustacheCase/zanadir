@@ -956,8 +956,13 @@ immediate subdirectories, so common monorepo layouts work:
 | C#         | `*.csproj`, `*.sln`                                        |
 
 `node_modules`, `vendor` and other dependency directories are skipped, since
-their manifests describe code the project did not write. If no language is
-recognised, every tool is suggested, exactly as before.
+their manifests describe code the project did not write. With no manifest,
+source files at the same depth are used instead (`.py`, `.js`, `.ts`, `.go`,
+`.rb`, `.java`, `.rs`, `.php`, `.cs`) to pick suggestions; they never count
+for dependency scanning or for grading which languages CodeQL analyses. If
+no language is recognised, every tool is suggested, and `fix` skips tools
+for a single language, reporting the category as a gap when nothing else
+fits.
 
 ### Advanced Usage
 
@@ -1185,7 +1190,9 @@ accordingly.
 
 Not every suggested tool has a template, and some templates need a file the
 repository may not have: the end-of-life check builds an image from a
-`Dockerfile`, and the load test runs a `load-test.js` written for the service.
+`Dockerfile`, the load test runs a `load-test.js` written for the service,
+ESLint needs a `package.json`, and go-test-coverage, GolangCI-Lint and gosec
+need a `go.mod`.
 `fix` emits nothing half-right. A category it cannot fill is listed at the end
 with the reason, and with the exclusion to use when the category does not
 apply:

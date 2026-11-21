@@ -556,6 +556,37 @@ func TestFixIgnoresItsOwnGeneratedWorkflow(t *testing.T) {
 	}
 }
 
+// A Python repository with no manifest was told to run npm ci and npx eslint.
+func TestFixFollowsSourceFilesWithoutAManifest(t *testing.T) {
+	workflow := "on: [pull_request]\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m py_compile src/tool.py\n"
+	fix := func(files map[string]string) string {
+		files[".git/HEAD"] = "ref: refs/heads/main\n"
+		files[".github/workflows/ci.yml"] = workflow
+		h, err := Setup()
+		require.NoError(t, err)
+		var buf bytes.Buffer
+		require.NoError(t, h.Fix(&config.Config{Dir: testrepo.Write(t, files)}, &buf))
+		return buf.String()
+	}
+
+	out := fix(map[string]string{"src/tool.py": "print()\n"})
+	assert.NotContains(t, out, "eslint")
+	assert.Contains(t, out, "ruff")
+
+	// A JavaScript file found without a manifest has no lockfile for npm ci.
+	out = fix(map[string]string{"app.py": "print()\n", "static/app.js": "x()\n"})
+	assert.NotContains(t, out, "eslint")
+	assert.Contains(t, out, "ruff")
+
+	out = fix(map[string]string{"main.go": "package main\n"})
+	assert.NotContains(t, out, "go test -coverprofile")
+	assert.Contains(t, out, "no go.mod at the repository root")
+
+	out = fix(map[string]string{"README.md": "scripts\n"})
+	assert.NotContains(t, out, "eslint")
+	assert.Contains(t, out, "Linting Tools: could not tell the repository's language")
+}
+
 func TestExecuteMatchesEveryArtifact(t *testing.T) {
 	own := &models.Artifact{Name: "zanadir-suggested", Location: "/repo/.github/workflows/zanadir-suggested.yml"}
 

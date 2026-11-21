@@ -182,6 +182,7 @@ type scanResult struct {
 	notApplicable []string
 	covered       []output.Coverage
 	platforms     []string
+	languages     []string
 	gate          *gate.Gate
 	// skipped is every category left out of the score: excluded by the
 	// operator or not applicable to the repository.
@@ -222,7 +223,9 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	}
 	debugf("Total findings: %d", len(findings))
 
-	languages := language.Detect(cfg.Dir)
+	// Suggestions and fix use every detected language; grading reports what
+	// the manifests declare, so it never sees the source file fallback.
+	languages, manifests := language.Detect(cfg.Dir), language.Manifests(cfg.Dir)
 	debugf("Detected languages: %v", languages)
 
 	// A category the operator excluded is out of the report already.
@@ -248,7 +251,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 	debugf("Default branch: %q", defaultBranch)
 	configs := toolConfigs(cfg.Dir, h.RulesService)
 	for _, a := range artifacts {
-		a.DefaultBranch, a.ToolConfigs, a.Languages = defaultBranch, configs, languages
+		a.DefaultBranch, a.ToolConfigs, a.Languages = defaultBranch, configs, manifests
 	}
 	// Suggestions follow every language; dependency scanning only those with dependencies.
 	weaknesses, covered := graded(skipped, cfg.Dir, language.WithDependencies(cfg.Dir), findings, waits, debugf)
@@ -261,6 +264,7 @@ func (h *Handler) analyse(cfg *config.Config, debugf debugFunc, ignore func(stri
 		notApplicable: notApplicable,
 		covered:       covered,
 		platforms:     platforms,
+		languages:     languages,
 		gate:          merge,
 		skipped:       skipped,
 	}, nil
@@ -316,7 +320,7 @@ func (h *Handler) Fix(cfg *config.Config, w io.Writer) error {
 	platform := parser.Detect(cfg.Dir)
 	debugf("Detected platform: %s", platform.ID)
 
-	plan := fixService.Plan(suggestions, platform.ID, cfg.Dir)
+	plan := fixService.Plan(suggestions, platform.ID, cfg.Dir, result.languages)
 
 	if !cfg.Write {
 		return fixer.Render(w, plan, platform)

@@ -1,12 +1,15 @@
 {
   "name": "zanadir",
   "description": "Find what a repository's CI is missing, and which controls cannot fail a build, then close the gaps with the zanadir CLI.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "MustacheCase"
   },
   "homepage": "https://mustachecase.github.io/",
   "repository": "https://github.com/MustacheCase/zanadir",
+  "documentationUrl": "https://github.com/MustacheCase/zanadir#readme",
+  "supportUrl": "https://github.com/MustacheCase/zanadir/issues",
+  "privacyPolicyUrl": "https://github.com/MustacheCase/zanadir/blob/main/directory/zanadir/PRIVACY.md",
   "license": "MIT",
   "keywords": [
     "ci",

@@ -16,6 +16,11 @@ repository with zanadir, reads its CI files, and gives you a prioritised list
 of changes. It asks which ones to apply before editing any file. Afterwards it
 scans again and reports the result.
 
+The skill asks to run the zanadir CLI in your project (`zanadir scan`,
+`zanadir fix`, `zanadir skills`), each command with your approval. The plugin
+itself contains no scripts, hooks or MCP servers, and nothing in it runs on its
+own.
+
 ## Requirements
 
 The zanadir CLI on your `PATH`. See

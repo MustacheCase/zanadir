@@ -51,3 +51,13 @@ jobs:
         --spec git+https://github.com/NVIDIA/SkillSpector.git@e2674da339b0bddc6e565d059c0577c6d9cd25da
         skillspector scan plugins/zanadir --no-llm --fail-on-findings --fail-on-incomplete
         --baseline .github/skillspector-baseline.yaml
+
+    # The edition submitted to the plugin directory, which has no launcher and
+    # so needs no baseline.
+    - name: Scan the directory edition with SkillSpector
+      env:
+        PYTHON: ${{ steps.python.outputs.python-path }}
+      run: >-
+        pipx run --python "$PYTHON"
+        --spec git+https://github.com/NVIDIA/SkillSpector.git@e2674da339b0bddc6e565d059c0577c6d9cd25da
+        skillspector scan directory/zanadir --no-llm --fail-on-findings --fail-on-incomplete

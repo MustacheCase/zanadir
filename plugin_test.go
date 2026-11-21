@@ -19,7 +19,12 @@ const (
 	skill           = "skills/improve-ci/SKILL.md"
 )
 
-var frontmatterField = regexp.MustCompile(`(?m)^(name|description|allowed-tools): (.*)$`)
+var (
+	frontmatterField = regexp.MustCompile(`(?m)^(name|description|allowed-tools): (.*)$`)
+	// The directory warned of a download-and-execute pattern in an icon whose
+	// compressed pixels happened to hold the bytes "|Sh".
+	pipedToShell = regexp.MustCompile(`(?i)\|\s*(?:ba|z)?sh`)
+)
 
 func readSkill(t *testing.T, plugin string) (map[string]string, string) {
 	data, err := os.ReadFile(filepath.Join(plugin, skill))
@@ -75,6 +80,9 @@ func TestDirectoryEditionMeetsTheCommunityRules(t *testing.T) {
 		data, err := os.ReadFile(path)
 		if err == nil {
 			assert.False(t, strings.HasPrefix(string(data), "#!"), path)
+			if filepath.Ext(name) == ".png" {
+				assert.Falsef(t, pipedToShell.Match(data), "%s holds bytes that read as piping into a shell", path)
+			}
 		}
 		return err
 	}))

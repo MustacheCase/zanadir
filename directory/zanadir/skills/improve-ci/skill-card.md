@@ -87,7 +87,7 @@ zanadir command and each edit needs the user's approval.
 
 ## Skill Version
 
-Plugin `zanadir` 1.0.0, directory edition, from [MustacheCase/zanadir](https://github.com/MustacheCase/zanadir). The skill is not signed.
+Plugin `zanadir` 1.0.1, directory edition, from [MustacheCase/zanadir](https://github.com/MustacheCase/zanadir). The skill is not signed.
 
 ## Ethical Considerations
 

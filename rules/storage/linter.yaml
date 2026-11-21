@@ -566,3 +566,30 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?im)^(?:(?:(?:uvx|pipx\\s+run|uv\\s+run|xargs)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?check-jsonschema(?:(?:==|@)\\S+)?|(?:python3?|py)(?:\\s+-\\S+)*\\s+-m\\s+check_jsonschema|check-(?:metaschema|azure-pipelines|bamboo-spec|bitbucket-pipelines|buildkite|changie|circle-ci|citation-file-format|cloudbuild|codecov|compose-spec|dependabot|drone-ci|github-(?:actions|discussion|issue-config|issue-forms|workflows(?:-require-timeout)?)|gitlab-ci|meltano|mergify|readthedocs|renovate|snapcraft|taskfile|travis|woodpecker-ci))(?:\\s|$)"
+
+  # JuliaFormatter.jl: format() in a Julia script exits 0 unless gated with
+  # exit(1), error(...), or @assert.
+  - id: "juliaformatter-rule"
+    name: "JuliaFormatter"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?s)\\b(?:using|import)\\s+JuliaFormatter\\b.*\\bformat(?:_file)?\\s*\\("
+    exitsZeroUnless:
+      runMatches: "(?s)\\b(?:exit\\s*\\(|error\\s*\\(|@assert\\b)"
+
+  # jlfmt (Pkg app) and julia -m JuliaFormatter: --check/-c is enforcing,
+  # --inplace/-i and other flags exit 0.
+  - id: "jlfmt-rule"
+    name: "JuliaFormatter"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:jlfmt\\s+\\S|julia(?:\\s+-\\S+)*\\s+-m\\s+JuliaFormatter(?:\\s|$))"
+    unless: "(?i)(?:^|\\s)--jlfmt-path(?:\\s|=)"
+    exitsZeroUnless:
+      runMatches: "(?i)(?:^|\\s)(?:-c|--check)(?:\\s|$)"
+
+  - id: "julia-format-action-rule"
+    name: "JuliaFormatter"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^julia-actions/julia-format$"

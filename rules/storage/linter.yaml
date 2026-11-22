@@ -375,6 +375,7 @@ rules:
   # repository URLs in shell commands out.
   - id: "buf-breaking-rule"
     name: "buf breaking"
+    # Artifact.Name is omitted on purpose: prose names don't prove execution.
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?im)(?:(?:^|[^a-z0-9_-])buf(?::\\S+|@\\S+)?[ \\t]+breaking(?:$|[^a-z0-9_-])|^bufbuild/buf(?:-breaking)?-action(?:@\\S+)?$)"

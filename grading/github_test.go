@@ -1258,6 +1258,24 @@ jobs:
 	}
 }
 
+// bufActionWorkflow builds a one-step buf-action workflow whose sibling check
+// is disabled by disabledInput, appending input when set, so a suite can grade
+// one of the action's two checks in isolation.
+func bufActionWorkflow(disabledInput, input string) string {
+	workflow := `on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: bufbuild/buf-action@v1
+        with:
+          ` + disabledInput + `
+`
+	if input != "" {
+		workflow += "          " + input + "\n"
+	}
+	return workflow
+}
+
 func TestBufActionLintInputGradesCorrectly(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -1271,18 +1289,7 @@ func TestBufActionLintInputGradesCorrectly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// breaking: false disables the sibling buf breaking check so this
 			// suite grades buf lint behavior strictly in isolation.
-			workflow := `on: pull_request
-jobs:
-  lint:
-    steps:
-      - uses: bufbuild/buf-action@v1
-        with:
-          breaking: false
-`
-			if tc.input != "" {
-				workflow += "          " + tc.input + "\n"
-			}
-			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", bufActionWorkflow("breaking: false", tc.input))
 			assert.Equal(t, tc.expected, verdicts["Linter"])
 		})
 	}
@@ -1297,25 +1304,28 @@ func TestBufActionBreakingInputGradesCorrectly(t *testing.T) {
 		{name: "default breaking is enforcing", expected: Enforcing},
 		{name: "breaking disabled is advisory", input: "breaking: false", expected: Advisory},
 		{name: "expression is unknown", input: "breaking: ${{ inputs.breaking }}", expected: Unknown},
+		{name: "setup_only expression is unknown", input: "setup_only: ${{ inputs.setup_only }}", expected: Unknown},
+		// The other buf-action inputs never weaken the breaking check, even
+		// when a runtime expression sets them.
+		{name: "breaking_against expression cannot weaken", input: "breaking_against: ${{ inputs.breaking_against }}", expected: Enforcing},
+		{name: "breaking_against_registry expression cannot weaken", input: "breaking_against_registry: ${{ inputs.breaking_against_registry }}", expected: Enforcing},
+		{name: "pr_comment expression cannot weaken", input: "pr_comment: ${{ inputs.pr_comment }}", expected: Enforcing},
+		{name: "format expression cannot weaken", input: "format: ${{ inputs.format }}", expected: Enforcing},
+		{name: "push expression cannot weaken", input: "push: ${{ inputs.push }}", expected: Enforcing},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// lint: false disables the sibling buf lint check so this
 			// suite grades buf breaking behavior strictly in isolation.
-			workflow := `on: pull_request
-jobs:
-  lint:
-    steps:
-      - uses: bufbuild/buf-action@v1
-        with:
-          lint: false
-`
-			if tc.input != "" {
-				workflow += "          " + tc.input + "\n"
-			}
-			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", bufActionWorkflow("lint: false", tc.input))
 			assert.Equal(t, tc.expected, verdicts["Linter"])
 		})
 	}
+}
+
+// runStep renders run as a `- run: |` block, indenting every continuation
+// line to keep it inside the YAML block scalar.
+func runStep(run string) string {
+	return "      - run: |\n          " + strings.ReplaceAll(run, "\n", "\n          ") + "\n"
 }
 
 // buf breaking fails the step on every breaking change and has no flag that
@@ -1336,15 +1346,16 @@ func TestBufBreakingCLIGradesCorrectly(t *testing.T) {
 		{"swallowed", "buf breaking --against main || true", Advisory},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
+			assessments := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
 on: pull_request
 jobs:
   breaking:
     steps:
-      - run: |
-          `+strings.ReplaceAll(tt.run, "\n", "\n          ")+`
-`)
-			assert.Equal(t, tt.want, verdicts["Linter"])
+`+runStep(tt.run))
+			tools := assessments["Linter"].Tools
+			require.Len(t, tools, 1)
+			assert.Equal(t, "buf breaking", tools[0].Name)
+			assert.Equal(t, tt.want, assessments["Linter"].Verdict)
 		})
 	}
 }
@@ -1368,9 +1379,7 @@ on: pull_request
 jobs:
   buf:
     steps:
-      - run: |
-          `+strings.ReplaceAll(tt.run, "\n", "\n          ")+`
-`)
+`+runStep(tt.run))
 			tools := assessments["Linter"].Tools
 			require.Len(t, tools, len(tt.want))
 			for i, want := range tt.want {
@@ -1423,9 +1432,7 @@ on: pull_request
 jobs:
   `+tt.job+`:
     steps:
-      - run: |
-          `+strings.ReplaceAll(tt.run, "\n", "\n          ")+`
-`)
+`+runStep(tt.run))
 			assert.NotContains(t, verdicts, "Linter")
 		})
 	}
@@ -1660,6 +1667,7 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 	// A setup step does not break the build, but a following real run does.
 	setupThenBreaking := step("uses: bufbuild/buf-action@v1", "with:", "  setup_only: true") +
 		"      - run: buf breaking --against main\n"
+	bufBreakingAction := step("uses: bufbuild/buf-breaking-action@v1", "with:", "  against: .git#refs/heads/main")
 	for _, tt := range []struct {
 		name, category, job string
 		want                Verdict
@@ -1673,7 +1681,7 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 		{"zizmor", "Workflow Security", step("run: zizmor --format github --min-severity high ."), Enforcing},
 		{"buf setup only", "Linter", step("uses: bufbuild/buf-action@v1", "with:", "  setup_only: true"), Advisory},
 		{"buf action", "Linter", step("uses: bufbuild/buf-action@v1"), Enforcing},
-		{"buf breaking action", "Linter", step("uses: bufbuild/buf-breaking-action@v1", "with:", "  against: .git#refs/heads/main"), Enforcing},
+		{"buf breaking action", "Linter", bufBreakingAction, Enforcing},
 		{"buf setup then breaking run", "Linter", setupThenBreaking, Enforcing},
 		{"swiftlint fix", "Linter", step("run: docker run --rm -v $PWD:/work ghcr.io/realm/swiftlint:latest --fix"), Advisory},
 		{"swiftlint lenient", "Linter", step("run: swiftlint lint --lenient"), Advisory},
@@ -1720,6 +1728,12 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 			assert.Equal(t, tt.want, verdicts[tt.category])
 		})
 	}
+	// The breaking action's finding names its own tool, not the lint sibling.
+	tools := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/checks.yml",
+		"on: pull_request\njobs:\n  checks:\n"+bufBreakingAction)["Linter"].Tools
+	require.Len(t, tools, 1)
+	assert.Equal(t, "buf breaking", tools[0].Name)
+	assert.Equal(t, Enforcing, tools[0].Verdict)
 }
 
 // basedpyright and pyrefly check fail on errors with no flag to turn it off.

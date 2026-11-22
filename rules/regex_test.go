@@ -1940,6 +1940,52 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"Install check-jsonschema",
 			},
 		},
+		{
+			ruleID: "oasdiff-rule",
+			shouldMatch: []string{
+				"oasdiff breaking base.yaml revision.yaml",
+				"oasdiff breaking --fail-on ERR base.yaml revision.yaml",
+				"oasdiff breaking -o WARN base.yaml revision.yaml",
+				"if oasdiff breaking --fail-on ERR --warn-ignore .github/api-migration-compatibility/.oasdiff-warn-ignore.yaml base-v1-schema.json pr-v1-schema.json > v1-breaking-report.txt 2>&1",
+				"oasdiff --config ci/oasdiff.yaml breaking base.yaml revision.yaml",
+				"oasdiff breaking-files openapi.yaml --base origin/main --fail-on ERR",
+				"./bin/oasdiff breaking base.yaml revision.yaml",
+				"go run github.com/oasdiff/oasdiff@v1.11.7 breaking base.yaml revision.yaml",
+				"docker run --rm -t tufin/oasdiff breaking https://example.com/base.yaml https://example.com/revision.yaml",
+				"docker run --rm -v $PWD:$PWD -w $PWD ghcr.io/getsentry/image-mirror-tufin-oasdiff:v1.33.0 breaking sentry-api-schema/rpc_method_schema.json ./rpc_method_schema.json --fail-on WARN --format githubactions",
+			},
+			shouldNotMatch: []string{
+				"oasdiff diff base-v1-schema.json pr-v1-schema.json",
+				"oasdiff summary base.yaml revision.yaml",
+				"oasdiff changelog base.yaml revision.yaml",
+				"oasdiff flatten openapi.yaml",
+				"oasdiff validate openapi.yaml",
+				"oasdiff checks",
+				"--warn-ignore .github/api-migration-compatibility/.oasdiff-warn-ignore.yaml",
+				"gh release download --repo oasdiff/oasdiff --pattern '*linux_amd64.tar.gz' --dir /tmp/oasd",
+				"oasdiff/oasdiff-action/changelog",
+				"oasdiff/oasdiff-action/diff",
+				"oasdiff/oasdiff-action/pr-comment",
+				"oasdiff/oasdiff-action/verify",
+				"oasdiff/oasdiff-action/validate",
+				"Install security scanners (gitleaks/osv/oasdiff)",
+			},
+		},
+		{
+			ruleID: "oasdiff-action-rule",
+			shouldMatch: []string{
+				"oasdiff/oasdiff-action/breaking",
+				"oasdiff/oasdiff-action/breaking@v0",
+				"oasdiff/oasdiff-action/breaking@v0.1.0",
+			},
+			shouldNotMatch: []string{
+				"oasdiff/oasdiff-action/changelog",
+				"oasdiff/oasdiff-action/diff",
+				"oasdiff/oasdiff-action/pr-comment",
+				"oasdiff/oasdiff-action/verify",
+				"oasdiff/oasdiff-action/validate",
+			},
+		},
 	}
 
 	for _, tt := range tests {

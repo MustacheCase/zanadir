@@ -1207,6 +1207,78 @@ jobs:
 	}
 }
 
+// fossa analyze only uploads its results, whatever it finds; fossa test is the
+// command that fails on a policy issue.
+func TestFossaExitsZeroUnlessTest(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"fossa test":                      Enforcing,
+		"fossa test --timeout 600":        Enforcing,
+		"fossa container test redis:7":    Enforcing,
+		"fossa analyze && fossa test":     Enforcing,
+		"fossa analyze":                   Advisory,
+		"fossa analyze --branch main":     Advisory,
+		"fossa container analyze redis:7": Advisory,
+		"fossa report attribution --json": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  licenses:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["License Compliance"], run)
+	}
+}
+
+// fossas/fossa-action only analyses unless run-tests is true.
+func TestFossaActionRunTests(t *testing.T) {
+	tests := []struct {
+		name     string
+		options  string
+		expected Verdict
+	}{
+		{"run tests", "        with:\n          run-tests: true\n", Enforcing},
+		{"run tests quoted", "        with:\n          run-tests: 'true'\n", Enforcing},
+		{"no inputs", "", Advisory},
+		{"api key only", "        with:\n          api-key: ${{ secrets.FOSSA_API_KEY }}\n", Advisory},
+		{"tests off", "        with:\n          run-tests: false\n", Advisory},
+		{"expression", "        with:\n          run-tests: ${{ inputs.x }}\n", Unknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/licenses.yml", `
+name: licenses
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - uses: fossas/fossa-action@29693cc50323968e039056be419b32989fc5880c
+`+tt.options)
+			assert.Equal(t, tt.expected, verdicts["License Compliance"])
+		})
+	}
+}
+
+// A workflow named after FOSSA is matched by its name too, which must not hide
+// what the action in it does.
+func TestFossaActionInWorkflowNamedFossa(t *testing.T) {
+	for options, expected := range map[string]Verdict{
+		"        with:\n          run-tests: true\n": Enforcing,
+		"        with:\n          api-key: abc\n":    Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/fossa.yml", `
+name: FOSSA
+on: pull_request
+jobs:
+  fossa:
+    steps:
+      - uses: fossas/fossa-action@29693cc50323968e039056be419b32989fc5880c
+`+options)
+		assert.Equal(t, expected, verdicts["License Compliance"], options)
+	}
+}
+
 func TestStyLuaExitsZeroUnlessCheck(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"stylua --check .":                        Enforcing,

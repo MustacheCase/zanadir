@@ -365,6 +365,18 @@ rules:
         equals: "true"
         verdict: "advisory"
 
+  # buf breaking fails on a breaking schema change; the other buf subcommands
+  # do not. Only a real invocation counts, so the whitespace between buf and
+  # breaking is horizontal only (two commands on separate lines never combine)
+  # and the boundaries around both words keep my-buf, buf breaking-change,
+  # make buf-breaking and prose names out. A :tag or @version after buf covers
+  # Docker images and go run / npx runners.
+  - id: "buf-breaking-rule"
+    name: "buf breaking"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)(?:(?:^|[^a-z0-9_-])buf(?::\\S+|@\\S+)?[ \\t]+breaking(?:$|[^a-z0-9_-]))"
+
   # lychee checks links and exits 2 when one is broken. Its name also turns up
   # in its config (lychee.toml), cache (.lycheecache), release tarballs and the
   # action's report (lychee/out.md), so it only matches as a whole word: after

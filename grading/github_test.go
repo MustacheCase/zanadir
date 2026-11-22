@@ -1268,14 +1268,18 @@ func TestBufActionLintInputGradesCorrectly(t *testing.T) {
 		{name: "expression is unknown", input: "lint: ${{ inputs.lint }}", expected: Unknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// breaking: false disables the sibling buf breaking check so this
+			// suite grades buf lint behavior strictly in isolation.
 			workflow := `on: pull_request
 jobs:
   lint:
     steps:
       - uses: bufbuild/buf-action@v1
+        with:
+          breaking: false
 `
 			if tc.input != "" {
-				workflow += "        with:\n          " + tc.input + "\n"
+				workflow += "          " + tc.input + "\n"
 			}
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
 			assert.Equal(t, tc.expected, verdicts["Linter"])

@@ -1674,6 +1674,28 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"buf generate", "buf push", "buf format -w", "buf config ls-lint-rules", "bufbuild/buf-setup-action@v1"},
 		},
 		{
+			ruleID: "buf-breaking-rule",
+			shouldMatch: []string{
+				"buf breaking", "buf breaking --against .git#refs/heads/main", "buf breaking --against-registry https://buf.example.com",
+				"buf breaking --config buf.yaml", "buf breaking --error-format github-actions ./proto", "buf breaking proto/ --against .git#refs/heads/main",
+				"buf breaking \\\n  --against .git#refs/heads/main",
+				"/usr/local/bin/buf breaking", "./buf breaking",
+				`bash -c "buf breaking"`, "$(buf breaking --against origin/main)",
+				"docker run --rm -v $PWD:/input bufbuild/buf breaking /input",
+				"docker run bufbuild/buf:v1.32.0 breaking --against main",
+				"docker run bufbuild/buf@sha256:0123456789abcdef breaking --against main",
+				"go run github.com/bufbuild/buf/cmd/buf@v1.32.0 breaking",
+				"npx @bufbuild/buf@1.32.0 breaking",
+				"BUF breaking --against main",
+			},
+			shouldNotMatch: []string{
+				"buf lint", "buf build", "buf format --diff --exit-code", "buf generate", "buf push", "buf config ls-breaking-rules",
+				"make buf-breaking", "Protobuf breaking change detection", "my-buf breaking", "buf breaking-change", "xBUF breaking",
+				"docker push registry.dev/buf\nbreaking-tool check",
+				"buf --version", "brew install buf", "bufbreaking",
+			},
+		},
+		{
 			ruleID: "lychee-rule",
 			shouldMatch: []string{
 				"lychee .", "lychee --no-progress --config lychee.toml './**/*.md'", "lychee --scheme https --timeout 60 --exclude-all-private .",

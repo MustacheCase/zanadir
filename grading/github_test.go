@@ -6,6 +6,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Executable quotes and directory prefixes must not change either recognition
@@ -1283,6 +1284,98 @@ jobs:
 			}
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
 			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+// buf breaking fails the step on every breaking change and has no flag that
+// turns that off, so a CLI run gates the merge; || true alone weakens it.
+func TestBufBreakingCLIGradesCorrectly(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      Verdict
+	}{
+		{"bare", "buf breaking", Enforcing},
+		{"against flag", "buf breaking --against .git#refs/heads/main", Enforcing},
+		{"target and error format", "buf breaking --error-format github-actions ./proto", Enforcing},
+		{"continuation", "buf breaking \\\n  --against .git#refs/heads/main", Enforcing},
+		{"docker image", "docker run --rm -v $PWD:/input bufbuild/buf breaking /input", Enforcing},
+		{"versioned docker tag", "docker run bufbuild/buf:v1.32.0 breaking --against main", Enforcing},
+		{"go run", "go run github.com/bufbuild/buf/cmd/buf@v1.32.0 breaking --against main", Enforcing},
+		{"npx", "npx @bufbuild/buf@1.32.0 breaking", Enforcing},
+		{"swallowed", "buf breaking --against main || true", Advisory},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
+on: pull_request
+jobs:
+  breaking:
+    steps:
+      - run: |
+          `+strings.ReplaceAll(tt.run, "\n", "\n          ")+`
+`)
+			assert.Equal(t, tt.want, verdicts["Linter"])
+		})
+	}
+}
+
+// The report lists "buf breaking" as its own tool next to buf lint, each with
+// its own verdict.
+func TestBufBreakingIsItsOwnTool(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      []Tool
+	}{
+		{"breaking run", "buf breaking --against main", []Tool{{Name: "buf breaking", Verdict: Enforcing}}},
+		{"lint run", "buf lint", []Tool{{Name: "buf lint", Verdict: Enforcing}}},
+		{"both runs", "buf breaking --against main\nbuf lint", []Tool{
+			{Name: "buf breaking", Verdict: Enforcing}, {Name: "buf lint", Verdict: Enforcing},
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assessments := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
+on: pull_request
+jobs:
+  buf:
+    steps:
+      - run: |
+          `+strings.ReplaceAll(tt.run, "\n", "\n          ")+`
+`)
+			tools := assessments["Linter"].Tools
+			require.Len(t, tools, len(tt.want))
+			for i, want := range tt.want {
+				assert.Equal(t, want.Name, tools[i].Name)
+				assert.Equal(t, want.Verdict, tools[i].Verdict)
+			}
+		})
+	}
+}
+
+// Names, passive commands and unexpanded targets never run buf breaking, and
+// two commands on separate lines cannot combine into one.
+func TestBufBreakingNonInvocationsDoNotCoverLinter(t *testing.T) {
+	for _, tt := range []struct {
+		name, workflowName, job, run string
+	}{
+		{"workflow name", "Protobuf breaking change detection", "checks", "echo done"},
+		{"job name", "CI", "protobuf-breaking", "echo done"},
+		{"passive echo", "CI", "checks", `echo "buf breaking: clean against main."`},
+		{"make target", "CI", "checks", "make buf-breaking"},
+		{"version check", "CI", "checks", "buf --version"},
+		{"install", "CI", "checks", "go install github.com/bufbuild/buf/cmd/buf@latest"},
+		{"unrelated commands across lines", "CI", "checks", "docker push registry.dev/buf\nbreaking-tool check"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+name: `+tt.workflowName+`
+on: pull_request
+jobs:
+  `+tt.job+`:
+    steps:
+      - run: |
+          `+strings.ReplaceAll(tt.run, "\n", "\n          ")+`
+`)
+			assert.NotContains(t, verdicts, "Linter")
 		})
 	}
 }

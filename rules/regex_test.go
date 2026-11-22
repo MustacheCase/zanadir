@@ -1687,12 +1687,17 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"go run github.com/bufbuild/buf/cmd/buf@v1.32.0 breaking",
 				"npx @bufbuild/buf@1.32.0 breaking",
 				"BUF breaking --against main",
+				"bufbuild/buf-action", "bufbuild/buf-action@v1",
+				"bufbuild/buf-breaking-action", "bufbuild/buf-breaking-action@v1",
 			},
 			shouldNotMatch: []string{
 				"buf lint", "buf build", "buf format --diff --exit-code", "buf generate", "buf push", "buf config ls-breaking-rules",
 				"make buf-breaking", "Protobuf breaking change detection", "my-buf breaking", "buf breaking-change", "xBUF breaking",
 				"docker push registry.dev/buf\nbreaking-tool check",
 				"buf --version", "brew install buf", "bufbreaking",
+				"bufbuild/buf-lint-action", "bufbuild/buf-setup-action@v1",
+				"acme/buf-action@v1", "bufbuild/buf-action-fork",
+				"git clone https://github.com/bufbuild/buf-action.git",
 			},
 		},
 		{

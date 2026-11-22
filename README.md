@@ -8,6 +8,7 @@
   <a href="https://codecov.io/gh/MustacheCase/zanadir"><img src="https://codecov.io/gh/MustacheCase/zanadir/branch/main/graph/badge.svg" alt="Test coverage"></a>
   <a href="https://github.com/MustacheCase/zanadir/releases/latest"><img src="https://img.shields.io/github/v/release/MustacheCase/zanadir" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/MustacheCase/zanadir" alt="License: MIT"></a>
+  <a href="https://github.com/avelino/awesome-go#continuous-integration"><img src="https://awesome.re/mentioned-badge.svg" alt="Mentioned in Awesome Go"></a>
 </p>
 
 zanadir is an open-source CI/CD security tool. It reads a repository's

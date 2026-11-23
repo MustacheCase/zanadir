@@ -4,6 +4,10 @@ rules:
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
     categories: ["License Compliance"]
     regex: "(?i)\\bfossa\\b"
+    # Analysis only uploads; fossa test (run-tests: true in the action) fails on policy issues.
+    exitsZeroUnless:
+      input: "run-tests"
+      runMatches: "(?i)\\bfossa\\s+(?:container\\s+)?test\\b|^true$"
 
   - id: "licensefinder-rule"
     name: "LicenseFinder"

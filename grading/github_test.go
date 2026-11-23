@@ -1417,13 +1417,15 @@ func TestBufBreakingNonInvocationsDoNotCoverLinter(t *testing.T) {
 	for _, tt := range []struct {
 		name, workflowName, job, run string
 	}{
-		{"workflow name", "Protobuf breaking change detection", "checks", "echo done"},
+		{"workflow name prose", "Protobuf breaking change detection", "checks", "echo done"},
+		{"workflow named buf breaking", "buf breaking", "checks", "echo done"},
 		{"job name", "CI", "protobuf-breaking", "echo done"},
 		{"passive echo", "CI", "checks", `echo "buf breaking: clean against main."`},
 		{"make target", "CI", "checks", "make buf-breaking"},
 		{"version check", "CI", "checks", "buf --version"},
 		{"install", "CI", "checks", "go install github.com/bufbuild/buf/cmd/buf@latest"},
-		{"unrelated commands across lines", "CI", "checks", "docker push registry.dev/buf\nbreaking-tool check"},
+		{"file arguments", "CI", "checks", "git diff buf breaking.txt"},
+		{"unrelated commands across lines", "CI", "checks", "docker push registry.dev/buf\nbreaking check"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `

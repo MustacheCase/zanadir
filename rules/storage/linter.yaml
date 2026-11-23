@@ -378,7 +378,7 @@ rules:
     # Artifact.Name is omitted on purpose: prose names don't prove execution.
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
-    regex: "(?im)(?:(?:^|[^a-z0-9_-])buf(?::\\S+|@\\S+)?[ \\t]+breaking(?:$|[^a-z0-9_-])|^bufbuild/buf(?:-breaking)?-action(?:@\\S+)?$)"
+    regex: "(?im)(?:(?:^|[\\s/\"'(])buf(?:[:@][^\\s/\"']+)?[ \\t]+breaking(?:$|[\\s\"'|;&)])|^bufbuild/buf(?:-breaking)?-action(?:@\\S+)?$)"
     # breaking: false or setup_only: true leaves the step without a breaking
     # check, or installing buf only.
     weakenedWhen:

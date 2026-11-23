@@ -6,6 +6,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Executable quotes and directory prefixes must not change either recognition
@@ -1257,6 +1258,24 @@ jobs:
 	}
 }
 
+// bufActionWorkflow builds a one-step buf-action workflow whose sibling check
+// is disabled by disabledInput, appending input when set, so a suite can grade
+// one of the action's two checks in isolation.
+func bufActionWorkflow(disabledInput, input string) string {
+	workflow := `on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: bufbuild/buf-action@v1
+        with:
+          ` + disabledInput + `
+`
+	if input != "" {
+		workflow += "          " + input + "\n"
+	}
+	return workflow
+}
+
 func TestBufActionLintInputGradesCorrectly(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -1268,17 +1287,155 @@ func TestBufActionLintInputGradesCorrectly(t *testing.T) {
 		{name: "expression is unknown", input: "lint: ${{ inputs.lint }}", expected: Unknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			workflow := `on: pull_request
+			// breaking: false disables the sibling buf breaking check so this
+			// suite grades buf lint behavior strictly in isolation.
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", bufActionWorkflow("breaking: false", tc.input))
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+func TestBufActionBreakingInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default breaking is enforcing", expected: Enforcing},
+		{name: "breaking disabled is advisory", input: "breaking: false", expected: Advisory},
+		{name: "expression is unknown", input: "breaking: ${{ inputs.breaking }}", expected: Unknown},
+		{name: "setup_only expression is unknown", input: "setup_only: ${{ inputs.setup_only }}", expected: Unknown},
+		// The other buf-action inputs never weaken the breaking check, even
+		// when a runtime expression sets them.
+		{name: "breaking_against expression cannot weaken", input: "breaking_against: ${{ inputs.breaking_against }}", expected: Enforcing},
+		{name: "breaking_against_registry expression cannot weaken", input: "breaking_against_registry: ${{ inputs.breaking_against_registry }}", expected: Enforcing},
+		{name: "pr_comment expression cannot weaken", input: "pr_comment: ${{ inputs.pr_comment }}", expected: Enforcing},
+		{name: "format expression cannot weaken", input: "format: ${{ inputs.format }}", expected: Enforcing},
+		{name: "push expression cannot weaken", input: "push: ${{ inputs.push }}", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// lint: false disables the sibling buf lint check so this
+			// suite grades buf breaking behavior strictly in isolation.
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", bufActionWorkflow("lint: false", tc.input))
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+// runStep renders run as a `- run: |` block, indenting every continuation
+// line to keep it inside the YAML block scalar.
+func runStep(run string) string {
+	return "      - run: |\n          " + strings.ReplaceAll(run, "\n", "\n          ") + "\n"
+}
+
+// buf breaking fails the step on every breaking change and has no flag that
+// turns that off, so a CLI run gates the merge; || true alone weakens it.
+func TestBufBreakingCLIGradesCorrectly(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      Verdict
+	}{
+		{"bare", "buf breaking", Enforcing},
+		{"against flag", "buf breaking --against .git#refs/heads/main", Enforcing},
+		{"target and error format", "buf breaking --error-format github-actions ./proto", Enforcing},
+		{"continuation", "buf breaking \\\n  --against .git#refs/heads/main", Enforcing},
+		{"docker image", "docker run --rm -v $PWD:/input bufbuild/buf breaking /input", Enforcing},
+		{"versioned docker tag", "docker run bufbuild/buf:v1.32.0 breaking --against main", Enforcing},
+		{"go run", "go run github.com/bufbuild/buf/cmd/buf@v1.32.0 breaking --against main", Enforcing},
+		{"npx", "npx @bufbuild/buf@1.32.0 breaking", Enforcing},
+		{"swallowed", "buf breaking --against main || true", Advisory},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assessments := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
+on: pull_request
 jobs:
-  lint:
+  breaking:
+    steps:
+`+runStep(tt.run))
+			tools := assessments["Linter"].Tools
+			require.Len(t, tools, 1)
+			assert.Equal(t, "buf breaking", tools[0].Name)
+			assert.Equal(t, tt.want, assessments["Linter"].Verdict)
+		})
+	}
+}
+
+// The report lists "buf breaking" as its own tool next to buf lint, each with
+// its own verdict.
+func TestBufBreakingIsItsOwnTool(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      []Tool
+	}{
+		{"breaking run", "buf breaking --against main", []Tool{{Name: "buf breaking", Verdict: Enforcing}}},
+		{"lint run", "buf lint", []Tool{{Name: "buf lint", Verdict: Enforcing}}},
+		{"both runs", "buf breaking --against main\nbuf lint", []Tool{
+			{Name: "buf breaking", Verdict: Enforcing}, {Name: "buf lint", Verdict: Enforcing},
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assessments := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
+on: pull_request
+jobs:
+  buf:
+    steps:
+`+runStep(tt.run))
+			tools := assessments["Linter"].Tools
+			require.Len(t, tools, len(tt.want))
+			for i, want := range tt.want {
+				assert.Equal(t, want.Name, tools[i].Name)
+				assert.Equal(t, want.Verdict, tools[i].Verdict)
+			}
+		})
+	}
+}
+
+// One buf-action step runs both checks; the report lists each tool with its
+// own verdict, so lint off does not weaken breaking.
+func TestBufActionReportsBothTools(t *testing.T) {
+	assessments := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
+on: pull_request
+jobs:
+  buf:
     steps:
       - uses: bufbuild/buf-action@v1
-`
-			if tc.input != "" {
-				workflow += "        with:\n          " + tc.input + "\n"
-			}
-			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
-			assert.Equal(t, tc.expected, verdicts["Linter"])
+        with:
+          lint: false
+`)
+	assert.Equal(t, Enforcing, assessments["Linter"].Verdict)
+	tools := assessments["Linter"].Tools
+	require.Len(t, tools, 2)
+	for i, want := range []Tool{{Name: "buf breaking", Verdict: Enforcing}, {Name: "buf lint", Verdict: Advisory}} {
+		assert.Equal(t, want.Name, tools[i].Name)
+		assert.Equal(t, want.Verdict, tools[i].Verdict)
+	}
+}
+
+// Names, passive commands and unexpanded targets never run buf breaking, and
+// two commands on separate lines cannot combine into one.
+func TestBufBreakingNonInvocationsDoNotCoverLinter(t *testing.T) {
+	for _, tt := range []struct {
+		name, workflowName, job, run string
+	}{
+		{"workflow name prose", "Protobuf breaking change detection", "checks", "echo done"},
+		{"workflow named buf breaking", "buf breaking", "checks", "echo done"},
+		{"job name", "CI", "protobuf-breaking", "echo done"},
+		{"passive echo", "CI", "checks", `echo "buf breaking: clean against main."`},
+		{"make target", "CI", "checks", "make buf-breaking"},
+		{"version check", "CI", "checks", "buf --version"},
+		{"install", "CI", "checks", "go install github.com/bufbuild/buf/cmd/buf@latest"},
+		{"file arguments", "CI", "checks", "git diff buf breaking.txt"},
+		{"unrelated commands across lines", "CI", "checks", "docker push registry.dev/buf\nbreaking check"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+name: `+tt.workflowName+`
+on: pull_request
+jobs:
+  `+tt.job+`:
+    steps:
+`+runStep(tt.run))
+			assert.NotContains(t, verdicts, "Linter")
 		})
 	}
 }
@@ -1509,6 +1666,10 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 		return "    runs-on: ubuntu-latest\n    steps:\n      - " + strings.Join(lines, "\n        ") + "\n"
 	}
 	osv := "    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.0\n"
+	// A setup step does not break the build, but a following real run does.
+	setupThenBreaking := step("uses: bufbuild/buf-action@v1", "with:", "  setup_only: true") +
+		"      - run: buf breaking --against main\n"
+	bufBreakingAction := step("uses: bufbuild/buf-breaking-action@v1", "with:", "  against: .git#refs/heads/main")
 	for _, tt := range []struct {
 		name, category, job string
 		want                Verdict
@@ -1522,6 +1683,8 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 		{"zizmor", "Workflow Security", step("run: zizmor --format github --min-severity high ."), Enforcing},
 		{"buf setup only", "Linter", step("uses: bufbuild/buf-action@v1", "with:", "  setup_only: true"), Advisory},
 		{"buf action", "Linter", step("uses: bufbuild/buf-action@v1"), Enforcing},
+		{"buf breaking action", "Linter", bufBreakingAction, Enforcing},
+		{"buf setup then breaking run", "Linter", setupThenBreaking, Enforcing},
 		{"swiftlint fix", "Linter", step("run: docker run --rm -v $PWD:/work ghcr.io/realm/swiftlint:latest --fix"), Advisory},
 		{"swiftlint lenient", "Linter", step("run: swiftlint lint --lenient"), Advisory},
 		{"swiftlint strict", "Linter", step("run: swiftlint lint --strict"), Enforcing},
@@ -1567,6 +1730,12 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 			assert.Equal(t, tt.want, verdicts[tt.category])
 		})
 	}
+	// The breaking action's finding names its own tool, not the lint sibling.
+	tools := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/checks.yml",
+		"on: pull_request\njobs:\n  checks:\n"+bufBreakingAction)["Linter"].Tools
+	require.Len(t, tools, 1)
+	assert.Equal(t, "buf breaking", tools[0].Name)
+	assert.Equal(t, Enforcing, tools[0].Verdict)
 }
 
 // basedpyright and pyrefly check fail on errors with no flag to turn it off.

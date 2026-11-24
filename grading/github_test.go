@@ -187,6 +187,7 @@ func TestValeCommandGradesByExitCode(t *testing.T) {
 		"vale docs/":                       Enforcing,
 		"vale --minAlertLevel=error docs/": Enforcing,
 		"vale --no-exit docs/":             Advisory,
+		"vale --no-exit=true docs/":        Advisory,
 	} {
 		t.Run(run, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `

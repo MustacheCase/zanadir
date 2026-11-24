@@ -325,9 +325,9 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?im)^(?:\\S*/)?vale(?:[\\s:]|$)|\\bjdkato/vale\\b"
-    unless: "(?im)^(?:\\S*/)?vale\\b(?:\\s+\\S+)*\\s+(?:sync|ls-config|ls-dirs|ls-metrics|ls-vars)(?:\\s|$)"
+    unless: "(?im)(?:^(?:\\S*/)?vale|\\bjdkato/vale(?::\\S+)?)(?:\\s+\\S+)*\\s+(?:sync|ls-config|ls-dirs|ls-metrics|ls-vars|-v)(?:\\s|$)"
     weakenedWhen:
-      - runMatches: "(?:^|\\s)--no-exit(?:\\s|$)"
+      - runMatches: "(?:^|\\s)--no-exit(?:=true)?(?:\\s|$)"
         verdict: "advisory"
 
   # vale-cli/vale-action (errata-ai/vale-action is its old name, and grafana's

@@ -1239,7 +1239,7 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 		"ripsecrets-rule":            {"ripsecrets --install-pre-commit", "./bin/ripsecrets --install-pre-commit"},
 		"secretlint-rule":            {"npx secretlint --init", "secretlint --init"},
 		"tflint-rule":                {"tflint --init", "tflint -v"},
-		"vale-rule":                  {"vale sync", "vale --config .lintrc/docs/vale.ini sync", "vale --config=docs/.vale.ini sync", "vale ls-config", "vale ls-dirs", "vale ls-metrics docs/", "vale ls-vars"},
+		"vale-rule":                  {"vale sync", "vale --config .lintrc/docs/vale.ini sync", "vale --config=docs/.vale.ini sync", "vale ls-config", "vale ls-dirs", "vale ls-metrics docs/", "vale ls-vars", "vale -v", "docker run --rm -v $(pwd):/docs -w /docs jdkato/vale sync", "docker run --rm jdkato/vale:v3 ls-config"},
 		"lychee-rule":                {"lychee --dump README.md", "lychee --dump-inputs ."},
 		"snyk-agent-scan-rule":       {"uvx snyk-agent-scan@latest --ci --no-skills ~/.vscode/mcp.json"},
 		"trivy-rule":                 {"trivy fs --scanners secret .", "trivy repo --scanners misconfig,secret .", "trivy fs --security-checks config .", "trivy image --format cyclonedx alpine", "trivy fs -f spdx ."},

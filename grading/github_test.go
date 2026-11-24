@@ -1877,11 +1877,11 @@ jobs:
 // oasdiff exits 0 on breaking changes unless --fail-on or -o is given.
 func TestOasdiffExitsZeroUnlessFailOn(t *testing.T) {
 	for run, expected := range map[string]Verdict{
-		"oasdiff breaking base.yaml revision.yaml":                                    Advisory,
-		"oasdiff breaking --fail-on ERR base.yaml revision.yaml":                      Enforcing,
-		"oasdiff breaking -o WARN base.yaml revision.yaml":                            Enforcing,
-		"oasdiff breaking-files openapi.yaml --base origin/main --fail-on ERR":        Enforcing,
-		"oasdiff --config ci/oasdiff.yaml breaking base.yaml revision.yaml":           Unknown,
+		"oasdiff breaking base.yaml revision.yaml":                             Advisory,
+		"oasdiff breaking --fail-on ERR base.yaml revision.yaml":               Enforcing,
+		"oasdiff breaking -o WARN base.yaml revision.yaml":                     Enforcing,
+		"oasdiff breaking-files openapi.yaml --base origin/main --fail-on ERR": Enforcing,
+		"oasdiff --config ci/oasdiff.yaml breaking base.yaml revision.yaml":    Unknown,
 	} {
 		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
 on: pull_request
@@ -1944,4 +1944,3 @@ jobs:
 		})
 	}
 }
-

@@ -269,7 +269,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"c8 mocha", "c8 --reporter=lcov npm test", "c8 report", "c8 check-coverage --lines 95 --per-file",
 				"npx c8 report --check-coverage", "npx c8 --reporter=lcovonly npm test", "npx --yes c8@10 node --test",
 				"yarn c8 jest --ci", "yarn c8 yarn test", "pnpm c8 vitest run", "pnpm exec c8 mocha", "bunx c8 mocha",
-				"npm exec -- c8 report", "./node_modules/.bin/c8 mocha",
+				"npm exec -- c8 report", "./node_modules/.bin/c8 mocha", "time c8 mocha", "(c8 mocha)",
 				"node node_modules/c8/bin/c8.js node node_modules/mocha/bin/mocha.js --no-config 'test/*.js'",
 				"node -- node_modules/c8/bin/c8.js report --reporter clover",
 			},
@@ -281,6 +281,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"/* c8 ignore next */", "c8ctl deploy ./my-process.bpmn", "c8y currentuser get",
 				"yarn upgrade c8@^10", "npm ls c8", "cd qa/c8-orchestration-cluster-e2e-test-suite",
 				"ip link set dev eth0 address 02:42:ac:11:00:c8", "docker://ghcr.io/acme/runner:node20-c8",
+				"pnpm -C packages/c8 test", "pnpm --filter ./packages/c8 test", "yarn --cwd harness/build/c8 test",
 			},
 		},
 		{

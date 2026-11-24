@@ -1,7 +1,7 @@
 {
   "name": "zanadir",
   "description": "Find what a repository's CI is missing, and which controls cannot fail a build, then close the gaps. The skill asks to run the zanadir CLI in your project, each command with your approval; the plugin itself contains no scripts or servers.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": {
     "name": "MustacheCase"
   },

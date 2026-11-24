@@ -42,18 +42,6 @@ The plugin contains no scripts, hooks or MCP servers.
 zanadir has no telemetry. The skill scans the open project with `--dir .` and
 doesn't ask zanadir to read anything over the network.
 
-## The full plugin
-
-This is the directory edition. The full plugin, which adds the zanadir MCP
-server (`scan`, `fix` and `skills` tools, through a local binary or Docker) and
-pre-approves the zanadir commands, is installed from zanadir's own
-marketplace:
-
-```
-/plugin marketplace add MustacheCase/zanadir
-/plugin install zanadir@mustachecase
-```
-
 ## License
 
 MIT, like zanadir itself.

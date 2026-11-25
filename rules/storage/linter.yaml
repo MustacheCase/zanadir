@@ -65,6 +65,23 @@ rules:
       runMatches: "(?:^|\\s)--?set_exit_status\\b"
       unknownWhen: "(?:^|\\s)--?config(?:[= ]|$)"
 
+  # buildifier defaults to -mode=fix and -lint=off (exits 0 on findings); it
+  # only fails the build with -mode=check, -mode=diff (-d) or -lint=warn, and
+  # -format=... forces exit 0. A config file or -config can set mode and lint.
+  - id: "buildifier-rule"
+    name: "buildifier"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|[\\s/])buildifier(?:[\\s@]|$)"
+    unless: "(?i)^\\s*(?:pre-commit|prek|bazel(?:isk)?)\\b"
+    exitsZeroUnless:
+      runMatches: "(?:^|\\s)(?:--?mode[= ]+(?:check|diff)|--?lint[= ]+warn|-d)(?:\\s|$)"
+      unknownWhen: "(?:^|\\s)--?config(?:[= ]|$)|\\bBUILDIFIER_CONFIG="
+      configFiles: [".buildifier.json"]
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)--?format(?:[= ]|$)"
+        verdict: "advisory"
+
   - id: "rubocop-rule"
     name: "RuboCop"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

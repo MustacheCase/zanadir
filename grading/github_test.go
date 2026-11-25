@@ -106,6 +106,29 @@ jobs:
 	}
 }
 
+// buildifier defaults to -mode=fix and -lint=off (exits 0 on findings);
+// -mode=check, -mode=diff (-d) or -lint=warn fail the build unless -format=...
+// is passed, and -config may set mode/lint in a file.
+func TestBuildifierExitsZeroUnlessCheckMode(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"buildifier -mode=check -r .":                   Enforcing,
+		"buildifier -lint=warn -r .":                    Enforcing,
+		"buildifier -r .":                               Advisory,
+		"buildifier -mode=fix -lint=fix -r .":           Advisory,
+		"buildifier -mode=check -format=json -r .":      Advisory,
+		"buildifier -config=tools/buildifier.json -r .": Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 // license-checker only lists licences unless --failOn or --onlyAllow makes it
 // fail.
 func TestLicenseCheckerExitsZeroUnlessFailFlag(t *testing.T) {

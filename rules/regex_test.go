@@ -721,6 +721,31 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"golangci-lint run", "./scripts/revive-db.sh", "revived", "Revive stale issues"},
 		},
 		{
+			ruleID: "buildifier-rule",
+			shouldMatch: []string{
+				"buildifier --mode=check $BZL_FILES",
+				"if ! buildifier --mode=check $BZL_FILES",
+				"buildifier --mode=diff $BZL_FILES",
+				"xargs buildifier --config=.lintrc/infrastructure/build-systems/.buildifier.json --lint=warn",
+				"buildifier -mode=fix $(find . -name 'BUILD*' -o -name '*.bzl' -type f)",
+				"buildifier -mode check -r .",
+				"buildifier -d -r .",
+				"buildifier --mode=check --lint=warn --format=sarif -r .",
+				"/usr/local/bin/buildifier -mode=check -r .",
+				"npx @bazel/buildifier -mode=check -r .",
+				"go run github.com/bazelbuild/buildtools/buildifier@latest -mode=check -r .",
+				"jbajic/buildifier",
+			},
+			shouldNotMatch: []string{
+				".buildifier.json",
+				"pre-commit run buildifier-lint --all-files",
+				"bazel run //:buildifier.check",
+				"bazel test //:buildifier_test",
+				"bazel run -- @buildifier_prebuilt//:buildifier -mode=check -r .",
+				"buildozer 'add deps //base' //pkg:rule",
+			},
+		},
+		{
 			ruleID: "oxsecurity-super-linter-rule",
 			shouldMatch: []string{
 				"github/super-linter", "github/super-linter/slim", "github/super-linter@v4.9.7",
@@ -2046,6 +2071,11 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
+		"buildifier-rule": {
+			"pre-commit run buildifier --all-files",
+			"prek run buildifier --all-files",
+			"bazel run //buildifier -- -mode=check -r .",
+		},
 		"opengrep-rule":      {"opengrep test rules/", "opengrep --experimental validate rules/"},
 		"sobelow-rule":       {"mix escript.install hex sobelow --force", "mix deps.compile jason sobelow", "mix sobelow --version"},
 		"bundler-audit-rule": {"bundle-audit update", "bundle exec bundle-audit update", "bundle audit version", "rake bundle:audit:update"},

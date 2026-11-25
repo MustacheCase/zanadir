@@ -590,3 +590,28 @@ rules:
     applyOn: ["Job.Package", "Job.Run"]
     categories: ["Linter"]
     regex: "(?im)^(?:(?:(?:uvx|pipx\\s+run|uv\\s+run|xargs)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?check-jsonschema(?:(?:==|@)\\S+)?|(?:python3?|py)(?:\\s+-\\S+)*\\s+-m\\s+check_jsonschema|check-(?:metaschema|azure-pipelines|bamboo-spec|bitbucket-pipelines|buildkite|changie|circle-ci|citation-file-format|cloudbuild|codecov|compose-spec|dependabot|drone-ci|github-(?:actions|discussion|issue-config|issue-forms|workflows(?:-require-timeout)?)|gitlab-ci|meltano|mergify|readthedocs|renovate|snapcraft|taskfile|travis|woodpecker-ci))(?:\\s|$)"
+
+  # oasdiff compares two OpenAPI specs and reports breaking changes.
+  # oasdiff breaking exits 0 unless --fail-on or -o is given.
+  - id: "oasdiff-rule"
+    name: "oasdiff"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/-])oasdiff(?:[:@][\\w.-]+)?(?:\\s+(?:-[\\w-]+(?:[= ]\\S+)?))*\\s+breaking(?:-files)?(?:\\s|$)"
+    exitsZeroUnless:
+      runMatches: "(?i)(?:^|\\s)(?:--fail-on|-o)[= ]+\\w+(?:\\s|$)"
+      unknownWhen: "(?:^|\\s)--config(?:[= ]|$)|\\bOASDIFF_CONFIG="
+      configFiles: [".oasdiff.yaml", ".oasdiff.yml", ".oasdiff.json", ".oasdiff.toml", ".oasdiff.hcl", "oasdiff.yaml", "oasdiff.yml", "oasdiff.json", "oasdiff.toml", "oasdiff.hcl"]
+
+  # oasdiff/oasdiff-action/breaking passes fail-on to oasdiff breaking --fail-on.
+  # Without fail-on, the action only annotates and exits 0.
+  - id: "oasdiff-action-rule"
+    name: "oasdiff"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^oasdiff/oasdiff-action/breaking(?:@|$)"
+    exitsZeroUnless:
+      input: "fail-on"
+      runMatches: "(?i)^(?:ERR|WARN)$"
+      configFiles: [".oasdiff.yaml", ".oasdiff.yml", ".oasdiff.json", ".oasdiff.toml", ".oasdiff.hcl", "oasdiff.yaml", "oasdiff.yml", "oasdiff.json", "oasdiff.toml", "oasdiff.hcl"]
+

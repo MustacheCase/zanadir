@@ -2114,3 +2114,74 @@ jobs:
 		})
 	}
 }
+
+// oasdiff exits 0 on breaking changes unless --fail-on or -o is given.
+func TestOasdiffExitsZeroUnlessFailOn(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"oasdiff breaking base.yaml revision.yaml":                             Advisory,
+		"oasdiff breaking --fail-on ERR base.yaml revision.yaml":               Enforcing,
+		"oasdiff breaking -o WARN base.yaml revision.yaml":                     Enforcing,
+		"oasdiff breaking-files openapi.yaml --base origin/main --fail-on ERR": Enforcing,
+		"oasdiff --config ci/oasdiff.yaml breaking base.yaml revision.yaml":    Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  api:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+// oasdiff/oasdiff-action/breaking exits 0 unless fail-on is set.
+func TestOasdiffActionFailOnGradesAdvisory(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		uses     string
+		input    string
+		expected Verdict
+	}{
+		{
+			name:     "fail-on ERR is enforcing",
+			uses:     "oasdiff/oasdiff-action/breaking@v0",
+			input:    "fail-on: ERR",
+			expected: Enforcing,
+		},
+		{
+			name:     "fail-on warn is enforcing",
+			uses:     "oasdiff/oasdiff-action/breaking@v0",
+			input:    "fail-on: warn",
+			expected: Enforcing,
+		},
+		{
+			name:     "without fail-on is advisory",
+			uses:     "oasdiff/oasdiff-action/breaking@v0",
+			expected: Advisory,
+		},
+		{
+			name:     "dynamic fail-on is unknown",
+			uses:     "oasdiff/oasdiff-action/breaking@v0",
+			input:    "fail-on: ${{ inputs.fail-on }}",
+			expected: Unknown,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  api:
+    steps:
+      - uses: ` + tc.uses + `
+        with:
+          base: base.yaml
+          revision: revision.yaml
+`
+			if tc.input != "" {
+				workflow += "          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}

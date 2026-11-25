@@ -11,11 +11,8 @@ permissions: {}
 jobs:
   zizmor:
     runs-on: ubuntu-latest
-    # The action uploads its SARIF to code scanning, which needs this. Without
-    # it the job passes and the findings go nowhere.
     permissions:
       contents: read
-      security-events: write
     steps:
     - name: Checkout code
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -24,3 +21,8 @@ jobs:
 
     - name: Audit the workflows
       uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+      with:
+        # Fail the job on findings and annotate them on the pull request. With
+        # the default (true) it uploads SARIF and passes whatever it finds.
+        advanced-security: false
+        annotations: true

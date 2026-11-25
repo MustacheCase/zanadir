@@ -632,3 +632,18 @@ rules:
       runMatches: "(?i)^(?:ERR|WARN)$"
       configFiles: [".oasdiff.yaml", ".oasdiff.yml", ".oasdiff.json", ".oasdiff.toml", ".oasdiff.hcl", "oasdiff.yaml", "oasdiff.yml", "oasdiff.json", "oasdiff.toml", "oasdiff.hcl"]
 
+  # json-yaml-validate checks every JSON and YAML file for syntax errors, and
+  # optionally against a schema, and fails the build by default. It only runs
+  # as the action GrantBirki/json-yaml-validate; mode: warn logs the findings
+  # and passes, so it is advisory. A job name says nothing about the mode, so
+  # no Artifact.Name.
+  - id: "json-yaml-validate-rule"
+    name: "json-yaml-validate"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^grantbirki/json-yaml-validate$"
+    weakenedWhen:
+      - input: "mode"
+        equals: "warn"
+        verdict: "advisory"
+

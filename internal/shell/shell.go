@@ -164,6 +164,8 @@ var (
 	}
 	// Runners that take a bare tool name.
 	bareRunners = set("pnpm", "yarn")
+	// Runner flags that take the next word as their value ("npx -p eslint eslint").
+	valueFlags = set("-p", "--package", "--from", "--with", "--python")
 )
 
 // runnerTool returns the words after a leading package runner and the runner's
@@ -182,7 +184,12 @@ func runnerTool(words []string) []string {
 		return nil
 	}
 	for len(rest) > 0 && strings.HasPrefix(rest[0], "-") {
+		flag := rest[0]
 		rest = rest[1:]
+		// A runner flag given as "--flag value" takes the value too; "--flag=value" is one word.
+		if valueFlags[flag] && len(rest) > 0 {
+			rest = rest[1:]
+		}
 	}
 	return rest
 }

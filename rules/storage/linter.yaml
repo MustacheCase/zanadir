@@ -632,7 +632,6 @@ rules:
       runMatches: "(?i)^(?:ERR|WARN)$"
       configFiles: [".oasdiff.yaml", ".oasdiff.yml", ".oasdiff.json", ".oasdiff.toml", ".oasdiff.hcl", "oasdiff.yaml", "oasdiff.yml", "oasdiff.json", "oasdiff.toml", "oasdiff.hcl"]
 
-
   # ast-grep scan checks the code against the rules sgconfig.yml lists and
   # exits 1 when a rule at the error level matches. Only scan is a check:
   # run (the default with -p) exits 1 when nothing matches, and test checks
@@ -650,4 +649,19 @@ rules:
     # every rule below error, so nothing can fail.
     weakenedWhen:
       - runMatches: "(?:^|\\s)(?:--update-all|-U|--warning|--info|--hint|--off)(?:\\s|$)"
+        verdict: "advisory"
+
+  # json-yaml-validate checks every JSON and YAML file for syntax errors, and
+  # optionally against a schema, and fails the build by default. It only runs
+  # as the action GrantBirki/json-yaml-validate; mode: warn logs the findings
+  # and passes, so it is advisory. A job name says nothing about the mode, so
+  # no Artifact.Name.
+  - id: "json-yaml-validate-rule"
+    name: "json-yaml-validate"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^grantbirki/json-yaml-validate$"
+    weakenedWhen:
+      - input: "mode"
+        equals: "warn"
         verdict: "advisory"

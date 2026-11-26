@@ -2087,6 +2087,21 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"oasdiff/oasdiff-action/validate",
 			},
 		},
+		{
+			ruleID: "json-yaml-validate-rule",
+			shouldMatch: []string{
+				"GrantBirki/json-yaml-validate",
+				"grantbirki/json-yaml-validate",
+			},
+			shouldNotMatch: []string{
+				"json-yaml-validate",
+				"someone/json-yaml-validate",
+				"GrantBirki/json-yaml-validate-action",
+				"GrantBirki/json-yaml-validate/sub",
+				"GrantBirki/branch-deploy",
+				"docker://ghcr.io/grantbirki/json-yaml-validate",
+			},
+		},
 	}
 
 	for _, tt := range tests {

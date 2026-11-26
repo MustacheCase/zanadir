@@ -1562,6 +1562,36 @@ jobs:
 	}
 }
 
+// json-yaml-validate fails the build on an invalid file unless mode is warn.
+func TestJsonYamlValidateModeInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "mode warn is advisory", input: "mode: warn", expected: Advisory},
+		{name: "mode fail is enforcing", input: "mode: fail", expected: Enforcing},
+		{name: "expression is unknown", input: "mode: ${{ inputs.mode }}", expected: Unknown},
+		{name: "comment is enforcing", input: `comment: "true"`, expected: Enforcing},
+		{name: "use_gitignore false is enforcing", input: "use_gitignore: false", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  validate:
+    steps:
+      - uses: GrantBirki/json-yaml-validate@v5
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
 // Harden-Runner watches the runner for the rest of the job it is in;
 // egress-policy audit only records what happened, block (the default) refuses
 // the calls that are not allowed.

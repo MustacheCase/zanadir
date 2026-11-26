@@ -184,6 +184,15 @@ func TestPassive(t *testing.T) {
 		"pnpm changeset version":              false,
 		"npx lerna version":                   false,
 		"npx eslint --version-check .":        false,
+
+		// A runner flag's value is skipped too (#730).
+		"npx -p eslint eslint --version":        true,
+		"npx --package=eslint eslint --version": true,
+		"uvx --from ruff-pkg ruff --version":    true,
+		"uvx --with ruff-lsp ruff --version":    true,
+		"uv tool run --from ruff-pkg ruff -V":   true,
+		"uvx --from ruff-pkg ruff check .":      false,
+		"npx -p eslint eslint .":                false,
 	} {
 		assert.Equal(t, want, shell.Passive(strings.Fields(command)), command)
 	}

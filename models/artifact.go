@@ -58,6 +58,10 @@ type Job struct {
 	Version string
 	// Run is the shell command of a step that invokes a tool directly.
 	Run string
+	// Followed are the commands in Run that stand for a package script or
+	// build target the expander replaced with its commands. Rules read the
+	// expansion, not the command that named it; see RuleRun.
+	Followed []string
 	// ContinueOnError covers GitLab's allow_failure too.
 	ContinueOnError bool
 	// Manual runs only when somebody asks.
@@ -72,6 +76,28 @@ type Job struct {
 	// Check is the name a GitHub Actions job reports its result under: its
 	// name:, or its id. It may hold an unevaluated ${{ }} expression.
 	Check string
+}
+
+// RuleRun is the step's shell command as rules are matched against it: Run
+// less the commands Followed names, so "npm run eslint" that stands for
+// "eslint . || true" is not also read as a plain run of ESLint.
+func (j *Job) RuleRun() string {
+	run := j.Run
+	for _, command := range j.Followed {
+		// Only a whole command is removed: "npm run lint" is not the start
+		// of "npm run lint:fix". The boundaries on either side are kept.
+		loc := followedPattern(command).FindStringSubmatchIndex(run)
+		if loc == nil {
+			continue
+		}
+		run = run[:loc[0]] + run[loc[2]:loc[3]] + run[loc[4]:loc[5]] + run[loc[1]:]
+	}
+	return run
+}
+
+// followedPattern matches command as a whole command within a run.
+func followedPattern(command string) *regexp.Regexp {
+	return regexp.MustCompile(`(^|[\s;&|(])` + regexp.QuoteMeta(command) + `($|[\s;&|)])`)
 }
 
 // HasTrigger reports whether the configuration runs on event.

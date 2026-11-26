@@ -95,7 +95,7 @@ func (runs scripts) matchingSteps(artifact *models.Artifact, rule *rules.Rule, f
 				text = job.Package
 			}
 		case rules.FieldJobRun:
-			text = runs.invocations(job.Run, rule.Unless)
+			text = runs.invocations(job.RuleRun(), rule.Unless)
 		case rules.FieldJobEnv:
 			text = envLines(job.Env)
 		default:
@@ -103,7 +103,7 @@ func (runs scripts) matchingSteps(artifact *models.Artifact, rule *rules.Rule, f
 		}
 		// A rule that can match "" would otherwise match every step that
 		// lacks the field. A run's excepted commands are already dropped.
-		if text != "" && (field == rules.FieldJobRun && runs.mayMatch(rule, job.Run) && rule.Regex.MatchString(text) || field != rules.FieldJobRun && matches(rule, text)) {
+		if text != "" && (field == rules.FieldJobRun && runs.mayMatch(rule, job.RuleRun()) && rule.Regex.MatchString(text) || field != rules.FieldJobRun && matches(rule, text)) {
 			matched = append(matched, hit{job, text})
 		}
 	}

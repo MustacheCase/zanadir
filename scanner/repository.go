@@ -38,6 +38,7 @@ func (r *RepositoryScanner) Scan(root string) ([]*models.Artifact, error) {
 					wrapped = "set -e\n" + wrapped
 				}
 				job.Run += "\n" + wrapped
+				job.Followed = wrappers.Followed()
 			}
 		}
 	}

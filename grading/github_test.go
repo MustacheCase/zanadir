@@ -1721,6 +1721,39 @@ jobs:
 	}
 }
 
+func TestCheckSpellingActionInputsGradeCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "quit_without_error 1 is advisory", input: "quit_without_error: 1", expected: Advisory},
+		{name: "quit_without_error true is advisory", input: "quit_without_error: true", expected: Advisory},
+		{name: "quit_without_error 0 is enforcing", input: "quit_without_error: 0", expected: Enforcing},
+		{name: "use_sarif 1 is advisory", input: "use_sarif: 1", expected: Advisory},
+		{name: "use_sarif true is advisory", input: "use_sarif: true", expected: Advisory},
+		{name: "task comment is advisory", input: "task: comment", expected: Advisory},
+		{name: "task collapse_previous_comment is advisory", input: "task: collapse_previous_comment", expected: Advisory},
+		{name: "followup expression is unknown", input: "task: ${{ needs.spelling.outputs.followup }}", expected: Unknown},
+		{name: "suppress_push_for_open_pull_request stays enforcing", input: "suppress_push_for_open_pull_request: 1", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  spelling:
+    steps:
+      - uses: check-spelling/check-spelling@v0.0.26
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
 // github-action-benchmark only comments on a regression unless fail-on-alert
 // is true, and its former name rhysd/ is still in older workflows.
 func TestGithubActionBenchmarkFailOnAlertGradesAdvisory(t *testing.T) {

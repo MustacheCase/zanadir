@@ -474,6 +474,35 @@ rules:
         equals: "false"
         verdict: "advisory"
 
+  # check-spelling only runs as the action check-spelling/check-spelling, so
+  # only the package is matched; a job or step named check-spelling proves
+  # nothing. quit_without_error and use_sarif (v0.0.25 and later) make the step
+  # exit 0, and the comment tasks only post or collapse a comment.
+  - id: "check-spelling-rule"
+    name: "check-spelling"
+    applyOn: ["Job.Package"]
+    categories: ["Linter"]
+    regex: "(?i)^check-spelling/check-spelling$"
+    weakenedWhen:
+      - input: "quit_without_error"
+        equals: "1"
+        verdict: "advisory"
+      - input: "quit_without_error"
+        equals: "true"
+        verdict: "advisory"
+      - input: "use_sarif"
+        equals: "1"
+        verdict: "advisory"
+      - input: "use_sarif"
+        equals: "true"
+        verdict: "advisory"
+      - input: "task"
+        equals: "comment"
+        verdict: "advisory"
+      - input: "task"
+        equals: "collapse_previous_comment"
+        verdict: "advisory"
+
   # Knip finds unused files, dependencies and exports in JS/TS projects and
   # exits non-zero on a finding. "knip" is also a script name (knip:ci),
   # config (knip.json) and cache (node_modules/.cache/knip), so only match it

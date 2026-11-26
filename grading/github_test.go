@@ -2041,6 +2041,59 @@ jobs:
 	}
 }
 
+// ast-grep scan exits 1 when a rule at the error level matches; --update-all
+// fixes the matches it can, and --warning/--info/--hint/--off lower every
+// rule, so nothing can fail.
+func TestAstGrepScanGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"ast-grep scan":                 Enforcing,
+		"ast-grep scan --format github": Enforcing,
+		"sg scan --json=compact":        Enforcing,
+		"ast-grep scan --error":         Enforcing,
+		"ast-grep scan --update-all":    Advisory,
+		"ast-grep scan -U":              Advisory,
+		"ast-grep scan --warning":       Advisory,
+		"ast-grep scan --off":           Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  structure:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+func TestAstGrepActionGradesEnforcing(t *testing.T) {
+	verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  structure:
+    steps:
+      - uses: ast-grep/action@v1.5.0
+        with:
+          version: 0.42.0
+`)
+	assert.Equal(t, Enforcing, verdicts["Linter"])
+}
+
+// ast-grep test checks the rules against their own examples and ast-grep run
+// is a one-off search; neither checks the repository's code.
+func TestAstGrepTestAndRunAreNotALinter(t *testing.T) {
+	for _, run := range []string{"ast-grep test", "ast-grep run -p 'console.log($A)' src"} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  structure:
+    steps:
+      - run: `+run+`
+`)
+		assert.NotContains(t, verdicts, "Linter", run)
+	}
+}
+
 func TestTerraformDocsExitsZeroUnlessOutputCheck(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"terraform-docs --output-check .":                             Enforcing,

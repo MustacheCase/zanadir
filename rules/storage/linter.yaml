@@ -632,3 +632,22 @@ rules:
       runMatches: "(?i)^(?:ERR|WARN)$"
       configFiles: [".oasdiff.yaml", ".oasdiff.yml", ".oasdiff.json", ".oasdiff.toml", ".oasdiff.hcl", "oasdiff.yaml", "oasdiff.yml", "oasdiff.json", "oasdiff.toml", "oasdiff.hcl"]
 
+
+  # ast-grep scan checks the code against the rules sgconfig.yml lists and
+  # exits 1 when a rule at the error level matches. Only scan is a check:
+  # run (the default with -p) exits 1 when nothing matches, and test checks
+  # the rules themselves. sg is also shadow-utils' group command
+  # (sg docker -c "..."), so sg only counts when scan follows it.
+  # ast-grep/action runs ast-grep scan --format github and fails the step on
+  # a non-zero exit; none of its inputs changes that.
+  - id: "ast-grep-rule"
+    name: "ast-grep"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "^(?i:ast-grep/action)(?:@[\\w.-]+)?$|(?:^|[\\s/\"'])(?:ast-grep|sg)(?:\\s+(?:-c|--config)(?:=|\\s+)\\S+)?\\s+scan(?:\\s|$)"
+    # --update-all / -U rewrites every match of a rule that has a fix, so it
+    # is a fixer; --warning, --info, --hint and --off with no =RULE_ID lower
+    # every rule below error, so nothing can fail.
+    weakenedWhen:
+      - runMatches: "(?:^|\\s)(?:--update-all|-U|--warning|--info|--hint|--off)(?:\\s|$)"
+        verdict: "advisory"

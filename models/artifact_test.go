@@ -27,6 +27,30 @@ func TestHasTriggerWithNoneCaptured(t *testing.T) {
 		t.Error("an artifact with no triggers should not report one")
 	}
 }
+
+// RuleRun drops the followed commands, whole, and keeps what surrounds them.
+func TestRuleRunDropsFollowedCommands(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		run      string
+		followed []string
+		want     string
+	}{
+		{"no followed commands", "npm run lint", nil, "npm run lint"},
+		{"followed command is the whole run", "npm run lint", []string{"npm run lint"}, ""},
+		{"followed command before the expansion", "npm run lint\neslint .", []string{"npm run lint"}, "\neslint ."},
+		{"boundaries on either side are kept", "a && npm run lint || true", []string{"npm run lint"}, "a &&  || true"},
+		{"a longer command is not the followed one", "npm run lint:fix", []string{"npm run lint"}, "npm run lint:fix"},
+		{"a followed command not in the run is ignored", "make", []string{"npm run lint"}, "make"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := (&Job{Run: tc.run, Followed: tc.followed}).RuleRun(); got != tc.want {
+				t.Errorf("RuleRun() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestJobCheckHelpers(t *testing.T) {
 	for check, want := range map[string]bool{"${{ matrix.tool }}": true, " ${{ a }} ${{ b }} ": true, "Analyze (${{ matrix.language }})": false, "lint": false, "": false} {
 		if got := (&Job{Check: check}).UnnamedCheck(); got != want {

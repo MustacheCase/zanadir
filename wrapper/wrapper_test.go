@@ -28,6 +28,17 @@ func TestALongScriptExpandsInLinearTime(t *testing.T) {
 	assert.Less(t, time.Since(start), 2*time.Second)
 }
 
+// Followed names the commands that Expand replaced, and only those, for the
+// last Expand alone.
+func TestFollowedNamesTheReplacedCommands(t *testing.T) {
+	e := wrapper.New(testrepo.Write(t, scripts()))
+	e.Expand("bash scripts/strict.sh\ngolangci-lint run")
+	assert.Equal(t, []string{"bash scripts/strict.sh"}, e.Followed())
+
+	e.Expand("golangci-lint run")
+	assert.Empty(t, e.Followed())
+}
+
 func TestMakeFollowsTargets(t *testing.T) {
 	makefile := `TOOLS := .tool
 LINT ?= $(TOOLS)/golangci-lint

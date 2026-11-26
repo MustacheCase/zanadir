@@ -433,6 +433,19 @@ rules:
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])markdown-link-check(?:[\\s:@]|$)|(?:^|\\s)(?:tcort|gaurav-nelson)/github-action-markdown-link-check(?:[\\s@]|$)"
 
+  # linkinator exits 1 when any link is broken, in every output format, and
+  # its action fails the step the same way; no flag, input or config key turns
+  # that off (--skip and --status-code only exempt what they name). The word
+  # must end at a space, a Docker tag or an npm version, so
+  # linkinator.config.json, linkinator_results.json and linkinator-mcp don't
+  # match. bootstrap names its workflow and job after the tool, and a name
+  # says nothing about the step, so no Artifact.Name.
+  - id: "linkinator-rule"
+    name: "linkinator"
+    applyOn: ["Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)(?:^|[\\s/])linkinator(?:[\\s:@]|$)|^justinbeckwith/linkinator-action$"
+
   # awesome_bot checks links and exits 1 on a dead or duplicate one; no flag
   # makes it exit 0. It only matches as a whole word, like lychee, so the
   # awesomebot-gh-summary-action, its URL in a link and awesome_bottom_bar

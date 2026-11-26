@@ -608,6 +608,12 @@ rules:
     categories: ["Linter"]
     regex: "(?im)^(?:(?:(?:uvx|pipx\\s+run|uv\\s+run|xargs)(?:\\s+-\\S*)*\\s+)?(?:\\S*/)?check-jsonschema(?:(?:==|@)\\S+)?|(?:python3?|py)(?:\\s+-\\S+)*\\s+-m\\s+check_jsonschema|check-(?:metaschema|azure-pipelines|bamboo-spec|bitbucket-pipelines|buildkite|changie|circle-ci|citation-file-format|cloudbuild|codecov|compose-spec|dependabot|drone-ci|github-(?:actions|discussion|issue-config|issue-forms|workflows(?:-require-timeout)?)|gitlab-ci|meltano|mergify|readthedocs|renovate|snapcraft|taskfile|travis|woodpecker-ci))(?:\\s|$)"
 
+  - id: "import-linter-rule"
+    name: "Import Linter"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:if|elif|while|until|then|do|else)\\s+|!\\s+)*(?:(?:uvx|uv\\s+(?:tool\\s+)?run|poetry\\s+run|pdm\\s+run|hatch\\s+run|pipx\\s+run|pipenv\\s+run|rye\\s+run)(?:\\s+-\\S+(?:\\s+[^-\\s]\\S*)?)*\\s+)?(?:\\S*/)?(?:lint-imports|import-linter\\s+lint)(?:\\s|$)"
+
   # oasdiff compares two OpenAPI specs and reports breaking changes.
   # oasdiff breaking exits 0 unless --fail-on or -o is given.
   - id: "oasdiff-rule"

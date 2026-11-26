@@ -2185,6 +2185,25 @@ jobs:
 	}
 }
 
+func TestImportLinterGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"lint-imports":                              Enforcing,
+		"lint-imports --config pyproject.toml":      Enforcing,
+		"uv run --directory api --dev lint-imports": Enforcing,
+		"import-linter lint":                        Enforcing,
+		"lint-imports || true":                      Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  imports:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 func TestGcovrGradesByTriggers(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"gcovr --root . --xml-pretty -o coverage.xml":         Enforcing,

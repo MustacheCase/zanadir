@@ -45,3 +45,34 @@ func TestScriptNamedAfterItsToolGradesItsOwnCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestFollowedTestWrappersKeepUnitTestCoverage(t *testing.T) {
+	for _, tt := range []struct {
+		name, config, run string
+	}{
+		{"npm test", "package.json", "npm test"},
+		{"tox", "tox.ini", "tox"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			files := map[string]string{
+				".github/workflows/ci.yml": "on: pull_request\njobs:\n  check:\n    steps:\n      - run: " + tt.run + "\n",
+			}
+			if tt.config == "package.json" {
+				files[tt.config] = "{\n  \"scripts\": {\n    \"test\": \"node scripts/runner.js\"\n  }\n}\n"
+			} else {
+				files[tt.config] = "[testenv]\ncommands = python -m custom_runner\n"
+			}
+			dir := testrepo.Write(t, files)
+			artifacts, err := scanner.NewRepositoryScanner().Scan(dir)
+			require.NoError(t, err)
+			rs, err := rules.NewRulesService()
+			require.NoError(t, err)
+
+			var findings []*matcher.Finding
+			for _, c := range models.CategoryTitles {
+				findings = append(findings, matcher.NewMatchService().Match(artifacts, rs.GetCategoryRules(c))...)
+			}
+			assert.Equal(t, Enforcing, ByCategory(findings, nil)["Unit Tests"].Verdict)
+		})
+	}
+}

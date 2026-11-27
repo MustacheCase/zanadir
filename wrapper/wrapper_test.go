@@ -33,7 +33,10 @@ func TestALongScriptExpandsInLinearTime(t *testing.T) {
 func TestFollowedNamesTheReplacedCommands(t *testing.T) {
 	e := wrapper.New(testrepo.Write(t, scripts()))
 	e.Expand("bash scripts/strict.sh\ngolangci-lint run")
-	assert.Equal(t, []string{"bash scripts/strict.sh"}, e.Followed())
+	followed := e.Followed()
+	assert.Len(t, followed, 1)
+	assert.Equal(t, "bash scripts/strict.sh", followed[0].Command)
+	assert.NotEmpty(t, followed[0].Expansion)
 
 	e.Expand("golangci-lint run")
 	assert.Empty(t, e.Followed())

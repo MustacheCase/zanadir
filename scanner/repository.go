@@ -38,7 +38,11 @@ func (r *RepositoryScanner) Scan(root string) ([]*models.Artifact, error) {
 					wrapped = "set -e\n" + wrapped
 				}
 				job.Run += "\n" + wrapped
-				job.Followed = wrappers.Followed()
+				for _, followed := range wrappers.Followed() {
+					job.Followed = append(job.Followed, models.FollowedCommand{
+						Command: followed.Command, Expansion: followed.Expansion,
+					})
+				}
 			}
 		}
 	}

@@ -59,9 +59,10 @@ type Job struct {
 	// Run is the shell command of a step that invokes a tool directly.
 	Run string
 	// Followed are the commands in Run that stand for a package script or
-	// build target the expander replaced with its commands. Rules read the
-	// expansion, not the command that named it; see RuleRun.
-	Followed []string
+	// build target, and the lines each one expanded to. Rules drop a wrapper
+	// only when its expansion matches that rule; otherwise the wrapper text
+	// can still prove that the job runs the tool.
+	Followed []FollowedCommand
 	// ContinueOnError covers GitLab's allow_failure too.
 	ContinueOnError bool
 	// Manual runs only when somebody asks.
@@ -78,15 +79,33 @@ type Job struct {
 	Check string
 }
 
-// RuleRun is the step's shell command as rules are matched against it: Run
-// less the commands Followed names, so "npm run eslint" that stands for
-// "eslint . || true" is not also read as a plain run of ESLint.
-func (j *Job) RuleRun() string {
+// FollowedCommand pairs a wrapper invocation with the commands it expands to.
+type FollowedCommand struct {
+	Command   string
+	Expansion []string
+}
+
+// RuleRunFor removes wrapper commands only when the supplied rule also matches
+// their expansion. This keeps wrapper-based evidence (for example npm test)
+// when its script body does not itself identify a recognised test command.
+func (j *Job) RuleRunFor(matchesExpansion func(string) bool) string {
 	run := j.Run
-	for _, command := range j.Followed {
+	for _, followed := range j.Followed {
+		if matchesExpansion != nil {
+			matches := false
+			for _, line := range followed.Expansion {
+				if matchesExpansion(line) {
+					matches = true
+					break
+				}
+			}
+			if !matches {
+				continue
+			}
+		}
 		// Only a whole command is removed: "npm run lint" is not the start
 		// of "npm run lint:fix". The boundaries on either side are kept.
-		loc := followedPattern(command).FindStringSubmatchIndex(run)
+		loc := followedPattern(followed.Command).FindStringSubmatchIndex(run)
 		if loc == nil {
 			continue
 		}

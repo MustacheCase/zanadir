@@ -181,7 +181,9 @@ func Grade(finding *matcher.Finding) Verdict {
 	shipping := finding.Category == string(models.SupplyChain)
 	if job := finding.Job; job != nil {
 		// The shell's way of saying continue-on-error: "|| true", "if ! …".
-		if job.ContinueOnError || finding.Rule != nil && finding.Rule.Regex != nil && shell.Swallowed(job.RuleRun(), func(command string) bool {
+		if job.ContinueOnError || finding.Rule != nil && finding.Rule.Regex != nil && shell.Swallowed(job.RuleRunFor(func(expanded string) bool {
+			return len(matcher.Commands(expanded, finding.Rule)) > 0
+		}), func(command string) bool {
 			return len(matcher.Commands(command, finding.Rule)) > 0
 		}) {
 			return Advisory
@@ -248,7 +250,7 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 
 	// A step matched by its name or action, with no command of the tool's
 	// own, is read whole.
-	run := job.RuleRun()
+	run := job.RuleRunFor(func(expanded string) bool { return len(matcher.Commands(expanded, rule)) > 0 })
 	commands := []string{run}
 	var matched []string
 	if rule.Regex != nil {
@@ -595,7 +597,7 @@ func missedCode(finding *matcher.Finding) string {
 		return ""
 	}
 	var named, covered []string
-	for _, command := range matcher.Commands(job.RuleRun(), rule) {
+	for _, command := range matcher.Commands(job.RuleRunFor(func(expanded string) bool { return len(matcher.Commands(expanded, rule)) > 0 }), rule) {
 		for _, flag := range languageFlag.FindAllStringSubmatch(command, -1) {
 			for _, name := range strings.Split(strings.ToLower(flag[1]), ",") {
 				analysed, known := rule.Languages[name]

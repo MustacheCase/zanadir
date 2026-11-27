@@ -34,6 +34,9 @@ func TestScriptNamedAfterItsToolGradesItsOwnCommand(t *testing.T) {
 			})
 			artifacts, err := scanner.NewRepositoryScanner().Scan(dir)
 			require.NoError(t, err)
+			require.NotEmpty(t, artifacts)
+			require.NotEmpty(t, artifacts[0].Jobs)
+			require.NotEmpty(t, artifacts[0].Jobs[0].Followed)
 			rs, err := rules.NewRulesService()
 			require.NoError(t, err)
 

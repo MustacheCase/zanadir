@@ -1323,6 +1323,7 @@ func TestRuleRegexPrecision(t *testing.T) {
 				".github/scripts/typos.sh", "./scripts/check-typos.sh", "typos-lsp",
 				"cargo binstall typos-cli", "cp _typos.toml /tmp/", "git commit -m fix-typos",
 				"codespell --skip=typos.toml", "cspell lint --report=typos .",
+				"check-spelling/check-spelling",
 			},
 		},
 		{
@@ -1405,6 +1406,26 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"cspell:software-terms/software-terms.txt",
 				"codespell",
 				"Cleanup cspell.json",
+				"check-spelling/check-spelling",
+			},
+		},
+		{
+			ruleID: "check-spelling-rule",
+			shouldMatch: []string{
+				"check-spelling/check-spelling",
+				"Check-Spelling/check-spelling",
+			},
+			shouldNotMatch: []string{
+				"check-spelling",
+				"check-spelling/spell-check-this",
+				"check-spelling-sandbox/census",
+				"contains(github.event.comment.body, '@check-spelling-bot')",
+				"https://raw.githubusercontent.com/check-spelling/cspell-dicts/v20241114/dictionaries/",
+				"cspell:software-terms/software-terms.txt",
+				".github/actions/spelling/expect.txt",
+				"streetsidesoftware/cspell-action",
+				"crate-ci/typos",
+				"codespell-project/actions-codespell",
 			},
 		},
 		{

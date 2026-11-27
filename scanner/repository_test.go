@@ -2,6 +2,8 @@ package scanner
 
 import (
 	"errors"
+	"maps"
+	"strings"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/internal/testrepo"
@@ -133,6 +135,88 @@ func TestRepositoryScannerFollowsWrappers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "make lint\ngolangci-lint run", artifacts[0].Jobs[0].Run)
 	assert.Empty(t, artifacts[0].Jobs[1].Run)
+}
+
+// A step's working-directory, or the defaults.run one over it, is where its
+// wrappers are read from, so a lint script in a sub-package is seen.
+func TestRepositoryScannerFollowsWrappersFromTheWorkingDirectory(t *testing.T) {
+	repo := map[string]string{
+		"package.json":       `{"scripts": {"lint": "prettier --check ."}}`,
+		"web/package.json":   `{"scripts": {"lint": "eslint ."}}`,
+		"tools/Makefile":     "lint:\n\tgolangci-lint run\n",
+		"tools/package.json": `{"scripts": {"lint": "stylelint ."}}`,
+	}
+	tests := []struct {
+		name, workflow, want string
+	}{
+		{
+			name:     "step",
+			workflow: "jobs:\n  a:\n    steps:\n      - run: npm run lint\n        working-directory: web\n",
+			want:     "eslint .",
+		},
+		{
+			name:     "workflow defaults",
+			workflow: "defaults:\n  run:\n    working-directory: web\njobs:\n  a:\n    steps:\n      - run: npm run lint\n",
+			want:     "eslint .",
+		},
+		{
+			name:     "job defaults over workflow defaults",
+			workflow: "defaults:\n  run:\n    working-directory: tools\njobs:\n  a:\n    defaults:\n      run:\n        working-directory: web\n    steps:\n      - run: npm run lint\n",
+			want:     "eslint .",
+		},
+		{
+			name:     "step over job defaults",
+			workflow: "jobs:\n  a:\n    defaults:\n      run:\n        working-directory: tools\n    steps:\n      - run: npm run lint\n        working-directory: web\n",
+			want:     "eslint .",
+		},
+		{
+			name:     "make",
+			workflow: "jobs:\n  a:\n    steps:\n      - run: make lint\n        working-directory: tools\n",
+			want:     "golangci-lint run",
+		},
+		{
+			name:     "env expression",
+			workflow: "env:\n  LIB_DIR: web\njobs:\n  a:\n    steps:\n      - run: npm run lint\n        working-directory: ${{ env.LIB_DIR }}\n",
+			want:     "eslint .",
+		},
+		{
+			name:     "job env expression in defaults",
+			workflow: "jobs:\n  a:\n    env:\n      LIB_DIR: web\n    defaults:\n      run:\n        working-directory: ${{ env.LIB_DIR }}\n    steps:\n      - run: npm run lint\n",
+			want:     "eslint .",
+		},
+		{
+			name:     "unreadable expression falls back to the root",
+			workflow: "jobs:\n  a:\n    steps:\n      - run: npm run lint\n        working-directory: ${{ matrix.dir }}\n",
+			want:     "prettier --check .",
+		},
+		{
+			name:     "outside the repository falls back to the root",
+			workflow: "jobs:\n  a:\n    steps:\n      - run: npm run lint\n        working-directory: ../elsewhere\n",
+			want:     "prettier --check .",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := maps.Clone(repo)
+			files[".github/workflows/ci.yml"] = "on: pull_request\n" + tt.workflow
+			artifacts, err := NewRepositoryScanner().Scan(testrepo.Write(t, files))
+
+			assert.NoError(t, err)
+			var runs []string
+			for _, a := range artifacts {
+				for _, job := range a.Jobs {
+					runs = append(runs, job.Run)
+				}
+			}
+			run := strings.Join(runs, "\n")
+			assert.Contains(t, run, tt.want)
+			for _, other := range []string{"eslint .", "golangci-lint run", "stylelint .", "prettier --check ."} {
+				if other != tt.want {
+					assert.NotContains(t, run, other)
+				}
+			}
+		})
+	}
 }
 
 // The step's set +e does not reach what make lint stands for: those commands

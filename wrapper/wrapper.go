@@ -61,8 +61,18 @@ func New(root string) *Expander {
 // Expand returns the commands that a script's make, task and tox calls stand
 // for, one per line.
 func (e *Expander) Expand(script string) string {
+	return e.ExpandIn("", script)
+}
+
+// ExpandIn is Expand for a script that starts in dir, relative to the
+// repository root. A dir outside the repository is read as the root.
+func (e *Expander) ExpandIn(dir, script string) string {
 	e.seen, e.lines = map[string]bool{}, nil
-	e.script(e.root, script)
+	start, ok := e.within(e.root, dir)
+	if !ok {
+		start = e.root
+	}
+	e.script(start, script)
 	return strings.Join(e.lines, "\n")
 }
 

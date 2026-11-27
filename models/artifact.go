@@ -58,6 +58,9 @@ type Job struct {
 	Version string
 	// Run is the shell command of a step that invokes a tool directly.
 	Run string
+	// WorkingDirectory is where Run starts, relative to the repository root.
+	// Empty is the root.
+	WorkingDirectory string
 	// ContinueOnError covers GitLab's allow_failure too.
 	ContinueOnError bool
 	// Manual runs only when somebody asks.

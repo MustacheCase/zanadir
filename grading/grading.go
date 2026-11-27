@@ -181,11 +181,7 @@ func Grade(finding *matcher.Finding) Verdict {
 	shipping := finding.Category == string(models.SupplyChain)
 	if job := finding.Job; job != nil {
 		// The shell's way of saying continue-on-error: "|| true", "if ! …".
-		if job.ContinueOnError || finding.Rule != nil && finding.Rule.Regex != nil && shell.Swallowed(job.RuleRunFor(func(expanded string) bool {
-			return len(matcher.Commands(expanded, finding.Rule)) > 0
-		}), func(command string) bool {
-			return len(matcher.Commands(command, finding.Rule)) > 0
-		}) {
+		if job.ContinueOnError || runIsSwallowed(finding.Rule, job) {
 			return Advisory
 		}
 		// A manual step may be the release itself; the file cannot say.
@@ -214,6 +210,14 @@ func Grade(finding *matcher.Finding) Verdict {
 		return gradeShipping(finding.Artifact)
 	}
 	return gradeTriggers(finding.Artifact)
+}
+
+func runIsSwallowed(rule *rules.Rule, job *models.Job) bool {
+	if rule == nil || rule.Regex == nil {
+		return false
+	}
+	run := job.RuleRunFor(func(expanded string) bool { return len(matcher.Commands(expanded, rule)) > 0 })
+	return shell.Swallowed(run, func(command string) bool { return len(matcher.Commands(command, rule)) > 0 })
 }
 
 // weakenedRuns grades a step weakened only when every run of the tool in it

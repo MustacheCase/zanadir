@@ -199,7 +199,9 @@ func (e *Expander) once(key string) bool {
 
 // within resolves path against dir, refusing anything outside the repository.
 func (e *Expander) within(dir, path string) (string, bool) {
-	if !filepath.IsAbs(path) {
+	// A shell path starting with "/" is absolute; on Windows filepath.IsAbs
+	// also wants a drive letter, and joining would keep "/etc" in the root.
+	if !filepath.IsAbs(path) && !strings.HasPrefix(path, "/") {
 		path = filepath.Join(dir, path)
 	}
 	rel, err := filepath.Rel(e.root, path)

@@ -717,3 +717,21 @@ rules:
       - input: "mode"
         equals: "warn"
         verdict: "advisory"
+
+  # syncpack checks that the package.json files of a JavaScript monorepo agree
+  # on dependency versions and semver ranges. Only its checking sub-commands
+  # count: lint, list, list-mismatches, lint-semver-ranges, json, fix,
+  # fix-mismatches, and format with --check. format without --check, update,
+  # set-semver-ranges and prompt check nothing. v12 and v13 also install each
+  # sub-command as its own program (syncpack-lint). It has no action or image.
+  - id: "syncpack-rule"
+    name: "syncpack"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)(?:^|[\\s/\"'])(?:syncpack(?:@[\\w.-]+)?[ \\t]+(?:(?:lint|list|list-mismatches|lint-semver-ranges|json|fix|fix-mismatches)|format(?:[ \\t][^\\n]*)?[ \\t]--check)|syncpack-(?:lint|list|list-mismatches|lint-semver-ranges|fix-mismatches))(?:[\\s\"']|$)"
+    # fix and fix-mismatches repair what they can and fail only on the rest.
+    # The pattern is tied to syncpack, so a dependency called fix
+    # (syncpack lint --dependencies fix) does not weaken a lint.
+    weakenedWhen:
+      - runMatches: "(?i)(?:^|[\\s/\"'])(?:syncpack(?:@[\\w.-]+)?[ \\t]+fix(?:-mismatches)?|syncpack-fix-mismatches)(?:[\\s\"']|$)"
+        verdict: "partial"

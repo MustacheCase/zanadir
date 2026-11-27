@@ -274,6 +274,16 @@ rules:
     categories: ["Linter"]
     regex: "(?i)\\bcheckstyle(?:main|test)?\\b"
 
+  # Only the SpotBugs goals and tasks that fail on findings count: the Maven
+  # check and verify goals, and the Gradle spotbugsMain / spotbugsTest tasks.
+  # The spotbugs and gui goals only write a report or open a UI, and
+  # "mvn verify" or "gradlew build" run analysis only when a plugin binds it.
+  - id: "spotbugs-rule"
+    name: "SpotBugs"
+    applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]
+    categories: ["Linter"]
+    regex: "(?i)\\bspotbugs:(?:check|verify)\\b|\\bspotbugs(?:main|test)\\b"
+
   - id: "swiftlint-rule"
     name: "SwiftLint"
     applyOn: ["Artifact.Name", "Job.Package", "Job.Run"]

@@ -1232,6 +1232,26 @@ func TestRuleRegexPrecision(t *testing.T) {
 			shouldNotMatch: []string{"checkstyles", "./gradlew build"},
 		},
 		{
+			ruleID: "spotbugs-rule",
+			shouldMatch: []string{
+				"mvn spotbugs:check",
+				"./mvnw -B verify spotbugs:check",
+				"mvn spotbugs:verify",
+				"./gradlew spotbugsMain",
+				"gradle spotbugsMain spotbugsTest",
+				"mvn -B -ntp clean verify spotbugs:check",
+				"./gradlew spotbugsTest",
+			},
+			shouldNotMatch: []string{
+				"mvn spotbugs:spotbugs",
+				"mvn spotbugs:gui",
+				"mvn verify",
+				"./gradlew build",
+				"mvn com.github.spotbugs:spotbugs-maven-plugin:spotbugs",
+				"mySpotbugsMain",
+			},
+		},
+		{
 			ruleID:         "swiftlint-rule",
 			shouldMatch:    []string{"swiftlint --strict", "norio-nomura/action-swiftlint"},
 			shouldNotMatch: []string{"swiftlinter"},

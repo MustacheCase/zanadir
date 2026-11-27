@@ -426,6 +426,26 @@ jobs:
 	}
 }
 
+// A ; inside a quoted bash -c script does not end the outer command, so its
+// || true still weakens the tool the script runs (#679).
+func TestQuotedSemicolonKeepsTheOuterOr(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"bash -c 'gitleaks detect --no-git' || true":            Advisory,
+		"bash -c 'gitleaks detect --no-git; echo done' || true": Advisory,
+		"bash -c 'gitleaks detect --no-git; echo done'":         Enforcing,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - run: |
+          `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Secrets Detection"], run)
+	}
+}
+
 // OUT=$(tool) fails with the tool under bash -e; anything else around the
 // substitution hides its exit status.
 func TestCommandSubstitutionGradesByWhatKeepsTheStatus(t *testing.T) {

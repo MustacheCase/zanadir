@@ -1663,6 +1663,31 @@ func TestRuleRegexPrecision(t *testing.T) {
 			},
 		},
 		{
+			ruleID: "cargo-shear-rule",
+			shouldMatch: []string{
+				"cargo shear",
+				"cargo shear --deny-warnings",
+				"cargo shear --locked --deny-warnings --check-test-targets",
+				"cargo shear --fix",
+				"cargo shear --fix --check-test-targets",
+				"cargo shear --expand --fix",
+				"cargo shear --format=json",
+				"cargo +nightly shear --expand",
+				"uv run --only-dev cargo shear --deny-warnings",
+				"uv run --only-group check cargo-shear --deny-warnings",
+				"cargo-shear --deny-warnings",
+				"~/.cargo/bin/cargo-shear",
+			},
+			shouldNotMatch: []string{
+				"uv lock --upgrade-package astral-dev-toolchain-cargo-shear",
+				"sha256sum cargo-shear-x86_64-unknown-linux-gnu.tar.gz",
+				`[[ '${{ needs.cargo_shear.result }}' == 'success' ]] || { echo 'cargo_shear failed'; exit 1; }`,
+				"cargo shears",
+				"cargo machete",
+				"cargo udeps --all-targets",
+			},
+		},
+		{
 			ruleID: "chart-testing-rule",
 			shouldMatch: []string{
 				"ct lint --target-branch ${{ github.event.repository.default_branch }}",

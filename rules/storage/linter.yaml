@@ -160,6 +160,17 @@ rules:
     categories: ["Linter"]
     regex: "(?m)(?:^|[\\s/])cargo\\s+(?:\\+\\S+\\s+)?udeps(?:\\s|$)|^cargo-udeps\\s+udeps(?:\\s|$)|^udeps(?:\\s|$)"
 
+  # cargo-shear reports dependencies in Cargo.toml that the code never uses.
+  # It exits 1 on findings, even when --fix removes them, so it fails the step
+  # as it is. Match the cargo sub-command (with an optional toolchain) or the
+  # binary as a whole name, not the PyPI package, release archives or job ids.
+  # Case-sensitive: the tool and its sub-command are lower case.
+  - id: "cargo-shear-rule"
+    name: "cargo-shear"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|[\\s/])cargo\\s+(?:\\+\\S+\\s+)?shear(?:\\s|$)|(?:^|[\\s/])cargo-shear(?:\\s|$)"
+
   - id: "oxsecurity-super-linter-rule"
     applyOn: [ "Artifact.Name", "Job.Package", "Job.Run" ]
     categories: [ "Linter" ]

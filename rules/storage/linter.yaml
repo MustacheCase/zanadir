@@ -466,6 +466,17 @@ rules:
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])awesome_bot(?:[\\s:@]|$)"
 
+  # Are the Types Wrong (attw / @arethetypeswrong/cli) checks TypeScript package
+  # module resolution and exits 1 on findings. Match only as the program being
+  # run (case-sensitive; ATTW_FULL is an env var) and except package-manager
+  # `run attw` scripts, whose own commands are traced separately.
+  - id: "attw-rule"
+    name: "Are the Types Wrong"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|\\s)(?:(?:[^\\s:]*/)?attw|@arethetypeswrong/cli)(?:@\\S+)?(?:\\s|$)"
+    unless: "(?:^|\\s)run\\s+attw(?:\\s|$)"
+
   # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
   # and .codespellrc / codespell_lib are not runs of it.
   - id: "codespell-rule"

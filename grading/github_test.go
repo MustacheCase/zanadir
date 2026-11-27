@@ -816,6 +816,27 @@ jobs:
 }
 
 // awesome_bot exits 1 on a dead or duplicate link; no flag makes it exit 0.
+func TestAttwGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx @arethetypeswrong/cli --pack .":                                   Enforcing,
+		"attw --pack . --format json":                                          Enforcing,
+		"pnpm exec attw ./package.tgz --format table --ignore-rules false-esm": Enforcing,
+		"attw --pack . --profile node16":                                       Enforcing,
+		"bunx attw package.tgz || true":                                        Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  package:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
 func TestAwesomeBotGradesCorrectly(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"awesome_bot README.md --allow-dupe --allow-redirect": Enforcing,

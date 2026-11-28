@@ -226,6 +226,7 @@ func unwrap(words []string) []string {
 	for len(words) > 0 && (words[0] == "if" || words[0] == "elif" || words[0] == "while" || words[0] == "until" || words[0] == "!") {
 		words = words[1:]
 	}
+	words = shell.Unwrap(words)
 	switch {
 	case len(words) > 2 && runPrefixes[words[0]] && words[1] == "run":
 		words = words[2:]

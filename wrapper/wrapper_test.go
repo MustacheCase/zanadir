@@ -347,3 +347,20 @@ func TestASwallowedCallSwallowsWhatItExpands(t *testing.T) {
 	assert.Equal(t, []string{"golangci-lint run"}, expand(t, files, "make lint\nmake lint || true"), "one call that can fail is enough")
 	assert.Equal(t, []string{"golangci-lint run || true", "eslint ."}, expand(t, files, "make lint || true && npm run lint"), "only the swallowed call")
 }
+
+func TestWrappedBuildToolsAreFollowed(t *testing.T) {
+	files := map[string]string{"Makefile": "lint:\n\tgolangci-lint run\n"}
+	for run, want := range map[string]string{
+		"timeout 10m make lint":       "golangci-lint run",
+		"sudo -E nice -n 5 make lint": "golangci-lint run",
+		"env CI=1 make lint":          "golangci-lint run",
+		// A condition handles the failure, wrapped or not.
+		"if make lint":             "golangci-lint run || true",
+		"if timeout 10m make lint": "golangci-lint run || true",
+		"! timeout 10m make lint":  "golangci-lint run || true",
+	} {
+		assert.Equal(t, []string{want}, expand(t, files, run), run)
+	}
+	assert.Nil(t, expand(t, files, "command -v make"), "command -v runs nothing")
+	assert.Nil(t, expand(t, files, "timeout --frobnicate 5 make lint"), "an unknown option is not guessed")
+}

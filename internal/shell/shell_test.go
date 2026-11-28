@@ -27,6 +27,32 @@ func TestCommandsJoinPowerShellContinuations(t *testing.T) {
 func TestWords(t *testing.T) {
 	assert.Equal(t, []string{"make", "lint"}, shell.Words("sudo CI=1 GOFLAGS=-mod=mod make lint"))
 	assert.Empty(t, shell.Words("FOO=bar"))
+	for command, want := range map[string][]string{
+		"timeout 10m make lint":                   {"make", "lint"},
+		"sudo -E make lint":                       {"make", "lint"},
+		"sudo -u runner make lint":                {"make", "lint"},
+		"sudo -E timeout 10m nice -n 5 make lint": {"make", "lint"},
+		"env -i A=1 B=2 make lint":                {"make", "lint"},
+		"taskset -c 5-7 k6 run":                   {"k6", "run"},
+		"nice make lint":                          {"make", "lint"},
+		"stdbuf -oL make lint":                    {"make", "lint"},
+		"/usr/bin/time -v make lint":              {"make", "lint"},
+		"exec -a lint make lint":                  {"make", "lint"},
+		"command make lint":                       {"make", "lint"},
+		"xvfb-run -a npm test":                    {"npm", "test"},
+		"timeout 10m":                             {},
+		"env":                                     {},
+		"env FOO=1":                               {},
+		"sudo":                                    {},
+		"command -v k6":                           {},
+		"taskset -p 0x3 1234":                     {},
+		"sudo -b k6 run x":                        {},
+		"timeout --frobnicate 5 k6 run":           {"timeout", "--frobnicate", "5", "k6", "run"},
+		"nohup k6 run x":                          {"nohup", "k6", "run", "x"},
+		"if timeout 10m make lint":                {"if", "timeout", "10m", "make", "lint"},
+	} {
+		assert.Equal(t, want, shell.Words(command), command)
+	}
 }
 
 func TestAssigns(t *testing.T) {
@@ -63,8 +89,85 @@ func TestNormalizeCommand(t *testing.T) {
 		`"/bin/grant check .`:                           `"/bin/grant check .`,
 		`"" check`:                                      `"" check`,
 		``:                                              ``,
+		// Wrappers stay as written; the program behind them is normalised.
+		`taskset -c 5-7 "$root/k6" run "$script"`:                                     `taskset -c 5-7 k6 run "$script"`,
+		`sudo -E "./bin/trivy" fs .`:                                                  `sudo -E trivy fs .`,
+		`sudo -E -H "./bin/trivy" fs .`:                                               `sudo -E -H trivy fs .`,
+		`sudo -u runner "./bin/trivy" fs .`:                                           `sudo -u runner trivy fs .`,
+		`sudo -uroot "./bin/trivy" fs .`:                                              `sudo -uroot trivy fs .`,
+		`sudo --user=runner "./bin/trivy" fs .`:                                       `sudo --user=runner trivy fs .`,
+		`sudo --preserve-env=PATH "./bin/trivy" fs .`:                                 `sudo --preserve-env=PATH trivy fs .`,
+		`sudo -u runner -g docker "./bin/trivy" fs .`:                                 `sudo -u runner -g docker trivy fs .`,
+		`sudo -- "./bin/trivy" fs .`:                                                  `sudo -- trivy fs .`,
+		`sudo CI=1 "./bin/trivy" fs .`:                                                `sudo CI=1 trivy fs .`,
+		`env -i PATH="$PATH" "./bin/k6" run t.js`:                                     `env -i PATH="$PATH" k6 run t.js`,
+		`env - PATH="$PATH" "./bin/k6" run t.js`:                                      `env - PATH="$PATH" k6 run t.js`,
+		`env -u HOME "./bin/k6" run t.js`:                                             `env -u HOME k6 run t.js`,
+		`env --unset=HOME "./bin/k6" run t.js`:                                        `env --unset=HOME k6 run t.js`,
+		`env -C /src "./bin/k6" run t.js`:                                             `env -C /src k6 run t.js`,
+		`env -- "./bin/k6" run t.js`:                                                  `env -- k6 run t.js`,
+		`timeout 10m "./bin/k6" run t.js`:                                             `timeout 10m k6 run t.js`,
+		`timeout 600 "./bin/k6" run t.js`:                                             `timeout 600 k6 run t.js`,
+		`timeout --signal=KILL 5m "./bin/k6" run`:                                     `timeout --signal=KILL 5m k6 run`,
+		`timeout -s KILL -k 30s 5m "./bin/k6" run`:                                    `timeout -s KILL -k 30s 5m k6 run`,
+		`timeout -s 9 5m "./bin/k6" run`:                                              `timeout -s 9 5m k6 run`,
+		`timeout --preserve-status 5m "./bin/k6" run`:                                 `timeout --preserve-status 5m k6 run`,
+		`taskset 0x3 "./bin/k6" run t.js`:                                             `taskset 0x3 k6 run t.js`,
+		`taskset -a -c 0-3 "./bin/k6" run`:                                            `taskset -a -c 0-3 k6 run`,
+		`taskset --cpu-list 0-3 "./bin/k6" run`:                                       `taskset --cpu-list 0-3 k6 run`,
+		`nice "./bin/trivy" fs .`:                                                     `nice trivy fs .`,
+		`nice -n 10 "./bin/trivy" fs .`:                                               `nice -n 10 trivy fs .`,
+		`nice -n -5 "./bin/trivy" fs .`:                                               `nice -n -5 trivy fs .`,
+		`nice -n10 "./bin/trivy" fs .`:                                                `nice -n10 trivy fs .`,
+		`nice --adjustment=10 "./bin/trivy" fs .`:                                     `nice --adjustment=10 trivy fs .`,
+		`nice -10 "./bin/trivy" fs .`:                                                 `nice -10 trivy fs .`,
+		`nice --10 "./bin/trivy" fs .`:                                                `nice --10 trivy fs .`,
+		`stdbuf -oL "./bin/trivy" fs .`:                                               `stdbuf -oL trivy fs .`,
+		`stdbuf -o L -e L "./bin/trivy" fs .`:                                         `stdbuf -o L -e L trivy fs .`,
+		`stdbuf --output=L "./bin/trivy" fs .`:                                        `stdbuf --output=L trivy fs .`,
+		`time "./bin/trivy" fs .`:                                                     `time trivy fs .`,
+		`time -p "./bin/trivy" fs .`:                                                  `time -p trivy fs .`,
+		`/usr/bin/time -v "./bin/trivy" fs .`:                                         `/usr/bin/time -v trivy fs .`,
+		`/usr/bin/time -f "%e %M" "./bin/trivy" fs .`:                                 `/usr/bin/time -f "%e %M" trivy fs .`,
+		`"/usr/bin/timeout" 10m "./bin/k6" run`:                                       `"/usr/bin/timeout" 10m k6 run`,
+		`command "./bin/trivy" fs .`:                                                  `command trivy fs .`,
+		`command -p "./bin/trivy" fs .`:                                               `command -p trivy fs .`,
+		`exec "./bin/trivy" fs .`:                                                     `exec trivy fs .`,
+		`exec -a scan "./bin/trivy" fs .`:                                             `exec -a scan trivy fs .`,
+		`xvfb-run -a "./node_modules/.bin/cypress" run`:                               `xvfb-run -a cypress run`,
+		`xvfb-run -s "-screen 0 1x1x24" "./node_modules/.bin/cypress" run`:            `xvfb-run -s "-screen 0 1x1x24" cypress run`,
+		`xvfb-run --server-args="-screen 0 1x1x24" "./node_modules/.bin/cypress" run`: `xvfb-run --server-args="-screen 0 1x1x24" cypress run`,
+		`sudo -E timeout 10m "./k6" run`:                                              `sudo -E timeout 10m k6 run`,
+		`timeout 10m sudo -u runner nice -n 5 "./k6" run`:                             `timeout 10m sudo -u runner nice -n 5 k6 run`,
+		`if ! timeout 10m "./bin/k6" run t.js`:                                        `if ! timeout 10m k6 run t.js`,
+		// A wrapper's own arguments never become the program.
+		`taskset -c 5-7`: `taskset -c 5-7`,
+		`timeout 10m`:    `timeout 10m`,
+		`sudo -u runner`: `sudo -u runner`,
+		`env`:            `env`,
+		`sudo`:           `sudo`,
+		// Nothing runs that the step waits for.
+		`command -v "./bin/k6"`:      `command -v "./bin/k6"`,
+		`command -V "./bin/k6"`:      `command -V "./bin/k6"`,
+		`command -p -v "./bin/k6"`:   `command -p -v "./bin/k6"`,
+		`taskset -p 0x3 1234`:        `taskset -p 0x3 1234`,
+		`taskset -pc 5-7 1234`:       `taskset -pc 5-7 1234`,
+		`sudo -b "./bin/k6" run`:     `sudo -b "./bin/k6" run`,
+		`env -S "./bin/k6 run t.js"`: `env -S "./bin/k6 run t.js"`,
+		`nohup "./bin/k6" run x`:     `nohup "./bin/k6" run x`,
+		// An option the table doesn't know leaves the command as it is.
+		`timeout --frobnicate 5 "./bin/k6" run`: `timeout --frobnicate 5 "./bin/k6" run`,
+		`taskset -cp 5-7 "./bin/k6" run`:        `taskset -cp 5-7 "./bin/k6" run`,
+		`sudo -Eu runner "./bin/k6" run`:        `sudo -Eu runner "./bin/k6" run`,
+		`exec -cl "./bin/k6" run`:               `exec -cl "./bin/k6" run`,
+		`sudo - "./bin/k6" run`:                 `sudo - "./bin/k6" run`,
+		// Not wrappers.
+		`"$SUDO" "./bin/k6" run`:      `"$SUDO" "./bin/k6" run`,
+		`timeouts 10m "./bin/k6" run`: `timeouts 10m "./bin/k6" run`,
 	} {
 		assert.Equal(t, want, shell.NormalizeCommand(command), command)
+		assert.Equal(t, []string{"k6", "run", "t.js"}, shell.Words("timeout 10m k6 run t.js"))
+		assert.Empty(t, shell.Words("command -v k6"))
 	}
 }
 
@@ -103,6 +206,10 @@ func TestSwallowed(t *testing.T) {
 		"OUT=$(gitleaks detect) || true":                      true,
 		"export OUT=$(gitleaks detect)":                       true,
 		`echo "$(gitleaks detect)"`:                           true,
+
+		"timeout 10m gitleaks detect || true":                   true,
+		"sudo -E timeout 10m gitleaks detect":                   false,
+		"if ! timeout 10m gitleaks detect; then echo found; fi": true,
 
 		// Under set +e only the last command, or one whose $? is read, can fail.
 		"set +e\ngitleaks detect\necho done":                                                  true,
@@ -193,6 +300,26 @@ func TestPassive(t *testing.T) {
 		"uv tool run --from ruff-pkg ruff -V":   true,
 		"uvx --from ruff-pkg ruff check .":      false,
 		"npx -p eslint eslint .":                false,
+
+		// Wrappers that run the command after them (#524).
+		"timeout 60 curl -sSL https://example.com/trivy.sh": true,
+		"if ! timeout 60 curl -sSL https://example.com/x":   true,
+		"command -v k6":                                  true,
+		"timeout 10m trivy fs .":                         false,
+		"sudo -E chmod +x ./trivy":                       true,
+		"sudo apt-get install -y trivy":                  true,
+		"nice -n 10 go install example.com/gosec@latest": true,
+		"env -i curl -sSL https://example.com/x":         true,
+		"time trivy --version":                           true,
+		"command -v":                                     true,
+		"taskset -p 0x3 1234":                            true,
+		"taskset -pc 5-7 1234":                           true,
+		"sudo -b k6 run x":                               true,
+		"env":                                            true,
+		"sudo -u runner trivy fs .":                      false,
+		"xvfb-run -a npm test":                           false,
+		"timeout --frobnicate 5 curl x":                  false,
+		"taskset -cp 5-7 1234":                           false,
 	} {
 		assert.Equal(t, want, shell.Passive(strings.Fields(command)), command)
 	}

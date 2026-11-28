@@ -8,6 +8,7 @@
   <a href="https://codecov.io/gh/MustacheCase/zanadir"><img src="https://codecov.io/gh/MustacheCase/zanadir/branch/main/graph/badge.svg" alt="Test coverage"></a>
   <a href="https://github.com/MustacheCase/zanadir/releases/latest"><img src="https://img.shields.io/github/v/release/MustacheCase/zanadir" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/MustacheCase/zanadir" alt="License: MIT"></a>
+  <a href="https://github.com/avelino/awesome-go#continuous-integration"><img src="https://awesome.re/mentioned-badge.svg" alt="Mentioned in Awesome Go"></a>
 </p>
 
 zanadir is an open-source CI/CD security tool. It reads a repository's
@@ -95,7 +96,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: mustachecase/zanadir-action@v1.41
+      - uses: mustachecase/zanadir-action@v1.42
         with:
           dir: .
 ```
@@ -261,9 +262,14 @@ infrastructure detection) into a temporary directory. Every other file is an
 empty placeholder, since only its name matters. It then scans the directory
 exactly as a checkout and removes it. That is a handful of GitHub API
 requests per scan, however large the repository. The API also shows what no
-file does: workflows GitHub has turned off, which then count for nothing, and
+file does: workflows GitHub has turned off, which then count for nothing;
 code scanning's default setup, which counts as the CodeQL workflow it runs,
-for the languages of its latest run. A scan of a checkout can't see it. A repository too large to list in one
+for the languages of its latest run; and Dependabot security updates enabled
+in settings without a configuration file, which count as advisory SCA.
+Dependabot's ecosystems are read from up to 100 recent runs in one additional
+request, only when no Dependabot configuration exists. If the runs cannot be
+read, Dependabot still counts with unknown ecosystems. A scan of a checkout
+can't see these settings. A repository too large to list in one
 request is downloaded as an archive instead. Public repositories need no
 token; set `GITHUB_TOKEN` (or `GH_TOKEN`) to reach private ones or raise
 GitHub's rate limit of 60 requests an hour without one. GitLab and Bitbucket
@@ -837,6 +843,9 @@ settings are still outside what zanadir can see.
 Dependabot and Renovate are detected from their configuration -
 `.github/dependabot.yml`, `renovate.json` and the other names Renovate
 accepts - not from a CI job, because that is not where they live.
+Remote scans also detect Dependabot security updates enabled in GitHub's
+settings without a configuration file. When a Dependabot configuration exists,
+it remains the source of truth. Dependabot alerts alone do not count.
 
 They are graded `advisory`. Both run on the forge's own schedule and open pull
 requests; neither can fail a build. So a repository whose only dependency
@@ -948,8 +957,13 @@ immediate subdirectories, so common monorepo layouts work:
 | C#         | `*.csproj`, `*.sln`                                        |
 
 `node_modules`, `vendor` and other dependency directories are skipped, since
-their manifests describe code the project did not write. If no language is
-recognised, every tool is suggested, exactly as before.
+their manifests describe code the project did not write. With no manifest,
+source files at the same depth are used instead (`.py`, `.js`, `.ts`, `.go`,
+`.rb`, `.java`, `.rs`, `.php`, `.cs`) to pick suggestions; they never count
+for dependency scanning or for grading which languages CodeQL analyses. If
+no language is recognised, every tool is suggested, and `fix` skips tools
+for a single language, reporting the category as a gap when nothing else
+fits.
 
 ### Advanced Usage
 
@@ -1089,6 +1103,7 @@ rules:
         verdict: advisory       # advisory or partial
     exitsZeroUnless:            # optional, for a tool that only reports by default
       runMatches: '--fail'      # the flag that makes it fail
+      hookRewrites: true        # optional: a formatter that rewrites files; run by a pre-commit hook, it fails
 ```
 
 A custom SCA rule can declare which ecosystems it checks:
@@ -1176,7 +1191,9 @@ accordingly.
 
 Not every suggested tool has a template, and some templates need a file the
 repository may not have: the end-of-life check builds an image from a
-`Dockerfile`, and the load test runs a `load-test.js` written for the service.
+`Dockerfile`, the load test runs a `load-test.js` written for the service,
+ESLint needs a `package.json`, and go-test-coverage, GolangCI-Lint and gosec
+need a `go.mod`.
 `fix` emits nothing half-right. A category it cannot fill is listed at the end
 with the reason, and with the exclusion to use when the category does not
 apply:

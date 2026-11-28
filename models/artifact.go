@@ -35,6 +35,12 @@ const DisabledWorkflowsFile = ".git/zanadir-disabled-workflows"
 // setup is on, listing the languages it analyses one a line.
 const CodeScanningFile = ".git/zanadir-code-scanning"
 
+// DependabotSecurityUpdatesFile marks a fetched repository with security updates
+// enabled without a Dependabot configuration, listing package-ecosystem names
+// as used in dependabot.yml, one a line.
+// An empty file means the ecosystems could not be determined.
+const DependabotSecurityUpdatesFile = ".git/zanadir-dependabot-security-updates"
+
 // Trigger is one event a CI configuration runs on, with its filters.
 type Trigger struct {
 	Event    string
@@ -52,6 +58,11 @@ type Job struct {
 	Version string
 	// Run is the shell command of a step that invokes a tool directly.
 	Run string
+	// Followed are the commands in Run that stand for a package script or
+	// build target, and the lines each one expanded to. Rules drop a wrapper
+	// only when its expansion matches that rule; otherwise the wrapper text
+	// can still prove that the job runs the tool.
+	Followed []FollowedCommand
 	// ContinueOnError covers GitLab's allow_failure too.
 	ContinueOnError bool
 	// Manual runs only when somebody asks.
@@ -66,6 +77,46 @@ type Job struct {
 	// Check is the name a GitHub Actions job reports its result under: its
 	// name:, or its id. It may hold an unevaluated ${{ }} expression.
 	Check string
+}
+
+// FollowedCommand pairs a wrapper invocation with the commands it expands to.
+type FollowedCommand struct {
+	Command   string
+	Expansion []string
+}
+
+// RuleRunFor removes wrapper commands only when the supplied rule also matches
+// their expansion. This keeps wrapper-based evidence (for example npm test)
+// when its script body does not itself identify a recognised test command.
+func (j *Job) RuleRunFor(matchesExpansion func(string) bool) string {
+	run := j.Run
+	for _, followed := range j.Followed {
+		if matchesExpansion != nil {
+			matches := false
+			for _, line := range followed.Expansion {
+				if matchesExpansion(line) {
+					matches = true
+					break
+				}
+			}
+			if !matches {
+				continue
+			}
+		}
+		// Only a whole command is removed: "npm run lint" is not the start
+		// of "npm run lint:fix". The boundaries on either side are kept.
+		loc := followedPattern(followed.Command).FindStringSubmatchIndex(run)
+		if loc == nil {
+			continue
+		}
+		run = run[:loc[0]] + run[loc[2]:loc[3]] + run[loc[4]:loc[5]] + run[loc[1]:]
+	}
+	return run
+}
+
+// followedPattern matches command as a whole command within a run.
+func followedPattern(command string) *regexp.Regexp {
+	return regexp.MustCompile(`(^|[\s;&|(])` + regexp.QuoteMeta(command) + `($|[\s;&|)])`)
 }
 
 // HasTrigger reports whether the configuration runs on event.

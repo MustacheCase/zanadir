@@ -49,6 +49,20 @@ var suffixMarkers = map[string]string{
 	".sln":     CSharp,
 }
 
+// sourceSuffixes maps a source file extension to its language. Detect falls
+// back to them only when no manifest names a language.
+var sourceSuffixes = map[string]string{
+	".py":   Python,
+	".js":   JavaScript,
+	".ts":   JavaScript,
+	".go":   Go,
+	".rb":   Ruby,
+	".java": Java,
+	".rs":   Rust,
+	".php":  PHP,
+	".cs":   CSharp,
+}
+
 // Names returns the sorted canonical language names recognised by Detect.
 func Names() []string {
 	found := make(map[string]bool)
@@ -63,21 +77,36 @@ func Names() []string {
 
 // Detect returns the languages a repository appears to be written in, sorted.
 // It inspects the root and its immediate subdirectories, covering the common
-// monorepo layout without walking the whole tree.
+// monorepo layout without walking the whole tree. With no manifest it falls
+// back to source file extensions at the same depth.
 func Detect(dir string) []string {
-	return detect(dir, func(string, string) bool { return true })
+	if found := Manifests(dir); len(found) > 0 {
+		return found
+	}
+	return detect(dir, sources)
+}
+
+// Manifests is Detect without the source file fallback, for checks that
+// report what the manifests declare.
+func Manifests(dir string) []string {
+	return detect(dir, func(dir string, found map[string]bool) {
+		collect(dir, found, func(string, string) bool { return true })
+	})
 }
 
 // WithDependencies is Detect for dependency scanning: a pyproject.toml that
 // declares no dependencies (only a ruff config, say) names nothing to scan.
+// It has no source file fallback: a .py file declares no dependencies.
 func WithDependencies(dir string) []string {
-	return detect(dir, declaresDependencies)
+	return detect(dir, func(dir string, found map[string]bool) {
+		collect(dir, found, declaresDependencies)
+	})
 }
 
-func detect(dir string, counts func(dir, name string) bool) []string {
+func detect(dir string, collect func(dir string, found map[string]bool)) []string {
 	found := make(map[string]bool)
 
-	collect(dir, found, counts)
+	collect(dir, found)
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return slices.Sorted(maps.Keys(found))
@@ -86,7 +115,7 @@ func detect(dir string, counts func(dir, name string) bool) []string {
 		if !entry.IsDir() || utils.IsDependencyDir(entry.Name()) || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
-		collect(filepath.Join(dir, entry.Name()), found, counts)
+		collect(filepath.Join(dir, entry.Name()), found)
 	}
 
 	return slices.Sorted(maps.Keys(found))
@@ -113,6 +142,23 @@ func collect(dir string, found map[string]bool, counts func(dir, name string) bo
 				found[lang] = true
 				break
 			}
+		}
+	}
+}
+
+// sources records the languages of the source files directly in dir,
+// skipping dotfiles such as .eslintrc.js.
+func sources(dir string, found map[string]bool) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		if lang, ok := sourceSuffixes[filepath.Ext(entry.Name())]; ok {
+			found[lang] = true
 		}
 	}
 }

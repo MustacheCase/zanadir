@@ -1,0 +1,9 @@
+version: 2
+rules:
+  - id: "RP1"
+    path: "scripts/zanadir-mcp"
+    message: "*'docker run -i'*"
+    reason: >-
+      False positive: RP1 reads the first word after `docker run` (the -i flag)
+      as the image. The image on the continued line is pinned by tag and digest.
+      https://github.com/NVIDIA/SkillSpector/issues/781

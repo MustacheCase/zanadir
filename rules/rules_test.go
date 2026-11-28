@@ -106,6 +106,7 @@ func TestEmbeddedRulesCarryWeakenedChecks(t *testing.T) {
 	assert.False(t, gitleaks.Weakened[0].RunMatches.MatchString("gitleaks detect --exit-code 1"))
 
 	for id, gate := range map[string]string{
+		"polaris-rule":      "polaris audit --set-exit-code-on-danger",
 		"guarddog-rule":     "guarddog pypi verify requirements.txt --exit-non-zero-on-finding",
 		"trivy-rule":        "trivy fs --exit-code 1 .",
 		"trivy-config-rule": "trivy config --exit-code 1 .",
@@ -141,6 +142,12 @@ func TestEmbeddedRulesCarryWeakenedChecks(t *testing.T) {
 	assert.False(t, kubescape.RunMatches.MatchString("kubescape scan --fail-threshold 0 ."), "ignored by current kubescape")
 	assert.True(t, kubescape.UnknownWhen.MatchString("kubescape scan --fail-threshold 0 ."))
 	assert.True(t, kubescape.UnknownWhen.MatchString("kubescape scan -t 10 ."))
+	polaris := byID["polaris-rule"].ExitsZero
+	assert.True(t, polaris.RunMatches.MatchString("polaris audit --set-exit-code-below-score=90"))
+	assert.True(t, polaris.RunMatches.MatchString("polaris audit --set-exit-code-on-danger=true"))
+	assert.False(t, polaris.RunMatches.MatchString("polaris audit --set-exit-code-on-danger=false"))
+	assert.False(t, polaris.RunMatches.MatchString("polaris audit --set-exit-code-below-score 0"))
+	assert.False(t, polaris.RunMatches.MatchString("polaris audit --format pretty"))
 
 	tfsec := byID["tfsec-rule"]
 	assert.NotNil(t, tfsec)

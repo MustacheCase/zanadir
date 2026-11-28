@@ -3,6 +3,7 @@ package wrapper_test
 import (
 	"testing"
 
+	"github.com/MustacheCase/zanadir/wrapper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,25 +39,33 @@ repos:
         stages: [commit]
 `
 
+// hooked marks lines as a pre-commit hook's.
+func hooked(lines ...string) []string {
+	for i, line := range lines {
+		lines[i] = wrapper.HookMark + line
+	}
+	return lines
+}
+
 func TestPreCommitFollowsHooks(t *testing.T) {
 	files := map[string]string{".pre-commit-config.yaml": precommitConfig, "Makefile": "lint:\n\tgolangci-lint run\n"}
 
-	assert.Equal(t, []string{"gitleaks", "zizmor --min-severity medium", "make lint", "golangci-lint run", "actionlint"},
+	assert.Equal(t, hooked("gitleaks", "zizmor --min-severity medium", "make lint", "golangci-lint run", "actionlint"),
 		expand(t, files, "pre-commit run --all-files"), "commit-msg and manual hooks do not run by default")
-	assert.Equal(t, []string{"gitleaks", "zizmor --min-severity medium", "make lint", "golangci-lint run", "semgrep ci"},
+	assert.Equal(t, hooked("gitleaks", "zizmor --min-severity medium", "make lint", "golangci-lint run", "semgrep ci"),
 		expand(t, files, "prek run --hook-stage manual --all-files"))
 	assert.Len(t, expand(t, files, "prek run --hook-stage=manual"), 5)
-	assert.Equal(t, []string{"zizmor --min-severity medium"}, expand(t, files, "prek run --show-diff-on-failure --all-files zizmor"),
+	assert.Equal(t, hooked("zizmor --min-severity medium"), expand(t, files, "prek run --show-diff-on-failure --all-files zizmor"),
 		"hook ids on the command line run only those hooks")
-	assert.Equal(t, []string{"gitleaks"}, expand(t, files, "pre-commit run gitleaks --from-ref origin/main --to-ref HEAD"))
-	assert.Equal(t, []string{"gitleaks", "zizmor --min-severity medium", "make lint", "golangci-lint run", "actionlint"},
+	assert.Equal(t, hooked("gitleaks"), expand(t, files, "pre-commit run gitleaks --from-ref origin/main --to-ref HEAD"))
+	assert.Equal(t, hooked("gitleaks", "zizmor --min-severity medium", "make lint", "golangci-lint run", "actionlint"),
 		expand(t, files, "pre-commit run --files a.py b.py"), "--files lists files, not hooks")
 }
 
 func TestPreCommitReadsTheConfigItIsGiven(t *testing.T) {
 	files := map[string]string{"ci/hooks.yml": "repos:\n  - repo: local\n    hooks:\n      - id: secrets\n        entry: trufflehog git file://.\n"}
-	assert.Equal(t, []string{"trufflehog git file://."}, expand(t, files, "pre-commit run -c ci/hooks.yml --all-files"))
-	assert.Equal(t, []string{"trufflehog git file://."}, expand(t, files, "pre-commit run --config=ci/hooks.yml"))
+	assert.Equal(t, hooked("trufflehog git file://."), expand(t, files, "pre-commit run -c ci/hooks.yml --all-files"))
+	assert.Equal(t, hooked("trufflehog git file://."), expand(t, files, "pre-commit run --config=ci/hooks.yml"))
 }
 
 func TestPreCommitNeedsARunAndAConfig(t *testing.T) {
@@ -66,4 +75,16 @@ func TestPreCommitNeedsARunAndAConfig(t *testing.T) {
 	assert.Nil(t, expand(t, map[string]string{"README.md": ""}, "pre-commit run --all-files"))
 	assert.Nil(t, expand(t, map[string]string{".pre-commit-config.yaml": "repos: [\n"}, "pre-commit run --all-files"))
 	assert.Nil(t, expand(t, files, "pre-commit run -c ../outside.yaml"))
+}
+
+// pre-commit fails a hook that changes a file, so a formatter's hook fails as
+// if it checked; a failure ignored around the run is still ignored.
+func TestPreCommitMarksWhatHooksRun(t *testing.T) {
+	files := map[string]string{
+		".pre-commit-config.yaml": "repos:\n  - repo: https://github.com/JohnnyMorganz/StyLua\n    rev: v2.1.0\n    hooks:\n      - id: stylua\n",
+		"Makefile":                "fmt:\n\tstylua .\n",
+	}
+	assert.Equal(t, []string{"ZANADIR_PRECOMMIT_HOOK=1 stylua"}, expand(t, files, "pre-commit run --all-files"))
+	assert.Equal(t, []string{"ZANADIR_PRECOMMIT_HOOK=1 stylua || true"}, expand(t, files, "pre-commit run --all-files || true"))
+	assert.Equal(t, []string{"stylua ."}, expand(t, files, "make fmt"), "only a hook is marked")
 }

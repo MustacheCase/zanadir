@@ -33,3 +33,6 @@ go.work.sum
 
 # make web
 dist/
+
+# claude plugin eval output
+plugins/zanadir/evals/results/

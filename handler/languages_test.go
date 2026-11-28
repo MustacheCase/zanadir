@@ -34,6 +34,7 @@ func TestAnalyseHoldsCodeQLToTheDetectedLanguages(t *testing.T) {
 		{"default setup misses the code", defaultSetup("python\nactions\n"), rustAndKotlin, "partial", ""},
 		{"default setup covers Rust", defaultSetup("actions\nrust\n"), rustAndKotlin, "enforcing", ""},
 		{"default setup on actions alone", defaultSetup("actions\n"), rustAndKotlin, "", ""},
+		{"a source file is not a manifest", workflow("java"), map[string]string{"WORKSPACE": "", "BUILD": "", "src/main/java/com/x/A.java": "", "scripts/release.py": ""}, "enforcing", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			files := map[string]string{".git/HEAD": "ref: refs/heads/main\n"}

@@ -14,6 +14,17 @@ import (
 
 func gradeFile(t *testing.T, p parser.Parser, name, content string) map[string]Verdict {
 	t.Helper()
+	verdicts := map[string]Verdict{}
+	for category, assessment := range gradeFileAssessments(t, p, name, content) {
+		verdicts[category] = assessment.Verdict
+	}
+	return verdicts
+}
+
+// gradeFileAssessments grades a file end to end and hands back each category's
+// full assessment, the tools it found included.
+func gradeFileAssessments(t *testing.T, p parser.Parser, name, content string) map[string]Assessment {
+	t.Helper()
 	artifacts, err := p.Parse(testrepo.Write(t, map[string]string{name: content}))
 	require.NoError(t, err)
 	rs, err := rules.NewRulesService()
@@ -23,11 +34,7 @@ func gradeFile(t *testing.T, p parser.Parser, name, content string) map[string]V
 	for _, c := range models.CategoryTitles {
 		findings = append(findings, matcher.NewMatchService().Match(artifacts, rs.GetCategoryRules(c))...)
 	}
-	verdicts := map[string]Verdict{}
-	for category, assessment := range ByCategory(findings, nil) {
-		verdicts[category] = assessment.Verdict
-	}
-	return verdicts
+	return ByCategory(findings, nil)
 }
 
 // The Azure counterpart of the Bitbucket test: real parser, real catalogue.

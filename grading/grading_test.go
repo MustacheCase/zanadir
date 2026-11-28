@@ -103,6 +103,15 @@ func TestGrade(t *testing.T) {
 	}
 }
 
+func TestGradeRuleWithoutRegexDoesNotInspectRunForSwallowedCommand(t *testing.T) {
+	f := finding([]models.Trigger{{Event: "pull_request"}}, &models.Job{Run: "npm test"})
+	f.Rule = &rules.Rule{ID: "named-test-rule"}
+
+	if got := Grade(f); got != Enforcing {
+		t.Errorf("Grade() = %q, want %q", got, Enforcing)
+	}
+}
+
 func TestWeakened(t *testing.T) {
 	for verdict, want := range map[Verdict]bool{
 		Advisory:  true,

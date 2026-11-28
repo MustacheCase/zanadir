@@ -1,0 +1,90 @@
+{
+  "tools": [
+    {
+      "name": "scan",
+      "title": "Grade the CI",
+      "description": "Reads the repository's CI configuration (GitHub Actions, GitLab CI, CircleCI, Bitbucket Pipelines, Azure Pipelines, Jenkins) and reports, as JSON:\n- score: categories covered out of those that apply;\n- uncovered: categories with no tool at all (SCA, secrets detection, SAST, linting, tests, coverage, licences, end-of-life, IaC, supply chain, workflow security, performance testing), each with tools that fit the repository's languages;\n- weakened: controls that are present but cannot fail a build, graded partial (not on every change), advisory (continue-on-error, || true, --exit-code 0, schedule-only) or unknown (behind a condition);\n- notApplicable and platforms;\n- covered: each covered category with the tools found for it, their verdicts and the files they run in.\nRun it before changing CI, and again after, to confirm the change.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dir": {
+            "type": "string",
+            "description": "path to a local checkout; defaults to the current directory"
+          },
+          "repo": {
+            "type": "string",
+            "description": "a GitHub repository to read without cloning, as github.com/owner/name or github.com/owner/name@ref; instead of dir"
+          },
+          "excludedCategories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "categories that do not apply to this repository, such as Performance Testing"
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "fix",
+      "title": "CI configuration for the gaps",
+      "description": "Prints ready-to-paste CI configuration for each uncovered category, for the CI platform the repository uses. It changes no files: adapt the snippets into the existing workflows.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dir": {
+            "type": "string",
+            "description": "path to a local checkout; defaults to the current directory"
+          },
+          "repo": {
+            "type": "string",
+            "description": "a GitHub repository to read without cloning, as github.com/owner/name or github.com/owner/name@ref; instead of dir"
+          },
+          "excludedCategories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "categories that do not apply to this repository, such as Performance Testing"
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "skills",
+      "title": "Check the agent skills",
+      "description": "Finds every agent skill (SKILL.md) in the repository and reports, as JSON, the skills found and their problems, each with a rule, file and line:\n- errors: frontmatter that is not valid YAML, links to files that do not exist, characters that hide text from a reviewer;\n- warnings: a missing name or description, a description that never says when to use the skill (it will rarely trigger) or overlaps another skill's, a body too long to load every time, unrestricted Bash, and curl piped into a shell or approvals skipped in what the agent runs.\nRun it after writing or changing a skill, and again after fixing it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "dir": {
+            "type": "string",
+            "description": "path to a local checkout; defaults to the current directory"
+          },
+          "repo": {
+            "type": "string",
+            "description": "a GitHub repository to read without cloning, as github.com/owner/name or github.com/owner/name@ref; instead of dir"
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": true
+      }
+    }
+  ]
+}

@@ -123,6 +123,32 @@ func TestMatchRunCommands(t *testing.T) {
 	assert.Equal(t, "SCA", findings[0].Category)
 }
 
+func TestMatchFollowedCommandsForTheRuleTheyExpandTo(t *testing.T) {
+	m := matcher.NewMatchService()
+	for _, tt := range []struct {
+		name, command string
+		expansion     []string
+		pattern       string
+		want          bool
+	}{
+		{"grade the matching expansion", "npm run eslint", []string{"eslint . || true"}, `\beslint\b`, true},
+		{"keep wrapper when expansion does not match", "npm test", []string{"node scripts/runner.js"}, `\bnpm test\b`, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rule := &rules.Rule{
+				ID: "wrapper-test", Regex: regexp.MustCompile(tt.pattern),
+				ApplyOn: []string{rules.FieldJobRun}, Categories: []string{"Unit Tests"},
+			}
+			job := &models.Job{
+				Run:      tt.command + "\n" + tt.expansion[0],
+				Followed: []models.FollowedCommand{{Command: tt.command, Expansion: tt.expansion}},
+			}
+			findings := m.Match([]*models.Artifact{{Jobs: []*models.Job{job}}}, []*rules.Rule{rule})
+			assert.Equal(t, tt.want, len(findings) > 0)
+		})
+	}
+}
+
 func TestMatchStepEnvironment(t *testing.T) {
 	m := matcher.NewMatchService()
 	rule := &rules.Rule{

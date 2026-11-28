@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/MustacheCase/zanadir/internal/repofs"
 	"github.com/MustacheCase/zanadir/models"
 	"github.com/MustacheCase/zanadir/utils"
 )
 
-// DependencyBotParser reads the dependency-update bots, which declare
-// themselves in a configuration file rather than a CI job.
+// DependencyBotParser reads dependency-update bot configurations and fetched
+// Dependabot security updates, which run outside CI jobs.
 type DependencyBotParser struct{}
 
 // Renovate accepts many names and reads the first it finds.
@@ -38,29 +39,49 @@ var botConfigs = []struct {
 	},
 }
 
-// Exists reports whether root configures Dependabot or Renovate.
+// Exists reports whether root configures a dependency bot or has fetched
+// Dependabot security updates enabled.
 func (b *DependencyBotParser) Exists(root string) bool {
 	for _, bot := range botConfigs {
 		if utils.FirstFile(root, bot.paths...) != "" {
 			return true
 		}
 	}
-	return false
+	_, ok := readDependabotSecurityUpdates(root)
+	return ok
 }
 
-// Parse reports one artifact per configured bot that watches the project's
-// dependencies. A file zanadir cannot read still counts: it cannot tell.
+func readDependabotSecurityUpdates(root string) ([]string, bool) {
+	data, err := repofs.ReadFile(root, filepath.Join(root, filepath.FromSlash(models.DependabotSecurityUpdatesFile)))
+	return strings.Fields(string(data)), err == nil
+}
+
+// Parse reports one artifact per bot that watches the project's dependencies.
+// A config zanadir cannot read still counts: it cannot tell. Fetched security
+// updates apply only when Dependabot has no config, and have no file location.
 func (b *DependencyBotParser) Parse(root string) ([]*models.Artifact, error) {
 	var artifacts []*models.Artifact
 
 	for _, bot := range botConfigs {
 		rel := utils.FirstFile(root, bot.paths...)
-		if rel == "" || onlyTooling(bot.tool, root, filepath.Join(root, rel)) {
-			continue
+		location := ""
+		if rel != "" {
+			location = filepath.Join(root, rel)
+			if onlyTooling(bot.tool, root, location) {
+				continue
+			}
+		} else {
+			if bot.tool != "dependabot" {
+				continue
+			}
+			ecosystems, ok := readDependabotSecurityUpdates(root)
+			if !ok || onlyToolingEcosystems(ecosystems) {
+				continue
+			}
 		}
 		artifacts = append(artifacts, &models.Artifact{
 			Name:            bot.tool,
-			Location:        filepath.Join(root, rel),
+			Location:        location,
 			OutsidePipeline: true,
 			// The tool name is the whole package so the rule can anchor on it.
 			Jobs: []*models.Job{{Name: bot.tool, Package: bot.tool}},
@@ -102,6 +123,10 @@ func onlyTooling(tool, root, path string) bool {
 		}
 		updated = config.EnabledManagers
 	}
+	return onlyToolingEcosystems(updated)
+}
+
+func onlyToolingEcosystems(updated []string) bool {
 	return len(updated) > 0 && !slices.ContainsFunc(updated, func(e string) bool { return !slices.Contains(toolingEcosystems, e) })
 }
 

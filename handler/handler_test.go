@@ -556,6 +556,37 @@ func TestFixIgnoresItsOwnGeneratedWorkflow(t *testing.T) {
 	}
 }
 
+// A Python repository with no manifest was told to run npm ci and npx eslint.
+func TestFixFollowsSourceFilesWithoutAManifest(t *testing.T) {
+	workflow := "on: [pull_request]\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -m py_compile src/tool.py\n"
+	fix := func(files map[string]string) string {
+		files[".git/HEAD"] = "ref: refs/heads/main\n"
+		files[".github/workflows/ci.yml"] = workflow
+		h, err := Setup()
+		require.NoError(t, err)
+		var buf bytes.Buffer
+		require.NoError(t, h.Fix(&config.Config{Dir: testrepo.Write(t, files)}, &buf))
+		return buf.String()
+	}
+
+	out := fix(map[string]string{"src/tool.py": "print()\n"})
+	assert.NotContains(t, out, "eslint")
+	assert.Contains(t, out, "ruff")
+
+	// A JavaScript file found without a manifest has no lockfile for npm ci.
+	out = fix(map[string]string{"app.py": "print()\n", "static/app.js": "x()\n"})
+	assert.NotContains(t, out, "eslint")
+	assert.Contains(t, out, "ruff")
+
+	out = fix(map[string]string{"main.go": "package main\n"})
+	assert.NotContains(t, out, "go test -coverprofile")
+	assert.Contains(t, out, "no go.mod at the repository root")
+
+	out = fix(map[string]string{"README.md": "scripts\n"})
+	assert.NotContains(t, out, "eslint")
+	assert.Contains(t, out, "Linting Tools: could not tell the repository's language")
+}
+
 func TestExecuteMatchesEveryArtifact(t *testing.T) {
 	own := &models.Artifact{Name: "zanadir-suggested", Location: "/repo/.github/workflows/zanadir-suggested.yml"}
 
@@ -1201,6 +1232,89 @@ func TestAnalyseGradesAToolThatOnlyReports(t *testing.T) {
 		"the flag outranks trivy.yaml")
 }
 
+// lockfile-lint can get its validators from a config file or a package script.
+// Config files are presence checks: their contents are never evaluated.
+func TestAnalyseLockfileLint(t *testing.T) {
+	h, err := Setup()
+	require.NoError(t, err)
+
+	type testCase struct {
+		name, run, packageJSON, configFile, verdict string
+	}
+	tests := []testCase{
+		{name: "no validators", run: "npx lockfile-lint --path package-lock.json", verdict: "advisory"},
+		{name: "bare command", run: "npx lockfile-lint", verdict: "unknown"},
+		{
+			name: "package config is not read", run: "npx lockfile-lint --path package-lock.json", verdict: "advisory",
+			packageJSON: `{"lockfile-lint":{"path":"package-lock.json","allowed-hosts":["npm"]}}`,
+		},
+		{
+			name: "validator outranks config", run: "npx lockfile-lint --path package-lock.json --validate-https",
+			configFile: ".lockfile-lintrc", verdict: "enforcing",
+		},
+		{
+			name: "nested npm scripts", run: "npm run lint", verdict: "enforcing",
+			packageJSON: `{"scripts":{"lint":"npm run lockfile-lint","lockfile-lint":"lockfile-lint --path package-lock.json --validate-https"}}`,
+		},
+		{
+			name: "yarn script", run: "yarn lint:lockfile", verdict: "enforcing",
+			packageJSON: `{"scripts":{"lint:lockfile":"lockfile-lint --path yarn.lock --allowed-hosts npm yarn"}}`,
+		},
+		{
+			name: "npm script name is not evidence", run: "npm run lockfile-lint",
+			packageJSON: `{"scripts":{"lockfile-lint":"echo checked"}}`,
+		},
+		{
+			name: "yarn script name is not evidence", run: "yarn lint:lockfile-lint",
+			packageJSON: `{"scripts":{"lint:lockfile-lint":"echo checked"}}`,
+		},
+	}
+	for _, name := range []string{
+		".lockfile-lintrc", ".lockfile-lintrc.json", ".lockfile-lintrc.yaml", ".lockfile-lintrc.yml",
+		".lockfile-lintrc.js", ".lockfile-lintrc.cjs", ".lockfile-lintrc.mjs",
+		"lockfile-lint.config.js", "lockfile-lint.config.cjs", "lockfile-lint.config.mjs",
+	} {
+		tests = append(tests, testCase{name: name, run: "npx lockfile-lint --path package-lock.json", configFile: name, verdict: "unknown"})
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := map[string]string{
+				".git/HEAD":                "ref: refs/heads/main\n",
+				".github/workflows/ci.yml": "on: pull_request\njobs:\n  scan:\n    runs-on: ubuntu-latest\n    steps:\n      - run: " + tt.run + "\n",
+			}
+			if tt.packageJSON != "" {
+				files["package.json"] = tt.packageJSON
+			}
+			if tt.configFile != "" {
+				files[tt.configFile] = "{}\n"
+			}
+			result, err := h.analyse(&config.Config{Dir: testrepo.Write(t, files)}, func(string, ...interface{}) {}, nil)
+			require.NoError(t, err)
+
+			var supplyChain *output.Coverage
+			for i := range result.covered {
+				covered := &result.covered[i]
+				assert.NotEqual(t, string(models.SCA), covered.Category)
+				if covered.Category == string(models.SupplyChain) {
+					supplyChain = covered
+				}
+			}
+			if tt.verdict == "" {
+				assert.Nil(t, supplyChain)
+				return
+			}
+			require.NotNil(t, supplyChain)
+			assert.Equal(t, output.Coverage{
+				Category: string(models.SupplyChain), Verdict: tt.verdict,
+				Tools: []output.Tool{{Name: "lockfile-lint", Verdict: tt.verdict, Locations: []string{".github/workflows/ci.yml"}}},
+			}, *supplyChain)
+			for _, suggestion := range result.suggestions {
+				assert.NotEqual(t, string(models.SupplyChain), suggestion.Name)
+			}
+		})
+	}
+}
+
 // blastradius's pre-commit hook passes without a .br-indicators list, and
 // zanadir can't tell whether the list names anything.
 func TestAnalyseGradesTheBlastradiusHookByItsList(t *testing.T) {
@@ -1222,6 +1336,32 @@ func TestAnalyseGradesTheBlastradiusHookByItsList(t *testing.T) {
 	require.NoError(t, err)
 	for _, weakness := range result.weaknesses {
 		assert.NotEqual(t, string(models.SCA), weakness.Category, "the list may name packages")
+	}
+}
+
+// StyLua's hook runs it without --check, but pre-commit fails a hook that
+// changes a file, so the hook can fail the build as "stylua --check" can.
+func TestAnalyseGradesAFormatterHookAsAFailingCheck(t *testing.T) {
+	h, err := Setup()
+	require.NoError(t, err)
+	for run, verdict := range map[string]string{
+		"pre-commit run --all-files":         "enforcing",
+		"pre-commit run --all-files || true": "advisory",
+		"stylua .":                           "advisory",
+		"PRE_COMMIT=1 stylua .":              "advisory",
+	} {
+		dir := testrepo.Write(t, map[string]string{
+			".git/HEAD":                "ref: refs/heads/main\n",
+			".pre-commit-config.yaml":  "repos:\n  - repo: https://github.com/JohnnyMorganz/StyLua\n    rev: v2.1.0\n    hooks:\n      - id: stylua\n",
+			".github/workflows/ci.yml": "on: pull_request\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: " + run + "\n",
+		})
+		result, err := h.analyse(&config.Config{Dir: dir}, func(string, ...interface{}) {}, nil)
+		require.NoError(t, err)
+		var tools []output.Tool
+		for _, covered := range result.covered {
+			tools = append(tools, covered.Tools...)
+		}
+		assert.Contains(t, tools, output.Tool{Name: "StyLua", Verdict: verdict, Locations: []string{".github/workflows/ci.yml"}}, run)
 	}
 }
 

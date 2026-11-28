@@ -6,6 +6,7 @@ import (
 
 	"github.com/MustacheCase/zanadir/parser"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Executable quotes and directory prefixes must not change either recognition
@@ -114,6 +115,29 @@ jobs:
 	}
 }
 
+// buildifier defaults to -mode=fix and -lint=off (exits 0 on findings);
+// -mode=check, -mode=diff (-d) or -lint=warn fail the build unless -format=...
+// is passed, and -config may set mode/lint in a file.
+func TestBuildifierExitsZeroUnlessCheckMode(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"buildifier -mode=check -r .":                   Enforcing,
+		"buildifier -lint=warn -r .":                    Enforcing,
+		"buildifier -r .":                               Advisory,
+		"buildifier -mode=fix -lint=fix -r .":           Advisory,
+		"buildifier -mode=check -format=json -r .":      Advisory,
+		"buildifier -config=tools/buildifier.json -r .": Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 // license-checker only lists licences unless --failOn or --onlyAllow makes it
 // fail.
 func TestLicenseCheckerExitsZeroUnlessFailFlag(t *testing.T) {
@@ -131,6 +155,124 @@ jobs:
 `)
 		assert.Equal(t, expected, verdicts["License Compliance"], run)
 	}
+}
+
+// lockfile-lint checks nothing unless a validator is enabled; a bare command
+// may get its path and validators from configuration that is not read here.
+func TestLockfileLintExitsZeroUnlessValidator(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      Verdict
+	}{
+		{"https", "npx lockfile-lint --path package-lock.json --validate-https", Enforcing},
+		{"hosts", "npx lockfile-lint --path yarn.lock --allowed-hosts npm yarn", Enforcing},
+		{"schemes", `npx lockfile-lint --path yarn.lock --allowed-schemes "https:" "git+https:"`, Enforcing},
+		{"urls", "npx lockfile-lint --path yarn.lock --allowed-urls https://example.com/package.tgz", Enforcing},
+		{"integrity", "npx lockfile-lint --path yarn.lock --validate-integrity", Enforcing},
+		{"strict integrity", "npx lockfile-lint --path yarn.lock --validate-integrity-strict", Enforcing},
+		{"package names", "npx lockfile-lint --path yarn.lock --validate-package-names", Enforcing},
+		{"short https", "npx lockfile-lint -p yarn.lock -s", Enforcing},
+		{"short hosts", "npx lockfile-lint -p yarn.lock -a npm yarn", Enforcing},
+		{"short schemes", "npx lockfile-lint -p yarn.lock -o https:", Enforcing},
+		{"short urls", "npx lockfile-lint -p yarn.lock -u https://example.com/package.tgz", Enforcing},
+		{"short integrity", "npx lockfile-lint -p yarn.lock -i", Enforcing},
+		{"short package names", "npx lockfile-lint -p yarn.lock -n", Enforcing},
+		{"long equals", "npx lockfile-lint --path yarn.lock --allowed-hosts=npm", Enforcing},
+		{"boolean equals", "npx lockfile-lint --path yarn.lock --validate-https=true", Enforcing},
+		{"short equals", "npx lockfile-lint -p yarn.lock -a=npm", Enforcing},
+		{"versioned runner", "npx --yes lockfile-lint@5 --path package-lock.json --type npm --validate-https --allowed-hosts npm", Enforcing},
+		{"short validators", "npx lockfile-lint -p yarn.lock -s -a npm yarn", Enforcing},
+		{"npm exec", "npm exec --no-install lockfile-lint -- --type npm --path package-lock.json --validate-https", Enforcing},
+		{"npx offline", "npx --offline lockfile-lint --path yarn.lock -s", Enforcing},
+		{"npx prefer offline", "npx --prefer-offline lockfile-lint --path yarn.lock -s", Enforcing},
+		{"yarn offline", "yarn --offline lockfile-lint --path yarn.lock -s", Enforcing},
+		{"bun runtime", "bunx --bun lockfile-lint --path yarn.lock -s", Enforcing},
+		{"package with other runner options", "npx --package lockfile-lint@5 --prefer-offline -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
+		{"quoted package path", `npx --package "/tmp/tool cache/lockfile-lint" --offline lockfile-lint --path yarn.lock -s`, Enforcing},
+		{"no validator", "npx lockfile-lint --path package-lock.json --type npm", Advisory},
+		{"format only", "npx lockfile-lint --path package-lock.json --format plain", Advisory},
+		{"empty hostname only", "npx lockfile-lint --path package-lock.json --empty-hostname false", Advisory},
+		{"package aliases only", "npx lockfile-lint --path package-lock.json --allowed-package-name-aliases example", Advisory},
+		{"package alias named like tool", "npx lockfile-lint --path yarn.lock --allowed-package-name-aliases lockfile-lint", Advisory},
+		{"path named like tool", "npx lockfile-lint --path lockfile-lint", Advisory},
+		{"yarn silent", "yarn -s lockfile-lint --path yarn.lock", Advisory},
+		{"pnpm silent", "pnpm -s lockfile-lint --path yarn.lock", Advisory},
+		{"runner flags before binary", "npx --yes --package=lockfile-lint@5.0.1 lockfile-lint --path package-lock.json", Advisory},
+		{"package value before validator", "npx --package lockfile-lint@5 -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
+		{"short package value before validator", "npx -p lockfile-lint@5 -s lockfile-lint --path yarn.lock --validate-https", Enforcing},
+		{"inline environment", "CI=true npx lockfile-lint --path yarn.lock -s", Enforcing},
+		{"sudo", "sudo lockfile-lint --path yarn.lock -s", Enforcing},
+		{"long flag suffix", "npx lockfile-lint --path yarn.lock --validate-https-extra", Advisory},
+		{"short flag suffix", "npx lockfile-lint --path yarn.lock -something", Advisory},
+		{"flag case", "npx lockfile-lint --path yarn.lock --VALIDATE-HTTPS", Advisory},
+		{"bare", "lockfile-lint", Unknown},
+		{"bare runner", "npx lockfile-lint", Unknown},
+		{"bare versioned runner", "npx --yes lockfile-lint@5", Unknown},
+		{"quoted binary", `"$RUNNER_TEMP/promptfoo-ci-tools/node_modules/.bin/lockfile-lint" --path yarn.lock --validate-https`, Enforcing},
+		{"continued command", "npx lockfile-lint \\\n  --path package-lock.json \\\n  --validate-https", Enforcing},
+		{"neighbor flag", "echo --validate-https\nnpx lockfile-lint --path package-lock.json", Advisory},
+		{"following flag", "npx lockfile-lint --path package-lock.json; echo --validate-https", Advisory},
+		{"one validator suffices", "npx lockfile-lint --path package-lock.json\nnpx lockfile-lint --path yarn.lock --validate-https", Enforcing},
+		{"swallowed validation", "npx lockfile-lint --path package-lock.json --validate-https || true", Advisory},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lockfile:
+    steps:
+      - run: |
+          `+strings.ReplaceAll(tt.run, "\n", "\n          ")+`
+`)
+			assert.Equal(t, tt.want, verdicts["Supply Chain"])
+			assert.NotContains(t, verdicts, "SCA")
+		})
+	}
+}
+
+func TestLockfileLintPackageOptionIsNotAnInvocation(t *testing.T) {
+	for _, run := range []string{
+		"npx --package lockfile-lint@5 other-tool",
+		`npx --package "/tmp/tools/lockfile-lint@5" -s other-tool`,
+		`npx --package "other lockfile-lint@5" -s other-tool`,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  check:
+    steps:
+      - run: `+run+`
+`)
+		assert.NotContains(t, verdicts, "Supply Chain", run)
+	}
+}
+
+func TestLockfileLintFoldedCommand(t *testing.T) {
+	verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lockfile:
+    steps:
+      - run: >
+          npx --yes lockfile-lint@5
+          --path package-lock.json --type npm
+          --validate-https --allowed-hosts npm
+`)
+	assert.Equal(t, Enforcing, verdicts["Supply Chain"])
+	assert.NotContains(t, verdicts, "SCA")
+}
+
+func TestLockfileLintContinueOnErrorGradesAdvisory(t *testing.T) {
+	verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lockfile:
+    steps:
+      - run: npx lockfile-lint --path package-lock.json --validate-https
+        continue-on-error: true
+`)
+	assert.Equal(t, Advisory, verdicts["Supply Chain"])
+	assert.NotContains(t, verdicts, "SCA")
 }
 
 // Asking a linter for its version through a package runner does not run it (#607).
@@ -481,6 +623,28 @@ jobs:
 	}
 }
 
+func TestPolarisAuditGradesExitCodeSettings(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"polaris audit --audit-path deploy/":                                Advisory,
+		"polaris audit --set-exit-code-on-danger --audit-path deploy/":      Enforcing,
+		"polaris audit --set-exit-code-on-danger=true":                      Enforcing,
+		"polaris audit --set-exit-code-below-score=90":                      Enforcing,
+		"polaris audit --set-exit-code-on-danger=false":                     Advisory,
+		"polaris audit --set-exit-code-below-score ${{ inputs.min_score }}": Unknown,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/polaris.yml", `
+on: pull_request
+jobs:
+  audit:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["IaC Security"], run)
+		})
+	}
+}
+
 // The kubeconform image run as a docker:// step enforces unless the step
 // may fail.
 func TestKubeconformDockerStepGradesEnforcing(t *testing.T) {
@@ -498,6 +662,23 @@ jobs:
           args: -strict k8s/`+extra+`
 `)
 		assert.Equal(t, expected, verdicts["IaC Security"], extra)
+	}
+}
+
+func TestSQLFluffNoFailGradesAdvisory(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"sqlfluff lint models/":                             Enforcing,
+		"sqlfluff lint models/ --nofail":                    Advisory,
+		"python -m sqlfluff lint --nofail --dialect ansi .": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
 	}
 }
 
@@ -537,7 +718,134 @@ jobs:
 	}
 }
 
+func TestInterrogateGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"interrogate -v --fail-under 80 mmengine":                       Enforcing,
+		"uv run --with interrogate interrogate --config=pyproject.toml": Enforcing,
+		"pipx run interrogate -v .":                                     Enforcing,
+		"interrogate -f 33.0 sycret":                                    Enforcing,
+		"interrogate --fail-under 0.5 src":                              Enforcing,
+		"interrogate --fail-under 0 src":                                Advisory,
+		"interrogate --fail-under=0 src":                                Advisory,
+		"interrogate -f 0 src":                                          Advisory,
+		"interrogate -f0 src":                                           Advisory,
+		"interrogate --fail-under 0.0 src":                              Advisory,
+		"interrogate huixiangdou -v || true":                            Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+func TestInterrogateActionFailUnderGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "fail-under 0 is advisory", input: "fail-under: '0'", expected: Advisory},
+		{name: "fail-under 95 is enforcing", input: "fail-under: 95", expected: Enforcing},
+		{name: "expression is unknown", input: "fail-under: ${{ inputs.fail-under }}", expected: Unknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  docstrings:
+    steps:
+      - uses: JackMcKew/python-interrogate-check@main
+        with:
+          path: braces
+`
+			if tc.input != "" {
+				workflow += "          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+// Scalafix's --check fails the run on a pending rewrite. Without it rewrites
+// are applied and only a linter rule in .scalafix.conf can fail the run, which
+// the command doesn't show, so it is unknown.
+func TestScalafixCheckGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		`sbt "scalafixAll --check"`:                                Enforcing,
+		`sbt 'rootJVM/scalafixAll --check'`:                        Enforcing,
+		`sbt "Test / scalafix --test"`:                             Enforcing,
+		"sbt scalafixCheckAll":                                     Enforcing,
+		"./mill __.fix --check":                                    Enforcing,
+		"./mill -i __.fix --check":                                 Enforcing,
+		"scalafix --check --syntactic src":                         Enforcing,
+		"cs launch scalafix -- --check":                            Enforcing,
+		`sbt "scalafixAll --check" || true`:                        Advisory,
+		"sbt scalafixAll":                                          Unknown,
+		`sbt "scalafixAll RemoveUnused"`:                           Unknown,
+		`sbt "scalafixAll" "test --check"`:                         Unknown,
+		"./mill __.fix":                                            Unknown,
+		"./mill __.fix + __.test --check":                          Unknown,
+		"scalafix --rules OrganizeImports":                         Unknown,
+		"./mill 'core[2.13.16].fix' --check":                       Enforcing,
+		`./mill "__.fix" --check`:                                  Enforcing,
+		"|\n          sbt \\\n            \"scalafixAll --check\"": Enforcing,
+		"|\n          cd scalafix\n          sbt test":             "",
+		"cd modules/scalafix && sbt test":                          "",
+		"git clone https://github.com/scalacenter/scalafix":        "",
+		"./mill __.test | tee scalafix":                            "",
+		"mvn -pl mill fix":                                         "",
+		"make -C mill fix":                                         "",
+		"./mill __.compile fix":                                    "",
+		"./mill resolve __.fix":                                    "",
+		"./mill __.test 2>&1 > fix":                                "",
+		`'nix develop .#${{ matrix.java }} -c sbt ''project ${{ matrix.project }}'' ''++ ${{ matrix.scala }}'' ''scalafixAll --check'''`: Enforcing,
+		`timeout 30m sbt "scalafixAll --check"`:    Enforcing,
+		"cs launch scalafix:0.14.3 -- --check src": Enforcing,
+		"./mill -j 4 __.fix --check":               Enforcing,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
 // awesome_bot exits 1 on a dead or duplicate link; no flag makes it exit 0.
+func TestAttwGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx @arethetypeswrong/cli --pack .":                                   Enforcing,
+		"attw --pack . --format json":                                          Enforcing,
+		"pnpm exec attw ./package.tgz --format table --ignore-rules false-esm": Enforcing,
+		"attw --pack . --profile node16":                                       Enforcing,
+		"bunx attw package.tgz || true":                                        Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  package:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
 func TestAwesomeBotGradesCorrectly(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"awesome_bot README.md --allow-dupe --allow-redirect": Enforcing,
@@ -573,6 +881,29 @@ jobs:
 	}
 }
 
+// publint exits 1 on packaging errors; --strict makes warnings fail too, and
+// --level only filters what is printed.
+func TestPublintGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx publint":                      Enforcing,
+		"npx publint --strict":             Enforcing,
+		"npx publint --level=error":        Enforcing,
+		"pnpm exec publint --pack false .": Enforcing,
+		"npx publint || true":              Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  package:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
 func TestVultureActionGradesEnforcing(t *testing.T) {
 	for _, with := range []string{
 		"",
@@ -589,6 +920,51 @@ jobs:
 			assert.Equal(t, Enforcing, verdicts["Linter"])
 		})
 	}
+}
+
+func TestLegacyLinterActionsGradeEnforcing(t *testing.T) {
+	for _, uses := range []string{
+		"github/super-linter/slim@v4",
+		"github/super-linter@v4.9.7",
+		"megalinter/megalinter/flavors/go@v8.4.2",
+		"nvuillam/mega-linter@v4",
+		"docker://ghcr.io/github/super-linter:slim-v4",
+	} {
+		t.Run(uses, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: `+uses+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Linter"])
+		})
+	}
+}
+
+func TestLegacyLinterShellSteps(t *testing.T) {
+	t.Run("Docker invocation grades enforcing", func(t *testing.T) {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: docker run --env-file ".github/super-linter.env" ghcr.io/github/super-linter:slim-v4
+`)
+		assert.Equal(t, Enforcing, verdicts["Linter"])
+	})
+
+	t.Run("config-only step has no linter verdict", func(t *testing.T) {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: grep -v '^#' .github/super-linter.env >> "$GITHUB_ENV"
+`)
+		assert.NotContains(t, verdicts, "Linter")
+	})
 }
 
 // cargo-machete exits 1 on findings, and --fix still reports what it found.
@@ -619,6 +995,29 @@ func TestCargoUdepsGradesCorrectly(t *testing.T) {
 		"cargo +nightly udeps --all-targets":      Enforcing,
 		"cargo udeps --all-targets --output json": Enforcing,
 		"cargo udeps --all-targets || true":       Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+// cargo-shear exits 1 on findings, including the ones --fix removes.
+func TestCargoShearGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"cargo shear":                                           Enforcing,
+		"cargo shear --deny-warnings":                           Enforcing,
+		"cargo shear --fix":                                     Enforcing,
+		"cargo shear || true":                                   Advisory,
+		"cargo shear --format=json > shear-results.json":        Enforcing,
+		"uv run --only-group check cargo-shear --deny-warnings": Enforcing,
 	} {
 		t.Run(run, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
@@ -670,6 +1069,33 @@ jobs:
       - uses: `+tc.action+tc.inputs+`
 `)
 			assert.Equal(t, Enforcing, verdicts["Supply Chain"])
+		})
+	}
+}
+
+// gh-action-pypi-publish attests only through trusted publishing to PyPI.
+func TestPypiPublishAttestsOnlyThroughTrustedPublishing(t *testing.T) {
+	for step, attests := range map[string]bool{
+		"uses: pypa/gh-action-pypi-publish@release/v1":                                                                         true,
+		"uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          attestations: false":                           false,
+		"uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          password: ${{ secrets.PYPI }}":                 false,
+		"uses: pypa/gh-action-pypi-publish@release/v1\n        with:\n          repository-url: https://test.pypi.org/legacy/": false,
+		"uses: sigstore/gh-action-sigstore-python@v3.5.0\n        with:\n          inputs: ./dist/*.whl":                       true,
+		"run: python -m sigstore sign dist/*.whl":                                                                              true,
+	} {
+		t.Run(step, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/publish.yml", `
+on: release
+jobs:
+  publish:
+    steps:
+      - `+step+`
+`)
+			if attests {
+				assert.Equal(t, Enforcing, verdicts["Supply Chain"])
+			} else {
+				assert.NotContains(t, verdicts, "Supply Chain")
+			}
 		})
 	}
 }
@@ -881,6 +1307,146 @@ jobs:
 	}
 }
 
+// fossa analyze only uploads its results, whatever it finds; fossa test is the
+// command that fails on a policy issue.
+func TestFossaExitsZeroUnlessTest(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"fossa test":                      Enforcing,
+		"fossa test --timeout 600":        Enforcing,
+		"fossa container test redis:7":    Enforcing,
+		"fossa analyze && fossa test":     Enforcing,
+		"fossa analyze":                   Advisory,
+		"fossa analyze --branch main":     Advisory,
+		"fossa container analyze redis:7": Advisory,
+		"fossa report attribution --json": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  licenses:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["License Compliance"], run)
+	}
+}
+
+// fossas/fossa-action only analyses unless run-tests is true.
+func TestFossaActionRunTests(t *testing.T) {
+	tests := []struct {
+		name     string
+		options  string
+		expected Verdict
+	}{
+		{"run tests", "        with:\n          run-tests: true\n", Enforcing},
+		{"run tests quoted", "        with:\n          run-tests: 'true'\n", Enforcing},
+		{"no inputs", "", Advisory},
+		{"api key only", "        with:\n          api-key: ${{ secrets.FOSSA_API_KEY }}\n", Advisory},
+		{"tests off", "        with:\n          run-tests: false\n", Advisory},
+		{"expression", "        with:\n          run-tests: ${{ inputs.x }}\n", Unknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/licenses.yml", `
+name: licenses
+on: pull_request
+jobs:
+  scan:
+    steps:
+      - uses: fossas/fossa-action@29693cc50323968e039056be419b32989fc5880c
+`+tt.options)
+			assert.Equal(t, tt.expected, verdicts["License Compliance"])
+		})
+	}
+}
+
+// A workflow named after FOSSA is matched by its name too, which must not hide
+// what the action in it does.
+func TestFossaActionInWorkflowNamedFossa(t *testing.T) {
+	for options, expected := range map[string]Verdict{
+		"        with:\n          run-tests: true\n": Enforcing,
+		"        with:\n          api-key: abc\n":    Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/fossa.yml", `
+name: FOSSA
+on: pull_request
+jobs:
+  fossa:
+    steps:
+      - uses: fossas/fossa-action@29693cc50323968e039056be419b32989fc5880c
+`+options)
+		assert.Equal(t, expected, verdicts["License Compliance"], options)
+	}
+}
+
+func TestStyLuaExitsZeroUnlessCheck(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"stylua --check .":                        Enforcing,
+		"stylua -c src/":                          Enforcing,
+		"npx @johnnymorganz/stylua-bin --check .": Enforcing,
+		"stylua .":                                Advisory,
+		"stylua --verify lua/":                    Advisory,
+		// The pre-commit wrapper marks a hook command; pre-commit fails a hook that changes a file.
+		"ZANADIR_PRECOMMIT_HOOK=1 stylua .":        Enforcing,
+		"CI=1 ZANADIR_PRECOMMIT_HOOK=1 stylua .":   Enforcing,
+		"stylua --glob ZANADIR_PRECOMMIT_HOOK=1 .": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+func TestStyLuaActionArgs(t *testing.T) {
+	tests := []struct {
+		name     string
+		options  string
+		expected Verdict
+	}{
+		{"check", "        with:\n          args: --check .\n", Enforcing},
+		{"check after other flags", "        with:\n          args: --color always --check .\n", Enforcing},
+		{"formats only", "        with:\n          args: .\n", Advisory},
+		{"install only", "        with:\n          args: false\n", Advisory},
+		{"no args", "", Advisory},
+		{"expression", "        with:\n          args: ${{ inputs.args }}\n", Unknown},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: JohnnyMorganz/stylua-action@v5
+`+tt.options)
+			assert.Equal(t, tt.expected, verdicts["Linter"])
+		})
+	}
+}
+
+// bufActionWorkflow builds a one-step buf-action workflow whose sibling check
+// is disabled by disabledInput, appending input when set, so a suite can grade
+// one of the action's two checks in isolation.
+func bufActionWorkflow(disabledInput, input string) string {
+	workflow := `on: pull_request
+jobs:
+  lint:
+    steps:
+      - uses: bufbuild/buf-action@v1
+        with:
+          ` + disabledInput + `
+`
+	if input != "" {
+		workflow += "          " + input + "\n"
+	}
+	return workflow
+}
+
 func TestBufActionLintInputGradesCorrectly(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -892,17 +1458,155 @@ func TestBufActionLintInputGradesCorrectly(t *testing.T) {
 		{name: "expression is unknown", input: "lint: ${{ inputs.lint }}", expected: Unknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			workflow := `on: pull_request
+			// breaking: false disables the sibling buf breaking check so this
+			// suite grades buf lint behavior strictly in isolation.
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", bufActionWorkflow("breaking: false", tc.input))
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+func TestBufActionBreakingInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default breaking is enforcing", expected: Enforcing},
+		{name: "breaking disabled is advisory", input: "breaking: false", expected: Advisory},
+		{name: "expression is unknown", input: "breaking: ${{ inputs.breaking }}", expected: Unknown},
+		{name: "setup_only expression is unknown", input: "setup_only: ${{ inputs.setup_only }}", expected: Unknown},
+		// The other buf-action inputs never weaken the breaking check, even
+		// when a runtime expression sets them.
+		{name: "breaking_against expression cannot weaken", input: "breaking_against: ${{ inputs.breaking_against }}", expected: Enforcing},
+		{name: "breaking_against_registry expression cannot weaken", input: "breaking_against_registry: ${{ inputs.breaking_against_registry }}", expected: Enforcing},
+		{name: "pr_comment expression cannot weaken", input: "pr_comment: ${{ inputs.pr_comment }}", expected: Enforcing},
+		{name: "format expression cannot weaken", input: "format: ${{ inputs.format }}", expected: Enforcing},
+		{name: "push expression cannot weaken", input: "push: ${{ inputs.push }}", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// lint: false disables the sibling buf lint check so this
+			// suite grades buf breaking behavior strictly in isolation.
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", bufActionWorkflow("lint: false", tc.input))
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+// runStep renders run as a `- run: |` block, indenting every continuation
+// line to keep it inside the YAML block scalar.
+func runStep(run string) string {
+	return "      - run: |\n          " + strings.ReplaceAll(run, "\n", "\n          ") + "\n"
+}
+
+// buf breaking fails the step on every breaking change and has no flag that
+// turns that off, so a CLI run gates the merge; || true alone weakens it.
+func TestBufBreakingCLIGradesCorrectly(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      Verdict
+	}{
+		{"bare", "buf breaking", Enforcing},
+		{"against flag", "buf breaking --against .git#refs/heads/main", Enforcing},
+		{"target and error format", "buf breaking --error-format github-actions ./proto", Enforcing},
+		{"continuation", "buf breaking \\\n  --against .git#refs/heads/main", Enforcing},
+		{"docker image", "docker run --rm -v $PWD:/input bufbuild/buf breaking /input", Enforcing},
+		{"versioned docker tag", "docker run bufbuild/buf:v1.32.0 breaking --against main", Enforcing},
+		{"go run", "go run github.com/bufbuild/buf/cmd/buf@v1.32.0 breaking --against main", Enforcing},
+		{"npx", "npx @bufbuild/buf@1.32.0 breaking", Enforcing},
+		{"swallowed", "buf breaking --against main || true", Advisory},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assessments := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
+on: pull_request
 jobs:
-  lint:
+  breaking:
+    steps:
+`+runStep(tt.run))
+			tools := assessments["Linter"].Tools
+			require.Len(t, tools, 1)
+			assert.Equal(t, "buf breaking", tools[0].Name)
+			assert.Equal(t, tt.want, assessments["Linter"].Verdict)
+		})
+	}
+}
+
+// The report lists "buf breaking" as its own tool next to buf lint, each with
+// its own verdict.
+func TestBufBreakingIsItsOwnTool(t *testing.T) {
+	for _, tt := range []struct {
+		name, run string
+		want      []Tool
+	}{
+		{"breaking run", "buf breaking --against main", []Tool{{Name: "buf breaking", Verdict: Enforcing}}},
+		{"lint run", "buf lint", []Tool{{Name: "buf lint", Verdict: Enforcing}}},
+		{"both runs", "buf breaking --against main\nbuf lint", []Tool{
+			{Name: "buf breaking", Verdict: Enforcing}, {Name: "buf lint", Verdict: Enforcing},
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assessments := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
+on: pull_request
+jobs:
+  buf:
+    steps:
+`+runStep(tt.run))
+			tools := assessments["Linter"].Tools
+			require.Len(t, tools, len(tt.want))
+			for i, want := range tt.want {
+				assert.Equal(t, want.Name, tools[i].Name)
+				assert.Equal(t, want.Verdict, tools[i].Verdict)
+			}
+		})
+	}
+}
+
+// One buf-action step runs both checks; the report lists each tool with its
+// own verdict, so lint off does not weaken breaking.
+func TestBufActionReportsBothTools(t *testing.T) {
+	assessments := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/buf.yml", `
+on: pull_request
+jobs:
+  buf:
     steps:
       - uses: bufbuild/buf-action@v1
-`
-			if tc.input != "" {
-				workflow += "        with:\n          " + tc.input + "\n"
-			}
-			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
-			assert.Equal(t, tc.expected, verdicts["Linter"])
+        with:
+          lint: false
+`)
+	assert.Equal(t, Enforcing, assessments["Linter"].Verdict)
+	tools := assessments["Linter"].Tools
+	require.Len(t, tools, 2)
+	for i, want := range []Tool{{Name: "buf breaking", Verdict: Enforcing}, {Name: "buf lint", Verdict: Advisory}} {
+		assert.Equal(t, want.Name, tools[i].Name)
+		assert.Equal(t, want.Verdict, tools[i].Verdict)
+	}
+}
+
+// Names, passive commands and unexpanded targets never run buf breaking, and
+// two commands on separate lines cannot combine into one.
+func TestBufBreakingNonInvocationsDoNotCoverLinter(t *testing.T) {
+	for _, tt := range []struct {
+		name, workflowName, job, run string
+	}{
+		{"workflow name prose", "Protobuf breaking change detection", "checks", "echo done"},
+		{"workflow named buf breaking", "buf breaking", "checks", "echo done"},
+		{"job name", "CI", "protobuf-breaking", "echo done"},
+		{"passive echo", "CI", "checks", `echo "buf breaking: clean against main."`},
+		{"make target", "CI", "checks", "make buf-breaking"},
+		{"version check", "CI", "checks", "buf --version"},
+		{"install", "CI", "checks", "go install github.com/bufbuild/buf/cmd/buf@latest"},
+		{"file arguments", "CI", "checks", "git diff buf breaking.txt"},
+		{"unrelated commands across lines", "CI", "checks", "docker push registry.dev/buf\nbreaking check"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+name: `+tt.workflowName+`
+on: pull_request
+jobs:
+  `+tt.job+`:
+    steps:
+`+runStep(tt.run))
+			assert.NotContains(t, verdicts, "Linter")
 		})
 	}
 }
@@ -924,6 +1628,36 @@ jobs:
   links:
     steps:
       - uses: lycheeverse/lychee-action@v2
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+// json-yaml-validate fails the build on an invalid file unless mode is warn.
+func TestJsonYamlValidateModeInputGradesCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "mode warn is advisory", input: "mode: warn", expected: Advisory},
+		{name: "mode fail is enforcing", input: "mode: fail", expected: Enforcing},
+		{name: "expression is unknown", input: "mode: ${{ inputs.mode }}", expected: Unknown},
+		{name: "comment is enforcing", input: `comment: "true"`, expected: Enforcing},
+		{name: "use_gitignore false is enforcing", input: "use_gitignore: false", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  validate:
+    steps:
+      - uses: GrantBirki/json-yaml-validate@v5
 `
 			if tc.input != "" {
 				workflow += "        with:\n          " + tc.input + "\n"
@@ -1063,6 +1797,39 @@ jobs:
 	}
 }
 
+func TestCheckSpellingActionInputsGradeCorrectly(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected Verdict
+	}{
+		{name: "default is enforcing", expected: Enforcing},
+		{name: "quit_without_error 1 is advisory", input: "quit_without_error: 1", expected: Advisory},
+		{name: "quit_without_error true is advisory", input: "quit_without_error: true", expected: Advisory},
+		{name: "quit_without_error 0 is enforcing", input: "quit_without_error: 0", expected: Enforcing},
+		{name: "use_sarif 1 is advisory", input: "use_sarif: 1", expected: Advisory},
+		{name: "use_sarif true is advisory", input: "use_sarif: true", expected: Advisory},
+		{name: "task comment is advisory", input: "task: comment", expected: Advisory},
+		{name: "task collapse_previous_comment is advisory", input: "task: collapse_previous_comment", expected: Advisory},
+		{name: "followup expression is unknown", input: "task: ${{ needs.spelling.outputs.followup }}", expected: Unknown},
+		{name: "suppress_push_for_open_pull_request stays enforcing", input: "suppress_push_for_open_pull_request: 1", expected: Enforcing},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  spelling:
+    steps:
+      - uses: check-spelling/check-spelling@v0.0.26
+`
+			if tc.input != "" {
+				workflow += "        with:\n          " + tc.input + "\n"
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
 // github-action-benchmark only comments on a regression unless fail-on-alert
 // is true, and its former name rhysd/ is still in older workflows.
 func TestGithubActionBenchmarkFailOnAlertGradesAdvisory(t *testing.T) {
@@ -1133,6 +1900,10 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 		return "    runs-on: ubuntu-latest\n    steps:\n      - " + strings.Join(lines, "\n        ") + "\n"
 	}
 	osv := "    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.0\n"
+	// A setup step does not break the build, but a following real run does.
+	setupThenBreaking := step("uses: bufbuild/buf-action@v1", "with:", "  setup_only: true") +
+		"      - run: buf breaking --against main\n"
+	bufBreakingAction := step("uses: bufbuild/buf-breaking-action@v1", "with:", "  against: .git#refs/heads/main")
 	for _, tt := range []struct {
 		name, category, job string
 		want                Verdict
@@ -1146,6 +1917,8 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 		{"zizmor", "Workflow Security", step("run: zizmor --format github --min-severity high ."), Enforcing},
 		{"buf setup only", "Linter", step("uses: bufbuild/buf-action@v1", "with:", "  setup_only: true"), Advisory},
 		{"buf action", "Linter", step("uses: bufbuild/buf-action@v1"), Enforcing},
+		{"buf breaking action", "Linter", bufBreakingAction, Enforcing},
+		{"buf setup then breaking run", "Linter", setupThenBreaking, Enforcing},
 		{"swiftlint fix", "Linter", step("run: docker run --rm -v $PWD:/work ghcr.io/realm/swiftlint:latest --fix"), Advisory},
 		{"swiftlint lenient", "Linter", step("run: swiftlint lint --lenient"), Advisory},
 		{"swiftlint strict", "Linter", step("run: swiftlint lint --strict"), Enforcing},
@@ -1191,6 +1964,12 @@ func TestToolFormsThatCannotFail(t *testing.T) {
 			assert.Equal(t, tt.want, verdicts[tt.category])
 		})
 	}
+	// The breaking action's finding names its own tool, not the lint sibling.
+	tools := gradeFileAssessments(t, parser.NewGithubParser(), ".github/workflows/checks.yml",
+		"on: pull_request\njobs:\n  checks:\n"+bufBreakingAction)["Linter"].Tools
+	require.Len(t, tools, 1)
+	assert.Equal(t, "buf breaking", tools[0].Name)
+	assert.Equal(t, Enforcing, tools[0].Verdict)
 }
 
 // basedpyright and pyrefly check fail on errors with no flag to turn it off.
@@ -1343,6 +2122,38 @@ jobs:
 	}
 }
 
+// syncpack's checking sub-commands exit 1 on a problem; fix and fix-mismatches
+// repair what they can and fail only on the rest; format without --check and
+// update check nothing.
+func TestSyncpackGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"syncpack lint":                      Enforcing,
+		"npx -y syncpack@15.3.3 lint":        Enforcing,
+		"syncpack list-mismatches":           Enforcing,
+		"syncpack format --check":            Enforcing,
+		"syncpack lint --dependencies fix":   Enforcing,
+		"syncpack lint && syncpack fix":      Enforcing,
+		"syncpack fix":                       Partial,
+		"syncpack fix --dry-run":             Partial,
+		"syncpack fix-mismatches":            Partial,
+		"npx -y syncpack@15.3.3 fix":         Partial,
+		"syncpack-fix-mismatches":            Partial,
+		"syncpack lint || true":              Advisory,
+		"syncpack format":                    "",
+		"syncpack update":                    "",
+		"syncpack format && syncpack update": "",
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  deps:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 // The crate-ci/typos action fails on typos unless write_changes fixes them
 // away; a non-literal write_changes input cannot be graded.
 func TestTyposActionWriteChangesInputGradesCorrectly(t *testing.T) {
@@ -1371,6 +2182,59 @@ jobs:
 	}
 }
 
+// ast-grep scan exits 1 when a rule at the error level matches; --update-all
+// fixes the matches it can, and --warning/--info/--hint/--off lower every
+// rule, so nothing can fail.
+func TestAstGrepScanGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"ast-grep scan":                 Enforcing,
+		"ast-grep scan --format github": Enforcing,
+		"sg scan --json=compact":        Enforcing,
+		"ast-grep scan --error":         Enforcing,
+		"ast-grep scan --update-all":    Advisory,
+		"ast-grep scan -U":              Advisory,
+		"ast-grep scan --warning":       Advisory,
+		"ast-grep scan --off":           Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  structure:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+func TestAstGrepActionGradesEnforcing(t *testing.T) {
+	verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  structure:
+    steps:
+      - uses: ast-grep/action@v1.5.0
+        with:
+          version: 0.42.0
+`)
+	assert.Equal(t, Enforcing, verdicts["Linter"])
+}
+
+// ast-grep test checks the rules against their own examples and ast-grep run
+// is a one-off search; neither checks the repository's code.
+func TestAstGrepTestAndRunAreNotALinter(t *testing.T) {
+	for _, run := range []string{"ast-grep test", "ast-grep run -p 'console.log($A)' src"} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  structure:
+    steps:
+      - run: `+run+`
+`)
+		assert.NotContains(t, verdicts, "Linter", run)
+	}
+}
+
 func TestTerraformDocsExitsZeroUnlessOutputCheck(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"terraform-docs --output-check .":                             Enforcing,
@@ -1389,6 +2253,36 @@ jobs:
 	}
 }
 
+func TestTaploCheckGradesEnforcing(t *testing.T) {
+	for _, run := range []string{
+		"taplo fmt --check --diff",
+		`taplo lint --schema "file://${GITHUB_WORKSPACE}/schema.json" presets/*.toml`,
+		"npx --yes @taplo/cli@0.7.0 fmt --check",
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  toml:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, Enforcing, verdicts["Linter"], run)
+	}
+}
+
+func TestTaploFmtWithoutCheckIsNotALinter(t *testing.T) {
+	for _, run := range []string{"taplo fmt", "taplo fmt --diff"} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  toml:
+    steps:
+      - run: `+run+`
+`)
+		assert.NotContains(t, verdicts, "Linter", run)
+	}
+}
+
 func TestTerraformDocsActionFailOnDiff(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
@@ -1404,6 +2298,134 @@ func TestTerraformDocsActionFailOnDiff(t *testing.T) {
 			workflow := "on: pull_request\njobs:\n  docs:\n    steps:\n      - uses: terraform-docs/gh-actions@v1.4.1\n"
 			if tc.inputs != "" {
 				workflow += "        with:\n" + tc.inputs
+			}
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
+			assert.Equal(t, tc.expected, verdicts["Linter"])
+		})
+	}
+}
+
+// check-jsonschema validates JSON, YAML, and TOML schemas and exits 1 on failure.
+func TestCheckJsonschemaGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml": Enforcing,
+		"uvx check-jsonschema --schemafile schema.json data.json":                    Enforcing,
+		"check-jsonschema --disable-formats '*' --schemafile schema.json data.json":  Enforcing,
+		"check-github-workflows": Enforcing,
+		"check-dependabot":       Enforcing,
+		"check-jsonschema --builtin-schema vendor.dependabot .github/dependabot.yml || true": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+func TestGcovrGradesByTriggers(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"gcovr --root . --xml-pretty -o coverage.xml":         Enforcing,
+		"gcovr -r . --fail-under-line 80":                     Enforcing,
+		"uv run --locked gcovr --root . --txt":                Enforcing,
+		"gcovr --root . --xml-pretty -o coverage.xml || true": Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  coverage:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Coverage"], run)
+	}
+}
+
+func TestGcovrActionGradesEnforcing(t *testing.T) {
+	for _, with := range []string{
+		"",
+		"\n        with:\n          fail-under-line: 80",
+	} {
+		t.Run(with, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  coverage:
+    steps:
+      - uses: threeal/gcovr-action@v1.2.0`+with+`
+`)
+			assert.Equal(t, Enforcing, verdicts["Coverage"])
+		})
+	}
+}
+
+// oasdiff exits 0 on breaking changes unless --fail-on or -o is given.
+func TestOasdiffExitsZeroUnlessFailOn(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"oasdiff breaking base.yaml revision.yaml":                             Advisory,
+		"oasdiff breaking --fail-on ERR base.yaml revision.yaml":               Enforcing,
+		"oasdiff breaking -o WARN base.yaml revision.yaml":                     Enforcing,
+		"oasdiff breaking-files openapi.yaml --base origin/main --fail-on ERR": Enforcing,
+		"oasdiff --config ci/oasdiff.yaml breaking base.yaml revision.yaml":    Unknown,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  api:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+// oasdiff/oasdiff-action/breaking exits 0 unless fail-on is set.
+func TestOasdiffActionFailOnGradesAdvisory(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		uses     string
+		input    string
+		expected Verdict
+	}{
+		{
+			name:     "fail-on ERR is enforcing",
+			uses:     "oasdiff/oasdiff-action/breaking@v0",
+			input:    "fail-on: ERR",
+			expected: Enforcing,
+		},
+		{
+			name:     "fail-on warn is enforcing",
+			uses:     "oasdiff/oasdiff-action/breaking@v0",
+			input:    "fail-on: warn",
+			expected: Enforcing,
+		},
+		{
+			name:     "without fail-on is advisory",
+			uses:     "oasdiff/oasdiff-action/breaking@v0",
+			expected: Advisory,
+		},
+		{
+			name:     "dynamic fail-on is unknown",
+			uses:     "oasdiff/oasdiff-action/breaking@v0",
+			input:    "fail-on: ${{ inputs.fail-on }}",
+			expected: Unknown,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			workflow := `on: pull_request
+jobs:
+  api:
+    steps:
+      - uses: ` + tc.uses + `
+        with:
+          base: base.yaml
+          revision: revision.yaml
+`
+			if tc.input != "" {
+				workflow += "          " + tc.input + "\n"
 			}
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", workflow)
 			assert.Equal(t, tc.expected, verdicts["Linter"])

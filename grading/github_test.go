@@ -2296,6 +2296,26 @@ func TestTerraformDocsActionFailOnDiff(t *testing.T) {
 	}
 }
 
+// Import Linter fails when a configured import contract is broken.
+func TestImportLinterGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"lint-imports":                              Enforcing,
+		"lint-imports --config pyproject.toml":      Enforcing,
+		"uv run --directory api --dev lint-imports": Enforcing,
+		"import-linter lint":                        Enforcing,
+		"lint-imports || true":                      Advisory,
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  imports:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 // check-jsonschema validates JSON, YAML, and TOML schemas and exits 1 on failure.
 func TestCheckJsonschemaGradesCorrectly(t *testing.T) {
 	for run, expected := range map[string]Verdict{

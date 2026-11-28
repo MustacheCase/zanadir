@@ -27,6 +27,42 @@ func TestHasTriggerWithNoneCaptured(t *testing.T) {
 		t.Error("an artifact with no triggers should not report one")
 	}
 }
+
+// RuleRun drops the followed commands, whole, and keeps what surrounds them.
+func TestRuleRunDropsFollowedCommands(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		run      string
+		followed []FollowedCommand
+		want     string
+	}{
+		{"no followed commands", "npm run lint", nil, "npm run lint"},
+		{"followed command is the whole run", "npm run lint", []FollowedCommand{{Command: "npm run lint"}}, ""},
+		{"followed command before the expansion", "npm run lint\neslint .", []FollowedCommand{{Command: "npm run lint"}}, "\neslint ."},
+		{"boundaries on either side are kept", "a && npm run lint || true", []FollowedCommand{{Command: "npm run lint"}}, "a &&  || true"},
+		{"a longer command is not the followed one", "npm run lint:fix", []FollowedCommand{{Command: "npm run lint"}}, "npm run lint:fix"},
+		{"a followed command not in the run is ignored", "make", []FollowedCommand{{Command: "npm run lint"}}, "make"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := (&Job{Run: tc.run, Followed: tc.followed}).RuleRunFor(nil); got != tc.want {
+				t.Errorf("RuleRun() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestRuleRunKeepsWrapperWhenExpansionDoesNotMatch(t *testing.T) {
+	job := &Job{Run: "npm test\nnode scripts/runner.js", Followed: []FollowedCommand{{
+		Command: "npm test", Expansion: []string{"node scripts/runner.js"},
+	}}}
+	if got := job.RuleRunFor(func(line string) bool { return line == "eslint ." }); got != job.Run {
+		t.Errorf("RuleRunFor() = %q, want original run %q", got, job.Run)
+	}
+	if got := job.RuleRunFor(func(line string) bool { return line == "node scripts/runner.js" }); got != "\nnode scripts/runner.js" {
+		t.Errorf("RuleRunFor() = %q, want expansion only", got)
+	}
+}
+
 func TestJobCheckHelpers(t *testing.T) {
 	for check, want := range map[string]bool{"${{ matrix.tool }}": true, " ${{ a }} ${{ b }} ": true, "Analyze (${{ matrix.language }})": false, "lint": false, "": false} {
 		if got := (&Job{Check: check}).UnnamedCheck(); got != want {

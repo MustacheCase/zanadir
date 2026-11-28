@@ -181,9 +181,7 @@ func Grade(finding *matcher.Finding) Verdict {
 	shipping := finding.Category == string(models.SupplyChain)
 	if job := finding.Job; job != nil {
 		// The shell's way of saying continue-on-error: "|| true", "if ! …".
-		if job.ContinueOnError || finding.Rule != nil && finding.Rule.Regex != nil && shell.Swallowed(job.Run, func(command string) bool {
-			return len(matcher.Commands(command, finding.Rule)) > 0
-		}) {
+		if job.ContinueOnError || runIsSwallowed(finding.Rule, job) {
 			return Advisory
 		}
 		// A manual step may be the release itself; the file cannot say.
@@ -212,6 +210,14 @@ func Grade(finding *matcher.Finding) Verdict {
 		return gradeShipping(finding.Artifact)
 	}
 	return gradeTriggers(finding.Artifact)
+}
+
+func runIsSwallowed(rule *rules.Rule, job *models.Job) bool {
+	if rule == nil || rule.Regex == nil {
+		return false
+	}
+	run := job.RuleRunFor(func(expanded string) bool { return len(matcher.Commands(expanded, rule)) > 0 })
+	return shell.Swallowed(run, func(command string) bool { return len(matcher.Commands(command, rule)) > 0 })
 }
 
 // weakenedRuns grades a step weakened only when every run of the tool in it
@@ -248,10 +254,11 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 
 	// A step matched by its name or action, with no command of the tool's
 	// own, is read whole.
-	commands := []string{job.Run}
+	run := job.RuleRunFor(func(expanded string) bool { return len(matcher.Commands(expanded, rule)) > 0 })
+	commands := []string{run}
 	var matched []string
 	if rule.Regex != nil {
-		if matched = matcher.Commands(job.Run, rule); len(matched) > 0 {
+		if matched = matcher.Commands(run, rule); len(matched) > 0 {
 			env := envAssignments(rule, job.Env)
 			for i, command := range matched {
 				matched[i] = env + shell.NormalizeCommand(command)
@@ -259,7 +266,7 @@ func toolSpecific(rule *rules.Rule, job *models.Job, configs map[string]bool) (V
 			commands = matched
 		}
 	}
-	if verdict, weakened := weakenedRuns(rule.Weakened, job.Run, commands); weakened {
+	if verdict, weakened := weakenedRuns(rule.Weakened, run, commands); weakened {
 		return verdict, true
 	}
 	for _, check := range rule.Weakened {
@@ -594,7 +601,7 @@ func missedCode(finding *matcher.Finding) string {
 		return ""
 	}
 	var named, covered []string
-	for _, command := range matcher.Commands(job.Run, rule) {
+	for _, command := range matcher.Commands(job.RuleRunFor(func(expanded string) bool { return len(matcher.Commands(expanded, rule)) > 0 }), rule) {
 		for _, flag := range languageFlag.FindAllStringSubmatch(command, -1) {
 			for _, name := range strings.Split(strings.ToLower(flag[1]), ",") {
 				analysed, known := rule.Languages[name]

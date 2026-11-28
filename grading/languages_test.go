@@ -1,6 +1,7 @@
 package grading
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/MustacheCase/zanadir/matcher"
@@ -58,4 +59,23 @@ func TestMissedCodeNeedsAStepOfARuleWithLanguages(t *testing.T) {
 	} {
 		assert.Empty(t, missedCode(f))
 	}
+}
+
+func TestMissedCodeUsesMatchingFollowedExpansion(t *testing.T) {
+	rule := &rules.Rule{
+		Regex:     regexp.MustCompile(`(?i)\bcodeql\b`),
+		Languages: map[string][]string{"python": {"Python"}},
+	}
+	job := &models.Job{
+		Run: "make analyze\ncodeql database create --language=python",
+		Followed: []models.FollowedCommand{{
+			Command:   "make analyze",
+			Expansion: []string{"codeql database create --language=python"},
+		}},
+	}
+	finding := &matcher.Finding{
+		Rule: rule, Job: job,
+		Artifact: &models.Artifact{Languages: []string{"Python"}},
+	}
+	assert.Empty(t, missedCode(finding))
 }

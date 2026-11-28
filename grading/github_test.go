@@ -816,6 +816,27 @@ jobs:
 }
 
 // awesome_bot exits 1 on a dead or duplicate link; no flag makes it exit 0.
+func TestAttwGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx @arethetypeswrong/cli --pack .":                                   Enforcing,
+		"attw --pack . --format json":                                          Enforcing,
+		"pnpm exec attw ./package.tgz --format table --ignore-rules false-esm": Enforcing,
+		"attw --pack . --profile node16":                                       Enforcing,
+		"bunx attw package.tgz || true":                                        Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  package:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
 func TestAwesomeBotGradesCorrectly(t *testing.T) {
 	for run, expected := range map[string]Verdict{
 		"awesome_bot README.md --allow-dupe --allow-redirect": Enforcing,
@@ -848,6 +869,29 @@ jobs:
           args: --allow-dupe README.md`+extra+`
 `)
 		assert.Equal(t, expected, verdicts["Linter"], extra)
+	}
+}
+
+// publint exits 1 on packaging errors; --strict makes warnings fail too, and
+// --level only filters what is printed.
+func TestPublintGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx publint":                      Enforcing,
+		"npx publint --strict":             Enforcing,
+		"npx publint --level=error":        Enforcing,
+		"pnpm exec publint --pack false .": Enforcing,
+		"npx publint || true":              Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  package:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
 	}
 }
 
@@ -942,6 +986,29 @@ func TestCargoUdepsGradesCorrectly(t *testing.T) {
 		"cargo +nightly udeps --all-targets":      Enforcing,
 		"cargo udeps --all-targets --output json": Enforcing,
 		"cargo udeps --all-targets || true":       Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+// cargo-shear exits 1 on findings, including the ones --fix removes.
+func TestCargoShearGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"cargo shear":                                           Enforcing,
+		"cargo shear --deny-warnings":                           Enforcing,
+		"cargo shear --fix":                                     Enforcing,
+		"cargo shear || true":                                   Advisory,
+		"cargo shear --format=json > shear-results.json":        Enforcing,
+		"uv run --only-group check cargo-shear --deny-warnings": Enforcing,
 	} {
 		t.Run(run, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
@@ -2039,6 +2106,38 @@ func TestTyposWriteChangesGradesAdvisory(t *testing.T) {
 on: pull_request
 jobs:
   spelling:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
+// syncpack's checking sub-commands exit 1 on a problem; fix and fix-mismatches
+// repair what they can and fail only on the rest; format without --check and
+// update check nothing.
+func TestSyncpackGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"syncpack lint":                      Enforcing,
+		"npx -y syncpack@15.3.3 lint":        Enforcing,
+		"syncpack list-mismatches":           Enforcing,
+		"syncpack format --check":            Enforcing,
+		"syncpack lint --dependencies fix":   Enforcing,
+		"syncpack lint && syncpack fix":      Enforcing,
+		"syncpack fix":                       Partial,
+		"syncpack fix --dry-run":             Partial,
+		"syncpack fix-mismatches":            Partial,
+		"npx -y syncpack@15.3.3 fix":         Partial,
+		"syncpack-fix-mismatches":            Partial,
+		"syncpack lint || true":              Advisory,
+		"syncpack format":                    "",
+		"syncpack update":                    "",
+		"syncpack format && syncpack update": "",
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  deps:
     steps:
       - run: `+run+`
 `)

@@ -28,14 +28,22 @@ type Expander struct {
 
 	workspaceDirs map[string][]string
 
-	seen  map[string]bool
-	lines []string
-	depth int
+	seen     map[string]bool
+	lines    []string
+	followed []FollowedCommand
+	depth    int
 	// ignoring counts the wrappers, around what is being followed, that
 	// discard a failure.
 	ignoring int
 	// hooked counts the pre-commit hooks around what is being followed.
 	hooked int
+}
+
+// FollowedCommand pairs a command replaced by expansion with the lines it
+// produced, so callers can keep wrapper text for rules the expansion misses.
+type FollowedCommand struct {
+	Command   string
+	Expansion []string
 }
 
 // HookMark starts a command a pre-commit hook runs. pre-commit fails a hook
@@ -67,13 +75,24 @@ func (e *Expander) Expand(script string) string {
 // ExpandIn is Expand for a script that starts in dir, relative to the
 // repository root. A dir outside the repository is read as the root.
 func (e *Expander) ExpandIn(dir, script string) string {
-	e.seen, e.lines = map[string]bool{}, nil
+	e.seen, e.lines, e.followed = map[string]bool{}, nil, nil
 	start, ok := e.within(e.root, dir)
 	if !ok {
 		start = e.root
 	}
 	e.script(start, script)
 	return strings.Join(e.lines, "\n")
+}
+
+// Followed returns the commands of the last Expand that it replaced with the
+// commands they stand for, as written in the script. Those commands are not
+// tool runs in their own right: the expansion is what runs.
+func (e *Expander) Followed() []FollowedCommand {
+	followed := slices.Clone(e.followed)
+	for i := range followed {
+		followed[i].Expansion = slices.Clone(followed[i].Expansion)
+	}
+	return followed
 }
 
 func (e *Expander) script(dir, script string) {
@@ -96,7 +115,11 @@ func (e *Expander) script(dir, script string) {
 			}
 			continue
 		}
+		before := len(e.lines)
 		e.ignored(swallowed(command), func() { e.follow(dir, words) })
+		if len(e.lines) > before {
+			e.followed = append(e.followed, FollowedCommand{Command: command, Expansion: slices.Clone(e.lines[before:])})
+		}
 	}
 }
 

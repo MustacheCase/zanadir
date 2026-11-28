@@ -948,3 +948,104 @@ jobs:
 `)
 	assert.Equal(t, map[string]string{"TRIVY_EXIT_CODE": "1"}, unread.Jobs[0].Env)
 }
+
+// A run: step starts in its own working-directory, else its job's defaults,
+// else the workflow's. ${{ env.NAME }} is put in; any other expression is not
+// known, so the step is taken to start in the root.
+func TestParseRunStepWorkingDirectory(t *testing.T) {
+	tests := []struct {
+		name     string
+		workflow string
+		want     string
+	}{
+		{"none", `
+jobs:
+  a:
+    steps:
+      - run: make lint
+`, ""},
+		{"workflow defaults", `
+defaults:
+  run:
+    working-directory: web
+jobs:
+  a:
+    steps:
+      - run: make lint
+`, "web"},
+		{"job defaults win over the workflow's", `
+defaults:
+  run:
+    working-directory: web
+jobs:
+  a:
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - run: make lint
+`, "api"},
+		{"the step's own wins", `
+defaults:
+  run:
+    working-directory: web
+jobs:
+  a:
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - run: make lint
+        working-directory: cli
+`, "cli"},
+		{"env reference", `
+env:
+  APP: services/app
+jobs:
+  a:
+    steps:
+      - run: make lint
+        working-directory: ${{ env.APP }}/src
+`, "services/app/src"},
+		{"job env reference", `
+jobs:
+  a:
+    env:
+      APP: services/app
+    defaults:
+      run:
+        working-directory: ${{env.APP}}
+    steps:
+      - run: make lint
+`, "services/app"},
+		{"unknown env reference", `
+jobs:
+  a:
+    steps:
+      - run: make lint
+        working-directory: ${{ env.MISSING }}
+`, ""},
+		{"other expression", `
+jobs:
+  a:
+    steps:
+      - run: make lint
+        working-directory: ${{ matrix.dir }}
+`, ""},
+		{"unreadable defaults", `
+defaults: [run]
+jobs:
+  a:
+    steps:
+      - run: make lint
+`, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			artifact := parseOne(t, "name: w\non: push\n"+strings.TrimPrefix(tt.workflow, "\n"))
+			require.Len(t, artifact.Jobs, 1)
+			assert.Equal(t, "make lint", artifact.Jobs[0].Run)
+			assert.Equal(t, tt.want, artifact.Jobs[0].WorkingDirectory)
+		})
+	}
+}

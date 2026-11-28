@@ -22,9 +22,46 @@ type workflowDef struct {
 	Name string
 	// yaml.v3 keeps "on" a string key rather than folding it to a boolean the
 	// way YAML 1.1 would, so the field needs no alias.
-	On   yaml.Node                 `yaml:"on"`
-	Env  envMap                    `yaml:"env"`
-	Jobs map[string]workflowJobDef `yaml:"jobs"`
+	On       yaml.Node                 `yaml:"on"`
+	Env      envMap                    `yaml:"env"`
+	Defaults defaultsDef               `yaml:"defaults"`
+	Jobs     map[string]workflowJobDef `yaml:"jobs"`
+}
+
+// defaultsDef is a defaults: block. Its working-directory is where run: steps
+// start unless they name their own. One that cannot be read is left out.
+type defaultsDef struct {
+	workingDirectory string
+}
+
+func (d *defaultsDef) UnmarshalYAML(node *yaml.Node) error {
+	var defaults struct {
+		Run struct {
+			WorkingDirectory string `yaml:"working-directory"`
+		} `yaml:"run"`
+	}
+	if node.Decode(&defaults) == nil {
+		d.workingDirectory = defaults.Run.WorkingDirectory
+	}
+	return nil
+}
+
+var wholeEnvRef = regexp.MustCompile(`\$\{\{\s*env\.([A-Za-z_][\w-]*)\s*\}\}`)
+
+// workingDirectory is where a run: step starts, its own or the defaults'.
+// ${{ env.NAME }} is put in from env; any other expression cannot be read,
+// so the step is taken to start in the root.
+func workingDirectory(dir string, env map[string]string) string {
+	dir = wholeEnvRef.ReplaceAllStringFunc(dir, func(ref string) string {
+		if value, ok := env[wholeEnvRef.FindStringSubmatch(ref)[1]]; ok {
+			return value
+		}
+		return ref
+	})
+	if strings.Contains(dir, "${{") {
+		return ""
+	}
+	return dir
 }
 
 type workflowJobDef struct {
@@ -35,19 +72,21 @@ type workflowJobDef struct {
 	Needs           stringList      `yaml:"needs"`
 	With            map[string]any  `yaml:"with"`
 	Env             envMap          `yaml:"env"`
+	Defaults        defaultsDef     `yaml:"defaults"`
 	Steps           []stepDef       `yaml:"steps"`
 }
 
 type stepDef struct {
-	ID              string          `yaml:"id"`
-	Name            string          `yaml:"name"`
-	Uses            usesRef         `yaml:"uses"`
-	Run             string          `yaml:"run"`
-	If              string          `yaml:"if"`
-	ContinueOnError continueOnError `yaml:"continue-on-error"`
-	With            map[string]any  `yaml:"with"`
-	Env             envMap          `yaml:"env"`
-	Parallel        []stepDef       `yaml:"parallel"`
+	ID               string          `yaml:"id"`
+	Name             string          `yaml:"name"`
+	Uses             usesRef         `yaml:"uses"`
+	Run              string          `yaml:"run"`
+	WorkingDirectory string          `yaml:"working-directory"`
+	If               string          `yaml:"if"`
+	ContinueOnError  continueOnError `yaml:"continue-on-error"`
+	With             map[string]any  `yaml:"with"`
+	Env              envMap          `yaml:"env"`
+	Parallel         []stepDef       `yaml:"parallel"`
 }
 
 // flatSteps lists the steps of parallel: groups in place of the group. Each
@@ -487,6 +526,8 @@ func (g *GithubParser) parseGithubWorkflow(root, filePath string) (*models.Artif
 			// Tools invoked directly, e.g. "trivy fs .", only appear in Run.
 			if step.Run != "" {
 				record.Run = step.Run
+				record.WorkingDirectory = workingDirectory(cmp.Or(step.WorkingDirectory,
+					job.Defaults.workingDirectory, wf.Defaults.workingDirectory), jobEnv)
 				jobs = append(jobs, record)
 				continue
 			}

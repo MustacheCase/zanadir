@@ -123,6 +123,17 @@ func TestMakeFindsTheMakefile(t *testing.T) {
 	assert.Nil(t, expand(t, files, "cd /etc && make lint"))
 }
 
+func TestExpandInStartsFromTheDirectory(t *testing.T) {
+	expander := wrapper.New(testrepo.Write(t, map[string]string{
+		"Makefile":     "lint:\n\teslint .\n",
+		"sub/Makefile": "lint:\n\tgolangci-lint run\n",
+	}))
+	assert.Equal(t, "golangci-lint run", expander.ExpandIn("sub", "make lint"))
+	assert.Equal(t, "eslint .", expander.ExpandIn("", "make lint"))
+	assert.Equal(t, "eslint .", expander.ExpandIn("../elsewhere", "make lint"), "outside the repository is read from the root")
+	assert.Equal(t, "eslint .", expander.ExpandIn("/etc", "make lint"))
+}
+
 // Containment used to be checked on a re-joined path while the original was
 // read, so a relative root or a symlink let a Makefile include escape.
 func TestMakeDoesNotReadOutsideTheRepository(t *testing.T) {

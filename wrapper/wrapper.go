@@ -69,8 +69,18 @@ func New(root string) *Expander {
 // Expand returns the commands that a script's make, task and tox calls stand
 // for, one per line.
 func (e *Expander) Expand(script string) string {
+	return e.ExpandIn("", script)
+}
+
+// ExpandIn is Expand for a script that starts in dir, relative to the
+// repository root. A dir outside the repository is read as the root.
+func (e *Expander) ExpandIn(dir, script string) string {
 	e.seen, e.lines, e.followed = map[string]bool{}, nil, nil
-	e.script(e.root, script)
+	start, ok := e.within(e.root, dir)
+	if !ok {
+		start = e.root
+	}
+	e.script(start, script)
 	return strings.Join(e.lines, "\n")
 }
 
@@ -212,7 +222,9 @@ func (e *Expander) once(key string) bool {
 
 // within resolves path against dir, refusing anything outside the repository.
 func (e *Expander) within(dir, path string) (string, bool) {
-	if !filepath.IsAbs(path) {
+	// A shell path starting with "/" is absolute; on Windows filepath.IsAbs
+	// also wants a drive letter, and joining would keep "/etc" in the root.
+	if !filepath.IsAbs(path) && !strings.HasPrefix(path, "/") {
 		path = filepath.Join(dir, path)
 	}
 	rel, err := filepath.Rel(e.root, path)

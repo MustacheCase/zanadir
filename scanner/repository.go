@@ -31,7 +31,7 @@ func (r *RepositoryScanner) Scan(root string) ([]*models.Artifact, error) {
 	wrappers := wrapper.New(root)
 	for _, a := range artifacts {
 		for _, job := range a.Jobs {
-			if wrapped := wrappers.Expand(job.Run); wrapped != "" {
+			if wrapped := wrappers.ExpandIn(job.WorkingDirectory, job.Run); wrapped != "" {
 				// Expanded commands carry their own || true; a set +e left on
 				// in the script does not reach them.
 				if shell.EndsRelaxed(job.Run) {

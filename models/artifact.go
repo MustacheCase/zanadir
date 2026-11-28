@@ -58,6 +58,9 @@ type Job struct {
 	Version string
 	// Run is the shell command of a step that invokes a tool directly.
 	Run string
+	// WorkingDirectory is where Run starts, relative to the repository root.
+	// Empty is the root.
+	WorkingDirectory string
 	// Followed are the commands in Run that stand for a package script or
 	// build target, and the lines each one expanded to. Rules drop a wrapper
 	// only when its expansion matches that rule; otherwise the wrapper text

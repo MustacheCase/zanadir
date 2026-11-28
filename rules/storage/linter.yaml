@@ -778,3 +778,12 @@ rules:
     weakenedWhen:
       - runMatches: "(?i)(?:^|[\\s/\"'])(?:syncpack(?:@[\\w.-]+)?[ \\t]+fix(?:-mismatches)?|syncpack-fix-mismatches)(?:[\\s\"']|$)"
         verdict: "partial"
+
+  # Import Linter checks Python imports against configured contracts. Only
+  # lint-imports and the import-linter lint subcommand perform the check;
+  # explore, drawgraph and the bare import-linter command do not.
+  - id: "import-linter-rule"
+    name: "Import Linter"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?im)^(?:(?:if|elif|while|until|!)\\s+)*(?:(?:uvx|uv\\s+(?:run|tool\\s+run)|poetry\\s+run|pdm\\s+run|hatch\\s+run|pipx\\s+run|pipenv\\s+run|rye\\s+run)(?:\\s+(?:--(?:directory|from|spec|group|python|project|with|index-url|default-index)(?:=|\\s+)\\S+|--\\S+))*\\s+)?(?:\\S*/)?(?:lint-imports|import-linter\\s+lint)(?:\\s|$)"

@@ -2274,6 +2274,40 @@ jobs:
 	}
 }
 
+// zig fmt --check prints the files that are not formatted and exits 1.
+func TestZigFmtCheckGradesEnforcing(t *testing.T) {
+	for _, run := range []string{
+		"zig fmt --check .",
+		"nix develop -c zig fmt --check .",
+		"zig fmt --check --ast-check src",
+		"zig fmt src build.zig --check",
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  format:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, Enforcing, verdicts["Linter"], run)
+	}
+}
+
+// Without --check, zig fmt rewrites the files and exits 0, and zig build fmt
+// runs a step from build.zig that zanadir does not read.
+func TestZigFmtWithoutCheckIsNotALinter(t *testing.T) {
+	for _, run := range []string{"zig fmt .", "zig fmt --ast-check src", "zig build fmt"} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  format:
+    steps:
+      - run: `+run+`
+`)
+		assert.NotContains(t, verdicts, "Linter", run)
+	}
+}
+
 func TestTerraformDocsActionFailOnDiff(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

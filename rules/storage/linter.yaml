@@ -466,6 +466,27 @@ rules:
     categories: ["Linter"]
     regex: "(?i)(?:^|[\\s/])awesome_bot(?:[\\s:@]|$)"
 
+  # publint checks package.json (exports, main, module, types, files) against
+  # the files npm pack would publish. It exits 1 on any error and no flag stops
+  # that; --strict makes warnings fail too, while --level only filters what is
+  # printed and --pack or a tarball path only changes what is read. Match it
+  # only as the program being run, optionally after a path and with a version:
+  # the path excludes ":" so package URLs, @publint/pack, script names such as
+  # publint:all and DSH_PUBLINT_CONCURRENCY don't match, and matching is
+  # case-sensitive because the program is lower case. A job or step named
+  # publint says nothing about how the step runs, so no Artifact.Name or
+  # Job.Package.
+  - id: "publint-rule"
+    name: "publint"
+    applyOn: ["Job.Run"]
+    categories: ["Linter"]
+    regex: "(?:^|\\s)(?:[^\\s:]*/)?publint(?:@\\S+)?(?:\\s|$)"
+    # npm run publint and the package managers that forward to it match the
+    # regex too. zanadir runs the script's own commands and keeps the
+    # strongest verdict, so the wrapper command is excepted; otherwise a
+    # script ending in "|| true" would still look enforcing.
+    unless: "(?:^|\\s)run(?:\\s+-\\S+)*\\s+publint(?:\\s|$)"
+
   # codespell exits non-zero on a misspelling. CSpell (cspell) is a different tool,
   # and .codespellrc / codespell_lib are not runs of it.
   - id: "codespell-rule"

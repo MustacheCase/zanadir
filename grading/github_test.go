@@ -872,6 +872,29 @@ jobs:
 	}
 }
 
+// publint exits 1 on packaging errors; --strict makes warnings fail too, and
+// --level only filters what is printed.
+func TestPublintGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"npx publint":                      Enforcing,
+		"npx publint --strict":             Enforcing,
+		"npx publint --level=error":        Enforcing,
+		"pnpm exec publint --pack false .": Enforcing,
+		"npx publint || true":              Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  package:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
 func TestVultureActionGradesEnforcing(t *testing.T) {
 	for _, with := range []string{
 		"",
@@ -963,6 +986,29 @@ func TestCargoUdepsGradesCorrectly(t *testing.T) {
 		"cargo +nightly udeps --all-targets":      Enforcing,
 		"cargo udeps --all-targets --output json": Enforcing,
 		"cargo udeps --all-targets || true":       Advisory,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
+// cargo-shear exits 1 on findings, including the ones --fix removes.
+func TestCargoShearGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"cargo shear":                                           Enforcing,
+		"cargo shear --deny-warnings":                           Enforcing,
+		"cargo shear --fix":                                     Enforcing,
+		"cargo shear || true":                                   Advisory,
+		"cargo shear --format=json > shear-results.json":        Enforcing,
+		"uv run --only-group check cargo-shear --deny-warnings": Enforcing,
 	} {
 		t.Run(run, func(t *testing.T) {
 			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `

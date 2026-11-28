@@ -979,6 +979,29 @@ jobs:
 	}
 }
 
+// cargo-shear exits 1 on findings, including the ones --fix removes.
+func TestCargoShearGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"cargo shear":                                           Enforcing,
+		"cargo shear --deny-warnings":                           Enforcing,
+		"cargo shear --fix":                                     Enforcing,
+		"cargo shear || true":                                   Advisory,
+		"cargo shear --format=json > shear-results.json":        Enforcing,
+		"uv run --only-group check cargo-shear --deny-warnings": Enforcing,
+	} {
+		t.Run(run, func(t *testing.T) {
+			verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  lint:
+    steps:
+      - run: `+run+`
+`)
+			assert.Equal(t, expected, verdicts["Linter"], run)
+		})
+	}
+}
+
 // The cargo-machete action runs the binary, which fails on findings.
 func TestCargoMacheteActionGradesCorrectly(t *testing.T) {
 	for with, expected := range map[string]Verdict{

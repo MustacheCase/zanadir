@@ -2052,6 +2052,9 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"terraform fmt -check -recursive", "tofu fmt -recursive -check -diff", "shfmt -i 4 -ci -sr -d scripts", "shfmt --diff .",
 				"clang-format --dry-run --Werror src/a.c", "clang-format-18 -n --Werror src/a.c", "clang-format --Werror --dry-run a.c",
 				"mvn spotless:check", "./gradlew spotlessCheck", "dprint check", "oxfmt --check .", "mix format --check-formatted", "deno fmt --check",
+				"zig fmt --check .", "nix develop -c zig fmt --check .", "zig fmt --check build.zig build.zig.zon src orderfile",
+				"zig fmt --check --ast-check src", "zig fmt --exclude zig-pkg --check .", "zig fmt src build.zig --check",
+				"/opt/zig/zig fmt --check src", "zig fmt --check --stdin", "zig fmt --ast-check --check src", "Zig Fmt --check .",
 				"dprint/check", "DoozyX/clang-format-lint-action",
 			},
 			shouldNotMatch: []string{
@@ -2059,6 +2062,8 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"dotnet format", "dart format lib", "terraform fmt -recursive", "shfmt -w .", "shfmt -l .", "clang-format -i src/a.c",
 				"clang-format --Werror -i src/a.c", "mvn spotless:apply", "dprint fmt", "oxfmt .", "mix format", "deno fmt",
 				"gofmt -l .", "ruff check --select black", "echo blacklist --check", "dprint/check-extra",
+				"zig fmt .", "zig fmt src build.zig", "zig fmt --ast-check src", "zig fmt --stdin", "zig build fmt", "zig build test",
+				"zig build -Dcheck=true test", "zig ast-check src/main.zig", "zig fmt --checked src", "zig build fmt --check",
 			},
 		},
 		{

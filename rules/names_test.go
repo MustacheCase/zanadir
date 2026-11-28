@@ -86,6 +86,7 @@ func TestToolNamesWhatMatched(t *testing.T) {
 		{"formatter-check-rule", "terraform fmt -check -recursive", "terraform fmt"},
 		{"formatter-check-rule", "./gradlew spotlessCheck", "spotless"},
 		{"formatter-check-rule", "dprint/check", "dprint"},
+		{"formatter-check-rule", "nix develop -c zig fmt --check .", "zig fmt"},
 		{"pre-commit-rule", "pre-commit/action", "pre-commit"},
 		{"pre-commit-rule", "prek --all-files", "prek"},
 		{"os-code-signing-rule", `codesign -f -s "$IDENTITY" App.app`, "codesign"},

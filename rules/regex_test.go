@@ -2294,6 +2294,41 @@ func TestRuleRegexPrecision(t *testing.T) {
 				"docker://ghcr.io/grantbirki/json-yaml-validate",
 			},
 		},
+		{
+			ruleID: "attw-rule",
+			shouldMatch: []string{
+				"attw --pack .",
+				"attw --pack . --profile node16",
+				"attw -P",
+				"attw ./package.tgz",
+				"attw --from-npm my-package@1.2.3",
+				"pnpm exec attw ./package.tgz --format table --ignore-rules false-esm",
+				"bunx attw package.tgz",
+				"yarn attw --pack .",
+				"./node_modules/.bin/attw --pack . -f json",
+				"npx -p @arethetypeswrong/cli attw --pack .",
+				"npx @arethetypeswrong/cli --pack .",
+				"npx --yes @arethetypeswrong/cli --pack . --ignore-rules cjs-resolves-to-esm --profile esm-only",
+				"pnpm dlx @arethetypeswrong/cli@0.18.5 --pack .",
+				"pnpm dlx @arethetypeswrong/cli",
+				"npx @arethetypeswrong/cli@latest ${{ needs.build.outputs.artifact }} --format table",
+			},
+			shouldNotMatch: []string{
+				"pnpm attw:all",
+				"pnpm test:attw",
+				"vp run test:attw",
+				"node ../../scripts/test-attw.ts",
+				"pnpm nx run-many -t check-types,publint,attw -p @copilotkit/intelligence-mastra --parallel=1",
+				"tsdown --attw",
+				"npx @arethetypeswrong/core",
+				"cat .attw.json",
+				"npx attw-report",
+				"attwood",
+				"mattw --help-me",
+				"ATTW_FULL=true node scripts/check.mjs",
+				"git clone https://github.com/arethetypeswrong/arethetypeswrong.github.io",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2322,6 +2357,12 @@ func TestRuleUnlessExceptsLookalikeCommands(t *testing.T) {
 	assert.NoError(t, err)
 
 	for id, excepted := range map[string][]string{
+		"attw-rule": {
+			"pnpm run attw",
+			"npm run attw",
+			"yarn run attw",
+			"lerna run attw --scope @refinedev/*",
+		},
 		"buildifier-rule": {
 			"pre-commit run buildifier --all-files",
 			"prek run buildifier --all-files",

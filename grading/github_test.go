@@ -2092,6 +2092,38 @@ jobs:
 	}
 }
 
+// syncpack's checking sub-commands exit 1 on a problem; fix and fix-mismatches
+// repair what they can and fail only on the rest; format without --check and
+// update check nothing.
+func TestSyncpackGradesCorrectly(t *testing.T) {
+	for run, expected := range map[string]Verdict{
+		"syncpack lint":                      Enforcing,
+		"npx -y syncpack@15.3.3 lint":        Enforcing,
+		"syncpack list-mismatches":           Enforcing,
+		"syncpack format --check":            Enforcing,
+		"syncpack lint --dependencies fix":   Enforcing,
+		"syncpack lint && syncpack fix":      Enforcing,
+		"syncpack fix":                       Partial,
+		"syncpack fix --dry-run":             Partial,
+		"syncpack fix-mismatches":            Partial,
+		"npx -y syncpack@15.3.3 fix":         Partial,
+		"syncpack-fix-mismatches":            Partial,
+		"syncpack lint || true":              Advisory,
+		"syncpack format":                    "",
+		"syncpack update":                    "",
+		"syncpack format && syncpack update": "",
+	} {
+		verdicts := gradeFile(t, parser.NewGithubParser(), ".github/workflows/ci.yml", `
+on: pull_request
+jobs:
+  deps:
+    steps:
+      - run: `+run+`
+`)
+		assert.Equal(t, expected, verdicts["Linter"], run)
+	}
+}
+
 // The crate-ci/typos action fails on typos unless write_changes fixes them
 // away; a non-literal write_changes input cannot be graded.
 func TestTyposActionWriteChangesInputGradesCorrectly(t *testing.T) {
